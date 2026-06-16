@@ -1,0 +1,30 @@
+{
+  "Host": {
+    "Address": "example.invalid",
+    "Port": 22
+  },
+  "Auth": {
+    "UserName": "deploy",
+    "Method": "privateKey",
+    "PrivateKeyFile": "vps01_ed25519"
+  },
+  "Connection": {
+    "TimeoutSeconds": 10
+  },
+  "Platform": {
+    "OsFamily": "debian"
+  },
+  "Mode": "Safe",
+  "Capabilities": [
+    "AllowListPackage"
+  ],
+  "AllowedRoots": {
+    "/var/www": "@Read|@Write|@List|@CD",
+    "/var/log": "@Read|@List"
+  },
+  "SpecialPaths": {
+    "**/.env": "Deny",
+    "**/.ssh/**": "Deny",
+    "/var/www/.well-known/**": "Allow"
+  }
+}

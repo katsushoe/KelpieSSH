@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>kelpie-web-permission-helper</AssemblyName>
+    <Authors>Akatsukisoft</Authors>
+    <Company>Akatsukisoft</Company>
+    <Copyright>Copyright (c) 2026 Akatsukisoft</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Version>0.1.0.4</Version>
+    <AssemblyVersion>0.1.0.4</AssemblyVersion>
+    <FileVersion>0.1.0.4</FileVersion>
+    <InformationalVersion>0.1.0.4</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>KelpieWebPermissionHelper</RootNamespace>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+</Project>

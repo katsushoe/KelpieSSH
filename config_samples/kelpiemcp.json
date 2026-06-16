@@ -1,0 +1,12 @@
+{
+  "AllowedHosts": "localhost;127.0.0.1;[::1]",
+  "LogDirectory": "/path/to/kelpieHome/logs",
+  "Server": {
+    "Port": 45432,
+    "ControlPipeName": "KelpieMCPServer.Control"
+  },
+  "Commands": {
+    "ExecutablePath": "/path/to/bin/mcp/KelpieMCPServer",
+    "WorkingDirectory": "/path/to/bin"
+  }
+}

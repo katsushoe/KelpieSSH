@@ -1,0 +1,1741 @@
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+
+namespace KelpieSSH.Application.Ssh;
+
+/// <summary>
+/// Provides safe read and write access to web public roots.
+/// </summary>
+public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
+{
+    private const string OptionalArgumentNone = "\u001fKELPIE_NONE\u001f";
+    private const string ListCommandName = "web_public_file_list_internal";
+    private const string StatCommandName = "web_public_file_stat_internal";
+    private const string CheckWriteCommandName = "web_public_file_check_write_internal";
+    private const string ReadCommandName = "web_public_file_read_internal";
+    private const string SliceCommandName = "web_public_file_slice_internal";
+    private const string WriteCommandName = "web_public_file_write_internal";
+    private const string WriteWithPermissionsCommandName = "web_public_file_write_with_permissions_internal";
+    private const string ChangeOwnerCommandName = "web_change_owner_internal";
+    private const string ChangeModeCommandName = "web_change_mode_internal";
+
+    private static readonly IReadOnlyDictionary<string, string> DefaultContentTypes =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [".html"] = "text/html",
+            [".htm"] = "text/html",
+            [".css"] = "text/css",
+            [".js"] = "text/javascript",
+            [".mjs"] = "text/javascript",
+            [".txt"] = "text/plain",
+            [".json"] = "application/json",
+            [".xml"] = "application/xml",
+            [".png"] = "image/png",
+            [".jpg"] = "image/jpeg",
+            [".jpeg"] = "image/jpeg",
+            [".webp"] = "image/webp",
+            [".gif"] = "image/gif",
+            [".svg"] = "image/svg+xml",
+            [".ico"] = "image/x-icon",
+            [".zip"] = "application/zip",
+            [".gz"] = "application/gzip",
+            [".tgz"] = "application/gzip",
+            [".tar"] = "application/x-tar",
+            [".bz2"] = "application/x-bzip2",
+            [".xz"] = "application/x-xz",
+            [".br"] = "application/x-brotli",
+        };
+
+    private static readonly IReadOnlySet<string> DeniedExtensions =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".php", ".cgi", ".pl", ".py", ".rb", ".sh", ".bash", ".exe", ".dll", ".so", ".jar", ".war",
+        };
+
+    private static readonly Regex LinuxPrincipalRegex = new(
+        @"^([A-Za-z_][A-Za-z0-9_-]{0,31}|[1-9][0-9]{0,9})$",
+        RegexOptions.CultureInvariant);
+
+    private static readonly Regex SearchNamePatternRegex = new(
+        @"^[A-Za-z0-9._*?@+-]{1,128}$",
+        RegexOptions.CultureInvariant);
+
+    private static readonly UTF8Encoding StrictUtf8Encoding = new(
+        encoderShouldEmitUTF8Identifier: false,
+        throwOnInvalidBytes: true);
+
+    /// <inheritdoc />
+    public async Task<WebPublicFileListResult> ListAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        int maxDepth = 0,
+        int limit = 100,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sshCommandService);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var site = ResolveSite(profile, siteKey);
+        var normalizedPath = NormalizePath(path);
+        var pathError = ValidatePermissionPath(normalizedPath, site);
+        if (pathError is not null)
+        {
+            return CreateListError(site, normalizedPath, pathError);
+        }
+
+        if (maxDepth is < 0 or > 5)
+        {
+            return CreateListError(site, normalizedPath, "MaxDepth must be between 0 and 5.");
+        }
+
+        if (limit is < 1 or > 500)
+        {
+            return CreateListError(site, normalizedPath, "Limit must be between 1 and 500.");
+        }
+
+        var result = await sshCommandService.ExecuteAsync(
+            profile,
+            ListCommandName,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["siteRootBase64"] = EncodeArgument(site.RootPath),
+                ["pathBase64"] = EncodeArgument(normalizedPath),
+                ["maxDepth"] = maxDepth.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["limit"] = limit.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            },
+            channel: KelpieExecutionChannel.Mcp,
+            cancellationToken: cancellationToken);
+
+        if (result.ExitCode != 0)
+        {
+            return CreateListError(
+                site,
+                normalizedPath,
+                $"Web public file list failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}");
+        }
+
+        var remote = JsonSerializer.Deserialize<RemoteListResult>(result.StandardOutput, JsonOptions)
+            ?? throw new InvalidOperationException("Web public file list returned empty JSON.");
+
+        return new WebPublicFileListResult(
+            site.SiteKey,
+            site.DisplayName,
+            normalizedPath,
+            remote.ResolvedPath ?? string.Empty,
+            remote.Exists,
+            remote.Entries,
+            remote.Truncated,
+            Warnings: []);
+    }
+
+    /// <inheritdoc />
+    public async Task<WebPublicFileListResult> SearchNameAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        string pattern,
+        int maxDepth = 3,
+        int limit = 100,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sshCommandService);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var site = ResolveSite(profile, siteKey);
+        var normalizedPath = NormalizePath(path);
+        var normalizedPattern = pattern.Trim();
+        if (!IsSafeSearchNamePattern(normalizedPattern))
+        {
+            return CreateListError(site, normalizedPath, "Pattern must be a safe file-name glob without path separators.");
+        }
+
+        var listResult = await ListAsync(
+            sshCommandService,
+            profile,
+            site.SiteKey,
+            normalizedPath,
+            maxDepth,
+            limit,
+            cancellationToken);
+        if (listResult.Error is not null)
+        {
+            return listResult;
+        }
+
+        var matcher = GlobToRegex(normalizedPattern);
+        var entries = listResult.Entries
+            .Where(entry => matcher.IsMatch(entry.Name))
+            .ToArray();
+
+        return listResult with
+        {
+            Entries = entries,
+            Warnings = listResult.Truncated
+                ? ["Search was applied after the bounded directory scan; increase limit if expected matches are missing."]
+                : [],
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<WebPublicTextSearchResult> SearchTextAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string query,
+        string path = "/",
+        int maxDepth = 3,
+        int limit = 50,
+        int maxFileBytes = 262144,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sshCommandService);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var site = ResolveSite(profile, siteKey);
+        var normalizedPath = NormalizePath(path);
+        var normalizedQuery = query.Trim();
+        if (!IsSafeTextSearchQuery(normalizedQuery))
+        {
+            return CreateTextSearchError(site, normalizedPath, normalizedQuery, "Query must be 1 to 128 printable characters without control characters.");
+        }
+
+        if (maxDepth is < 0 or > 5)
+        {
+            return CreateTextSearchError(site, normalizedPath, normalizedQuery, "MaxDepth must be between 0 and 5.");
+        }
+
+        if (limit is < 1 or > 200)
+        {
+            return CreateTextSearchError(site, normalizedPath, normalizedQuery, "Limit must be between 1 and 200.");
+        }
+
+        if (maxFileBytes is < 1 or > 1048576)
+        {
+            return CreateTextSearchError(site, normalizedPath, normalizedQuery, "MaxFileBytes must be between 1 and 1048576.");
+        }
+
+        var listResult = await ListAsync(
+            sshCommandService,
+            profile,
+            site.SiteKey,
+            normalizedPath,
+            maxDepth,
+            limit: Math.Min(500, limit * 5),
+            cancellationToken);
+        if (listResult.Error is not null)
+        {
+            return CreateTextSearchError(site, normalizedPath, normalizedQuery, listResult.Error);
+        }
+
+        var matches = new List<WebPublicTextSearchMatch>();
+        var warnings = new List<string>();
+        foreach (var entry in listResult.Entries.Where(entry => entry.Type == "file"))
+        {
+            if (matches.Count >= limit)
+            {
+                break;
+            }
+
+            if (entry.Size > maxFileBytes)
+            {
+                continue;
+            }
+
+            var contentType = ResolveContentType(entry.Path, site, null);
+            if (!IsTextSearchContentType(contentType))
+            {
+                continue;
+            }
+
+            var readResult = await ReadFileAsync(
+                sshCommandService,
+                profile,
+                site.SiteKey,
+                entry.Path,
+                cancellationToken);
+            if (readResult.Error is not null || !readResult.Exists || string.IsNullOrWhiteSpace(readResult.ContentBase64))
+            {
+                continue;
+            }
+
+            if (!TryDecodeUtf8(readResult.ContentBase64, out var content))
+            {
+                continue;
+            }
+
+            var lineNumber = 0L;
+            foreach (var line in SplitTextLines(content))
+            {
+                lineNumber++;
+                if (line.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase))
+                {
+                    matches.Add(new WebPublicTextSearchMatch(
+                        entry.Path,
+                        entry.ResolvedPath,
+                        lineNumber,
+                        TruncateLine(line),
+                        entry.Size));
+                    if (matches.Count >= limit)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (listResult.Truncated)
+        {
+            warnings.Add("Search was applied after the bounded directory scan; increase limit if expected matches are missing.");
+        }
+
+        var truncated = listResult.Truncated || matches.Count >= limit;
+        if (matches.Count >= limit)
+        {
+            warnings.Add("Search result limit was reached.");
+        }
+
+        return new WebPublicTextSearchResult(
+            site.SiteKey,
+            site.DisplayName,
+            normalizedPath,
+            listResult.ResolvedPath,
+            normalizedQuery,
+            listResult.Exists,
+            matches,
+            truncated,
+            warnings);
+    }
+
+    /// <inheritdoc />
+    public async Task<WebPublicFileStatResult> StatAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sshCommandService);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var site = ResolveSite(profile, siteKey);
+        var normalizedPath = NormalizePath(path);
+        var pathError = ValidatePermissionPath(normalizedPath, site);
+        if (pathError is not null)
+        {
+            return CreateStatError(site, normalizedPath, pathError);
+        }
+
+        var result = await sshCommandService.ExecuteAsync(
+            profile,
+            StatCommandName,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["siteRootBase64"] = EncodeArgument(site.RootPath),
+                ["pathBase64"] = EncodeArgument(normalizedPath),
+            },
+            channel: KelpieExecutionChannel.Mcp,
+            cancellationToken: cancellationToken);
+
+        if (result.ExitCode != 0)
+        {
+            return CreateStatError(
+                site,
+                normalizedPath,
+                $"Web public file stat failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}");
+        }
+
+        var remote = JsonSerializer.Deserialize<RemoteStatResult>(result.StandardOutput, JsonOptions)
+            ?? throw new InvalidOperationException("Web public file stat returned empty JSON.");
+
+        return new WebPublicFileStatResult(
+            site.SiteKey,
+            site.DisplayName,
+            normalizedPath,
+            remote.ResolvedPath ?? string.Empty,
+            remote.Exists,
+            remote.Type ?? string.Empty,
+            remote.Size,
+            remote.Mode ?? string.Empty,
+            remote.Owner ?? string.Empty,
+            remote.Group ?? string.Empty,
+            remote.LastModified,
+            remote.IsSymlink,
+            Warnings: []);
+    }
+
+    /// <inheritdoc />
+    public async Task<WebPublicFileWriteCheckResult> CheckWriteAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        string? contentType = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sshCommandService);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var site = ResolveSite(profile, siteKey);
+        var normalizedPath = NormalizePath(path);
+        var access = ValidatePath(normalizedPath, site, requireWrite: true);
+        var resolvedContentType = ResolveContentType(normalizedPath, site, contentType);
+        var confirmation = CreateWebFileWriteConfirmation(site.SiteKey, normalizedPath);
+        if (access.Error is not null)
+        {
+            return CreateWriteCheckResult(site, normalizedPath, resolvedContentType, canWrite: false, access.Error);
+        }
+
+        if (!IsContentTypeAllowed(resolvedContentType, site, requireWrite: true, access.IsExplicitRule))
+        {
+            return CreateWriteCheckResult(
+                site,
+                normalizedPath,
+                resolvedContentType,
+                canWrite: false,
+                $"Content type is not writable: {resolvedContentType}");
+        }
+
+        var result = await sshCommandService.ExecuteAsync(
+            profile,
+            CheckWriteCommandName,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["siteRootBase64"] = EncodeArgument(site.RootPath),
+                ["pathBase64"] = EncodeArgument(normalizedPath),
+                ["createDirectories"] = site.CreateDirectories ? "1" : "0",
+            },
+            channel: KelpieExecutionChannel.Mcp,
+            cancellationToken: cancellationToken);
+
+        if (result.ExitCode != 0)
+        {
+            return CreateWriteCheckResult(
+                site,
+                normalizedPath,
+                resolvedContentType,
+                canWrite: false,
+                $"Web public file write check failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}");
+        }
+
+        var remote = JsonSerializer.Deserialize<RemoteWriteCheckResult>(result.StandardOutput, JsonOptions)
+            ?? throw new InvalidOperationException("Web public file write check returned empty JSON.");
+
+        return new WebPublicFileWriteCheckResult(
+            site.SiteKey,
+            site.DisplayName,
+            normalizedPath,
+            remote.ResolvedPath ?? string.Empty,
+            remote.Exists,
+            remote.CanWrite,
+            RequiresConfirmation: remote.CanWrite,
+            confirmation,
+            resolvedContentType,
+            remote.Reason,
+            Warnings: []);
+    }
+
+    /// <inheritdoc />
+    public async Task<WebPublicPermissionCheckResult> CheckPermissionsAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        string? owner = null,
+        string? group = null,
+        string? mode = null,
+        bool recursive = false,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sshCommandService);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var site = ResolveSite(profile, siteKey);
+        var normalizedPath = NormalizePath(path);
+        var pathError = ValidatePermissionPath(normalizedPath, site);
+        if (pathError is not null)
+        {
+            return CreatePermissionCheckError(site, normalizedPath, pathError);
+        }
+
+        var normalizedOwner = owner?.Trim() ?? string.Empty;
+        var normalizedGroup = group?.Trim() ?? string.Empty;
+        var normalizedMode = mode?.Trim() ?? string.Empty;
+        var ownerReason = ValidateOwnerGroupForCheck(normalizedOwner, normalizedGroup);
+        var modeReason = string.IsNullOrWhiteSpace(normalizedMode)
+            ? "Mode is required to check mode changes."
+            : ValidateMode(normalizedMode);
+
+        var stat = await StatAsync(
+            sshCommandService,
+            profile,
+            site.SiteKey,
+            normalizedPath,
+            cancellationToken);
+        if (stat.Error is not null)
+        {
+            return CreatePermissionCheckError(site, normalizedPath, stat.Error);
+        }
+
+        var pathReason = stat.Exists
+            ? stat.Type == "symlink" ? "Symbolic links are not eligible for permission changes." : null
+            : "Target path does not exist.";
+        var canChangeOwner = ownerReason is null && pathReason is null;
+        var canChangeMode = modeReason is null && pathReason is null;
+        var reason = pathReason ?? ownerReason ?? modeReason;
+        var ownerOperation = recursive ? "web_change_owner_recursive" : "web_change_owner";
+        var modeOperation = recursive ? "web_change_mode_recursive" : "web_change_mode";
+
+        return new WebPublicPermissionCheckResult(
+            site.SiteKey,
+            site.DisplayName,
+            normalizedPath,
+            stat.ResolvedPath,
+            stat.Exists,
+            stat.Type,
+            stat.Owner,
+            stat.Group,
+            stat.Mode,
+            canChangeOwner,
+            canChangeMode,
+            canChangeOwner ? $"{ownerOperation}:{site.SiteKey}:{normalizedPath}:{normalizedOwner}:{normalizedGroup}" : string.Empty,
+            canChangeMode ? $"{modeOperation}:{site.SiteKey}:{normalizedPath}:{normalizedMode}" : string.Empty,
+            reason,
+            CreateRecursiveWarnings(recursive),
+            Error: canChangeOwner || canChangeMode ? null : reason);
+    }
+
+    /// <inheritdoc />
+    public async Task<WebPublicFileReadResult> ReadFileAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sshCommandService);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var site = ResolveSite(profile, siteKey);
+        var normalizedPath = NormalizePath(path);
+        var access = ValidatePath(normalizedPath, site, requireWrite: false);
+        if (access.Error is not null)
+        {
+            return CreateReadError(site, normalizedPath, access.Error);
+        }
+
+        var resolvedContentType = ResolveContentType(normalizedPath, site, null);
+        if (!IsContentTypeAllowed(resolvedContentType, site, requireWrite: false, access.IsExplicitRule))
+        {
+            return CreateReadError(site, normalizedPath, $"Content type is not readable: {resolvedContentType}");
+        }
+
+        var result = await sshCommandService.ExecuteAsync(
+            profile,
+            ReadCommandName,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["siteRootBase64"] = EncodeArgument(site.RootPath),
+                ["pathBase64"] = EncodeArgument(normalizedPath),
+                ["maxBytes"] = site.MaxReadBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            },
+            channel: KelpieExecutionChannel.Mcp,
+            cancellationToken: cancellationToken);
+
+        if (result.ExitCode != 0)
+        {
+            return CreateReadError(
+                site,
+                normalizedPath,
+                $"Web public file read failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}");
+        }
+
+        var remote = JsonSerializer.Deserialize<RemoteReadResult>(result.StandardOutput, JsonOptions)
+            ?? throw new InvalidOperationException("Web public file read returned empty JSON.");
+
+        return new WebPublicFileReadResult(
+            site.SiteKey,
+            site.DisplayName,
+            normalizedPath,
+            remote.ResolvedPath ?? string.Empty,
+            remote.Exists,
+            remote.Exists ? remote.ContentBase64 : null,
+            "utf-8",
+            resolvedContentType,
+            remote.Size,
+            remote.LastModified,
+            Warnings: []);
+    }
+
+    /// <inheritdoc />
+    public async Task<WebPublicFileReadResult> ReadHeadAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        int maxBytes = 4096,
+        int maxLines = 100,
+        CancellationToken cancellationToken = default)
+    {
+        return await ReadSliceAsync(
+            sshCommandService,
+            profile,
+            siteKey,
+            path,
+            "head",
+            maxBytes,
+            maxLines,
+            cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<WebPublicFileReadResult> ReadTailAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        int maxBytes = 4096,
+        int maxLines = 100,
+        CancellationToken cancellationToken = default)
+    {
+        return await ReadSliceAsync(
+            sshCommandService,
+            profile,
+            siteKey,
+            path,
+            "tail",
+            maxBytes,
+            maxLines,
+            cancellationToken);
+    }
+
+    private async Task<WebPublicFileReadResult> ReadSliceAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        string mode,
+        int maxBytes,
+        int maxLines,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(sshCommandService);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var site = ResolveSite(profile, siteKey);
+        var normalizedPath = NormalizePath(path);
+        var access = ValidatePath(normalizedPath, site, requireWrite: false);
+        if (access.Error is not null)
+        {
+            return CreateReadError(site, normalizedPath, access.Error);
+        }
+
+        var resolvedContentType = ResolveContentType(normalizedPath, site, null);
+        if (!IsContentTypeAllowed(resolvedContentType, site, requireWrite: false, access.IsExplicitRule))
+        {
+            return CreateReadError(site, normalizedPath, $"Content type is not readable: {resolvedContentType}");
+        }
+
+        if (maxBytes is < 1 or > 1048576)
+        {
+            return CreateReadError(site, normalizedPath, "MaxBytes must be between 1 and 1048576.");
+        }
+
+        if (maxLines is < 0 or > 1000)
+        {
+            return CreateReadError(site, normalizedPath, "MaxLines must be between 0 and 1000.");
+        }
+
+        var boundedMaxBytes = Math.Min(maxBytes, site.MaxReadBytes);
+        var result = await sshCommandService.ExecuteAsync(
+            profile,
+            SliceCommandName,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["siteRootBase64"] = EncodeArgument(site.RootPath),
+                ["pathBase64"] = EncodeArgument(normalizedPath),
+                ["mode"] = mode,
+                ["maxBytes"] = boundedMaxBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["maxLines"] = maxLines.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            },
+            channel: KelpieExecutionChannel.Mcp,
+            cancellationToken: cancellationToken);
+
+        if (result.ExitCode != 0)
+        {
+            return CreateReadError(
+                site,
+                normalizedPath,
+                $"Web public file {mode} failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}");
+        }
+
+        var remote = JsonSerializer.Deserialize<RemoteReadResult>(result.StandardOutput, JsonOptions)
+            ?? throw new InvalidOperationException("Web public file slice returned empty JSON.");
+        var warnings = new List<string>
+        {
+            $"Returned {mode} slice is bounded by maxBytes={boundedMaxBytes} and maxLines={maxLines}.",
+        };
+        if (boundedMaxBytes != maxBytes)
+        {
+            warnings.Add($"MaxBytes was reduced to the site MaxReadBytes value: {boundedMaxBytes}.");
+        }
+
+        return new WebPublicFileReadResult(
+            site.SiteKey,
+            site.DisplayName,
+            normalizedPath,
+            remote.ResolvedPath ?? string.Empty,
+            remote.Exists,
+            remote.Exists ? remote.ContentBase64 : null,
+            "utf-8",
+            resolvedContentType,
+            remote.Size,
+            remote.LastModified,
+            warnings);
+    }
+
+    /// <inheritdoc />
+    public async Task<WebPublicFileWriteResult> WriteFileAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        string contentBase64,
+        string? encoding,
+        string? contentType,
+        string? owner = null,
+        string? mode = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sshCommandService);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var site = ResolveSite(profile, siteKey);
+        var normalizedPath = NormalizePath(path);
+        var access = ValidatePath(normalizedPath, site, requireWrite: true);
+        if (access.Error is not null)
+        {
+            return CreateWriteError(site, normalizedPath, access.Error);
+        }
+
+        if (!TryValidateContent(contentBase64, site, out var size, out var contentError))
+        {
+            return CreateWriteError(site, normalizedPath, contentError);
+        }
+
+        var resolvedContentType = ResolveContentType(normalizedPath, site, contentType);
+        if (!IsContentTypeAllowed(resolvedContentType, site, requireWrite: true, access.IsExplicitRule))
+        {
+            return CreateWriteError(site, normalizedPath, $"Content type is not writable: {resolvedContentType}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(encoding) && !string.Equals(encoding, "utf-8", StringComparison.OrdinalIgnoreCase))
+        {
+            return CreateWriteError(site, normalizedPath, $"Encoding is not supported: {encoding}");
+        }
+
+        var permissionRequest = CreateWritePermissionRequest(owner, mode);
+        if (permissionRequest.Error is not null)
+        {
+            return CreateWriteError(site, normalizedPath, permissionRequest.Error);
+        }
+
+        if (permissionRequest.HasPermissions)
+        {
+            return await WriteFileWithPermissionsAsync(
+                sshCommandService,
+                profile,
+                site,
+                normalizedPath,
+                contentBase64,
+                resolvedContentType,
+                size,
+                permissionRequest,
+                cancellationToken);
+        }
+
+        var result = await sshCommandService.ExecuteAsync(
+            profile,
+            WriteCommandName,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["siteRootBase64"] = EncodeArgument(site.RootPath),
+                ["pathBase64"] = EncodeArgument(normalizedPath),
+                ["contentBase64"] = contentBase64,
+                ["maxBytes"] = site.MaxWriteBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["createDirectories"] = site.CreateDirectories ? "1" : "0",
+            },
+            channel: KelpieExecutionChannel.Mcp,
+            cancellationToken: cancellationToken);
+
+        if (result.ExitCode != 0)
+        {
+            return CreateWriteError(
+                site,
+                normalizedPath,
+                $"Web public file write failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}");
+        }
+
+        var remote = JsonSerializer.Deserialize<RemoteWriteResult>(result.StandardOutput, JsonOptions)
+            ?? throw new InvalidOperationException("Web public file write returned empty JSON.");
+
+        return new WebPublicFileWriteResult(
+            site.SiteKey,
+            site.DisplayName,
+            normalizedPath,
+            remote.ResolvedPath ?? string.Empty,
+            remote.Written,
+            remote.Created,
+            remote.Overwritten,
+            resolvedContentType,
+            remote.Size == 0 ? size : remote.Size,
+            Warnings: [],
+            Error: null,
+            Owner: remote.Owner ?? string.Empty,
+            Group: remote.Group ?? string.Empty,
+            Mode: remote.Mode ?? string.Empty);
+    }
+
+    private async Task<WebPublicFileWriteResult> WriteFileWithPermissionsAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        WebPublicSite site,
+        string normalizedPath,
+        string contentBase64,
+        string resolvedContentType,
+        long size,
+        WritePermissionRequest permissionRequest,
+        CancellationToken cancellationToken)
+    {
+        var result = await sshCommandService.ExecuteAsync(
+            profile,
+            WriteWithPermissionsCommandName,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["siteRootBase64"] = EncodeArgument(site.RootPath),
+                ["pathBase64"] = EncodeArgument(normalizedPath),
+                ["contentBase64"] = contentBase64,
+                ["maxBytes"] = site.MaxWriteBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["createDirectories"] = site.CreateDirectories ? "1" : "0",
+                ["ownerBase64"] = EncodeOptionalArgument(permissionRequest.OwnerSpec),
+                ["modeBase64"] = EncodeOptionalArgument(permissionRequest.Mode),
+            },
+            channel: KelpieExecutionChannel.Mcp,
+            cancellationToken: cancellationToken);
+
+        if (result.ExitCode != 0)
+        {
+            return CreateWriteError(
+                site,
+                normalizedPath,
+                $"Web public file write failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}");
+        }
+
+        var remote = JsonSerializer.Deserialize<RemoteWriteResult>(result.StandardOutput, JsonOptions)
+            ?? throw new InvalidOperationException("Web public file write returned empty JSON.");
+
+        return new WebPublicFileWriteResult(
+            site.SiteKey,
+            site.DisplayName,
+            normalizedPath,
+            remote.ResolvedPath ?? string.Empty,
+            remote.Written,
+            remote.Created,
+            remote.Overwritten,
+            resolvedContentType,
+            remote.Size == 0 ? size : remote.Size,
+            Warnings: [],
+            Error: null,
+            Owner: remote.Owner ?? permissionRequest.Owner,
+            Group: remote.Group ?? string.Empty,
+            Mode: remote.Mode ?? permissionRequest.Mode);
+    }
+
+    /// <inheritdoc />
+    public async Task<WebPublicPermissionChangeResult> ChangeOwnerAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        string owner,
+        string group,
+        bool recursive = false,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sshCommandService);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var site = ResolveSite(profile, siteKey);
+        var normalizedPath = NormalizePath(path);
+        var pathError = ValidatePermissionPath(normalizedPath, site);
+        if (pathError is not null)
+        {
+            return CreatePermissionError(site, normalizedPath, owner, group, mode: string.Empty, pathError);
+        }
+
+        var ownerError = ValidateLinuxPrincipal(owner, "Owner");
+        if (ownerError is not null)
+        {
+            return CreatePermissionError(site, normalizedPath, owner, group, mode: string.Empty, ownerError);
+        }
+
+        var groupError = ValidateLinuxPrincipal(group, "Group");
+        if (groupError is not null)
+        {
+            return CreatePermissionError(site, normalizedPath, owner, group, mode: string.Empty, groupError);
+        }
+
+        var result = await sshCommandService.ExecuteAsync(
+            profile,
+            ChangeOwnerCommandName,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["siteRootBase64"] = EncodeArgument(site.RootPath),
+                ["pathBase64"] = EncodeArgument(normalizedPath),
+                ["ownerBase64"] = EncodeArgument(owner.Trim()),
+                ["groupBase64"] = EncodeArgument(group.Trim()),
+                ["recursive"] = recursive ? "1" : "0",
+            },
+            channel: KelpieExecutionChannel.Mcp,
+            cancellationToken: cancellationToken);
+
+        if (result.ExitCode != 0)
+        {
+            return CreatePermissionError(
+                site,
+                normalizedPath,
+                owner,
+                group,
+                mode: string.Empty,
+                $"Web public owner change failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}");
+        }
+
+        var remote = JsonSerializer.Deserialize<RemotePermissionChangeResult>(result.StandardOutput, JsonOptions)
+            ?? throw new InvalidOperationException("Web public owner change returned empty JSON.");
+
+        return new WebPublicPermissionChangeResult(
+            site.SiteKey,
+            site.DisplayName,
+            normalizedPath,
+            remote.ResolvedPath ?? string.Empty,
+            remote.Changed,
+            remote.Owner ?? owner.Trim(),
+            remote.Group ?? group.Trim(),
+            remote.Mode ?? string.Empty,
+            Warnings: CreateRecursiveWarnings(recursive));
+    }
+
+    /// <inheritdoc />
+    public async Task<WebPublicPermissionChangeResult> ChangeModeAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        string mode,
+        bool recursive = false,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sshCommandService);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var site = ResolveSite(profile, siteKey);
+        var normalizedPath = NormalizePath(path);
+        var pathError = ValidatePermissionPath(normalizedPath, site);
+        if (pathError is not null)
+        {
+            return CreatePermissionError(site, normalizedPath, owner: string.Empty, group: string.Empty, mode, pathError);
+        }
+
+        var normalizedMode = mode.Trim();
+        var modeError = ValidateMode(normalizedMode);
+        if (modeError is not null)
+        {
+            return CreatePermissionError(site, normalizedPath, owner: string.Empty, group: string.Empty, normalizedMode, modeError);
+        }
+
+        var result = await sshCommandService.ExecuteAsync(
+            profile,
+            ChangeModeCommandName,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["siteRootBase64"] = EncodeArgument(site.RootPath),
+                ["pathBase64"] = EncodeArgument(normalizedPath),
+                ["mode"] = normalizedMode,
+                ["recursive"] = recursive ? "1" : "0",
+            },
+            channel: KelpieExecutionChannel.Mcp,
+            cancellationToken: cancellationToken);
+
+        if (result.ExitCode != 0)
+        {
+            return CreatePermissionError(
+                site,
+                normalizedPath,
+                owner: string.Empty,
+                group: string.Empty,
+                normalizedMode,
+                $"Web public mode change failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}");
+        }
+
+        var remote = JsonSerializer.Deserialize<RemotePermissionChangeResult>(result.StandardOutput, JsonOptions)
+            ?? throw new InvalidOperationException("Web public mode change returned empty JSON.");
+
+        return new WebPublicPermissionChangeResult(
+            site.SiteKey,
+            site.DisplayName,
+            normalizedPath,
+            remote.ResolvedPath ?? string.Empty,
+            remote.Changed,
+            remote.Owner ?? string.Empty,
+            remote.Group ?? string.Empty,
+            remote.Mode ?? normalizedMode,
+            Warnings: CreateRecursiveWarnings(recursive));
+    }
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+    };
+
+    private static WebPublicSite ResolveSite(SshConnectionProfile profile, string siteKey)
+    {
+        var normalizedSiteKey = string.IsNullOrWhiteSpace(siteKey) ? "default" : siteKey.Trim();
+        var sites = profile.WebPublicSites.Count == 0
+            ? new[] { CreateDefaultSite() }
+            : profile.WebPublicSites;
+        return sites.FirstOrDefault(site => string.Equals(site.SiteKey, normalizedSiteKey, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException($"Unsupported siteKey: {siteKey}");
+    }
+
+    private static WebPublicSite CreateDefaultSite()
+    {
+        return new WebPublicSite
+        {
+            SiteKey = "default",
+            DisplayName = "Default Web Site",
+            RootPath = "/var/www/html",
+            AllowedExtensions = DefaultContentTypes.Keys.ToArray(),
+            AllowedContentTypes = CreateContentTypeRules(DefaultContentTypes.Values
+                .Append("application/javascript")
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray()),
+            CreateDirectories = true,
+        };
+    }
+
+    private static string CreateWebFileWriteConfirmation(string siteKey, string path)
+    {
+        return $"web_file_write:{siteKey}:{path}";
+    }
+
+    private static string NormalizePath(string path)
+    {
+        return string.IsNullOrWhiteSpace(path) ? string.Empty : "/" + path.Trim().TrimStart('/');
+    }
+
+    private static WebPublicFileAccess ValidatePath(
+        string path,
+        WebPublicSite site,
+        bool requireWrite)
+    {
+        if (!IsSafeAbsoluteUnixPath(site.RootPath))
+        {
+            return new WebPublicFileAccess(false, "Web public root must be a safe absolute Unix path.");
+        }
+
+        if (!IsSafeSiteRelativePath(path))
+        {
+            return new WebPublicFileAccess(false, "Requested path must be an absolute site-relative path without traversal.");
+        }
+
+        var fileName = path.Split('/').Last();
+        if (fileName.StartsWith(".", StringComparison.Ordinal)
+            || path.Split('/').Any(part => part.StartsWith(".git", StringComparison.OrdinalIgnoreCase))
+            || string.Equals(fileName, "id_rsa", StringComparison.OrdinalIgnoreCase)
+            || SecretFileRegex().IsMatch(fileName))
+        {
+            return new WebPublicFileAccess(false, "Requested path is denied by web public file safety rules.");
+        }
+
+        var extension = System.IO.Path.GetExtension(fileName);
+        var rule = FindAllowedFileRule(path, fileName, site);
+        if (rule is not null)
+        {
+            if (!rule.Access.HasFlag(AllowedRootAccess.Read))
+            {
+                return new WebPublicFileAccess(true, "Requested file is not readable by AllowedFiles.");
+            }
+
+            if (requireWrite && !rule.Access.HasFlag(AllowedRootAccess.Write))
+            {
+                return new WebPublicFileAccess(true, "Requested file is not writable by AllowedFiles.");
+            }
+
+            if (requireWrite && DeniedExtensions.Contains(extension))
+            {
+                return new WebPublicFileAccess(true, "Requested file extension is denied for writing.");
+            }
+
+            return new WebPublicFileAccess(true, Error: null);
+        }
+
+        if (DeniedExtensions.Contains(extension))
+        {
+            return new WebPublicFileAccess(false, "Requested file extension is denied.");
+        }
+
+        if (site.AllowedFiles.Count > 0)
+        {
+            return new WebPublicFileAccess(true, "Requested file is not allowed by AllowedFiles.");
+        }
+
+        var allowedExtensions = site.AllowedExtensions.Count == 0
+            ? DefaultContentTypes.Keys
+            : site.AllowedExtensions;
+        if (!allowedExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+        {
+            return new WebPublicFileAccess(false, $"Requested file extension is not allowed: {extension}");
+        }
+
+        return new WebPublicFileAccess(false, Error: null);
+    }
+
+    private static bool TryValidateContent(
+        string contentBase64,
+        WebPublicSite site,
+        out long size,
+        out string error)
+    {
+        size = 0;
+        error = string.Empty;
+        if (string.IsNullOrWhiteSpace(contentBase64))
+        {
+            error = "ContentBase64 is required.";
+            return false;
+        }
+
+        byte[] contentBytes;
+        try
+        {
+            contentBytes = Convert.FromBase64String(contentBase64);
+        }
+        catch (FormatException)
+        {
+            error = "ContentBase64 is not valid Base64.";
+            return false;
+        }
+
+        if (contentBytes.Length > site.MaxWriteBytes)
+        {
+            error = $"Content exceeds the maximum write size of {site.MaxWriteBytes} bytes.";
+            return false;
+        }
+
+        size = contentBytes.Length;
+        return true;
+    }
+
+    private static string ResolveContentType(string path, WebPublicSite site, string? requestedContentType)
+    {
+        if (!string.IsNullOrWhiteSpace(requestedContentType))
+        {
+            return requestedContentType.Trim();
+        }
+
+        var extension = System.IO.Path.GetExtension(path);
+        return DefaultContentTypes.TryGetValue(extension, out var contentType)
+            ? contentType
+            : "application/octet-stream";
+    }
+
+    private static bool IsContentTypeAllowed(
+        string contentType,
+        WebPublicSite site,
+        bool requireWrite,
+        bool isExplicitRule)
+    {
+        if (isExplicitRule && site.AllowedContentTypes.Count == 0)
+        {
+            return true;
+        }
+
+        var allowedContentTypes = site.AllowedContentTypes.Count == 0
+            ? CreateContentTypeRules(DefaultContentTypes.Values.Append("application/javascript"))
+            : site.AllowedContentTypes;
+        var rule = allowedContentTypes.FirstOrDefault(item =>
+            string.Equals(item.ContentType, contentType, StringComparison.OrdinalIgnoreCase));
+        return rule is not null
+            && (requireWrite
+                ? rule.Access.HasFlag(AllowedRootAccess.Write)
+                : rule.Access.HasFlag(AllowedRootAccess.Read));
+    }
+
+    private static IReadOnlyCollection<WebPublicContentTypeRule> CreateContentTypeRules(IEnumerable<string> contentTypes)
+    {
+        return contentTypes
+            .Where(contentType => !string.IsNullOrWhiteSpace(contentType))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(contentType => new WebPublicContentTypeRule(contentType, AllowedRootAccess.Read | AllowedRootAccess.Write))
+            .ToArray();
+    }
+
+    private static WebPublicFileRule? FindAllowedFileRule(
+        string path,
+        string fileName,
+        WebPublicSite site)
+    {
+        return site.AllowedFiles.FirstOrDefault(rule => IsAllowedFileRuleMatch(rule.Pattern, path, fileName));
+    }
+
+    private static bool IsAllowedFileRuleMatch(
+        string pattern,
+        string path,
+        string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(pattern))
+        {
+            return false;
+        }
+
+        var normalizedRulePattern = NormalizeAllowedFileRulePattern(pattern);
+        var target = normalizedRulePattern.Contains('/', StringComparison.Ordinal)
+            ? path
+            : fileName;
+        var normalizedPattern = normalizedRulePattern.Contains('/', StringComparison.Ordinal)
+            ? "/" + normalizedRulePattern.Trim().TrimStart('/')
+            : normalizedRulePattern.Trim();
+        return GlobToRegex(normalizedPattern).IsMatch(target);
+    }
+
+    private static string NormalizeAllowedFileRulePattern(string pattern)
+    {
+        var trimmed = pattern.Trim();
+        return trimmed.StartsWith(".", StringComparison.Ordinal)
+            && !trimmed.Contains('*', StringComparison.Ordinal)
+            && !trimmed.Contains('?', StringComparison.Ordinal)
+            && !trimmed.Contains('/', StringComparison.Ordinal)
+            ? "*" + trimmed
+            : trimmed;
+    }
+
+    private static Regex GlobToRegex(string pattern)
+    {
+        var regexText = "^" + Regex.Escape(pattern)
+            .Replace(@"\*\*", ".*", StringComparison.Ordinal)
+            .Replace(@"\*", @"[^/]*", StringComparison.Ordinal)
+            .Replace(@"\?", @"[^/]", StringComparison.Ordinal) + "$";
+        return new Regex(regexText, RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    }
+
+    private static bool IsSafeSearchNamePattern(string pattern)
+    {
+        return SearchNamePatternRegex.IsMatch(pattern)
+            && !pattern.Contains('/', StringComparison.Ordinal)
+            && !pattern.Contains('\\', StringComparison.Ordinal)
+            && pattern is not "." and not "..";
+    }
+
+    private static bool IsSafeTextSearchQuery(string query)
+    {
+        return query.Length is >= 1 and <= 128
+            && !query.Any(char.IsControl);
+    }
+
+    private static bool IsTextSearchContentType(string contentType)
+    {
+        return contentType.StartsWith("text/", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(contentType, "application/json", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(contentType, "application/xml", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(contentType, "application/javascript", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(contentType, "application/svg+xml", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryDecodeUtf8(
+        string contentBase64,
+        out string content)
+    {
+        content = string.Empty;
+        try
+        {
+            content = StrictUtf8Encoding.GetString(Convert.FromBase64String(contentBase64));
+            return !content.Contains('\0');
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+        catch (DecoderFallbackException)
+        {
+            return false;
+        }
+    }
+
+    private static string[] SplitTextLines(string content)
+    {
+        return content
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split('\n');
+    }
+
+    private static string TruncateLine(string line)
+    {
+        const int MaxLineLength = 500;
+        return line.Length <= MaxLineLength
+            ? line
+            : line[..MaxLineLength];
+    }
+
+    private static bool IsSafeAbsoluteUnixPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !path.StartsWith("/", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (path.Contains('\0') || path.Contains('\\', StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return !path.Split('/', StringSplitOptions.RemoveEmptyEntries).Contains("..", StringComparer.Ordinal);
+    }
+
+    private static bool IsSafeSiteRelativePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !path.StartsWith("/", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (path.Contains('\0') || path.Contains('\\', StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return !path.Split('/', StringSplitOptions.RemoveEmptyEntries).Contains("..", StringComparer.Ordinal);
+    }
+
+    private static string? ValidatePermissionPath(string path, WebPublicSite site)
+    {
+        if (!IsSafeAbsoluteUnixPath(site.RootPath))
+        {
+            return "Web public root must be a safe absolute Unix path.";
+        }
+
+        if (!IsSafeSiteRelativePath(path))
+        {
+            return "Requested path must be an absolute site-relative path without traversal.";
+        }
+
+        var fileName = path.Split('/').LastOrDefault() ?? string.Empty;
+        if (path.Split('/').Any(part => part.StartsWith(".git", StringComparison.OrdinalIgnoreCase))
+            || string.Equals(fileName, "id_rsa", StringComparison.OrdinalIgnoreCase)
+            || SecretFileRegex().IsMatch(fileName))
+        {
+            return "Requested path is denied by web public permission safety rules.";
+        }
+
+        return null;
+    }
+
+    private static string? ValidateLinuxPrincipal(string value, string label)
+    {
+        var normalizedValue = value.Trim();
+        if (!LinuxPrincipalRegex.IsMatch(normalizedValue))
+        {
+            return $"{label} must be a safe Linux user or group name.";
+        }
+
+        return string.Equals(normalizedValue, "root", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalizedValue, "0", StringComparison.Ordinal)
+            ? $"{label} must not be root."
+            : null;
+    }
+
+    private static string? ValidateMode(string mode)
+    {
+        if (!Regex.IsMatch(mode, "^[0-7]{3}$", RegexOptions.CultureInvariant))
+        {
+            return "Mode must be a 3-digit octal value.";
+        }
+
+        var otherDigit = mode[2] - '0';
+        return (otherDigit & 0b010) != 0
+            ? "Mode must not be world-writable."
+            : null;
+    }
+
+    private static string? ValidateOwnerGroupForCheck(string owner, string group)
+    {
+        if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(group))
+        {
+            return "Owner and group are required to check owner changes.";
+        }
+
+        return ValidateLinuxPrincipal(owner, "Owner")
+            ?? ValidateLinuxPrincipal(group, "Group");
+    }
+
+    private static WritePermissionRequest CreateWritePermissionRequest(
+        string? owner,
+        string? mode)
+    {
+        var hasOwner = !string.IsNullOrWhiteSpace(owner);
+        var hasMode = !string.IsNullOrWhiteSpace(mode);
+        if (!hasOwner && !hasMode)
+        {
+            return WritePermissionRequest.None;
+        }
+
+        var normalizedOwnerSpec = owner?.Trim() ?? string.Empty;
+        var normalizedOwner = string.Empty;
+        var normalizedGroup = string.Empty;
+        if (hasOwner)
+        {
+            var ownerParts = normalizedOwnerSpec.Split(':');
+            if (ownerParts.Length > 2 || string.IsNullOrWhiteSpace(ownerParts[0]))
+            {
+                return new WritePermissionRequest(false, normalizedOwnerSpec, string.Empty, string.Empty, string.Empty, "Owner must be in owner[:group] form.");
+            }
+
+            normalizedOwner = ownerParts[0].Trim();
+            normalizedGroup = ownerParts.Length == 2 ? ownerParts[1].Trim() : string.Empty;
+            var ownerError = ValidateLinuxPrincipal(normalizedOwner, "Owner");
+            if (ownerError is not null)
+            {
+                return new WritePermissionRequest(false, normalizedOwnerSpec, normalizedOwner, normalizedGroup, string.Empty, ownerError);
+            }
+
+            if (!string.IsNullOrWhiteSpace(normalizedGroup))
+            {
+                var groupError = ValidateLinuxPrincipal(normalizedGroup, "Group");
+                if (groupError is not null)
+                {
+                    return new WritePermissionRequest(false, normalizedOwnerSpec, normalizedOwner, normalizedGroup, string.Empty, groupError);
+                }
+            }
+        }
+
+        var normalizedMode = mode?.Trim() ?? string.Empty;
+        var modeError = ValidateMode(normalizedMode);
+        if (hasMode && modeError is not null)
+        {
+            return new WritePermissionRequest(false, normalizedOwnerSpec, normalizedOwner, normalizedGroup, normalizedMode, modeError);
+        }
+
+        return new WritePermissionRequest(true, normalizedOwnerSpec, normalizedOwner, normalizedGroup, normalizedMode, null);
+    }
+
+    private static string EncodeArgument(string value)
+    {
+        return Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
+    }
+
+    private static string EncodeOptionalArgument(string value)
+    {
+        return EncodeArgument(value.Length == 0 ? OptionalArgumentNone : value);
+    }
+
+    private static WebPublicFileReadResult CreateReadError(
+        WebPublicSite site,
+        string path,
+        string error)
+    {
+        return new WebPublicFileReadResult(
+            site.SiteKey,
+            site.DisplayName,
+            path,
+            ResolvedPath: string.Empty,
+            Exists: false,
+            ContentBase64: null,
+            Encoding: "utf-8",
+            ContentType: ResolveContentType(path, site, null),
+            Size: 0,
+            LastModified: null,
+            Warnings: [],
+            Error: error);
+    }
+
+    private static WebPublicTextSearchResult CreateTextSearchError(
+        WebPublicSite site,
+        string path,
+        string query,
+        string error)
+    {
+        return new WebPublicTextSearchResult(
+            site.SiteKey,
+            site.DisplayName,
+            path,
+            ResolvedPath: string.Empty,
+            query,
+            Exists: false,
+            Matches: [],
+            Truncated: false,
+            Warnings: [],
+            Error: error);
+    }
+
+    private static WebPublicFileWriteResult CreateWriteError(
+        WebPublicSite site,
+        string path,
+        string error)
+    {
+        return new WebPublicFileWriteResult(
+            site.SiteKey,
+            site.DisplayName,
+            path,
+            ResolvedPath: string.Empty,
+            Written: false,
+            Created: false,
+            Overwritten: false,
+            ContentType: ResolveContentType(path, site, null),
+            Size: 0,
+            Warnings: [],
+            Error: error);
+    }
+
+    private static WebPublicFileListResult CreateListError(
+        WebPublicSite site,
+        string path,
+        string error)
+    {
+        return new WebPublicFileListResult(
+            site.SiteKey,
+            site.DisplayName,
+            path,
+            ResolvedPath: string.Empty,
+            Exists: false,
+            Entries: [],
+            Truncated: false,
+            Warnings: [],
+            Error: error);
+    }
+
+    private static WebPublicFileStatResult CreateStatError(
+        WebPublicSite site,
+        string path,
+        string error)
+    {
+        return new WebPublicFileStatResult(
+            site.SiteKey,
+            site.DisplayName,
+            path,
+            ResolvedPath: string.Empty,
+            Exists: false,
+            Type: string.Empty,
+            Size: 0,
+            Mode: string.Empty,
+            Owner: string.Empty,
+            Group: string.Empty,
+            LastModified: null,
+            IsSymlink: false,
+            Warnings: [],
+            Error: error);
+    }
+
+    private static WebPublicFileWriteCheckResult CreateWriteCheckResult(
+        WebPublicSite site,
+        string path,
+        string contentType,
+        bool canWrite,
+        string? reason)
+    {
+        return new WebPublicFileWriteCheckResult(
+            site.SiteKey,
+            site.DisplayName,
+            path,
+            ResolvedPath: string.Empty,
+            Exists: false,
+            canWrite,
+            RequiresConfirmation: canWrite,
+            CreateWebFileWriteConfirmation(site.SiteKey, path),
+            contentType,
+            reason,
+            Warnings: [],
+            Error: reason);
+    }
+
+    private static WebPublicPermissionChangeResult CreatePermissionError(
+        WebPublicSite site,
+        string path,
+        string owner,
+        string group,
+        string mode,
+        string error)
+    {
+        return new WebPublicPermissionChangeResult(
+            site.SiteKey,
+            site.DisplayName,
+            path,
+            ResolvedPath: string.Empty,
+            Changed: false,
+            owner,
+            group,
+            mode,
+            Warnings: [],
+            Error: error);
+    }
+
+    private static WebPublicPermissionCheckResult CreatePermissionCheckError(
+        WebPublicSite site,
+        string path,
+        string error)
+    {
+        return new WebPublicPermissionCheckResult(
+            site.SiteKey,
+            site.DisplayName,
+            path,
+            ResolvedPath: string.Empty,
+            Exists: false,
+            Type: string.Empty,
+            CurrentOwner: string.Empty,
+            CurrentGroup: string.Empty,
+            CurrentMode: string.Empty,
+            CanChangeOwner: false,
+            CanChangeMode: false,
+            OwnerConfirmation: string.Empty,
+            ModeConfirmation: string.Empty,
+            Reason: error,
+            Warnings: [],
+            Error: error);
+    }
+
+    private static IReadOnlyList<string> CreateRecursiveWarnings(bool recursive)
+    {
+        return recursive
+            ? ["Recursive permission change skips symbolic links."]
+            : [];
+    }
+
+    private static string CreateSafeErrorDetail(string standardError)
+    {
+        var firstLine = standardError
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault();
+
+        if (string.IsNullOrWhiteSpace(firstLine))
+        {
+            return "No error detail was returned.";
+        }
+
+        var lines = standardError
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return firstLine.StartsWith("Traceback", StringComparison.OrdinalIgnoreCase)
+            ? lines.LastOrDefault() ?? firstLine
+            : firstLine;
+    }
+
+    [GeneratedRegex(@"(?i)^(\.env|\.htaccess|\.htpasswd|.*\.pem|.*\.key)$", RegexOptions.CultureInvariant)]
+    private static partial Regex SecretFileRegex();
+
+    private sealed class RemoteReadResult
+    {
+        public string? ResolvedPath { get; set; }
+
+        public bool Exists { get; set; }
+
+        public string? ContentBase64 { get; set; }
+
+        public long Size { get; set; }
+
+        public string? LastModified { get; set; }
+    }
+
+    private sealed class RemoteListResult
+    {
+        public string? ResolvedPath { get; set; }
+
+        public bool Exists { get; set; }
+
+        public List<WebPublicFileListEntry> Entries { get; set; } = [];
+
+        public bool Truncated { get; set; }
+    }
+
+    private sealed class RemoteStatResult
+    {
+        public string? ResolvedPath { get; set; }
+
+        public bool Exists { get; set; }
+
+        public string? Type { get; set; }
+
+        public long Size { get; set; }
+
+        public string? Mode { get; set; }
+
+        public string? Owner { get; set; }
+
+        public string? Group { get; set; }
+
+        public string? LastModified { get; set; }
+
+        public bool IsSymlink { get; set; }
+    }
+
+    private sealed class RemoteWriteCheckResult
+    {
+        public string? ResolvedPath { get; set; }
+
+        public bool Exists { get; set; }
+
+        public bool CanWrite { get; set; }
+
+        public string? Reason { get; set; }
+    }
+
+    private sealed class RemoteWriteResult
+    {
+        public string? ResolvedPath { get; set; }
+
+        public bool Written { get; set; }
+
+        public bool Created { get; set; }
+
+        public bool Overwritten { get; set; }
+
+        public long Size { get; set; }
+
+        public string? Owner { get; set; }
+
+        public string? Group { get; set; }
+
+        public string? Mode { get; set; }
+    }
+
+    private sealed class RemotePermissionChangeResult
+    {
+        public string? ResolvedPath { get; set; }
+
+        public bool Changed { get; set; }
+
+        public string? Owner { get; set; }
+
+        public string? Group { get; set; }
+
+        public string? Mode { get; set; }
+    }
+
+    private sealed record WebPublicFileAccess(
+        bool IsExplicitRule,
+        string? Error);
+
+    private sealed record WritePermissionRequest(
+        bool HasPermissions,
+        string OwnerSpec,
+        string Owner,
+        string Group,
+        string Mode,
+        string? Error)
+    {
+        public static WritePermissionRequest None { get; } = new(false, string.Empty, string.Empty, string.Empty, string.Empty, null);
+    }
+}
