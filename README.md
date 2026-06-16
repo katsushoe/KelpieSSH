@@ -2,6 +2,8 @@
 
 KelpieSSH is a local MCP server for safely assisting VPS diagnostics and maintenance over SSH.
 
+Japanese documentation is available in [README.ja.md](README.ja.md).
+
 Command details are documented in [COMMANDS.md](COMMANDS.md).
 
 Configuration details are documented in [CONFIG.md](CONFIG.md).
