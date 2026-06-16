@@ -1,4 +1,4 @@
-# COMMAND_TEST.md Version
+# COMMAND_TEST.ja.md Version
 2026.06.11
 
 # 変更履歴
@@ -8,7 +8,7 @@
 
 このファイルは KelpieSSH のコマンドテスト結果を管理する。
 
-コマンドテストシナリオは `COMMAND_SCENARIO.md` を正とします。このファイルには結果サマリと実施結果だけを記録します。
+コマンドテストシナリオは `COMMAND_SCENARIO.ja.md` を正とします。このファイルには結果サマリと実施結果だけを記録します。
 
 # 結果記号
 

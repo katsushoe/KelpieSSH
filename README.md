@@ -4,9 +4,9 @@ KelpieSSH is a local MCP server for safely assisting VPS diagnostics and mainten
 
 Japanese documentation is available in [README.ja.md](README.ja.md).
 
-Command details are documented in [COMMANDS.md](COMMANDS.md).
+Japanese command details are documented in [COMMANDS.ja.md](COMMANDS.ja.md).
 
-Configuration details are documented in [CONFIG.md](CONFIG.md).
+Japanese configuration details are documented in [CONFIG.ja.md](CONFIG.ja.md).
 
 `kelpie` reads `config/kelpie.json`; `kelpiemcp` and `KelpieMCPServer` read `config/kelpiemcp.json`.
 

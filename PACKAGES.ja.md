@@ -1,4 +1,4 @@
-# PACKAGES.md Version
+# PACKAGES.ja.md Version
 2026.06.16
 
 # 変更履歴

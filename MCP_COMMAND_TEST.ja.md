@@ -1,4 +1,4 @@
-# MCP_COMMAND_TEST.md Version
+# MCP_COMMAND_TEST.ja.md Version
 2026.06.16
 
 # 変更履歴
@@ -10,7 +10,7 @@
 
 このファイルは KelpieSSH の MCP callable tool テスト結果を管理する。
 
-MCP callable tool テストシナリオは `MCP_COMMAND_SCENARIO.md` を正とします。このファイルには結果サマリと実施結果だけを記録します。
+MCP callable tool テストシナリオは `MCP_COMMAND_SCENARIO.ja.md` を正とします。このファイルには結果サマリと実施結果だけを記録します。
 
 # 結果記号
 

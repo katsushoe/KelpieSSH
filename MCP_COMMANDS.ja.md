@@ -3,7 +3,7 @@
 最終更新: 2026-06-17
 
 このファイルは、KelpieSSH が MCP callable tool として公開するコマンドの正本です。
-通常のターミナルで実行する `kelpie` / `kelpiemcp` CLI コマンドは `COMMANDS.md` を正本とします。
+通常のターミナルで実行する `kelpie` / `kelpiemcp` CLI コマンドは `COMMANDS.ja.md` を正本とします。
 
 ## コマンド分類
 

@@ -1,4 +1,4 @@
-# COMMAND_SCENARIO.md Version
+# COMMAND_SCENARIO.ja.md Version
 2026.06.11
 
 # 変更履歴

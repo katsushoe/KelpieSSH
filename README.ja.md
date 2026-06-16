@@ -4,9 +4,9 @@ KelpieSSH は、SSH 越しの VPS 診断と保守を安全に補助するため�
 
 English documentation is available in [README.md](README.md).
 
-コマンドの詳細は [COMMANDS.md](COMMANDS.md) を参照してください。
+コマンドの詳細は [COMMANDS.ja.md](COMMANDS.ja.md) を参照してください。
 
-設定の詳細は [CONFIG.md](CONFIG.md) を参照してください。
+設定の詳細は [CONFIG.ja.md](CONFIG.ja.md) を参照してください。
 
 `kelpie` は `config/kelpie.json` を読み込みます。`kelpiemcp` と `KelpieMCPServer` は `config/kelpiemcp.json` を読み込みます。
 

@@ -1,4 +1,4 @@
-# MCP_COMMAND_SCENARIO.md Version
+# MCP_COMMAND_SCENARIO.ja.md Version
 2026.06.16
 
 # 変更履歴
@@ -10,9 +10,9 @@
 
 このファイルは KelpieSSH の MCP callable tool テスト限定シナリオを管理する。
 
-MCP callable tool の仕様は `MCP_COMMANDS.md` を正とします。このファイルは、MCPクライアント経由で `KelpieMCPServer` に公開された tool を呼び出し、引数、確認文字列、戻り値、安全制御、実機SSH連携が仕様どおりに動くことを確認するためのシナリオです。
+MCP callable tool の仕様は `MCP_COMMANDS.ja.md` を正とします。このファイルは、MCPクライアント経由で `KelpieMCPServer` に公開された tool を呼び出し、引数、確認文字列、戻り値、安全制御、実機SSH連携が仕様どおりに動くことを確認するためのシナリオです。
 
-通常のターミナルで実行する `kelpie` / `kelpiemcp` CLI コマンドのテストシナリオは `COMMAND_SCENARIO.md` を正とします。
+通常のターミナルで実行する `kelpie` / `kelpiemcp` CLI コマンドのテストシナリオは `COMMAND_SCENARIO.ja.md` を正とします。
 
 # 前提条件
 
@@ -920,4 +920,4 @@ MCP callable tool の仕様は `MCP_COMMANDS.md` を正とします。このフ�
 - `service_config_file_commit` は設定ファイル本体を変更せず、`<path>.kelpiebakup` だけを削除することを確認する。
 - `service_config_file_rollback` は `<path>.kelpiebakup` を `<path>` に戻し、成功後に backup を削除することを確認する。
 - Web file / permission 系の実変更は、テスト用 path だけで行う。既存 site root や本番ファイルへ直接 recursive 操作を行わない。
-- 実機で得た実ホスト名、実ユーザー名、秘密情報、公開前の設定値は `MCP_COMMAND_TEST.md` に記録しない。
+- 実機で得た実ホスト名、実ユーザー名、秘密情報、公開前の設定値は `MCP_COMMAND_TEST.ja.md` に記録しない。

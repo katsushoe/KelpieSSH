@@ -3,7 +3,7 @@
 最終更新: 2026-06-14
 
 このファイルは、利用者が通常のターミナルから直接実行する `kelpie` / `kelpiemcp` CLI コマンドの正本です。
-MCP callable tool の仕様と実行例は `MCP_COMMANDS.md` を正本とします。
+MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とします。
 
 ## Command Groups
 
@@ -967,7 +967,7 @@ Not implemented.
 
 目的:
 
-パッケージ操作系 CLI コマンドの候補です。現時点では未実装です。MCP tool としては `MCP_COMMANDS.md` の package tools を正とします。
+パッケージ操作系 CLI コマンドの候補です。現時点では未実装です。MCP tool としては `MCP_COMMANDS.ja.md` の package tools を正とします。
 
 構文:
 
@@ -1002,7 +1002,7 @@ Not implemented.
 
 ## Safety Notes
 
-- `COMMANDS.md` は通常のターミナルから直接実行する CLI コマンドの正本です。MCP callable tool は `MCP_COMMANDS.md` を参照してください。
+- `COMMANDS.ja.md` は通常のターミナルから直接実行する CLI コマンドの正本です。MCP callable tool は `MCP_COMMANDS.ja.md` を参照してください。
 - 平文パスワードは `profiles/<profile>.json` に保存しません。
 - 秘密鍵パスやパスワードそのものは CLI 表示に出しません。
 - `kelpie login` の対話セッションでは、送信前に Kelpie の `Mode` / `Capabilities` によるポリシー評価を行います。
