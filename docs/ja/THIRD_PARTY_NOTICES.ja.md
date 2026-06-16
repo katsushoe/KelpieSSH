@@ -3,7 +3,7 @@
 
 # KelpieSSH サードパーティ通知
 
-English documentation is available in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+English documentation is available in [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md).
 
 このファイルは、KelpieSSH の runtime libraries と配布 binaries が使用する third-party NuGet packages の通知をまとめる日本語版です。
 
@@ -21,7 +21,7 @@ KelpieSSH 自体は MIT License で公開されています。
 
 現在の KelpieSSH runtime dependency set では、GPL、AGPL、LGPL、SSPL、Commons Clause、その他の non-permissive runtime NuGet dependencies は確認されていません。
 
-Runtime package を追加または更新した場合は、英語版 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) を更新し、日本語版も必要に応じて同期してください。
+Runtime package を追加または更新した場合は、英語版 [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md) を更新し、日本語版も必要に応じて同期してください。
 
 # 主要 runtime dependencies
 
@@ -35,4 +35,3 @@ Runtime package を追加または更新した場合は、英語版 [THIRD_PARTY
 # 再配布時の注意
 
 KelpieSSH packages または binaries を KelpiePro などの別製品に同梱して再配布する場合は、KelpieSSH の MIT license notice と third-party notices を installer、application about box、bundled documentation、または同等の notices location に含めてください。
-

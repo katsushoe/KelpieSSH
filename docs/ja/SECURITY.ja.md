@@ -1,6 +1,6 @@
 # セキュリティポリシー
 
-English documentation is available in [SECURITY.md](SECURITY.md).
+English documentation is available in [SECURITY.md](../../SECURITY.md).
 
 ## 対応バージョン
 
@@ -34,4 +34,3 @@ KelpieSSH は、SSH 越しの VPS 診断と保守を補助しつつ、コマン�
 - KelpieSSH 用の SSH user は必要最小限の権限にしてください。
 - Test target と production target を混同しないでください。
 - Confirmation が必要な operation は、対象と影響範囲を確認してから実行してください。
-

@@ -196,7 +196,7 @@ KelpieSSH の外部接続実装を持つライブラリです。
 | `ModelContextProtocol.AspNetCore` | `1.3.0` | Apache-2.0 | `KelpieMCPServer` | ASP.NET Core 上で Streamable HTTP MCP エンドポイントを公開するために使います。 |
 | `SSH.NET` | `2025.1.0` | MIT | `KelpieSSH.Infrastructure` | SSH 接続、コマンド実行、秘密鍵認証、ShellStream による対話シェル処理に使います。 |
 
-推移的なランタイム依存を含む第三者ライセンス一覧は [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) を正本とします。
+推移的なランタイム依存を含む第三者ライセンス一覧は [THIRD_PARTY_NOTICES.ja.md](THIRD_PARTY_NOTICES.ja.md) を正本とします。
 現時点のランタイム依存では、GPL / AGPL / LGPL / SSPL / Commons Clause など ClosedSource 有償製品に影響し得る copyleft / source-available 系ライセンスは検出していません。
 
 ## `Microsoft.Extensions.Configuration.Abstractions`

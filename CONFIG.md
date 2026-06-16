@@ -3,7 +3,7 @@
 Last updated: 2026-06-17
 
 This file is the English configuration reference for KelpieSSH.
-For Japanese documentation, see [CONFIG.ja.md](CONFIG.ja.md).
+For Japanese documentation, see [docs/ja/CONFIG.ja.md](docs/ja/CONFIG.ja.md).
 
 ## Configuration Directory
 
@@ -152,4 +152,3 @@ If `AllowedRoots` is omitted or empty, path-based operations are not allowed by 
 - Do not commit real profile files.
 - Do not commit private keys, passwords, passphrases, real host names, or real user names.
 - Keep production `profiles/`, `keys/`, `dat/`, and `logs/` outside this public repository.
-

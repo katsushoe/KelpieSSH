@@ -7,7 +7,7 @@
 # KelpieSSH MCP Tool Test Results
 
 This file is the English summary of MCP callable tool test results.
-For Japanese documentation, see [MCP_COMMAND_TEST.ja.md](MCP_COMMAND_TEST.ja.md).
+For Japanese documentation, see [docs/ja/MCP_COMMAND_TEST.ja.md](docs/ja/MCP_COMMAND_TEST.ja.md).
 MCP tool test scenarios are documented in [MCP_COMMAND_SCENARIO.md](MCP_COMMAND_SCENARIO.md).
 
 # Result Codes
@@ -38,4 +38,3 @@ MCP tool test scenarios are documented in [MCP_COMMAND_SCENARIO.md](MCP_COMMAND_
 # Safety Notes
 
 Do not record real host details, real user names, passwords, private keys, raw file bodies, or raw log bodies in test results.
-

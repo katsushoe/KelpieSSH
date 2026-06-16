@@ -7,7 +7,7 @@
 # KelpieSSH Packages
 
 This file is the English package and dependency reference for KelpieSSH.
-For Japanese documentation, see [PACKAGES.ja.md](PACKAGES.ja.md).
+For Japanese documentation, see [docs/ja/PACKAGES.ja.md](docs/ja/PACKAGES.ja.md).
 
 ## Target Projects
 
@@ -70,4 +70,3 @@ dotnet test
 - Re-run build and tests after package updates.
 - Re-check third-party notices and license risk after runtime package changes.
 - Do not add local or private package feeds with secrets to public documentation.
-

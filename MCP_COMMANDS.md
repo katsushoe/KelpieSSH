@@ -3,7 +3,7 @@
 Last updated: 2026-06-17
 
 This file is the English reference for MCP callable tools exposed by `KelpieMCPServer`.
-For Japanese documentation, see [MCP_COMMANDS.ja.md](MCP_COMMANDS.ja.md).
+For Japanese documentation, see [docs/ja/MCP_COMMANDS.ja.md](docs/ja/MCP_COMMANDS.ja.md).
 Terminal CLI commands are documented in [COMMANDS.md](COMMANDS.md).
 
 # Tool Groups
@@ -125,4 +125,3 @@ If the confirmation is missing or does not match, the tool returns a confirmatio
 - Raw operations must pass raw shell policy checks.
 - Service configuration and web file operations are limited to provider-approved paths.
 - Real host names, real user names, secrets, raw log bodies containing secrets, and unpublished settings must not be recorded in committed documents.
-

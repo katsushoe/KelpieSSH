@@ -1,6 +1,6 @@
 # KelpieSSH MSI インストーラー
 
-English documentation is available in [README.md](README.md).
+English documentation is available in [README.md](../../../installer/README.md).
 
 KelpieSSH は WiX Toolset を使って per-user MSI installer を作成します。
 

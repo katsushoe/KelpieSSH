@@ -7,7 +7,7 @@
 # KelpieSSH MCP Tool Scenarios
 
 This file is the English scenario reference for MCP callable tools.
-For Japanese documentation, see [MCP_COMMAND_SCENARIO.ja.md](MCP_COMMAND_SCENARIO.ja.md).
+For Japanese documentation, see [docs/ja/MCP_COMMAND_SCENARIO.ja.md](docs/ja/MCP_COMMAND_SCENARIO.ja.md).
 Tool details are documented in [MCP_COMMANDS.md](MCP_COMMANDS.md).
 
 # Preconditions
@@ -69,4 +69,3 @@ Tool details are documented in [MCP_COMMANDS.md](MCP_COMMANDS.md).
 - Web file and permission changes must be limited to disposable test paths.
 - Do not run recursive permission changes against production site roots.
 - Record only sanitized summaries in committed test result documents.
-

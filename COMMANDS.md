@@ -3,7 +3,7 @@
 Last updated: 2026-06-17
 
 This file is the English command reference for commands run directly from a terminal, such as `kelpie` and `kelpiemcp`.
-For Japanese documentation, see [COMMANDS.ja.md](COMMANDS.ja.md).
+For Japanese documentation, see [docs/ja/COMMANDS.ja.md](docs/ja/COMMANDS.ja.md).
 For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 
 ## Command Groups
@@ -179,4 +179,3 @@ kelpiemcp forget vps01
 - Dangerous operations require dedicated commands, policy checks, and confirmation strings.
 - Passwords are session-only for the MCP server process.
 - Production profile files and private keys must stay outside the public repository.
-

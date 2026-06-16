@@ -7,7 +7,7 @@
 # KelpieSSH Command Scenarios
 
 This file is the English scenario reference for terminal CLI commands.
-For Japanese documentation, see [COMMAND_SCENARIO.ja.md](COMMAND_SCENARIO.ja.md).
+For Japanese documentation, see [docs/ja/COMMAND_SCENARIO.ja.md](docs/ja/COMMAND_SCENARIO.ja.md).
 MCP callable tool scenarios are documented separately in [MCP_COMMAND_SCENARIO.md](MCP_COMMAND_SCENARIO.md).
 
 # Preconditions
@@ -51,4 +51,3 @@ MCP callable tool scenarios are documented separately in [MCP_COMMAND_SCENARIO.m
 - Passwords must not be stored in JSON files.
 - Tests that modify real systems require explicit confirmation and a disposable target.
 - Keep raw logs and secrets out of committed test results.
-

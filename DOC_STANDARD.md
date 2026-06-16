@@ -7,13 +7,13 @@
 # Purpose
 
 This file defines KelpieSSH-specific documentation rules.
-For Japanese documentation, see [DOC_STANDARD.ja.md](DOC_STANDARD.ja.md).
+For Japanese documentation, see [docs/ja/DOC_STANDARD.ja.md](docs/ja/DOC_STANDARD.ja.md).
 The shared documentation standard is maintained outside this repository and is referenced by the project rules.
 
 # Language and File Naming
 
-- English documentation uses `.md`.
-- Japanese documentation uses `.ja.md`.
+- English documentation uses `.md` at the repository root or the relevant feature directory.
+- Japanese documentation uses `.ja.md` under `docs/ja/`, preserving subdirectories when useful.
 - Do not use `.en.md`.
 - When both languages exist, the English `.md` file is the public default entry point.
 - Japanese files should link back to the matching English file when useful.
@@ -21,7 +21,7 @@ The shared documentation standard is maintained outside this repository and is r
 # README Rules
 
 - `README.md` is the English public entry point.
-- `README.ja.md` is the Japanese public entry point.
+- `docs/ja/README.ja.md` is the Japanese public entry point.
 - Keep setup and first-use guidance in README files.
 - Move detailed command, configuration, package, and test content into topic documents.
 
@@ -58,4 +58,3 @@ Examples that require confirmation:
 - Public examples must use placeholder hosts such as `example.invalid` or documentation-safe addresses.
 - Security-sensitive details belong in [SECURITY.md](SECURITY.md).
 - Third-party license notices belong in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-

@@ -2,7 +2,7 @@
 
 KelpieSSH は、SSH 越しの VPS 診断と保守を安全に補助するためのローカル MCP サーバーです。
 
-English documentation is available in [README.md](README.md).
+English documentation is available in [README.md](../../README.md).
 
 コマンドの詳細は [COMMANDS.ja.md](COMMANDS.ja.md) を参照してください。
 
@@ -228,11 +228,11 @@ KelpieSSH は、読み取り中心の診断と許可リスト方式の SSH コ�
 
 パスワード認証は、実行中の `KelpieMCPServer` プロセスに対するセッション ベースです。平文パスワードを JSON 設定ファイルに保存してはいけません。
 
-脆弱性報告と対応対象 version の方針は [SECURITY.md](SECURITY.md) を参照してください。
+脆弱性報告と対応対象 version の方針は [SECURITY.ja.md](SECURITY.ja.md) を参照してください。
 
 ## ライセンス
 
-KelpieSSH は MIT License で公開されています。詳細は [LICENSE](LICENSE) を参照してください。
+KelpieSSH は MIT License で公開されています。詳細は [LICENSE](../../LICENSE) を参照してください。
 
 Copyright (c) 2026 Akatsukisoft.
 
@@ -240,7 +240,7 @@ MIT License は、著作権表示と許諾表示をソフトウェアの複製�
 
 KelpiePro は有償の closed-source desktop product として計画されています。KelpiePro は、OSS 実装を closed-source product repository へ fork または copy せず、KelpieSSH と Kelpie Core libraries を NuGet packages として参照できます。この repository は OSS 実装と package metadata の upstream source として維持されます。
 
-KelpieSSH packages または binaries を KelpiePro と再配布する場合は、KelpieSSH の MIT license notice と [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) に記載された third-party notices を installer、application about box、bundled documentation、または同等の notices location に含めてください。
+KelpieSSH packages または binaries を KelpiePro と再配布する場合は、KelpieSSH の MIT license notice と [THIRD_PARTY_NOTICES.ja.md](THIRD_PARTY_NOTICES.ja.md) に記載された third-party notices を installer、application about box、bundled documentation、または同等の notices location に含めてください。
 
 現在の runtime dependency review では、KelpieSSH runtime packages に GPL、AGPL、LGPL、SSPL、Commons Clause、その他の non-permissive dependencies は確認されていません。package version を追加または更新した場合は、`THIRD_PARTY_NOTICES.md` を再確認してください。
 

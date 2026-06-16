@@ -7,7 +7,7 @@
 # KelpieSSH Command Test Results
 
 This file is the English summary of terminal CLI command test results.
-For Japanese documentation, see [COMMAND_TEST.ja.md](COMMAND_TEST.ja.md).
+For Japanese documentation, see [docs/ja/COMMAND_TEST.ja.md](docs/ja/COMMAND_TEST.ja.md).
 Detailed scenarios are maintained in [COMMAND_SCENARIO.md](COMMAND_SCENARIO.md).
 
 # Result Codes
@@ -42,4 +42,3 @@ The command test set covers:
 # Safety Notes
 
 Tests must not record real host names, real user names, passwords, private keys, passphrases, raw logs containing secrets, or unpublished production settings.
-
