@@ -37,6 +37,7 @@ appsettings.Local.json
 *.temp
 
 COMPETITORS.md
+DOC_STANDARD.md
 AGENTS.md
 OPERATIONAL_TEST.md
 PROGRESS.md
