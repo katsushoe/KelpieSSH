@@ -126,3 +126,7 @@ kelpiemcp forget vps01
 
 The password is sent to the running `KelpieMCPServer` over the local control pipe and kept only in memory for that server process.
 
+## MCP command-line tools
+
+The MCP command-line tool list is documented in [MCP_COMMANDS.md](MCP_COMMANDS.md).
+

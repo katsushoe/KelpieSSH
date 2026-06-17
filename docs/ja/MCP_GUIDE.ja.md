@@ -126,3 +126,7 @@ kelpiemcp forget vps01
 
 パスワードはローカル control pipe を通して実行中の `KelpieMCPServer` へ送られ、そのサーバープロセスのメモリ内にのみ保持されます。
 
+## MCP コマンドラインツール
+
+MCP コマンドラインツールの一覧は [MCP_COMMANDS.ja.md](MCP_COMMANDS.ja.md) にありますので、そちらを参照してください。
+
