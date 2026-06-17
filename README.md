@@ -30,6 +30,18 @@ For normal use, download the KelpieSSH `.msi` installer from GitHub Releases and
 
 After installation, open a new terminal.
 
+Verify that the command is available:
+
+```powershell
+kelpie version
+```
+
+Expected output:
+
+```text
+kelpie 0.1.4.1
+```
+
 Execute this command in the terminal:
 
 ```powershell
