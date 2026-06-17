@@ -41,23 +41,17 @@ dotnet publish src\KelpieMCPServer\KelpieMCPServer.csproj -c Release -o D:\Kelpi
 
 Kelpie の設定ファイル全般と各項目の詳細は [CONFIG.ja.md](CONFIG.ja.md) を参照してください。
 
-既定の MCP endpoint は次のとおりです。
-
-```text
-http://127.0.0.1:45432/mcp
-```
-
 port と server options は次のファイルで設定します。
 
 ```text
 <KelpieHome>\config\kelpiemcp.json
 ```
 
-port を変更した場合は、AI client 側の MCP 設定も合わせて更新してください。
+既定の server port は `45432` です。
 
 ## サーバー起動
 
-Codex などの MCP client から接続する前に、ローカル MCP サーバーを起動します。
+Codex、Claude、またはほかの MCP client から接続する前に、ローカル MCP サーバーを起動します。
 
 ```powershell
 kelpiemcp start
@@ -69,6 +63,24 @@ kelpiemcp start
 kelpiemcp status
 ```
 
+MCP access が不要になったら、MCP サーバーを停止します。
+
+```powershell
+kelpiemcp stop
+```
+
+## AI client 接続設定
+
+既定の Streamable HTTP MCP endpoint は次のとおりです。
+
+```text
+http://127.0.0.1:45432/mcp
+```
+
+`kelpiemcp.json` で port を変更した場合は、AI client 側の MCP 設定も合わせて更新してください。
+
+### Codex
+
 Codex MCP 設定へ Streamable HTTP MCP server URL を追加します。
 
 ```toml
@@ -76,10 +88,33 @@ Codex MCP 設定へ Streamable HTTP MCP server URL を追加します。
 url = "http://127.0.0.1:45432/mcp"
 ```
 
-MCP access が不要になったら、MCP サーバーを停止します。
+MCP 設定を変更した後は、Codex を再起動または reload してください。
+
+### Claude
+
+Claude Code では、KelpieSSH を Streamable HTTP MCP server として追加します。
 
 ```powershell
-kelpiemcp stop
+claude mcp add --transport http kelpie http://127.0.0.1:45432/mcp
+```
+
+server が登録されたことを確認します。
+
+```powershell
+claude mcp list
+```
+
+JSON MCP server configuration を使う Claude client では、同じ Streamable HTTP endpoint を登録します。
+
+```json
+{
+  "mcpServers": {
+    "kelpie": {
+      "type": "http",
+      "url": "http://127.0.0.1:45432/mcp"
+    }
+  }
+}
 ```
 
 ## パスワードセッション

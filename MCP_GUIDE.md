@@ -41,23 +41,17 @@ dotnet publish src\KelpieMCPServer\KelpieMCPServer.csproj -c Release -o D:\Kelpi
 
 For general Kelpie configuration files and field details, see [CONFIG.md](CONFIG.md).
 
-The default MCP endpoint is:
-
-```text
-http://127.0.0.1:45432/mcp
-```
-
 The port and server options are configured in:
 
 ```text
 <KelpieHome>\config\kelpiemcp.json
 ```
 
-If the port is changed, update the AI client MCP configuration to match.
+The default server port is `45432`.
 
 ## Starting the Server
 
-Start the local MCP server before connecting from Codex or another MCP client:
+Start the local MCP server before connecting from Codex, Claude, or another MCP client:
 
 ```powershell
 kelpiemcp start
@@ -69,6 +63,24 @@ Check that it is running:
 kelpiemcp status
 ```
 
+Stop the MCP server when you no longer need MCP access:
+
+```powershell
+kelpiemcp stop
+```
+
+## AI Client Connection Settings
+
+The default Streamable HTTP MCP endpoint is:
+
+```text
+http://127.0.0.1:45432/mcp
+```
+
+If the port is changed in `kelpiemcp.json`, update the AI client MCP configuration to match.
+
+### Codex
+
 Add the Streamable HTTP MCP server URL to the Codex MCP configuration:
 
 ```toml
@@ -76,10 +88,33 @@ Add the Streamable HTTP MCP server URL to the Codex MCP configuration:
 url = "http://127.0.0.1:45432/mcp"
 ```
 
-Stop the MCP server when you no longer need MCP access:
+Restart or reload Codex after changing the MCP configuration.
+
+### Claude
+
+For Claude Code, add KelpieSSH as a Streamable HTTP MCP server:
 
 ```powershell
-kelpiemcp stop
+claude mcp add --transport http kelpie http://127.0.0.1:45432/mcp
+```
+
+Check that the server is registered:
+
+```powershell
+claude mcp list
+```
+
+For Claude clients that use a JSON MCP server configuration, register the same Streamable HTTP endpoint:
+
+```json
+{
+  "mcpServers": {
+    "kelpie": {
+      "type": "http",
+      "url": "http://127.0.0.1:45432/mcp"
+    }
+  }
+}
 ```
 
 ## Password Sessions
