@@ -304,15 +304,15 @@ Do not report vulnerabilities or secret-bearing details in public issues. For vu
 
 ## License
 
-KelpieSSH is released under the MIT License. See [LICENSE](LICENSE).
+KelpieSSH is released under the Apache License 2.0. See [LICENSE](LICENSE).
 
 Copyright (c) 2026 Akatsukisoft.
 
-The MIT License permits commercial use, modification, redistribution, sublicensing, and sale of KelpieSSH, provided that the copyright notice and permission notice are included in copies or substantial portions of the software.
+The Apache License 2.0 permits commercial use, modification, redistribution, sublicensing, and patent use under its license terms. It also includes an explicit contributor patent grant and patent termination clause.
 
 KelpiePro is planned as a paid closed-source desktop product. KelpiePro may reference KelpieSSH and Kelpie Core libraries as NuGet packages without forking or copying the OSS implementation into the closed-source product repository. This repository remains the upstream source for the OSS implementation and package metadata.
 
-When KelpieSSH packages or binaries are redistributed with KelpiePro, include the KelpieSSH MIT license notice and the third-party notices listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) in the installer, application about box, bundled documentation, or an equivalent notices location.
+When KelpieSSH packages or binaries are redistributed with KelpiePro, include the KelpieSSH Apache License 2.0 notice and the third-party notices listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) in the installer, application about box, bundled documentation, or an equivalent notices location.
 
 The current runtime dependency review did not identify GPL, AGPL, LGPL, SSPL, Commons Clause, or other non-permissive dependencies in KelpieSSH runtime packages. Review `THIRD_PARTY_NOTICES.md` again whenever package versions are added or updated.
 

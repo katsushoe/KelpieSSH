@@ -39,7 +39,7 @@ This file is the public source of truth for KelpieSSH Git-managed public documen
 | `PACKAGES.md` | `PACKAGES.md` | Yes | Public package, dependency, package-source, and update-policy reference. Japanese version is under `docs/ja/`. |
 | `SECURITY.md` | `SECURITY.md` | Yes | Public security policy and vulnerability reporting guidance. Japanese version is under `docs/ja/`. |
 | `THIRD_PARTY_NOTICES.md` | `THIRD_PARTY_NOTICES.md` | Yes | Public third-party dependency and license notices. Japanese version is under `docs/ja/`. |
-| `LICENSE` | `LICENSE` | Yes | MIT license text. |
+| `LICENSE` | `LICENSE` | Yes | Apache License 2.0 text. |
 
 ## Private Document Handling
 

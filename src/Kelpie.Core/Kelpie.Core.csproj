@@ -11,7 +11,7 @@
     <PackageProjectUrl>https://github.com/katsushoe/KelpieSSH</PackageProjectUrl>
     <RepositoryUrl>https://github.com/katsushoe/KelpieSSH</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <Version>0.1.2.2-alpha</Version>
     <AssemblyVersion>0.1.2.2</AssemblyVersion>

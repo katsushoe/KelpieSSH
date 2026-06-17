@@ -290,15 +290,15 @@ KelpieSSH は、読み取り中心の診断と許可リスト方式の SSH コ�
 
 ## ライセンス
 
-KelpieSSH は MIT License で公開されています。詳細は [LICENSE](../../LICENSE) を参照してください。
+KelpieSSH は Apache License 2.0 で公開されています。詳細は [LICENSE](../../LICENSE) を参照してください。
 
 Copyright (c) 2026 Akatsukisoft.
 
-MIT License は、著作権表示と許諾表示をソフトウェアの複製または重要な部分に含めることを条件として、KelpieSSH の商用利用、改変、再配布、サブライセンス、販売を許可します。
+Apache License 2.0 は、ライセンス条件にしたがって KelpieSSH の商用利用、改変、再配布、サブライセンス、特許利用を許可します。また、明示的な contributor patent grant と patent termination clause を含みます。
 
 KelpiePro は有償の closed-source desktop product として計画されています。KelpiePro は、OSS 実装を closed-source product repository へ fork または copy せず、KelpieSSH と Kelpie Core libraries を NuGet packages として参照できます。この repository は OSS 実装と package metadata の upstream source として維持されます。
 
-KelpieSSH packages または binaries を KelpiePro と再配布する場合は、KelpieSSH の MIT license notice と [THIRD_PARTY_NOTICES.ja.md](THIRD_PARTY_NOTICES.ja.md) に記載された third-party notices を installer、application about box、bundled documentation、または同等の notices location に含めてください。
+KelpieSSH packages または binaries を KelpiePro と再配布する場合は、KelpieSSH の Apache License 2.0 notice と [THIRD_PARTY_NOTICES.ja.md](THIRD_PARTY_NOTICES.ja.md) に記載された third-party notices を installer、application about box、bundled documentation、または同等の notices location に含めてください。
 
 現在の runtime dependency review では、KelpieSSH runtime packages に GPL、AGPL、LGPL、SSPL、Commons Clause、その他の non-permissive dependencies は確認されていません。package version を追加または更新した場合は、`THIRD_PARTY_NOTICES.md` を再確認してください。
 

@@ -5,11 +5,11 @@
 
 This file lists third-party NuGet packages used by KelpieSSH runtime libraries and distributed binaries.
 
-KelpieSSH itself is licensed under the MIT License.
+KelpieSSH itself is licensed under the Apache License 2.0.
 
 - Product: KelpieSSH
 - Copyright: Copyright (c) 2026 Akatsukisoft
-- License: MIT
+- License: Apache-2.0
 - Project URL: https://github.com/katsushoe/KelpieSSH
 - Notice source: `dotnet list package --include-transitive` and the resolved NuGet `.nuspec` metadata in the local package cache.
 
@@ -77,7 +77,7 @@ BouncyCastle.Cryptography is published on NuGet as MIT. Its package README also 
 
 # Redistribution Notes for KelpiePro
 
-KelpiePro may redistribute KelpieSSH binaries and reference KelpieSSH NuGet packages under the MIT License. When redistributing KelpieSSH or dependencies, include:
+KelpiePro may redistribute KelpieSSH binaries and reference KelpieSSH NuGet packages under the Apache License 2.0. When redistributing KelpieSSH or dependencies, include:
 
 - KelpieSSH `LICENSE`
 - This `THIRD_PARTY_NOTICES.md`

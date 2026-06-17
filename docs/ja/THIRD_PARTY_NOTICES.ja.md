@@ -7,11 +7,11 @@ English documentation is available in [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY
 
 このファイルは、KelpieSSH の runtime libraries と配布 binaries が使用する third-party NuGet packages の通知をまとめる日本語版です。
 
-KelpieSSH 自体は MIT License で公開されています。
+KelpieSSH 自体は Apache License 2.0 で公開されています。
 
 - Product: KelpieSSH
 - Copyright: Copyright (c) 2026 Akatsukisoft
-- License: MIT
+- License: Apache-2.0
 - Project URL: https://github.com/katsushoe/KelpieSSH
 - Notice source: `dotnet list package --include-transitive` と local package cache 内の NuGet `.nuspec` metadata
 
@@ -35,4 +35,4 @@ Runtime package を追加または更新した場合は、英語版 [THIRD_PARTY
 
 # 再配布時の注意
 
-KelpieSSH packages または binaries を KelpiePro などの別製品に同梱して再配布する場合は、KelpieSSH の MIT license notice と third-party notices を installer、application about box、bundled documentation、または同等の notices location に含めてください。
+KelpieSSH packages または binaries を KelpiePro などの別製品に同梱して再配布する場合は、KelpieSSH の Apache License 2.0 notice と third-party notices を installer、application about box、bundled documentation、または同等の notices location に含めてください。
