@@ -17,7 +17,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | Profile/session | `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
 | Mode/UI | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | CLI/GUI モードや一時的な起動方式を切り替える。 |
 | Diagnostics | `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | プロファイル情報、MCP server 状態、SSH 診断、サービスログを表示する。 |
-| Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env set` | profile policy に従って remote 環境変数の key 表示、値参照、一時設定を行う。 |
+| Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | profile policy に従って remote 環境変数の key 表示、値参照、一時設定、永続化を行う。 |
 | Help/version | `kelpie version`, `kelpie help` | バージョンとヘルプを表示する。 |
 | Candidates | `kelpie services`, `kelpie pkg ...` | 今後追加候補。 |
 
@@ -1033,7 +1033,8 @@ masked の場合:
 
 目的:
 
-1回の command execution にだけ remote 環境変数値を付与して実行します。remote host に永続保存しません。
+1回の command execution にだけ remote 環境変数値を付与して実行します。remote host に新しい値を永続保存しません。
+実行前に `~/.kelpie/.env` が存在する場合は source してから、指定した `<key> <value>` で上書きします。
 
 構文:
 
@@ -1066,6 +1067,115 @@ profile の `Capabilities` に `AllowSetEnvironmentValues` が必要です。
 
 ```text
 production
+```
+
+### `kelpie env list <profile>`
+
+目的:
+
+remote の Kelpie env file に保存されている環境変数名を一覧表示します。
+
+構文:
+
+```powershell
+kelpie env list vps01
+```
+
+引数詳細:
+
+- `profile`: 永続 env file を確認するプロファイル名。
+
+引数サンプル:
+
+- `profile`: `vps01`
+
+処理内容:
+
+対象 remote user の `~/.kelpie/.env` から環境変数名だけを抽出します。
+profile の `Capabilities` に `AllowPeekEnvironmentKeys` が必要です。
+`EnvironmentValues` で `Hidden` にした key は出力から除外します。
+値は表示しません。
+
+実行結果サンプル:
+
+```text
+APP_ENV
+PATH
+```
+
+### `kelpie env persist <profile> <key> <value>`
+
+目的:
+
+remote の Kelpie env file に環境変数値を保存します。
+
+構文:
+
+```powershell
+kelpie env persist vps01 APP_ENV production
+```
+
+引数詳細:
+
+- `profile`: 環境変数を保存するプロファイル名。
+- `key`: 保存する環境変数名。
+- `value`: 保存する値。
+
+引数サンプル:
+
+- `profile`: `vps01`
+- `key`: `APP_ENV`
+- `value`: `production`
+
+処理内容:
+
+対象 remote user の `~/.kelpie/.env` を更新します。
+書き込み前に `~/.kelpie/.env.20260617T120000Z.kelpie` のような timestamp 付き backup を作成します。
+profile の `Capabilities` に `AllowSetEnvironmentValues` が必要です。
+さらに、対象 key が `EnvironmentValues` で `SetCommon` または `SetSecret` として許可されている必要があります。
+既存プロセスには自動反映されません。cron、shell、Kelpie 実行などが次回 source した時点で反映されます。
+
+実行結果サンプル:
+
+```text
+Updated ~/.kelpie/.env
+Backup: ~/.kelpie/.env.20260617T120000Z.kelpie
+```
+
+### `kelpie env remove <profile> <key>`
+
+目的:
+
+remote の Kelpie env file から環境変数を削除します。
+
+構文:
+
+```powershell
+kelpie env remove vps01 APP_ENV
+```
+
+引数詳細:
+
+- `profile`: 環境変数を削除するプロファイル名。
+- `key`: 削除する環境変数名。
+
+引数サンプル:
+
+- `profile`: `vps01`
+- `key`: `APP_ENV`
+
+処理内容:
+
+対象 remote user の `~/.kelpie/.env` から指定 key の行を削除します。
+書き込み前に timestamp 付き `.kelpie` backup を作成します。
+profile の `Capabilities` に `AllowSetEnvironmentValues` が必要です。
+さらに、対象 key が `EnvironmentValues` で `SetCommon` または `SetSecret` として許可されている必要があります。
+
+実行結果サンプル:
+
+```text
+Removed from ~/.kelpie/.env
+Backup: ~/.kelpie/.env.20260617T120000Z.kelpie
 ```
 
 ### `kelpie version`
@@ -1148,6 +1258,9 @@ Usage:
   kelpie env keys <profile>
   kelpie env peek <profile> <key>
   kelpie env set <profile> <key> <value> -- <command>
+  kelpie env list <profile>
+  kelpie env persist <profile> <key> <value>
+  kelpie env remove <profile> <key>
   kelpie version
   kelpie help
 

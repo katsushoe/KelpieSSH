@@ -143,6 +143,24 @@ public sealed partial class KelpieTools
                 "set_environment_value",
                 KelpiePolicyNames.AllowSetEnvironmentValues,
                 "EnvironmentSet"),
+            CreateEnvironmentToolCapability(
+                profile,
+                "list_persistent_environment_keys",
+                "list_persistent_environment_keys",
+                KelpiePolicyNames.AllowPeekEnvironmentKeys,
+                nameof(SshCommandRiskLevel.ReadOnly)),
+            CreateEnvironmentToolCapability(
+                profile,
+                "persist_environment_value",
+                "persist_environment_value",
+                KelpiePolicyNames.AllowSetEnvironmentValues,
+                "EnvironmentSet"),
+            CreateEnvironmentToolCapability(
+                profile,
+                "remove_persistent_environment_value",
+                "remove_persistent_environment_value",
+                KelpiePolicyNames.AllowSetEnvironmentValues,
+                "EnvironmentSet"),
         ];
     }
 

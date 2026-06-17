@@ -509,7 +509,85 @@ public sealed class SshCommandServiceTests
         await service.SetEnvironmentValueAsync(profile, "APP_ENV", "production", "uname -a");
 
         runner.LastRequest.Should().NotBeNull();
-        runner.LastRequest!.CommandText.Should().Be("env APP_ENV='production' uname -a");
+        runner.LastRequest!.CommandText.Should().Be("if [ -f ~/.kelpie/.env ]; then . ~/.kelpie/.env; fi; env APP_ENV='production' uname -a");
+    }
+
+    [Fact]
+    public async Task ListPersistentEnvironmentKeysAsync_ShouldReadKelpieEnvFile()
+    {
+        var runner = new FakeSshCommandRunner("PATH\nMY_SECRET_KEY\nAPP_ENV\n");
+        var service = CreateProviderBackedService(runner);
+        var profile = CreateProfile(
+            "deploy",
+            capabilities: PolicySet.FromNames([KelpiePolicyNames.AllowPeekEnvironmentKeys]),
+            environmentValues:
+            [
+                new EnvironmentValueRule("MY_SECRET_KEY", EnvironmentValueAccess.Hidden),
+            ]);
+
+        var result = await service.ListPersistentEnvironmentKeysAsync(profile);
+
+        runner.LastRequest.Should().NotBeNull();
+        runner.LastRequest!.CommandText.Should().Be("if [ -f ~/.kelpie/.env ]; then sed -n 's/^\\([A-Za-z_][A-Za-z0-9_]*\\)=.*/\\1/p' ~/.kelpie/.env | sort; fi");
+        result.StandardOutput.Should().Be($"PATH{Environment.NewLine}APP_ENV{Environment.NewLine}");
+    }
+
+    [Fact]
+    public async Task PersistEnvironmentValueAsync_ShouldWriteKelpieEnvFile()
+    {
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profile = CreateProfile(
+            "deploy",
+            capabilities: PolicySet.FromNames([KelpiePolicyNames.AllowSetEnvironmentValues]),
+            environmentValues:
+            [
+                new EnvironmentValueRule("APP_ENV", EnvironmentValueAccess.SetCommon),
+            ]);
+
+        await service.PersistEnvironmentValueAsync(profile, "APP_ENV", "production");
+
+        runner.LastRequest.Should().NotBeNull();
+        runner.LastRequest!.CommandName.Should().Be("persist_environment_value");
+        runner.LastRequest.CommandText.Should().Contain("mkdir -p ~/.kelpie");
+        runner.LastRequest.CommandText.Should().Contain("APP_ENV=");
+        runner.LastRequest.CommandText.Should().Contain("production");
+        runner.LastRequest.CommandText.Should().Contain("chmod 600 ~/.kelpie/.env");
+    }
+
+    [Fact]
+    public async Task PersistEnvironmentValueAsync_ShouldRejectUnlistedKey()
+    {
+        var service = CreateProviderBackedService(new FakeSshCommandRunner());
+        var profile = CreateProfile(
+            "deploy",
+            capabilities: PolicySet.FromNames([KelpiePolicyNames.AllowSetEnvironmentValues]));
+
+        var action = async () => await service.PersistEnvironmentValueAsync(profile, "APP_ENV", "production");
+
+        await action.Should().ThrowAsync<KelpiePolicyError>()
+            .WithMessage("KelpiePolicyError: environment value persist is not allowed: APP_ENV");
+    }
+
+    [Fact]
+    public async Task RemovePersistentEnvironmentValueAsync_ShouldRewriteKelpieEnvFile()
+    {
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profile = CreateProfile(
+            "deploy",
+            capabilities: PolicySet.FromNames([KelpiePolicyNames.AllowSetEnvironmentValues]),
+            environmentValues:
+            [
+                new EnvironmentValueRule("APP_ENV", EnvironmentValueAccess.SetCommon),
+            ]);
+
+        await service.RemovePersistentEnvironmentValueAsync(profile, "APP_ENV");
+
+        runner.LastRequest.Should().NotBeNull();
+        runner.LastRequest!.CommandName.Should().Be("remove_persistent_environment_value");
+        runner.LastRequest.CommandText.Should().Contain("awk -F= -v key='APP_ENV'");
+        runner.LastRequest.CommandText.Should().Contain("Removed from ~/.kelpie/.env");
     }
 
     private static SshConnectionProfile CreateProfile(

@@ -17,7 +17,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | Profile/session | `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | Select profiles and manage interactive SSH sessions. |
 | Mode/UI | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | Switch CLI/GUI mode or choose a temporary launch mode. |
 | Diagnostics | `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | Show profile information, MCP server status, SSH diagnostics, and service logs. |
-| Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env set` | List, read, or set remote environment variables under profile policy. |
+| Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | List, read, temporarily set, or persist remote environment variables under profile policy. |
 | Help/version | `kelpie version`, `kelpie help`, `kelpie --help`, `kelpie --version` | Show version and help text. |
 
 ## Common Rules
@@ -162,7 +162,9 @@ Masked example:
 ### `kelpie env set <profile> <key> <value> -- <command>`
 
 Runs one command with one environment variable value set for that execution only.
-It does not persist the value on the remote host.
+Before running the command, Kelpie sources `~/.kelpie/.env` if it exists.
+The `<key> <value>` pair then overrides that environment for the single command execution only.
+It does not persist the new value on the remote host.
 
 ```powershell
 kelpie env set vps01 APP_ENV production -- printenv APP_ENV
@@ -172,6 +174,61 @@ This command requires `AllowSetEnvironmentValues` in `Capabilities`.
 The requested key must be listed in `EnvironmentValues` with `SetCommon` or `SetSecret`.
 The command after `--` is checked by the same CLI raw-command policy used by `kelpie login`.
 Environment variable values must not be pasted into public logs or issues.
+
+### `kelpie env list <profile>`
+
+Lists environment variable keys stored in the remote Kelpie env file.
+
+```powershell
+kelpie env list vps01
+```
+
+The remote file is:
+
+```text
+~/.kelpie/.env
+```
+
+This command requires `AllowPeekEnvironmentKeys` in `Capabilities`.
+Keys marked `Hidden` in `EnvironmentValues` are filtered from the output.
+Values are never printed by this command.
+
+### `kelpie env persist <profile> <key> <value>`
+
+Writes one environment variable value to the remote Kelpie env file.
+
+```powershell
+kelpie env persist vps01 APP_ENV production
+```
+
+Kelpie writes the value to:
+
+```text
+~/.kelpie/.env
+```
+
+Before writing, Kelpie creates a timestamped backup such as:
+
+```text
+~/.kelpie/.env.20260617T120000Z.kelpie
+```
+
+This command requires `AllowSetEnvironmentValues` in `Capabilities`.
+The requested key must be listed in `EnvironmentValues` with `SetCommon` or `SetSecret`.
+The generated file is intended to be sourced by shells, cron jobs, or Kelpie-managed executions.
+Existing processes are not updated automatically.
+
+### `kelpie env remove <profile> <key>`
+
+Removes one environment variable from the remote Kelpie env file.
+
+```powershell
+kelpie env remove vps01 APP_ENV
+```
+
+Before writing, Kelpie creates a timestamped `.kelpie` backup.
+This command requires `AllowSetEnvironmentValues` in `Capabilities`.
+The requested key must be listed in `EnvironmentValues` with `SetCommon` or `SetSecret`.
 
 ### `kelpie cli`
 

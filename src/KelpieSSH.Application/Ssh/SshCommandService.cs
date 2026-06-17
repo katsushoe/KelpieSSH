@@ -5,6 +5,8 @@ namespace KelpieSSH.Application.Ssh;
 /// </summary>
 public sealed class SshCommandService
 {
+    private const string PersistentEnvironmentFilePath = "~/.kelpie/.env";
+
     private readonly IAllowedCommandCatalog? _allowedCommandCatalog;
     private readonly IReadOnlyCollection<ICommandProcessingProvider>? _commandProcessingProviders;
     private readonly KelpiePolicyEvaluator _policyEvaluator;
@@ -451,12 +453,159 @@ public sealed class SshCommandService
         var request = new SshCommandRequest(
             profile,
             "set_environment_value",
-            $"env {key}={QuoteShellArgument(value)} {trimmedCommandText}",
+            $"if [ -f {PersistentEnvironmentFilePath} ]; then . {PersistentEnvironmentFilePath}; fi; env {key}={QuoteShellArgument(value)} {trimmedCommandText}",
             timeout ?? TimeSpan.FromSeconds(30),
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 ["key"] = key,
                 ["command"] = trimmedCommandText,
+            });
+
+        return await _sshCommandRunner.ExecuteAsync(request, cancellationToken);
+    }
+
+    /// <summary>
+    /// Lists persistent environment variable keys managed in the remote Kelpie env file.
+    /// </summary>
+    /// <param name="profile">The SSH connection profile.</param>
+    /// <param name="timeout">The optional timeout override.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The SSH command result.</returns>
+    public async Task<SshCommandResult> ListPersistentEnvironmentKeysAsync(
+        SshConnectionProfile profile,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        EnsureNonRoot(profile);
+        EnsureCapability(profile, KelpiePolicyNames.AllowPeekEnvironmentKeys);
+
+        var request = new SshCommandRequest(
+            profile,
+            "list_persistent_environment_keys",
+            $"if [ -f {PersistentEnvironmentFilePath} ]; then sed -n 's/^\\([A-Za-z_][A-Za-z0-9_]*\\)=.*/\\1/p' {PersistentEnvironmentFilePath} | sort; fi",
+            timeout ?? TimeSpan.FromSeconds(10),
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+        var result = await _sshCommandRunner.ExecuteAsync(request, cancellationToken);
+        var hiddenKeys = profile.EnvironmentValues
+            .Where(rule => rule.IsHidden)
+            .Select(rule => rule.Key)
+            .ToHashSet(StringComparer.Ordinal);
+        if (hiddenKeys.Count == 0 || string.IsNullOrEmpty(result.StandardOutput))
+        {
+            return result;
+        }
+
+        var filteredOutput = string.Join(
+            Environment.NewLine,
+            result.StandardOutput
+                .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(key => !hiddenKeys.Contains(key)));
+        if (!string.IsNullOrEmpty(filteredOutput))
+        {
+            filteredOutput += Environment.NewLine;
+        }
+
+        return result with { StandardOutput = filteredOutput };
+    }
+
+    /// <summary>
+    /// Persists one environment variable value in the remote Kelpie env file.
+    /// </summary>
+    /// <param name="profile">The SSH connection profile.</param>
+    /// <param name="key">The environment variable key.</param>
+    /// <param name="value">The environment variable value.</param>
+    /// <param name="timeout">The optional timeout override.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The SSH command result.</returns>
+    public async Task<SshCommandResult> PersistEnvironmentValueAsync(
+        SshConnectionProfile profile,
+        string key,
+        string value,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        EnsureNonRoot(profile);
+        EnsureCapability(profile, KelpiePolicyNames.AllowSetEnvironmentValues);
+        ValidateEnvironmentKey(key);
+
+        var rule = FindEnvironmentValueRule(profile, key)
+            ?? throw new KelpiePolicyError($"environment value persist is not allowed: {key}");
+        if (!rule.AllowsSetValue || rule.IsHidden)
+        {
+            throw new KelpiePolicyError($"environment value persist is not allowed: {key}");
+        }
+
+        var line = $"{key}={QuoteShellArgument(value)}";
+        var commandText = string.Join(" && ", [
+            "mkdir -p ~/.kelpie",
+            $"touch {PersistentEnvironmentFilePath}",
+            $"backup={PersistentEnvironmentFilePath}.$(date -u +%Y%m%dT%H%M%SZ).kelpie",
+            $"cp {PersistentEnvironmentFilePath} \"$backup\"",
+            $"awk -F= -v key={QuoteShellArgument(key)} '$1 != key {{ print }}' {PersistentEnvironmentFilePath} > {PersistentEnvironmentFilePath}.tmp",
+            $"printf '%s\\n' {QuoteShellArgument(line)} >> {PersistentEnvironmentFilePath}.tmp",
+            $"mv {PersistentEnvironmentFilePath}.tmp {PersistentEnvironmentFilePath}",
+            $"chmod 600 {PersistentEnvironmentFilePath}",
+            "printf 'Updated ~/.kelpie/.env\\nBackup: %s\\n' \"$backup\"",
+        ]);
+        var request = new SshCommandRequest(
+            profile,
+            "persist_environment_value",
+            commandText,
+            timeout ?? TimeSpan.FromSeconds(10),
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["key"] = key,
+            });
+
+        return await _sshCommandRunner.ExecuteAsync(request, cancellationToken);
+    }
+
+    /// <summary>
+    /// Removes one environment variable from the remote Kelpie env file.
+    /// </summary>
+    /// <param name="profile">The SSH connection profile.</param>
+    /// <param name="key">The environment variable key.</param>
+    /// <param name="timeout">The optional timeout override.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The SSH command result.</returns>
+    public async Task<SshCommandResult> RemovePersistentEnvironmentValueAsync(
+        SshConnectionProfile profile,
+        string key,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        EnsureNonRoot(profile);
+        EnsureCapability(profile, KelpiePolicyNames.AllowSetEnvironmentValues);
+        ValidateEnvironmentKey(key);
+
+        var rule = FindEnvironmentValueRule(profile, key)
+            ?? throw new KelpiePolicyError($"environment value remove is not allowed: {key}");
+        if (!rule.AllowsSetValue || rule.IsHidden)
+        {
+            throw new KelpiePolicyError($"environment value remove is not allowed: {key}");
+        }
+
+        var commandText = string.Join(" && ", [
+            "mkdir -p ~/.kelpie",
+            $"touch {PersistentEnvironmentFilePath}",
+            $"backup={PersistentEnvironmentFilePath}.$(date -u +%Y%m%dT%H%M%SZ).kelpie",
+            $"cp {PersistentEnvironmentFilePath} \"$backup\"",
+            $"awk -F= -v key={QuoteShellArgument(key)} '$1 != key {{ print }}' {PersistentEnvironmentFilePath} > {PersistentEnvironmentFilePath}.tmp",
+            $"mv {PersistentEnvironmentFilePath}.tmp {PersistentEnvironmentFilePath}",
+            $"chmod 600 {PersistentEnvironmentFilePath}",
+            "printf 'Removed from ~/.kelpie/.env\\nBackup: %s\\n' \"$backup\"",
+        ]);
+        var request = new SshCommandRequest(
+            profile,
+            "remove_persistent_environment_value",
+            commandText,
+            timeout ?? TimeSpan.FromSeconds(10),
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["key"] = key,
             });
 
         return await _sshCommandRunner.ExecuteAsync(request, cancellationToken);

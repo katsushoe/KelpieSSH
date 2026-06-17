@@ -280,6 +280,9 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpie env keys <profile>");
     writer.WriteLine("  kelpie env peek <profile> <key>");
     writer.WriteLine("  kelpie env set <profile> <key> <value> -- <command>");
+    writer.WriteLine("  kelpie env list <profile>");
+    writer.WriteLine("  kelpie env persist <profile> <key> <value>");
+    writer.WriteLine("  kelpie env remove <profile> <key>");
     writer.WriteLine("  kelpie version");
     writer.WriteLine("  kelpie help");
     writer.WriteLine();
@@ -659,6 +662,78 @@ static async Task RunEnvironmentAsync(SshConnectionProfileCatalog catalog, strin
         return;
     }
 
+    if (string.Equals(subcommand, "list", StringComparison.OrdinalIgnoreCase))
+    {
+        if (args.Length != 3)
+        {
+            WriteEnvironmentUsage();
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var profileName = args[2];
+        KpLog.Info($"Kelpie CLI env list requested. profile={profileName}");
+        if (!TryResolveProfile(catalog, profileName, out var profile))
+        {
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        await ExecuteEnvironmentAndPrintAsync(
+            CreateSshCommandService(profile),
+            service => service.ListPersistentEnvironmentKeysAsync(profile));
+        return;
+    }
+
+    if (string.Equals(subcommand, "persist", StringComparison.OrdinalIgnoreCase))
+    {
+        if (args.Length != 5)
+        {
+            WriteEnvironmentUsage();
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var profileName = args[2];
+        var key = args[3];
+        var value = args[4];
+        KpLog.Info($"Kelpie CLI env persist requested. profile={profileName}, key={key}");
+        if (!TryResolveProfile(catalog, profileName, out var profile))
+        {
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        await ExecuteEnvironmentAndPrintAsync(
+            CreateSshCommandService(profile),
+            service => service.PersistEnvironmentValueAsync(profile, key, value));
+        return;
+    }
+
+    if (string.Equals(subcommand, "remove", StringComparison.OrdinalIgnoreCase))
+    {
+        if (args.Length != 4)
+        {
+            WriteEnvironmentUsage();
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var profileName = args[2];
+        var key = args[3];
+        KpLog.Info($"Kelpie CLI env remove requested. profile={profileName}, key={key}");
+        if (!TryResolveProfile(catalog, profileName, out var profile))
+        {
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        await ExecuteEnvironmentAndPrintAsync(
+            CreateSshCommandService(profile),
+            service => service.RemovePersistentEnvironmentValueAsync(profile, key));
+        return;
+    }
+
     WriteEnvironmentUsage();
     Environment.ExitCode = 1;
 }
@@ -669,6 +744,9 @@ static void WriteEnvironmentUsage()
     Console.Error.WriteLine("  kelpie env keys <profile>");
     Console.Error.WriteLine("  kelpie env peek <profile> <key>");
     Console.Error.WriteLine("  kelpie env set <profile> <key> <value> -- <command>");
+    Console.Error.WriteLine("  kelpie env list <profile>");
+    Console.Error.WriteLine("  kelpie env persist <profile> <key> <value>");
+    Console.Error.WriteLine("  kelpie env remove <profile> <key>");
 }
 
 static async Task ExecuteEnvironmentAndPrintAsync(

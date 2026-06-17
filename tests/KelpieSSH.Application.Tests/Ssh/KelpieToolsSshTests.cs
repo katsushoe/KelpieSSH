@@ -277,7 +277,7 @@ public sealed class KelpieToolsSshTests
         result.CommandName.Should().Be("set_environment_value");
         result.CommandText.Should().Be("env APP_ENV=(hidden) uname -a");
         result.CommandText.Should().NotContain("production");
-        runner.LastRequest!.CommandText.Should().Be("env APP_ENV='production' uname -a");
+        runner.LastRequest!.CommandText.Should().Be("if [ -f ~/.kelpie/.env ]; then . ~/.kelpie/.env; fi; env APP_ENV='production' uname -a");
     }
 
     [Fact]

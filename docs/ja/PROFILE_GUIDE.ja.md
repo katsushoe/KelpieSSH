@@ -359,7 +359,7 @@ Capability gates:
 | :--- | :--- |
 | `AllowPeekEnvironmentKeys` | 環境変数名と metadata の一覧取得を許可します。 |
 | `AllowPeekEnvironmentValues` | key rule が許可する場合に、環境変数値の読み取りを許可します。 |
-| `AllowSetEnvironmentValues` | key rule が許可する場合に、1回の command execution 用の環境変数値設定を許可します。 |
+| `AllowSetEnvironmentValues` | key rule が許可する場合に、1回の command execution 用の環境変数値設定、または Kelpie env file への永続化を許可します。 |
 
 `EnvironmentValues` rules:
 
@@ -385,6 +385,16 @@ Capability gates:
 - `EnvironmentValues` に書かれていない key の値は読めません。
 - `EnvironmentValues` に書かれていない key は設定できません。
 - `EnvironmentValues` は value access と set の allowlist であり、key listing 専用の allowlist ではありません。
+
+永続 env file:
+
+- `kelpie env persist` と `persist_environment_value` は remote user の `~/.kelpie/.env` に書き込みます。
+- `kelpie env remove` と `remove_persistent_environment_value` は同じ file から key を削除します。
+- 書き込み前に `~/.kelpie/.env.20260617T120000Z.kelpie` のような timestamp 付き backup を作成します。
+- file は `APP_ENV='production'` のような shell 互換 assignment 形式です。
+- `kelpie env set` は `~/.kelpie/.env` が存在する場合、source してから1回限りの override を適用します。
+- cron job、shell startup file、service wrapper などは、永続値を使うために `~/.kelpie/.env` を明示的に source する必要があります。
+- 既存プロセスには自動反映されません。
 
 Control rule の扱い:
 

@@ -98,6 +98,93 @@ public sealed partial class KelpieTools
             sanitizedCommandText: $"env {key}=(hidden) {command.Trim()}");
     }
 
+    /// <summary>
+    /// Lists persistent remote environment variable keys in the Kelpie env file.
+    /// </summary>
+    /// <param name="sshCommandService">The SSH command service.</param>
+    /// <param name="profileCatalog">The SSH profile catalog.</param>
+    /// <param name="profileName">The SSH profile name.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The SSH command result.</returns>
+    [McpServerTool(Name = "list_persistent_environment_keys")]
+    [Description("Lists environment variable keys persisted in ~/.kelpie/.env when profile policy allows key listing.")]
+    public static async Task<SshToolResult> ListPersistentEnvironmentKeysAsync(
+        SshCommandService sshCommandService,
+        ISshConnectionProfileCatalog profileCatalog,
+        string profileName,
+        CancellationToken cancellationToken = default)
+    {
+        KpLog.Info($"MCP SSH tool called: list_persistent_environment_keys profile={profileName}");
+        var profile = ResolveSshProfile(profileCatalog, profileName);
+        var result = await sshCommandService.ListPersistentEnvironmentKeysAsync(
+            profile,
+            cancellationToken: cancellationToken);
+
+        return CreateSshToolResult(profile, result);
+    }
+
+    /// <summary>
+    /// Persists one remote environment variable value in the Kelpie env file.
+    /// </summary>
+    /// <param name="sshCommandService">The SSH command service.</param>
+    /// <param name="profileCatalog">The SSH profile catalog.</param>
+    /// <param name="profileName">The SSH profile name.</param>
+    /// <param name="key">The environment variable key.</param>
+    /// <param name="value">The environment variable value.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The SSH command result.</returns>
+    [McpServerTool(Name = "persist_environment_value")]
+    [Description("Persists one remote environment variable value in ~/.kelpie/.env when profile policy allows setting the key.")]
+    public static async Task<SshToolResult> PersistEnvironmentValueAsync(
+        SshCommandService sshCommandService,
+        ISshConnectionProfileCatalog profileCatalog,
+        string profileName,
+        string key,
+        string value,
+        CancellationToken cancellationToken = default)
+    {
+        KpLog.Info($"MCP SSH tool called: persist_environment_value profile={profileName}, key={key}");
+        var profile = ResolveSshProfile(profileCatalog, profileName);
+        var result = await sshCommandService.PersistEnvironmentValueAsync(
+            profile,
+            key,
+            value,
+            cancellationToken: cancellationToken);
+
+        return CreateSshToolResult(
+            profile,
+            result,
+            sanitizedCommandText: $"persist {key}=(hidden) ~/.kelpie/.env");
+    }
+
+    /// <summary>
+    /// Removes one remote environment variable value from the Kelpie env file.
+    /// </summary>
+    /// <param name="sshCommandService">The SSH command service.</param>
+    /// <param name="profileCatalog">The SSH profile catalog.</param>
+    /// <param name="profileName">The SSH profile name.</param>
+    /// <param name="key">The environment variable key.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The SSH command result.</returns>
+    [McpServerTool(Name = "remove_persistent_environment_value")]
+    [Description("Removes one remote environment variable value from ~/.kelpie/.env when profile policy allows setting the key.")]
+    public static async Task<SshToolResult> RemovePersistentEnvironmentValueAsync(
+        SshCommandService sshCommandService,
+        ISshConnectionProfileCatalog profileCatalog,
+        string profileName,
+        string key,
+        CancellationToken cancellationToken = default)
+    {
+        KpLog.Info($"MCP SSH tool called: remove_persistent_environment_value profile={profileName}, key={key}");
+        var profile = ResolveSshProfile(profileCatalog, profileName);
+        var result = await sshCommandService.RemovePersistentEnvironmentValueAsync(
+            profile,
+            key,
+            cancellationToken: cancellationToken);
+
+        return CreateSshToolResult(profile, result);
+    }
+
     private static SshToolResult CreateSshToolResult(
         SshConnectionProfile profile,
         SshCommandResult result,

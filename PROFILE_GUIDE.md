@@ -360,7 +360,7 @@ Capability gates:
 | :--- | :--- |
 | `AllowPeekEnvironmentKeys` | Allows listing environment variable names with metadata. |
 | `AllowPeekEnvironmentValues` | Allows reading environment variable values when the key rule permits it. |
-| `AllowSetEnvironmentValues` | Allows setting environment variable values for one command execution when the key rule permits it. |
+| `AllowSetEnvironmentValues` | Allows setting environment variable values for one command execution or persisting them to the Kelpie env file when the key rule permits it. |
 
 `EnvironmentValues` rules:
 
@@ -385,6 +385,16 @@ Default handling:
 - If a key is not listed in `EnvironmentValues`, `get_environment_keys` may show the key when `AllowPeekEnvironmentKeys` is present.
 - If a key is not listed in `EnvironmentValues`, its value cannot be read and cannot be set.
 - `EnvironmentValues` is therefore a value-access and set allowlist, not the only source for key listing.
+
+Persistent environment file:
+
+- `kelpie env persist` and `persist_environment_value` write to the remote user's `~/.kelpie/.env`.
+- `kelpie env remove` and `remove_persistent_environment_value` remove keys from the same file.
+- Kelpie creates a timestamped backup before writing, such as `~/.kelpie/.env.20260617T120000Z.kelpie`.
+- The file uses shell-compatible assignments such as `APP_ENV='production'`.
+- `kelpie env set` sources `~/.kelpie/.env` before applying its one-command override.
+- Cron jobs, shell startup files, or service wrappers must explicitly source `~/.kelpie/.env` for persisted values to take effect.
+- Existing processes are not updated automatically.
 
 Control rule behavior:
 
