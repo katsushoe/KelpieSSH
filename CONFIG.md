@@ -2,8 +2,11 @@
 
 Last updated: 2026-06-17
 
-This file is the English configuration reference for KelpieSSH.
+This file is the English reference for KelpieSSH configuration file locations and host-level settings.
 For Japanese documentation, see [docs/ja/CONFIG.ja.md](docs/ja/CONFIG.ja.md).
+
+SSH profile settings are documented separately in [PROFILE_GUIDE.md](PROFILE_GUIDE.md).
+Japanese profile guidance is available in [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md).
 
 ## Configuration Directory
 
@@ -56,6 +59,18 @@ Important values:
 | :--- | :--- |
 | `LogDirectory` | Directory for CLI logs. |
 | `OpenProfile` | Last selected profile name for commands that use the open profile. |
+| `Server:Port` | Local HTTP port used by the MCP server. |
+| `Server:ControlPipeName` | Local named pipe used by `kelpie` / `kelpiemcp` to control the server. |
+| `Commands:ExecutablePath` | Optional explicit `kelpie` command path. |
+| `Commands:WorkingDirectory` | Optional command working directory. |
+
+Minimal example:
+
+```json
+{
+  "LogDirectory": "D:\\Kelpie\\logs"
+}
+```
 
 ### `config/kelpiemcp.json`
 
@@ -65,9 +80,12 @@ Important values:
 
 | Setting | Purpose |
 | :--- | :--- |
+| `AllowedHosts` | HTTP Host allow-list for the local MCP server. |
 | `Server:Port` | Local HTTP port for the MCP endpoint. |
 | `Server:ControlPipeName` | Local named pipe used by `kelpiemcp` to control the server. |
 | `LogDirectory` | Directory for MCP server logs. |
+| `Commands:ExecutablePath` | Optional explicit `KelpieMCPServer` executable path. |
+| `Commands:WorkingDirectory` | Optional server working directory. |
 
 By default, the MCP endpoint is:
 
@@ -75,80 +93,75 @@ By default, the MCP endpoint is:
 http://127.0.0.1:45432/mcp
 ```
 
-## Profile Settings
+For browser-based health checks, use:
 
-SSH profiles are JSON files under `profiles/`.
-The file name is the profile name.
+```text
+http://127.0.0.1:45432/health
+```
+
+Minimal example:
+
+```json
+{
+  "LogDirectory": "D:\\Kelpie\\logs",
+  "Server": {
+    "Port": 45432,
+    "ControlPipeName": "KelpieMCPServer.Control"
+  }
+}
+```
+
+## Runtime State
+
+### `dat/storm_state.dat`
+
+`storm_state.dat` stores runtime state for the `kelpie` CLI.
+It is not a user-edited configuration file.
 
 Example:
 
 ```json
 {
-  "Host": {
-    "Address": "example.invalid",
-    "Port": 22
-  },
-  "Auth": {
-    "UserName": "deploy",
-    "Method": "privateKey",
-    "PrivateKeyFile": "vps01_ed25519"
-  },
-  "Connection": {
-    "TimeoutSeconds": 10
-  },
-  "Platform": {
-    "OsFamily": "debian",
-    "PackageManager": "apt"
-  },
-  "Mode": "Safe",
-  "AllowedRoots": {
-    "/var/log": "$ReadOnly"
-  }
+  "OpenProfile": "vps01",
+  "ClientMode": "cli"
 }
 ```
 
-## Authentication
+| Setting | Purpose |
+| :--- | :--- |
+| `OpenProfile` | Last profile opened with `kelpie open <profile>`. `kelpie login` uses this value. |
+| `ClientMode` | Client mode selected by commands such as `kelpie gui` or `kelpie cli`. |
 
-`Auth` and `Authentication` are both accepted.
-`Authentication` is the formal name and `Auth` is a short alias.
+## SSH Profiles
 
-Supported methods:
+SSH profiles are JSON files under `profiles/`.
+The file name is the profile name, so `profiles/vps01.json` is profile `vps01`.
 
-| Method | Required values | Notes |
-| :--- | :--- | :--- |
-| `privateKey` | `PrivateKeyFile` | Relative key paths are resolved under `KelpieHome/keys`. |
-| `password` | `PasswordSecretName` | The actual password is stored only in the running MCP server session. |
+Profile details are documented in [PROFILE_GUIDE.md](PROFILE_GUIDE.md).
 
-Plain text passwords must not be stored in JSON files.
+Common commands:
 
-## Policy
+```powershell
+kelpie init vps01
+kelpie profile show vps01
+kelpie open vps01
+kelpie login
+```
 
-`Mode` controls the permission preset.
-Supported values are:
+## Log Directory Resolution
 
-- `ReadOnly`
-- `Safe`
-- `Maintenance`
-- `Expert`
+Log directories are resolved in this order:
 
-`Capabilities` are CLI-only overrides.
-MCP execution ignores `Capabilities` and evaluates `Mode` only.
+1. `LogDirectory` in the configuration file read by the current command.
+2. `KelpieHome/logs`.
+3. `logs` under the startup directory.
+4. The startup directory.
 
-## Allowed Roots
-
-`AllowedRoots` limits path-based operations.
-Supported access expressions include:
-
-- `$ReadOnly`
-- `$ReadWrite`
-- `$ALL`
-- raw flags such as `@Read|@List|@Write|@CD`
-
-`*` and `**` are explicit global path values.
-If `AllowedRoots` is omitted or empty, path-based operations are not allowed by policy.
+Relative `LogDirectory` values are resolved from the configuration file directory.
 
 ## Security Notes
 
 - Do not commit real profile files.
 - Do not commit private keys, passwords, passphrases, real host names, or real user names.
 - Keep production `profiles/`, `keys/`, `dat/`, and `logs/` outside this public repository.
+- Do not store plain text passwords in JSON configuration files.

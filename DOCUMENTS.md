@@ -34,6 +34,7 @@ This file is the public source of truth for KelpieSSH Git-managed public documen
 | `COMMANDS.md` | `COMMANDS.md` | Yes | Public terminal CLI command reference. Japanese version is under `docs/ja/`. |
 | `MCP_COMMANDS.md` | `MCP_COMMANDS.md` | Yes | Public MCP callable tool reference. Japanese version is under `docs/ja/`. |
 | `CONFIG.md` | `CONFIG.md` | Yes | Public configuration reference. Japanese version is under `docs/ja/`. |
+| `PROFILE_GUIDE.md` | `PROFILE_GUIDE.md` | Yes | Public SSH profile configuration guide. Japanese version is under `docs/ja/`. |
 | `PACKAGES.md` | `PACKAGES.md` | Yes | Public package, dependency, package-source, and update-policy reference. Japanese version is under `docs/ja/`. |
 | `SECURITY.md` | `SECURITY.md` | Yes | Public security policy and vulnerability reporting guidance. Japanese version is under `docs/ja/`. |
 | `THIRD_PARTY_NOTICES.md` | `THIRD_PARTY_NOTICES.md` | Yes | Public third-party dependency and license notices. Japanese version is under `docs/ja/`. |

@@ -8,6 +8,8 @@ English documentation is available in [README.md](../../README.md).
 
 設定の詳細は [CONFIG.ja.md](CONFIG.ja.md) を参照してください。
 
+SSH profile 設定は [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) を参照してください。
+
 `kelpie` は `config/kelpie.json` を読み込みます。`kelpiemcp` と `KelpieMCPServer` は `config/kelpiemcp.json` を読み込みます。
 
 設定サンプルは `config_samples/` 配下にあります。
@@ -99,7 +101,8 @@ D:\Kelpie
 ├─ docs
 ├─ README.md
 ├─ COMMANDS.md
-└─ CONFIG.md
+├─ CONFIG.md
+└─ PROFILE_GUIDE.md
 ```
 
 #### 2. `PATH` の追加とコマンド確認
@@ -352,53 +355,8 @@ Application API は `SshRemoteOperation` も受け取ります。`SshRemoteOpera
 
 profile count limits、edition limits、license state、ads、support、display order、notes、customer data などの製品固有概念は KelpieSSH の外側に置きます。KelpiePro は、OSS profile model に edition policy を入れず、読み込むまたは表示する OSS profile 数を制限することで Free / Standard の差を実装できます。
 
-```json
-{
-  "LogDirectory": "D:\\Kelpie\\logs"
-}
-```
-
 各 `KelpieHome/profiles/*.json` ファイルが1つの profile です。ファイル名が profile 名になるため、`profiles/vps01.json` は profile `vps01` です。
 公開サンプル profile は `config_samples/servers/vps01.json` です。
 
-```json
-{
-  "Host": {
-    "Address": "example.invalid",
-    "Port": 22
-  },
-  "Auth": {
-    "UserName": "deploy",
-    "Method": "privateKey",
-    "PrivateKeyFile": "vps01_ed25519"
-  },
-  "Connection": {
-    "TimeoutSeconds": 10
-  },
-  "Platform": {
-    "OsFamily": "debian"
-  },
-  "Mode": "Safe",
-  "Capabilities": [
-    "AllowListPackage"
-  ],
-  "Rights": {
-    "$WebDeploy": "$ReadWrite|@Import",
-    "$LogRead": "$ReadOnly"
-  },
-  "AllowedRoots": {
-    "/var/www": "$WebDeploy",
-    "/var/log": "$LogRead"
-  }
-}
-```
-
-`Auth` と `Authentication` はどちらも SSH 認証設定として受け付けます。`Authentication` が正式名で、`Auth` は手書きしやすい短縮 alias です。
-`Auth.PrivateKeyFile` / `Authentication.PrivateKeyFile` が相対パスの場合は `KelpieHome/keys` 配下として解決されます。実ホスト、実ユーザー、秘密鍵ファイル、passphrase、password をコミットしないでください。
-`Auth.Method` / `Authentication.Method` は `privateKey` と `password` をサポートします。パスワード認証は `PasswordSecretName` を使用します。平文パスワードを JSON ファイルに保存してはいけません。現在の password provider は、`kelpiemcp password <profile>` で設定する in-memory session store です。
-`Platform.OsFamily`、任意の `Platform.PackageManager`、`Mode`、`Capabilities` は、各 profile の安全な command behavior の選択と評価に使われます。
-`Mode` は CLI と MCP で共有される permission preset です。サポートされる mode は `ReadOnly`、`Safe`、`Maintenance`、`Expert` です。
-`Capabilities` は CLI 専用 override です。MCP 実行では `Capabilities` を無視し、`Mode` ベースの権限だけを評価します。`Expert` mode でも、MCP から secrets が表示されることはありません。
-`Capabilities` は `["AllowAlias", "AllowSudo"]` のような array、または `"AllowAlias|AllowSudo"` のような pipe 区切り string を受け付けます。不明な capability 名は configuration error です。
-`AllowedRoots` は path-based operations を制限します。`@Read|@List|@Write|@CD` のような pipe 区切り raw flags、`Rights` で定義した `$` prefix の named presets、または `@Read|@List|@Write|@Import|@Export|@CD` を意味する `$ALL` を使います。built-in `$ReadOnly`、`$ReadWrite`、`$ALL` は利用可能で、上書きできません。`Read`、`Write`、`ALL` のような bare tokens は configuration error です。`*` と `**` は明示的な global path values です。`AllowedRoots` が省略または空の場合、path-based operations は policy 上許可されません。
+Profile の項目詳細、サンプル、validation checklist、troubleshooting は [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) を参照してください。
 実際の `profiles/*.json` files はコミットしないでください。

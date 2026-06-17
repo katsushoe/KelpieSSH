@@ -8,6 +8,8 @@ Command details are documented in [COMMANDS.md](COMMANDS.md).
 
 Configuration details are documented in [CONFIG.md](CONFIG.md).
 
+SSH profile setup is documented in [PROFILE_GUIDE.md](PROFILE_GUIDE.md).
+
 `kelpie` reads `config/kelpie.json`; `kelpiemcp` and `KelpieMCPServer` read `config/kelpiemcp.json`.
 
 Sample configuration files are provided under `config_samples/`:
@@ -99,7 +101,8 @@ D:\Kelpie
 ├─ docs
 ├─ README.md
 ├─ COMMANDS.md
-└─ CONFIG.md
+├─ CONFIG.md
+└─ PROFILE_GUIDE.md
 ```
 
 #### 2. Adding `PATH` and verifying commands
@@ -352,53 +355,8 @@ The Application API also accepts `SshRemoteOperation`, which represents one SSH 
 
 Product-specific concepts such as profile count limits, edition limits, license state, ads, support, display order, notes, and customer data stay outside KelpieSSH. KelpiePro can implement Free/Standard differences by limiting how many OSS profiles it loads or exposes, without adding edition policy to the OSS profile model.
 
-```json
-{
-  "LogDirectory": "D:\\Kelpie\\logs"
-}
-```
-
 Each `KelpieHome/profiles/*.json` file is one profile. The file name is the profile name, so `profiles/vps01.json` is profile `vps01`.
 The public sample profile is `config_samples/servers/vps01.json`.
 
-```json
-{
-  "Host": {
-    "Address": "example.invalid",
-    "Port": 22
-  },
-  "Auth": {
-    "UserName": "deploy",
-    "Method": "privateKey",
-    "PrivateKeyFile": "vps01_ed25519"
-  },
-  "Connection": {
-    "TimeoutSeconds": 10
-  },
-  "Platform": {
-    "OsFamily": "debian"
-  },
-  "Mode": "Safe",
-  "Capabilities": [
-    "AllowListPackage"
-  ],
-  "Rights": {
-    "$WebDeploy": "$ReadWrite|@Import",
-    "$LogRead": "$ReadOnly"
-  },
-  "AllowedRoots": {
-    "/var/www": "$WebDeploy",
-    "/var/log": "$LogRead"
-  }
-}
-```
-
-`Auth` and `Authentication` are both accepted for SSH authentication settings. `Authentication` is the formal name; `Auth` is the short hand-written alias.
-`Auth.PrivateKeyFile` / `Authentication.PrivateKeyFile` is resolved under `KelpieHome/keys` when it is relative. Do not commit real hosts, users, private key files, passphrases, or passwords.
-`Auth.Method` / `Authentication.Method` supports `privateKey` and `password`. Password authentication uses `PasswordSecretName`; plain text passwords must not be stored in JSON files. The current password provider is an in-memory session store populated by `kelpiemcp password <profile>`.
-`Platform.OsFamily`, optional `Platform.PackageManager`, `Mode`, and `Capabilities` are used to select and evaluate safe command behavior for each profile.
-`Mode` is the shared permission preset used by CLI and MCP. Supported modes are `ReadOnly`, `Safe`, `Maintenance`, and `Expert`.
-`Capabilities` are CLI-only overrides. MCP execution ignores `Capabilities` and evaluates only `Mode`-based permissions. Secrets are never shown through MCP, even in `Expert` mode.
-`Capabilities` may be an array such as `["AllowAlias", "AllowSudo"]` or a pipe-separated string such as `"AllowAlias|AllowSudo"`. Unknown capability names are configuration errors.
-`AllowedRoots` limits path-based operations. Use pipe-separated raw flags such as `@Read|@List|@Write|@CD`, `$`-prefixed named presets from `Rights`, or `$ALL` for `@Read|@List|@Write|@Import|@Export|@CD`. Built-in `$ReadOnly`, `$ReadWrite`, and `$ALL` are available and cannot be overridden. Bare tokens such as `Read`, `Write`, and `ALL` are configuration errors. `*` and `**` are explicit global path values; omitted or empty `AllowedRoots` means path-based operations are not allowed by policy.
+For profile field details, examples, validation checklist, and troubleshooting, see [PROFILE_GUIDE.md](PROFILE_GUIDE.md).
 Real `profiles/*.json` files should not be committed.
