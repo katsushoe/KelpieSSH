@@ -157,6 +157,10 @@ MCP tools are grouped by operational area. Each group section states the scope, 
 
 Verify that the MCP server is reachable.
 
+Tools in this group:
+
+- [`kelpie_ping`](#kelpie_ping)
+
 #### `kelpie_ping`
 
 Purpose:
@@ -203,6 +207,10 @@ Safety notes:
 ### Profile management
 
 Reload saved SSH profiles from disk on demand.
+
+Tools in this group:
+
+- [`profile_reload`](#profile_reload)
 
 #### `profile_reload`
 
@@ -259,6 +267,13 @@ Safety notes:
 ### Local diagnostics
 
 Inspect the local host running KelpieMCPServer.
+
+Tools in this group:
+
+- [`get_system_info`](#get_system_info)
+- [`get_disk_usage`](#get_disk_usage)
+- [`get_memory_usage`](#get_memory_usage)
+- [`get_listening_ports`](#get_listening_ports)
 
 #### `get_system_info`
 
@@ -465,6 +480,11 @@ Safety notes:
 
 Inspect target command/tool support and installed helper/software inventory.
 
+Tools in this group:
+
+- [`ssh_get_capabilities`](#ssh_get_capabilities)
+- [`get_target_inventory`](#get_target_inventory)
+
 #### `ssh_get_capabilities`
 
 Purpose:
@@ -574,6 +594,26 @@ Safety notes:
 ### SSH diagnostics
 
 Run allow-listed read-oriented diagnostics over SSH.
+
+Tools in this group:
+
+- [`ssh_get_system_info`](#ssh_get_system_info)
+- [`ssh_get_os_release`](#ssh_get_os_release)
+- [`ssh_get_uptime`](#ssh_get_uptime)
+- [`ssh_get_disk_usage`](#ssh_get_disk_usage)
+- [`ssh_get_memory_usage`](#ssh_get_memory_usage)
+- [`ssh_get_process_summary`](#ssh_get_process_summary)
+- [`ssh_get_inode_usage`](#ssh_get_inode_usage)
+- [`ssh_get_mounts`](#ssh_get_mounts)
+- [`ssh_get_network_addresses`](#ssh_get_network_addresses)
+- [`ssh_get_routes`](#ssh_get_routes)
+- [`ssh_get_dns_config`](#ssh_get_dns_config)
+- [`ssh_check_http_local`](#ssh_check_http_local)
+- [`ssh_check_tcp_connect_local`](#ssh_check_tcp_connect_local)
+- [`ssh_get_listening_ports`](#ssh_get_listening_ports)
+- [`ssh_get_failed_services`](#ssh_get_failed_services)
+- [`ssh_get_journal_recent`](#ssh_get_journal_recent)
+- [`ssh_tail_log`](#ssh_tail_log)
 
 #### `ssh_get_system_info`
 
@@ -1561,6 +1601,40 @@ Safety notes:
 ### Cron, certificate, user, firewall, backup, and audit checks
 
 Inspect or change sensitive server-maintenance state through bounded checks and confirmation-gated operations.
+
+Tools in this group:
+
+- [`ssh_cron_list`](#ssh_cron_list)
+- [`ssh_cron_validate`](#ssh_cron_validate)
+- [`ssh_cron_check_write`](#ssh_cron_check_write)
+- [`ssh_cron_write`](#ssh_cron_write)
+- [`ssh_cron_rollback`](#ssh_cron_rollback)
+- [`ssh_cert_inspect`](#ssh_cert_inspect)
+- [`ssh_cert_expiry_check`](#ssh_cert_expiry_check)
+- [`ssh_user_list`](#ssh_user_list)
+- [`ssh_user_info`](#ssh_user_info)
+- [`ssh_group_list`](#ssh_group_list)
+- [`ssh_group_info`](#ssh_group_info)
+- [`ssh_sudoers_check`](#ssh_sudoers_check)
+- [`ssh_user_usage_check`](#ssh_user_usage_check)
+- [`ssh_user_check_group_change`](#ssh_user_check_group_change)
+- [`ssh_user_apply_group_change`](#ssh_user_apply_group_change)
+- [`ssh_user_rollback_group_change`](#ssh_user_rollback_group_change)
+- [`ssh_user_check_permission_change`](#ssh_user_check_permission_change)
+- [`ssh_user_apply_permission_change`](#ssh_user_apply_permission_change)
+- [`ssh_user_rollback_permission_change`](#ssh_user_rollback_permission_change)
+- [`ssh_user_file_ownership_check`](#ssh_user_file_ownership_check)
+- [`ssh_user_service_usage_check`](#ssh_user_service_usage_check)
+- [`ssh_service_residual_config_check`](#ssh_service_residual_config_check)
+- [`ssh_support_report_collect`](#ssh_support_report_collect)
+- [`ssh_firewall_status`](#ssh_firewall_status)
+- [`ssh_firewall_check_rule`](#ssh_firewall_check_rule)
+- [`ssh_firewall_apply_rule`](#ssh_firewall_apply_rule)
+- [`ssh_backup_plan_check`](#ssh_backup_plan_check)
+- [`ssh_backup_run`](#ssh_backup_run)
+- [`ssh_backup_verify`](#ssh_backup_verify)
+- [`ssh_audit_verify`](#ssh_audit_verify)
+- [`ssh_audit_export`](#ssh_audit_export)
 
 #### `ssh_cron_list`
 
@@ -3503,6 +3577,15 @@ Safety notes:
 
 List, read, temporarily set, or persist remote environment variables under profile policy.
 
+Tools in this group:
+
+- [`get_environment_keys`](#get_environment_keys)
+- [`peek_environment_value`](#peek_environment_value)
+- [`set_environment_value`](#set_environment_value)
+- [`list_persistent_environment_keys`](#list_persistent_environment_keys)
+- [`persist_environment_value`](#persist_environment_value)
+- [`remove_persistent_environment_value`](#remove_persistent_environment_value)
+
 #### `get_environment_keys`
 
 Purpose:
@@ -3863,6 +3946,11 @@ Safety notes:
 
 Run an allow-listed managed operation through policy checks.
 
+Tools in this group:
+
+- [`ssh_run_allowed_command`](#ssh_run_allowed_command)
+- [`ssh_run_remote_operation`](#ssh_run_remote_operation)
+
 #### `ssh_run_allowed_command`
 
 Purpose:
@@ -3991,6 +4079,15 @@ Safety notes:
 ### Terminal and session cleanup
 
 Manage an interactive SSH terminal session and clear MCP password sessions.
+
+Tools in this group:
+
+- [`ssh_terminal_open`](#ssh_terminal_open)
+- [`ssh_terminal_send`](#ssh_terminal_send)
+- [`ssh_terminal_snapshot`](#ssh_terminal_snapshot)
+- [`ssh_terminal_close`](#ssh_terminal_close)
+- [`ssh_connection_close`](#ssh_connection_close)
+- [`ssh_logout`](#ssh_logout)
 
 #### `ssh_terminal_open`
 
@@ -4322,6 +4419,18 @@ Safety notes:
 ### Packages
 
 Inspect packages and run confirmation-gated package operations.
+
+Tools in this group:
+
+- [`ssh_pkg_check_updates`](#ssh_pkg_check_updates)
+- [`ssh_pkg_info`](#ssh_pkg_info)
+- [`ssh_pkg_search`](#ssh_pkg_search)
+- [`ssh_pkg_list_installed`](#ssh_pkg_list_installed)
+- [`ssh_pkg_simulate_install`](#ssh_pkg_simulate_install)
+- [`ssh_pkg_install`](#ssh_pkg_install)
+- [`ssh_pkg_install_confirmed`](#ssh_pkg_install_confirmed)
+- [`ssh_pkg_simulate_remove`](#ssh_pkg_simulate_remove)
+- [`ssh_pkg_remove`](#ssh_pkg_remove)
 
 #### `ssh_pkg_check_updates`
 
@@ -4861,6 +4970,18 @@ Safety notes:
 ### Services
 
 Inspect and safely manage systemd services.
+
+Tools in this group:
+
+- [`ssh_service_status`](#ssh_service_status)
+- [`ssh_service_is_active`](#ssh_service_is_active)
+- [`ssh_service_is_enabled`](#ssh_service_is_enabled)
+- [`ssh_list_services`](#ssh_list_services)
+- [`ssh_service_enable_now`](#ssh_service_enable_now)
+- [`ssh_service_reload`](#ssh_service_reload)
+- [`ssh_service_restart`](#ssh_service_restart)
+- [`ssh_service_stop`](#ssh_service_stop)
+- [`ssh_service_disable`](#ssh_service_disable)
 
 #### `ssh_service_status`
 
@@ -5409,6 +5530,18 @@ Safety notes:
 
 Operate on provider-approved service configuration files and logs.
 
+Tools in this group:
+
+- [`service_config_paths`](#service_config_paths)
+- [`service_config_file_check_read`](#service_config_file_check_read)
+- [`service_config_file_read`](#service_config_file_read)
+- [`service_config_file_check_write`](#service_config_file_check_write)
+- [`service_config_file_write`](#service_config_file_write)
+- [`service_config_file_rollback`](#service_config_file_rollback)
+- [`service_config_file_commit`](#service_config_file_commit)
+- [`service_config_test`](#service_config_test)
+- [`service_logfile_read`](#service_logfile_read)
+
 #### `service_config_paths`
 
 Purpose:
@@ -5952,6 +6085,23 @@ Safety notes:
 ### Web files
 
 Operate on provider-approved web roots.
+
+Tools in this group:
+
+- [`web_file_list`](#web_file_list)
+- [`web_file_search_name`](#web_file_search_name)
+- [`web_file_search_text`](#web_file_search_text)
+- [`web_file_stat`](#web_file_stat)
+- [`web_file_check_write`](#web_file_check_write)
+- [`web_file_check_permissions`](#web_file_check_permissions)
+- [`web_file_read`](#web_file_read)
+- [`web_file_head`](#web_file_head)
+- [`web_file_tail`](#web_file_tail)
+- [`web_file_write`](#web_file_write)
+- [`web_change_owner`](#web_change_owner)
+- [`web_change_owner_recursive`](#web_change_owner_recursive)
+- [`web_change_mode`](#web_change_mode)
+- [`web_change_mode_recursive`](#web_change_mode_recursive)
 
 #### `web_file_list`
 

@@ -51,6 +51,12 @@ Commands are grouped by operational area. Each group section states the scope, a
 
 Start, stop, and inspect the local KelpieMCPServer process or service.
 
+Commands in this group:
+
+- [`kelpiemcp start`](#kelpiemcp-start)
+- [`kelpiemcp stop`](#kelpiemcp-stop)
+- [`kelpiemcp status`](#kelpiemcp-status)
+
 #### `kelpiemcp start`
 
 Starts the local MCP server.
@@ -87,6 +93,10 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 #### `kelpiemcp stop`
 
 Stops the local MCP server process.
@@ -113,6 +123,10 @@ Return value sample:
 Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
 
 #### `kelpiemcp status`
 
@@ -158,9 +172,19 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 ### MCP Windows Service
 
 Register, unregister, and inspect the Windows Service entry for KelpieMCPServer.
+
+Commands in this group:
+
+- [`kelpiemcp service register`](#kelpiemcp-service-register)
+- [`kelpiemcp service unregister`](#kelpiemcp-service-unregister)
+- [`kelpiemcp service status`](#kelpiemcp-service-status)
 
 #### `kelpiemcp service register`
 
@@ -190,6 +214,10 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 #### `kelpiemcp service unregister`
 
 Unregisters the `KelpieMCPServer` Windows Service. Stop the service before unregistering it. Run from a terminal running as administrator.
@@ -218,6 +246,10 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 #### `kelpiemcp service status`
 
 Shows whether the `KelpieMCPServer` Windows Service is registered.
@@ -245,9 +277,20 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 ### MCP password session
 
 Store or clear SSH password sessions in the running MCP server process memory.
+
+Commands in this group:
+
+- [`kelpiemcp password <profile>`](#kelpiemcp-password-profile)
+- [`kelpiemcp login <profile>`](#kelpiemcp-login-profile)
+- [`kelpiemcp forget <profile>`](#kelpiemcp-forget-profile)
+- [`kelpiemcp logout <profile>`](#kelpiemcp-logout-profile)
 
 #### `kelpiemcp password <profile>`
 
@@ -279,6 +322,10 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 #### `kelpiemcp login <profile>`
 
 Compatibility alias for `kelpiemcp password <profile>`.
@@ -308,6 +355,10 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 #### `kelpiemcp forget <profile>`
 
 Clears the in-memory password session for a profile.
@@ -335,6 +386,10 @@ Return value sample:
 Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
 
 #### `kelpiemcp logout <profile>`
 
@@ -368,9 +423,17 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 ### Initialization
 
 Create the local Kelpie home layout and sample configuration files.
+
+Commands in this group:
+
+- [`kelpie init [profile]`](#kelpie-init-profile)
 
 #### `kelpie init [profile]`
 
@@ -405,9 +468,23 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 ### Profile/session
 
 Select SSH profiles and manage interactive or temporary sessions.
+
+Commands in this group:
+
+- [`kelpie profiles`](#kelpie-profiles)
+- [`kelpie profile show <profile>`](#kelpie-profile-show-profile)
+- [`kelpie open <profile>`](#kelpie-open-profile)
+- [`kelpie login`](#kelpie-login)
+- [`kelpie logout`](#kelpie-logout)
+- [`kelpie sessions`](#kelpie-sessions)
+- [`kelpie kill <handle>`](#kelpie-kill-handle)
 
 #### `kelpie profiles`
 
@@ -435,6 +512,10 @@ Return value sample:
 Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
 
 #### `kelpie profile show <profile>`
 
@@ -464,6 +545,10 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 #### `kelpie open <profile>`
 
 Stores the selected profile name in local runtime state for later commands that use the open profile.
@@ -490,6 +575,10 @@ Return value sample:
 Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
 
 #### `kelpie login`
 
@@ -524,6 +613,10 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 #### `kelpie logout`
 
 Attempts to leave an interactive SSH session.
@@ -553,6 +646,10 @@ Return value sample:
 Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
 
 #### `kelpie sessions`
 
@@ -584,6 +681,10 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 #### `kelpie kill <handle>`
 
 Clears a temporary SSH session by handle in the running MCP server process.
@@ -612,9 +713,20 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 ### Mode/UI
 
 Switch between CLI and GUI behavior or choose a temporary launch mode.
+
+Commands in this group:
+
+- [`kelpie login --console`](#kelpie-login---console)
+- [`kelpie login --desktop`](#kelpie-login---desktop)
+- [`kelpie cli`](#kelpie-cli)
+- [`kelpie gui`](#kelpie-gui)
 
 #### `kelpie login --console`
 
@@ -647,6 +759,10 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 #### `kelpie login --desktop`
 
 Starts the desktop frontend for the currently open profile.
@@ -676,6 +792,10 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 #### `kelpie cli`
 
 Switches Kelpie to CLI mode.
@@ -702,6 +822,10 @@ Return value sample:
 Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
 
 #### `kelpie gui`
 
@@ -730,9 +854,19 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 ### Diagnostics
 
 Show MCP status, sanitized profile information, SSH diagnostics, and service logs.
+
+Commands in this group:
+
+- [`kelpie status <profile>`](#kelpie-status-profile)
+- [`kelpie diag <profile>`](#kelpie-diag-profile)
+- [`kelpie logs <profile> <service> [lines]`](#kelpie-logs-profile-service-lines)
 
 #### `kelpie status <profile>`
 
@@ -760,6 +894,10 @@ Return value sample:
 Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
 
 #### `kelpie diag <profile>`
 
@@ -791,6 +929,10 @@ Return value sample:
 Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
 
 #### `kelpie logs <profile> <service> [lines]`
 
@@ -824,9 +966,22 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 ### Environment
 
 List, read, temporarily set, or persist remote environment variables under profile policy.
+
+Commands in this group:
+
+- [`kelpie env keys <profile>`](#kelpie-env-keys-profile)
+- [`kelpie env peek <profile> <key>`](#kelpie-env-peek-profile-key)
+- [`kelpie env set <profile> <key> <value> -- <command>`](#kelpie-env-set-profile-key-value----command)
+- [`kelpie env list <profile>`](#kelpie-env-list-profile)
+- [`kelpie env persist <profile> <key> <value>`](#kelpie-env-persist-profile-key-value)
+- [`kelpie env remove <profile> <key>`](#kelpie-env-remove-profile-key)
 
 #### `kelpie env keys <profile>`
 
@@ -869,6 +1024,10 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 #### `kelpie env peek <profile> <key>`
 
 Reads one remote environment variable value when the profile permits it.
@@ -908,6 +1067,10 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 #### `kelpie env set <profile> <key> <value> -- <command>`
 
 Runs one command with one environment variable value set for that execution only.
@@ -943,6 +1106,10 @@ Return value sample:
 Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
 
 #### `kelpie env list <profile>`
 
@@ -981,6 +1148,10 @@ Return value sample:
 Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
 
 #### `kelpie env persist <profile> <key> <value>`
 
@@ -1027,6 +1198,10 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 #### `kelpie env remove <profile> <key>`
 
 Removes one environment variable from the remote Kelpie env file.
@@ -1058,9 +1233,18 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 ### Help/version
 
 Show command help and version information.
+
+Commands in this group:
+
+- [`kelpie version`](#kelpie-version)
+- [`kelpie help`](#kelpie-help)
 
 #### `kelpie version`
 
@@ -1090,6 +1274,10 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
 #### `kelpie help`
 
 Shows command help.
@@ -1117,6 +1305,10 @@ Return value sample:
 Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
 
 ## Safety Notes
 
