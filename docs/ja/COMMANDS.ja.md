@@ -132,7 +132,7 @@ KelpieMCPServer is not running.
 
 目的:
 
-NamedPipe 経由で `KelpieMCPServer` の起動状態を確認します。起動中の場合は MCP URL、Health URL、Control pipe、Windows Service として動作しているかを表示します。
+NamedPipe 経由で `KelpieMCPServer` の起動状態を確認します。Windows Service として動作しているかも表示します。
 
 構文:
 
@@ -150,7 +150,7 @@ kelpiemcp status
 
 処理内容:
 
-NamedPipe 経由で `KelpieMCPServer` の起動状態を確認し、起動中の場合は MCP URL、Health URL、Control pipe、Windows Service として動作しているかを表示します。
+NamedPipe 経由で `KelpieMCPServer` の起動状態を確認し、起動中の場合は MCP URL、Health URL、Control pipe を表示します。起動中、停止中のどちらでも Windows Service として動作しているかを表示します。
 
 実行結果サンプル:
 
@@ -166,6 +166,7 @@ Working as Windows service: no
 
 ```text
 KelpieMCPServer: stopped
+Working as Windows service: no
 ```
 
 ### `kelpiemcp service register`

@@ -80,6 +80,7 @@ public static class KelpieServerCommandRunner
 
         KpLog.Info("KelpieMCPServer status: stopped.");
         Console.WriteLine("KelpieMCPServer: stopped");
+        Console.WriteLine("Working as Windows service: no");
     }
 
     /// <summary>

@@ -25,6 +25,7 @@ public sealed class KelpieServerCommandRunnerTests
         }
 
         output.ToString().Should().Contain("KelpieMCPServer: stopped");
+        output.ToString().Should().Contain("Working as Windows service: no");
     }
 
     [Fact]
