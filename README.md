@@ -26,6 +26,8 @@ Choose the setup path that matches how you want to use KelpieSSH.
 
 ### Binary users
 
+#### 1. Installing binary (`.msi`)
+
 For normal use, download the KelpieSSH `.msi` installer from GitHub Releases and run it.
 
 After installation, open a new terminal.
@@ -41,6 +43,8 @@ Expected output:
 ```text
 kelpie 0.1.4.1
 ```
+
+#### 2. Initializing Kelpie home and creating a profile
 
 Execute this command in the terminal:
 
@@ -58,6 +62,14 @@ Edit the generated profile before connecting. The profile file is created under:
 
 ```text
 <KelpieHome>\profiles\vps01.json
+```
+
+#### 3. Connecting to server
+
+After editing the profile, check the connection:
+
+```powershell
+kelpie status vps01
 ```
 
 If Windows shows an unknown publisher or SmartScreen warning, confirm that the MSI was downloaded from the official GitHub Release and compare the published checksum if one is provided.

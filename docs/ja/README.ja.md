@@ -26,6 +26,8 @@ KelpieSSH の使い方に合わせて導入方法を選びます。
 
 ### バイナリ利用者
 
+#### 1. バイナリ（`.msi`）のインストール
+
 通常利用では、GitHub Releases から KelpieSSH の `.msi` インストーラーをダウンロードして実行します。
 
 インストール後、新しいターミナルを開いてください。
@@ -41,6 +43,8 @@ kelpie version
 ```text
 kelpie 0.1.4.1
 ```
+
+#### 2. Kelpie home の初期化と profile 作成
 
 ターミナルで次を実行します。
 
@@ -58,6 +62,14 @@ kelpie init vps01
 
 ```text
 <KelpieHome>\profiles\vps01.json
+```
+
+#### 3. サーバーへの接続
+
+profile を編集した後、接続を確認します。
+
+```powershell
+kelpie status vps01
 ```
 
 Windows が不明な発行元または SmartScreen 警告を表示する場合は、MSI が公式 GitHub Release からダウンロードされたものか確認し、提供されている場合は公開 checksum と照合してください。
