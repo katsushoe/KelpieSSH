@@ -278,7 +278,7 @@ static void ShowUsage(string command = "")
 
     var writer = string.IsNullOrWhiteSpace(command) ? Console.Out : Console.Error;
     writer.WriteLine("Usage:");
-    writer.WriteLine("  kelpie init [profile]");
+    writer.WriteLine("  kelpie init [--silent] [profile]");
     writer.WriteLine("  kelpie open <profile>");
     writer.WriteLine("  kelpie gui");
     writer.WriteLine("  kelpie cli");
@@ -310,19 +310,43 @@ static void ShowUsage(string command = "")
 
 static void InitializeKelpieHome(string[] args)
 {
-    if (args.Length > 2)
+    var silent = false;
+    var profileArgs = new List<string>();
+    foreach (var arg in args.Skip(1))
     {
-        Console.Error.WriteLine("Usage:");
-        Console.Error.WriteLine("  kelpie init [profile]");
+        if (string.Equals(arg, "--silent", StringComparison.OrdinalIgnoreCase))
+        {
+            silent = true;
+            continue;
+        }
+
+        if (arg.StartsWith("-", StringComparison.Ordinal))
+        {
+            Console.Error.WriteLine($"Unknown option: {arg}");
+            WriteInitUsage();
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        profileArgs.Add(arg);
+    }
+
+    if (profileArgs.Count > 1)
+    {
+        WriteInitUsage();
         Environment.ExitCode = 1;
         return;
     }
 
     try
     {
-        var profileName = args.Length > 1 ? args[1] : KelpieHomeInitializer.DefaultProfileName;
+        var profileName = profileArgs.Count > 0 ? profileArgs[0] : KelpieHomeInitializer.DefaultProfileName;
         var homeDirectory = KelpieRuntimePaths.GetHomeDirectory(AppContext.BaseDirectory);
-        var result = KelpieHomeInitializer.Initialize(homeDirectory, AppContext.BaseDirectory, profileName);
+        var profilePath = KelpieHomeInitializer.GetProfilePath(homeDirectory, profileName);
+        var templateOptions = !silent && !File.Exists(profilePath)
+            ? ReadProfileTemplateOptions(profileName)
+            : null;
+        var result = KelpieHomeInitializer.Initialize(homeDirectory, AppContext.BaseDirectory, profileName, templateOptions);
         Console.WriteLine($"Kelpie home: {result.HomeDirectory}");
         Console.WriteLine($"Profile: {result.ProfileName}");
         WriteInitializedPaths("Created directories", result.CreatedDirectories);
@@ -346,6 +370,12 @@ static void InitializeKelpieHome(string[] args)
         Console.Error.WriteLine(ex.Message);
         Environment.ExitCode = 1;
     }
+}
+
+static void WriteInitUsage()
+{
+    Console.Error.WriteLine("Usage:");
+    Console.Error.WriteLine("  kelpie init [--silent] [profile]");
 }
 
 static void WriteInitializedPaths(string title, IReadOnlyCollection<string> paths)

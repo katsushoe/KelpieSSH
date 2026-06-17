@@ -38,13 +38,57 @@ public sealed class KelpieHomeInitializerTests
 
         try
         {
-            KelpieHomeInitializer.Initialize(homeDirectory, "vps01");
+            KelpieHomeInitializer.Initialize(homeDirectory, profileName: "vps01");
             var profilePath = Path.Combine(homeDirectory, "profiles", "vps01.json");
 
             var profileJson = File.ReadAllText(profilePath);
 
             profileJson.Should().Contain("vps01_ed25519");
             profileJson.Should().Contain("example.invalid");
+        }
+        finally
+        {
+            Directory.Delete(homeDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Initialize_uses_template_options_for_created_profile()
+    {
+        var homeDirectory = CreateTempDirectory();
+
+        try
+        {
+            KelpieHomeInitializer.Initialize(
+                homeDirectory,
+                "vps01",
+                new KelpieProfileTemplateOptions(
+                    HostAddress: "example.com",
+                    Port: 2222,
+                    AuthMethod: "password",
+                    PrivateKeyFile: null,
+                    PasswordSecretName: "kelpie:vps01",
+                    DefaultUser: "ops",
+                    Mode: "ReadOnly",
+                    OsFamily: "ubuntu",
+                    ReadOnlyRoot: "/var/log/nginx",
+                    ReadWriteRoot: string.Empty,
+                    DenyPattern: "**/.secret"));
+
+            var profilePath = Path.Combine(homeDirectory, "profiles", "vps01.json");
+            using var document = JsonDocument.Parse(File.ReadAllText(profilePath));
+            var root = document.RootElement;
+
+            root.GetProperty("Host").GetProperty("Address").GetString().Should().Be("example.com");
+            root.GetProperty("Host").GetProperty("Port").GetInt32().Should().Be(2222);
+            root.GetProperty("Auth").GetProperty("Method").GetString().Should().Be("password");
+            root.GetProperty("Auth").GetProperty("PasswordSecretName").GetString().Should().Be("kelpie:vps01");
+            root.GetProperty("DefaultUser").GetString().Should().Be("ops");
+            root.GetProperty("Users").GetProperty("ops").GetProperty("Mode").GetString().Should().Be("ReadOnly");
+            root.GetProperty("Users").GetProperty("ops").GetProperty("AllowedRoots").GetProperty("/var/log/nginx").GetString().Should().Be("$ReadOnly");
+            root.GetProperty("Users").GetProperty("ops").GetProperty("AllowedRoots").EnumerateObject().Should().HaveCount(1);
+            root.GetProperty("Users").GetProperty("ops").GetProperty("SpecialPaths").GetProperty("**/.secret").GetString().Should().Be("Deny");
+            root.GetProperty("Platform").GetProperty("OsFamily").GetString().Should().Be("ubuntu");
         }
         finally
         {
@@ -181,7 +225,7 @@ public sealed class KelpieHomeInitializerTests
 
         try
         {
-            KelpieHomeInitializer.Initialize(homeDirectory, "vps01");
+            KelpieHomeInitializer.Initialize(homeDirectory, profileName: "vps01");
             var jsonPaths = new[]
             {
                 Path.Combine(homeDirectory, "config", "kelpie.json"),
@@ -274,7 +318,7 @@ public sealed class KelpieHomeInitializerTests
 
         try
         {
-            KelpieHomeInitializer.Initialize(homeDirectory, "vps01");
+            KelpieHomeInitializer.Initialize(homeDirectory, profileName: "vps01");
 
             var action = () => KelpieHomeInitializer.CreateProfile(homeDirectory, "vps01");
 

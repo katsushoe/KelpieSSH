@@ -14,7 +14,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | MCP Windows Service | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Windows Service 登録、登録解除、登録状態確認を行う。 |
 | MCP password session | `kelpiemcp password`, `kelpiemcp forget` | 起動中の MCP server に SSH パスワードを一時保存、削除する。 |
 | Compatibility | `kelpiemcp login`, `kelpiemcp logout` | 旧名互換。新規利用では `password` / `forget` を使う。 |
-| Initialization | `kelpie init` | `KelpieHome` 配下の初期ディレクトリとサンプル設定を作成する。 |
+| Initialization | `kelpie init [--silent] [profile]` | `KelpieHome` 配下の初期ディレクトリとサンプル設定を作成する。 |
 | Profile/session | `kelpie profile create`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイルひな形作成、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
 | Mode/UI | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | CLI/GUI モードや一時的な起動方式を切り替える。 |
 | Diagnostics | `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | プロファイル情報、MCP server 状態、SSH 診断、サービスログを表示する。 |
@@ -615,7 +615,7 @@ kelpiemcp logout vps01
 
 現在は `kelpiemcp forget <profile>` と同じ形式で表示します。
 
-### `kelpie init [profile]`
+### `kelpie init [--silent] [profile]`
 
 目的:
 
@@ -626,11 +626,14 @@ kelpiemcp logout vps01
 ```powershell
 kelpie init
 kelpie init vps01
+kelpie init --silent
+kelpie init --silent vps01
 ```
 
 引数詳細:
 
 - `profile`: 作成するプロファイル名。省略時は `sample`。
+- `--silent`: 対話入力せず、既定値だけで profile ひな形を生成する。
 
 引数サンプル:
 
@@ -640,6 +643,7 @@ kelpie init vps01
 処理内容:
 
 `KelpieHome` 配下に `config`、`profiles`、`keys` などの初期ディレクトリとサンプル設定ファイルを作成します。既存ファイルは上書きしません。
+既定では、新規 profile file を作成する前に host address、port、SSH user、authentication method、private key file または password secret name、OS family、mode、allowed roots、deny pattern を対話入力します。Enter を押すと表示された既定値を使います。自動セットアップでは `--silent` を指定します。
 初期化済み `KelpieHome` に profile ひな形だけを追加する場合は `kelpie profile create <profile>` を使います。
 
 実行結果サンプル:
@@ -1521,7 +1525,7 @@ kelpie -h
 
 ```text
 Usage:
-  kelpie init [profile]
+  kelpie init [--silent] [profile]
   kelpie open <profile>
   kelpie gui
   kelpie cli

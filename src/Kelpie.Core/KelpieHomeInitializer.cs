@@ -18,10 +18,14 @@ public static class KelpieHomeInitializer
     /// </summary>
     /// <param name="homeDirectory">The Kelpie home directory.</param>
     /// <param name="profileName">The SSH profile name to create.</param>
+    /// <param name="templateOptions">The SSH profile template values. Defaults are used when this is <see langword="null" />.</param>
     /// <returns>The initialization result.</returns>
-    public static KelpieHomeInitializationResult Initialize(string homeDirectory, string? profileName = null)
+    public static KelpieHomeInitializationResult Initialize(
+        string homeDirectory,
+        string? profileName = null,
+        KelpieProfileTemplateOptions? templateOptions = null)
     {
-        return Initialize(homeDirectory, Path.Combine(Path.GetFullPath(homeDirectory), "bin"), profileName);
+        return Initialize(homeDirectory, Path.Combine(Path.GetFullPath(homeDirectory), "bin"), profileName, templateOptions);
     }
 
     /// <summary>
@@ -30,11 +34,13 @@ public static class KelpieHomeInitializer
     /// <param name="homeDirectory">The Kelpie home directory.</param>
     /// <param name="commandDirectory">The Kelpie command directory.</param>
     /// <param name="profileName">The SSH profile name to create.</param>
+    /// <param name="templateOptions">The SSH profile template values. Defaults are used when this is <see langword="null" />.</param>
     /// <returns>The initialization result.</returns>
     public static KelpieHomeInitializationResult Initialize(
         string homeDirectory,
         string commandDirectory,
-        string? profileName = null)
+        string? profileName = null,
+        KelpieProfileTemplateOptions? templateOptions = null)
     {
         if (string.IsNullOrWhiteSpace(homeDirectory))
         {
@@ -55,7 +61,7 @@ public static class KelpieHomeInitializer
 
         WriteConfigFile(paths.KelpieConfigFile, CreateKelpieConfigJson(paths), paths, includeServerCommand: false, createdFiles, existingFiles);
         WriteConfigFile(paths.KelpieMcpConfigFile, CreateKelpieMcpConfigJson(paths), paths, includeServerCommand: true, createdFiles, existingFiles);
-        WriteFileIfMissing(paths.ProfileFile, CreateProfileJson(normalizedProfileName), createdFiles, existingFiles);
+        WriteFileIfMissing(paths.ProfileFile, CreateProfileJson(normalizedProfileName, templateOptions), createdFiles, existingFiles);
 
         return new KelpieHomeInitializationResult(
             fullHomeDirectory,
@@ -96,7 +102,6 @@ public static class KelpieHomeInitializer
             throw new ArgumentException("Home directory is required.", nameof(homeDirectory));
         }
 
-        var normalizedProfileName = NormalizeProfileName(profileName);
         var fullHomeDirectory = Path.GetFullPath(homeDirectory);
         var configDirectory = Path.Combine(fullHomeDirectory, "config");
         var profilesDirectory = Path.Combine(fullHomeDirectory, "profiles");
@@ -109,13 +114,31 @@ public static class KelpieHomeInitializer
             throw new DirectoryNotFoundException("Kelpie home is not initialized. Run `kelpie init` first.");
         }
 
-        var profileFile = Path.Combine(profilesDirectory, $"{normalizedProfileName}.json");
+        var profileFile = GetProfilePath(fullHomeDirectory, profileName);
         if (File.Exists(profileFile))
         {
-            throw new IOException($"SSH profile already exists: {normalizedProfileName}");
+            throw new IOException($"SSH profile already exists: {NormalizeProfileName(profileName)}");
         }
 
         return profileFile;
+    }
+
+    /// <summary>
+    /// Gets the SSH profile file path for a Kelpie home directory.
+    /// </summary>
+    /// <param name="homeDirectory">The Kelpie home directory.</param>
+    /// <param name="profileName">The SSH profile name.</param>
+    /// <returns>The profile file path.</returns>
+    public static string GetProfilePath(string homeDirectory, string? profileName)
+    {
+        if (string.IsNullOrWhiteSpace(homeDirectory))
+        {
+            throw new ArgumentException("Home directory is required.", nameof(homeDirectory));
+        }
+
+        var normalizedProfileName = NormalizeProfileName(profileName);
+        var fullHomeDirectory = Path.GetFullPath(homeDirectory);
+        return Path.Combine(fullHomeDirectory, "profiles", $"{normalizedProfileName}.json");
     }
 
     private static string NormalizeProfileName(string? profileName)

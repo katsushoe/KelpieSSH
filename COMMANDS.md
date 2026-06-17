@@ -14,7 +14,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | [MCP profile trust](#mcp-profile-trust) | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile>`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | Add, reload, revoke, and inspect trusted SSH profile baselines. |
 | [MCP Windows Service](#mcp-windows-service) | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Register, unregister, and inspect the Windows Service entry. |
 | [MCP password session](#mcp-password-session) | `kelpiemcp password`, `kelpiemcp forget`, `kelpiemcp login`, `kelpiemcp logout` | Store or clear an SSH password in the running MCP server session. |
-| [Initialization](#initialization) | `kelpie init [profile]` | Create the local Kelpie home directory layout and sample configuration files. |
+| [Initialization](#initialization) | `kelpie init [--silent] [profile]` | Create the local Kelpie home directory layout and sample configuration files. |
 | [Profile/session](#profilesession) | `kelpie profile create`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | Create profile templates, select profiles, and manage interactive SSH sessions. |
 | [Mode/UI](#modeui) | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | Switch CLI/GUI mode or choose a temporary launch mode. |
 | [Diagnostics](#diagnostics) | `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | Show profile information, MCP server status, SSH diagnostics, and service logs. |
@@ -656,9 +656,9 @@ Create the local Kelpie home layout and sample configuration files.
 
 Commands in this group:
 
-- [`kelpie init [profile]`](#kelpie-init-profile)
+- [`kelpie init [--silent] [profile]`](#kelpie-init---silent-profile)
 
-#### `kelpie init [profile]`
+#### `kelpie init [--silent] [profile]`
 
 Creates the local Kelpie home directory layout.
 
@@ -667,15 +667,20 @@ Syntax:
 ```powershell
 kelpie init
 kelpie init vps01
+kelpie init --silent
+kelpie init --silent vps01
 ```
 
 When a profile name is supplied, a named sample profile is created under `profiles/<profile>.json`.
 Existing configuration files are not overwritten.
+By default, the command prompts for SSH profile template values before creating a new profile file. Press Enter to use the displayed default value.
+Use `--silent` for non-interactive setup with the default template values.
 Use `kelpie profile create <profile>` when the Kelpie home is already initialized and only a new profile template should be created.
 
 Return value:
 
 - Exit code `0` when initialization completes.
+- Non-zero exit code when the profile name is invalid, an unknown option is supplied, a prompted value is invalid, or a file-system operation fails.
 - Standard output describes created and existing directories/files. The structured internal result is `KelpieHomeInitializationResult` with `HomeDirectory`, `ProfileName`, `CreatedDirectories`, `CreatedFiles`, and `ExistingFiles`.
 
 Return value sample:
