@@ -8,6 +8,35 @@ namespace KelpieSSH.Application.Tests.Command;
 public sealed class KelpieServerCommandRunnerTests
 {
     [Fact]
+    public async Task StartAsync_ShouldStartWindowsServiceWhenServiceIsRegistered()
+    {
+        var options = CreateOptions();
+        using var output = new StringWriter();
+        var previousOutput = Console.Out;
+        var serviceStartCalled = false;
+        Console.SetOut(output);
+
+        try
+        {
+            await KelpieServerCommandRunner.StartAsync(
+                options,
+                () => Task.FromResult(true),
+                () =>
+                {
+                    serviceStartCalled = true;
+                    return Task.FromResult(true);
+                });
+        }
+        finally
+        {
+            Console.SetOut(previousOutput);
+        }
+
+        serviceStartCalled.Should().BeTrue();
+        output.ToString().Should().Contain("Windows Service start requested: KelpieMCPServer");
+    }
+
+    [Fact]
     public async Task StatusAsync_ShouldPrintStoppedWhenPipeIsUnavailable()
     {
         var options = CreateOptions();

@@ -136,10 +136,18 @@ kelpie gui
 
 ### `kelpiemcp start`
 
-Starts the local MCP server process.
+Starts the local MCP server.
+On Windows, if `KelpieMCPServer` is registered as a Windows Service, this command starts the Windows Service. Run it from an elevated terminal in that case.
+Otherwise, it starts a normal local process.
 
 ```powershell
 kelpiemcp start
+```
+
+Example when the Windows Service is registered:
+
+```text
+Windows Service start requested: KelpieMCPServer
 ```
 
 ### `kelpiemcp stop`

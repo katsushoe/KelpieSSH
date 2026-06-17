@@ -20,12 +20,30 @@ public static class KelpieServerCommandRunner
     /// Starts the Kelpie MCP server body if it is not already running.
     /// </summary>
     /// <param name="options">The command options.</param>
-    public static async Task StartAsync(KelpieMcpServerOptions options)
+    public static async Task StartAsync(
+        KelpieMcpServerOptions options,
+        Func<Task<bool>>? windowsServiceExistsAsync = null,
+        Func<Task<bool>>? startWindowsServiceAsync = null)
     {
         if (await SendControlCommandAsync(options.ControlPipeName, "ping", PipeConnectionTimeout))
         {
             KpLog.Info("KelpieMCPServer is already running.");
             Console.WriteLine("KelpieMCPServer is already running.");
+            return;
+        }
+
+        var registeredAsWindowsService = OperatingSystem.IsWindows()
+            && await (windowsServiceExistsAsync ?? WindowsServiceExistsAsync)();
+        if (registeredAsWindowsService)
+        {
+            var started = await (startWindowsServiceAsync ?? StartWindowsServiceAndWriteFailureAsync)();
+            if (!started)
+            {
+                return;
+            }
+
+            KpLog.Info($"KelpieMCPServer Windows Service start requested. service={WindowsServiceName}");
+            Console.WriteLine($"Windows Service start requested: {WindowsServiceName}");
             return;
         }
 
@@ -701,6 +719,18 @@ public static class KelpieServerCommandRunner
         return result.ExitCode == 0;
     }
 
+    private static async Task<bool> StartWindowsServiceAndWriteFailureAsync()
+    {
+        var result = await RunScAsync("start", WindowsServiceName);
+        if (result.ExitCode == 0)
+        {
+            return true;
+        }
+
+        WriteScFailure("Failed to start Windows Service.", result);
+        return false;
+    }
+
     private static Task<ScCommandResult> CreateWindowsServiceAsync(string binPath)
     {
         return RunScAsync(
@@ -760,6 +790,13 @@ public static class KelpieServerCommandRunner
         KpLog.Warn($"{message} scExitCode={result.ExitCode}");
         Console.Error.WriteLine(message);
         Console.Error.WriteLine("Run this command from an elevated terminal.");
+        if (result.ExitCode == 5)
+        {
+            Console.Error.WriteLine("Access denied.");
+            Environment.ExitCode = result.ExitCode;
+            return;
+        }
+
         if (!string.IsNullOrWhiteSpace(result.StandardOutput))
         {
             Console.Error.Write(result.StandardOutput);

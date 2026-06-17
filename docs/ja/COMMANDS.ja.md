@@ -78,12 +78,18 @@ kelpiemcp start
 
 処理内容:
 
-起動中でなければ `KelpieMCPServer` の起動を要求します。すでに起動中の場合は二重起動せず、起動中であることを返します。
+起動中でなければ `KelpieMCPServer` の起動を要求します。Windows で `KelpieMCPServer` が Windows Service として登録済みの場合は Windows Service を開始します。この場合は管理者権限のターミナルから実行してください。未登録の場合は通常のローカルプロセスとして起動します。すでに起動中の場合は二重起動せず、起動中であることを返します。
 
 実行結果サンプル:
 
 ```text
 KelpieMCPServer start requested.
+```
+
+Windows Service 登録済みの場合:
+
+```text
+Windows Service start requested: KelpieMCPServer
 ```
 
 すでに起動中の場合:
