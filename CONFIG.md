@@ -117,6 +117,25 @@ Minimal example:
 }
 ```
 
+### `ProfileOperations`
+
+`ProfileOperations` controls profile-management capabilities that are visible to MCP clients.
+It does not replace the CLI trust commands.
+
+| Setting | Default | Purpose |
+| :--- | :--- | :--- |
+| `ProfileOperations:Reload:MCP` | `false` | Allows MCP clients to see MCP-side reload capability for the currently connected profile. |
+
+When `ProfileOperations:Reload:MCP` is `false`, `ssh_profile_capabilities` returns `ReloadAllowed: false` with `Reason: disabled-by-config`.
+This is the recommended default because profile file changes should be accepted by an explicit user-side command:
+
+```powershell
+kelpiemcp profile reload <profile>
+```
+
+Set `ProfileOperations:Reload:MCP` to `true` only when the operator intentionally allows MCP clients to request profile reload behavior.
+Even then, trusted profile hash validation still applies; editing a profile file is not accepted just because this flag is enabled.
+
 ## Runtime State
 
 ### `dat/storm_state.dat`

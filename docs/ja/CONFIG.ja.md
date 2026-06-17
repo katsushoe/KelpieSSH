@@ -112,6 +112,25 @@ http://127.0.0.1:45432/health
 }
 ```
 
+### `ProfileOperations`
+
+`ProfileOperations` は、MCP client へ見せる profile 管理系 capability を制御します。
+CLI の trust command を置き換える設定ではありません。
+
+| Setting | 既定値 | 目的 |
+| :--- | :--- | :--- |
+| `ProfileOperations:Reload:MCP` | `false` | 現在接続中の profile について、MCP client に MCP 側 reload capability を見せるかどうか。 |
+
+`ProfileOperations:Reload:MCP` が `false` の場合、`ssh_profile_capabilities` は `ReloadAllowed: false` と `Reason: disabled-by-config` を返します。
+profile file の変更受け入れは、既定では次のユーザー側明示 command で行う設計です。
+
+```powershell
+kelpiemcp profile reload <profile>
+```
+
+`ProfileOperations:Reload:MCP` を `true` にするのは、運用者が MCP client からの profile reload 要求を明示的に許可する場合だけにしてください。
+その場合でも trusted profile hash validation は引き続き適用されるため、この flag だけで編集済み profile file が無条件に受け入れられることはありません。
+
 ## Runtime State
 
 ### `dat/storm_state.dat`
