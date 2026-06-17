@@ -84,6 +84,7 @@ $documentFiles = @(
     "CONFIG.md",
     "PROFILE_GUIDE.md",
     "MCP_GUIDE.md",
+    "RELEASE_PROCESS.md",
     "DOCUMENTS.md",
     "MCP_COMMANDS.md",
     "PACKAGES.md",

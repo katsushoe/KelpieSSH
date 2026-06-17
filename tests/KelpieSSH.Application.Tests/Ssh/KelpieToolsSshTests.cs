@@ -948,6 +948,7 @@ public sealed class KelpieToolsSshTests
             }
 
             """;
+        var expectedWrittenContent = updatedContent.ReplaceLineEndings("\n");
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
                 StandardOutput: string.Empty,
@@ -985,11 +986,11 @@ public sealed class KelpieToolsSshTests
 
         result.ServiceKey.Should().Be("nginx");
         result.Path.Should().Be("/etc/nginx/conf.d/kelpie-test.conf");
-        result.BytesWritten.Should().Be(System.Text.Encoding.UTF8.GetByteCount(updatedContent));
+        result.BytesWritten.Should().Be(System.Text.Encoding.UTF8.GetByteCount(expectedWrittenContent));
         result.Error.Should().BeNull();
         runner.LastRequest!.CommandName.Should().Be("service_config_nginx_write_config");
         var writtenContent = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(runner.LastRequest.Arguments["contentBase64"]));
-        writtenContent.Should().Be(updatedContent);
+        writtenContent.Should().Be(expectedWrittenContent);
     }
 
     [Fact]
