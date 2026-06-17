@@ -88,11 +88,16 @@ Extract `KelpieSSH-x.x.x.x-x64.zip` to `D:\Kelpie`. The extracted directory shou
 
 ```text
 D:\Kelpie
-└─ bin
-   ├─ kelpie.exe
-   ├─ kelpiemcp.exe
-   └─ mcp
-      └─ KelpieMCPServer.exe
+├─ bin
+│  ├─ kelpie.exe
+│  ├─ kelpiemcp.exe
+│  └─ mcp
+│     └─ KelpieMCPServer.exe
+├─ config_samples
+├─ docs
+├─ README.md
+├─ COMMANDS.md
+└─ CONFIG.md
 ```
 
 #### 2. Adding `PATH` and verifying commands

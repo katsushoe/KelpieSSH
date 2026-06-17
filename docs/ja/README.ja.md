@@ -88,11 +88,16 @@ Windows が不明な発行元または SmartScreen 警告を表示する場合�
 
 ```text
 D:\Kelpie
-└─ bin
-   ├─ kelpie.exe
-   ├─ kelpiemcp.exe
-   └─ mcp
-      └─ KelpieMCPServer.exe
+├─ bin
+│  ├─ kelpie.exe
+│  ├─ kelpiemcp.exe
+│  └─ mcp
+│     └─ KelpieMCPServer.exe
+├─ config_samples
+├─ docs
+├─ README.md
+├─ COMMANDS.md
+└─ CONFIG.md
 ```
 
 #### 2. `PATH` の追加とコマンド確認
