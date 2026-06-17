@@ -10,15 +10,15 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 
 | Group | Commands | Purpose |
 | :--- | :--- | :--- |
-| MCP server control | `kelpiemcp start`, `kelpiemcp stop`, `kelpiemcp status` | Start, stop, and inspect `KelpieMCPServer`. |
-| MCP Windows Service | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Register, unregister, and inspect the Windows Service entry. |
-| MCP password session | `kelpiemcp password`, `kelpiemcp forget`, `kelpiemcp login`, `kelpiemcp logout` | Store or clear an SSH password in the running MCP server session. |
-| Initialization | `kelpie init [profile]` | Create the local Kelpie home directory layout and sample configuration files. |
-| Profile/session | `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | Select profiles and manage interactive SSH sessions. |
-| Mode/UI | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | Switch CLI/GUI mode or choose a temporary launch mode. |
-| Diagnostics | `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | Show profile information, MCP server status, SSH diagnostics, and service logs. |
-| Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | List, read, temporarily set, or persist remote environment variables under profile policy. |
-| Help/version | `kelpie version`, `kelpie help`, `kelpie --help`, `kelpie --version` | Show version and help text. |
+| [MCP server control](#mcp-server-control) | `kelpiemcp start`, `kelpiemcp stop`, `kelpiemcp status` | Start, stop, and inspect `KelpieMCPServer`. |
+| [MCP Windows Service](#mcp-windows-service) | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Register, unregister, and inspect the Windows Service entry. |
+| [MCP password session](#mcp-password-session) | `kelpiemcp password`, `kelpiemcp forget`, `kelpiemcp login`, `kelpiemcp logout` | Store or clear an SSH password in the running MCP server session. |
+| [Initialization](#initialization) | `kelpie init [profile]` | Create the local Kelpie home directory layout and sample configuration files. |
+| [Profile/session](#profilesession) | `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | Select profiles and manage interactive SSH sessions. |
+| [Mode/UI](#modeui) | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | Switch CLI/GUI mode or choose a temporary launch mode. |
+| [Diagnostics](#diagnostics) | `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | Show profile information, MCP server status, SSH diagnostics, and service logs. |
+| [Environment](#environment) | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | List, read, temporarily set, or persist remote environment variables under profile policy. |
+| [Help/version](#helpversion) | `kelpie version`, `kelpie help`, `kelpie --help`, `kelpie --version` | Show version and help text. |
 
 ## Common Rules
 
@@ -1124,5 +1124,4 @@ The terminal execution result is represented by the return value sample above: p
 - Dangerous operations require dedicated commands, policy checks, and confirmation strings.
 - Passwords are session-only for the MCP server process.
 - Production profile files and private keys must stay outside the public repository.
-
 
