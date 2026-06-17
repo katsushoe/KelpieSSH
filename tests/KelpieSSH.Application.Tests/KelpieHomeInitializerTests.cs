@@ -223,6 +223,51 @@ public sealed class KelpieHomeInitializerTests
     }
 
     [Fact]
+    public void CreateProfile_uses_template_options()
+    {
+        var homeDirectory = CreateTempDirectory();
+
+        try
+        {
+            KelpieHomeInitializer.Initialize(homeDirectory);
+
+            var profilePath = KelpieHomeInitializer.CreateProfile(
+                homeDirectory,
+                "vps02",
+                new KelpieProfileTemplateOptions(
+                    HostAddress: "example.com",
+                    Port: 2222,
+                    AuthMethod: "password",
+                    PrivateKeyFile: null,
+                    PasswordSecretName: "kelpie:vps02",
+                    DefaultUser: "ops",
+                    Mode: "ReadOnly",
+                    OsFamily: "ubuntu",
+                    ReadOnlyRoot: "/var/log/nginx",
+                    ReadWriteRoot: string.Empty,
+                    DenyPattern: "**/.secret"));
+
+            using var document = JsonDocument.Parse(File.ReadAllText(profilePath));
+            var root = document.RootElement;
+
+            root.GetProperty("Host").GetProperty("Address").GetString().Should().Be("example.com");
+            root.GetProperty("Host").GetProperty("Port").GetInt32().Should().Be(2222);
+            root.GetProperty("Auth").GetProperty("Method").GetString().Should().Be("password");
+            root.GetProperty("Auth").GetProperty("PasswordSecretName").GetString().Should().Be("kelpie:vps02");
+            root.GetProperty("DefaultUser").GetString().Should().Be("ops");
+            root.GetProperty("Users").GetProperty("ops").GetProperty("Mode").GetString().Should().Be("ReadOnly");
+            root.GetProperty("Users").GetProperty("ops").GetProperty("AllowedRoots").GetProperty("/var/log/nginx").GetString().Should().Be("$ReadOnly");
+            root.GetProperty("Users").GetProperty("ops").GetProperty("AllowedRoots").EnumerateObject().Should().HaveCount(1);
+            root.GetProperty("Users").GetProperty("ops").GetProperty("SpecialPaths").GetProperty("**/.secret").GetString().Should().Be("Deny");
+            root.GetProperty("Platform").GetProperty("OsFamily").GetString().Should().Be("ubuntu");
+        }
+        finally
+        {
+            Directory.Delete(homeDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void CreateProfile_rejects_existing_profile()
     {
         var homeDirectory = CreateTempDirectory();

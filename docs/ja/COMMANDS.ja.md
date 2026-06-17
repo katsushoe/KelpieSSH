@@ -1002,7 +1002,7 @@ SSH session was not found: ssh-missing
 
 目的:
 
-初期化済み `KelpieHome` に、新しい SSH profile ひな形を1つ作成します。
+初期化済み `KelpieHome` に、新しい SSH profile ひな形を1つ作成します。コマンドは対話形式でひな形の値を尋ねます。Enter を押すと表示された既定値を使います。
 
 構文:
 
@@ -1018,6 +1018,8 @@ kelpie profile create vps02
 
 `kelpie init` 済みの `KelpieHome` を前提に、`profiles/<profile>.json` だけを新規作成します。`config/kelpie.json`、`config/kelpiemcp.json`、ディレクトリ、trust store、open profile 状態は作成・更新しません。既に同名 profile がある場合はエラーにします。
 
+host address、port、SSH user、authentication method、private key file または password secret name、OS family、mode、allowed roots、deny pattern を対話入力します。password authentication の場合も入力するのは `PasswordSecretName` だけで、パスワード実値は入力・保存しません。optional な allowed-root / deny-pattern prompt では `-` を入力すると値を省略します。
+
 MCPサーバーの protected trust store へ反映する場合は、作成した profile 内容を確認した後に `kelpiemcp profile add <profile>` を実行します。
 
 戻り値:
@@ -1030,6 +1032,18 @@ MCPサーバーの protected trust store へ反映する場合は、作成した
 実行結果サンプル:
 
 ```text
+Create SSH profile template.
+Press Enter to use the default value.
+Host address [example.invalid]:
+Port [22]:
+SSH user [deploy]:
+Authentication method (privateKey/password) [privateKey]:
+Private key file [vps02_ed25519]:
+OS family [debian]:
+Mode (ReadOnly/Safe/Maintenance/Expert) [Safe]:
+Read-only root, '-' to omit [/var/log]:
+Read-write root, '-' to omit [/var/www]:
+Deny pattern, '-' to omit [**/.env]:
 Created profile: vps02
 Profile file: D:\Kelpie\profiles\vps02.json
 ```

@@ -71,7 +71,25 @@ public static class KelpieHomeInitializer
     /// <param name="homeDirectory">The initialized Kelpie home directory.</param>
     /// <param name="profileName">The SSH profile name to create.</param>
     /// <returns>The created profile file path.</returns>
-    public static string CreateProfile(string homeDirectory, string? profileName)
+    public static string CreateProfile(
+        string homeDirectory,
+        string? profileName,
+        KelpieProfileTemplateOptions? templateOptions = null)
+    {
+        var normalizedProfileName = NormalizeProfileName(profileName);
+        var profileFile = GetCreatableProfilePath(homeDirectory, normalizedProfileName);
+
+        File.WriteAllText(profileFile, CreateProfileJson(normalizedProfileName, templateOptions));
+        return profileFile;
+    }
+
+    /// <summary>
+    /// Gets the profile path when a new SSH profile can be created.
+    /// </summary>
+    /// <param name="homeDirectory">The initialized Kelpie home directory.</param>
+    /// <param name="profileName">The SSH profile name to create.</param>
+    /// <returns>The profile file path.</returns>
+    public static string GetCreatableProfilePath(string homeDirectory, string? profileName)
     {
         if (string.IsNullOrWhiteSpace(homeDirectory))
         {
@@ -97,7 +115,6 @@ public static class KelpieHomeInitializer
             throw new IOException($"SSH profile already exists: {normalizedProfileName}");
         }
 
-        File.WriteAllText(profileFile, CreateProfileJson(normalizedProfileName));
         return profileFile;
     }
 
@@ -334,42 +351,90 @@ public static class KelpieHomeInitializer
         });
     }
 
-    private static string CreateProfileJson(string profileName)
+    private static string CreateProfileJson(string profileName, KelpieProfileTemplateOptions? templateOptions = null)
     {
+        var options = NormalizeProfileTemplateOptions(profileName, templateOptions);
+        var allowedRoots = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(options.ReadOnlyRoot))
+        {
+            allowedRoots[options.ReadOnlyRoot] = "$ReadOnly";
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.ReadWriteRoot))
+        {
+            allowedRoots[options.ReadWriteRoot] = "$ReadWrite";
+        }
+
+        var specialPaths = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(options.DenyPattern))
+        {
+            specialPaths[options.DenyPattern] = "Deny";
+        }
+
+        var authentication = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["Method"] = options.AuthMethod,
+        };
+        if (string.Equals(options.AuthMethod, "password", StringComparison.OrdinalIgnoreCase))
+        {
+            authentication["PasswordSecretName"] = options.PasswordSecretName;
+        }
+        else
+        {
+            authentication["PrivateKeyFile"] = options.PrivateKeyFile;
+        }
+
         return Serialize(new
         {
             Host = new
             {
-                Address = "example.invalid",
-                Port = 22,
+                Address = options.HostAddress,
+                Port = options.Port,
             },
-            Auth = new
-            {
-                Method = "privateKey",
-                PrivateKeyFile = $"{profileName}_ed25519",
-            },
-            DefaultUser = "deploy",
+            Auth = authentication,
+            DefaultUser = options.DefaultUser,
             Users = new Dictionary<string, object>
             {
-                ["deploy"] = new
+                [options.DefaultUser] = new
                 {
-                    Mode = "Safe",
-                    AllowedRoots = new Dictionary<string, string>
-                    {
-                        ["/var/log"] = "$ReadOnly",
-                        ["/var/www"] = "$ReadWrite",
-                    },
-                    SpecialPaths = new Dictionary<string, string>
-                    {
-                        ["**/.env"] = "Deny",
-                    },
+                    Mode = options.Mode,
+                    AllowedRoots = allowedRoots,
+                    SpecialPaths = specialPaths,
                 },
             },
             Platform = new
             {
-                OsFamily = "debian",
+                OsFamily = options.OsFamily,
             },
         });
+    }
+
+    private static KelpieProfileTemplateOptions NormalizeProfileTemplateOptions(
+        string profileName,
+        KelpieProfileTemplateOptions? templateOptions)
+    {
+        var defaults = KelpieProfileTemplateOptions.CreateDefault(profileName);
+        if (templateOptions is null)
+        {
+            return defaults;
+        }
+
+        var authMethod = string.IsNullOrWhiteSpace(templateOptions.AuthMethod)
+            ? defaults.AuthMethod
+            : templateOptions.AuthMethod.Trim();
+
+        return new KelpieProfileTemplateOptions(
+            HostAddress: string.IsNullOrWhiteSpace(templateOptions.HostAddress) ? defaults.HostAddress : templateOptions.HostAddress.Trim(),
+            Port: templateOptions.Port > 0 ? templateOptions.Port : defaults.Port,
+            AuthMethod: authMethod,
+            PrivateKeyFile: string.IsNullOrWhiteSpace(templateOptions.PrivateKeyFile) ? defaults.PrivateKeyFile : templateOptions.PrivateKeyFile.Trim(),
+            PasswordSecretName: string.IsNullOrWhiteSpace(templateOptions.PasswordSecretName) ? defaults.PasswordSecretName : templateOptions.PasswordSecretName.Trim(),
+            DefaultUser: string.IsNullOrWhiteSpace(templateOptions.DefaultUser) ? defaults.DefaultUser : templateOptions.DefaultUser.Trim(),
+            Mode: string.IsNullOrWhiteSpace(templateOptions.Mode) ? defaults.Mode : templateOptions.Mode.Trim(),
+            OsFamily: string.IsNullOrWhiteSpace(templateOptions.OsFamily) ? defaults.OsFamily : templateOptions.OsFamily.Trim(),
+            ReadOnlyRoot: templateOptions.ReadOnlyRoot?.Trim() ?? string.Empty,
+            ReadWriteRoot: templateOptions.ReadWriteRoot?.Trim() ?? string.Empty,
+            DenyPattern: templateOptions.DenyPattern?.Trim() ?? string.Empty);
     }
 
     private static string Serialize<T>(T value)
@@ -453,5 +518,43 @@ public static class KelpieHomeInitializer
             LogsDirectory,
             McpDirectory,
         ];
+    }
+}
+
+/// <summary>
+/// Defines values used to generate an SSH profile template.
+/// </summary>
+public sealed record KelpieProfileTemplateOptions(
+    string HostAddress,
+    int Port,
+    string AuthMethod,
+    string? PrivateKeyFile,
+    string? PasswordSecretName,
+    string DefaultUser,
+    string Mode,
+    string OsFamily,
+    string ReadOnlyRoot,
+    string ReadWriteRoot,
+    string DenyPattern)
+{
+    /// <summary>
+    /// Creates the default SSH profile template values.
+    /// </summary>
+    /// <param name="profileName">The SSH profile name.</param>
+    /// <returns>The default template values.</returns>
+    public static KelpieProfileTemplateOptions CreateDefault(string profileName)
+    {
+        return new KelpieProfileTemplateOptions(
+            HostAddress: "example.invalid",
+            Port: 22,
+            AuthMethod: "privateKey",
+            PrivateKeyFile: $"{profileName}_ed25519",
+            PasswordSecretName: $"kelpie:{profileName}",
+            DefaultUser: "deploy",
+            Mode: "Safe",
+            OsFamily: "debian",
+            ReadOnlyRoot: "/var/log",
+            ReadWriteRoot: "/var/www",
+            DenyPattern: "**/.env");
     }
 }

@@ -375,7 +375,9 @@ static void CreateProfile(string profileName)
     try
     {
         var homeDirectory = KelpieRuntimePaths.GetHomeDirectory(AppContext.BaseDirectory);
-        var profilePath = KelpieHomeInitializer.CreateProfile(homeDirectory, profileName);
+        KelpieHomeInitializer.GetCreatableProfilePath(homeDirectory, profileName);
+        var templateOptions = ReadProfileTemplateOptions(profileName);
+        var profilePath = KelpieHomeInitializer.CreateProfile(homeDirectory, profileName, templateOptions);
         Console.WriteLine($"Created profile: {profileName}");
         Console.WriteLine($"Profile file: {profilePath}");
     }
@@ -395,6 +397,110 @@ static void CreateProfile(string profileName)
         KpLog.Err($"Kelpie profile create failed. exceptionType={ex.GetType().FullName ?? "UnknownException"}");
         Console.Error.WriteLine(ex.Message);
         Environment.ExitCode = 1;
+    }
+}
+
+static KelpieProfileTemplateOptions ReadProfileTemplateOptions(string profileName)
+{
+    var defaults = KelpieProfileTemplateOptions.CreateDefault(profileName);
+
+    Console.WriteLine("Create SSH profile template.");
+    Console.WriteLine("Press Enter to use the default value.");
+
+    var hostAddress = ReadPrompt("Host address", defaults.HostAddress);
+    var port = ReadPortPrompt("Port", defaults.Port);
+    var defaultUser = ReadPrompt("SSH user", defaults.DefaultUser);
+    var authMethod = ReadChoicePrompt("Authentication method", defaults.AuthMethod, ["privateKey", "password"]);
+    var privateKeyFile = string.Equals(authMethod, "privateKey", StringComparison.OrdinalIgnoreCase)
+        ? ReadPrompt("Private key file", defaults.PrivateKeyFile ?? $"{profileName}_ed25519")
+        : defaults.PrivateKeyFile;
+    var passwordSecretName = string.Equals(authMethod, "password", StringComparison.OrdinalIgnoreCase)
+        ? ReadPrompt("Password secret name", defaults.PasswordSecretName ?? $"kelpie:{profileName}")
+        : defaults.PasswordSecretName;
+    var osFamily = ReadPrompt("OS family", defaults.OsFamily);
+    var mode = ReadChoicePrompt("Mode", defaults.Mode, ["ReadOnly", "Safe", "Maintenance", "Expert"]);
+    var readOnlyRoot = ReadOptionalPrompt("Read-only root", defaults.ReadOnlyRoot);
+    var readWriteRoot = ReadOptionalPrompt("Read-write root", defaults.ReadWriteRoot);
+    var denyPattern = ReadOptionalPrompt("Deny pattern", defaults.DenyPattern);
+
+    return new KelpieProfileTemplateOptions(
+        HostAddress: hostAddress,
+        Port: port,
+        AuthMethod: authMethod,
+        PrivateKeyFile: privateKeyFile,
+        PasswordSecretName: passwordSecretName,
+        DefaultUser: defaultUser,
+        Mode: mode,
+        OsFamily: osFamily,
+        ReadOnlyRoot: readOnlyRoot,
+        ReadWriteRoot: readWriteRoot,
+        DenyPattern: denyPattern);
+}
+
+static string ReadPrompt(string title, string defaultValue)
+{
+    while (true)
+    {
+        Console.Write($"{title} [{defaultValue}]: ");
+        var value = Console.ReadLine();
+        if (value is null)
+        {
+            return defaultValue;
+        }
+
+        var trimmed = value.Trim();
+        if (!string.IsNullOrWhiteSpace(trimmed))
+        {
+            return trimmed;
+        }
+
+        return defaultValue;
+    }
+}
+
+static string ReadOptionalPrompt(string title, string defaultValue)
+{
+    var value = ReadPrompt($"{title}, '-' to omit", defaultValue);
+    return string.Equals(value, "-", StringComparison.Ordinal) ? string.Empty : value;
+}
+
+static int ReadPortPrompt(string title, int defaultValue)
+{
+    while (true)
+    {
+        var value = ReadPrompt(title, defaultValue.ToString());
+        if (int.TryParse(value, out var port) && port is >= 1 and <= 65535)
+        {
+            return port;
+        }
+
+        if (Console.IsInputRedirected)
+        {
+            throw new ArgumentException("Port must be a number between 1 and 65535.");
+        }
+
+        Console.Error.WriteLine("Port must be a number between 1 and 65535.");
+    }
+}
+
+static string ReadChoicePrompt(string title, string defaultValue, IReadOnlyCollection<string> allowedValues)
+{
+    while (true)
+    {
+        var value = ReadPrompt($"{title} ({string.Join("/", allowedValues)})", defaultValue);
+        var matchedValue = allowedValues.FirstOrDefault(
+            allowedValue => string.Equals(allowedValue, value, StringComparison.OrdinalIgnoreCase));
+        if (matchedValue is not null)
+        {
+            return matchedValue;
+        }
+
+        if (Console.IsInputRedirected)
+        {
+            throw new ArgumentException($"{title} must be one of: {string.Join(", ", allowedValues)}.");
+        }
+
+        Console.Error.WriteLine($"{title} must be one of: {string.Join(", ", allowedValues)}.");
     }
 }
 

@@ -745,6 +745,7 @@ Safety notes:
 #### `kelpie profile create <profile>`
 
 Creates one new SSH profile template in an already initialized Kelpie home directory.
+The command prompts for template values interactively. Press Enter to use the displayed default value.
 
 ```powershell
 kelpie profile create vps02
@@ -762,6 +763,9 @@ Processing:
 - Creates only `profiles/<profile>.json`.
 - Does not create or update `config/kelpie.json`, `config/kelpiemcp.json`, directories, trust-store entries, or open-profile state.
 - Fails when `profiles/<profile>.json` already exists.
+- Prompts for host address, port, SSH user, authentication method, private key file or password secret name, OS family, mode, allowed roots, and deny pattern.
+- For password authentication, the command writes only `PasswordSecretName`. It never asks for or stores the raw password.
+- Enter accepts the displayed default. For optional allowed-root and deny-pattern prompts, enter `-` to omit the value.
 - After creating a profile that should be visible to a protected MCP server, review the file and run `kelpiemcp profile add <profile>`.
 
 Return value:
@@ -774,6 +778,18 @@ Return value:
 Execution result sample:
 
 ```text
+Create SSH profile template.
+Press Enter to use the default value.
+Host address [example.invalid]:
+Port [22]:
+SSH user [deploy]:
+Authentication method (privateKey/password) [privateKey]:
+Private key file [vps02_ed25519]:
+OS family [debian]:
+Mode (ReadOnly/Safe/Maintenance/Expert) [Safe]:
+Read-only root, '-' to omit [/var/log]:
+Read-write root, '-' to omit [/var/www]:
+Deny pattern, '-' to omit [**/.env]:
 Created profile: vps02
 Profile file: D:\Kelpie\profiles\vps02.json
 ```
