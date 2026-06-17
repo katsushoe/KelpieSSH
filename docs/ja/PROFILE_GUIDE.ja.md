@@ -315,6 +315,9 @@ MCP 実行では `Capabilities` を無視し、mode-based permissions のみを�
 - `AllowSudo`
 - `AllowShowPassword`
 - `AllowShowPrivateKey`
+- `AllowPeekEnvironmentKeys`
+- `AllowPeekEnvironmentValues`
+- `AllowSetEnvironmentValues`
 - `AllowListPackage`
 - `AllowUpdatePackageIndex`
 - `AllowInstallPackage`
@@ -327,6 +330,82 @@ Troubleshooting:
 
 - Unknown name は configuration error です。
 - MCP 権限を `Capabilities` で増やすことはできません。
+
+### `EnvironmentValues`
+
+環境変数名ごとの取り扱い rules です。
+`Capabilities` は環境変数操作を呼べるかどうかを制御します。
+`EnvironmentValues` は各環境変数名に対して何を許可するかを制御します。
+
+例:
+
+```json
+{
+  "Capabilities": "AllowPeekEnvironmentKeys|AllowPeekEnvironmentValues|AllowSetEnvironmentValues",
+  "EnvironmentValues": {
+    "PATH": "Common|NoLog",
+    "LANG": "Common|NoLog",
+    "APP_ENV": "Common|SetLog",
+    "GITHUB_TOKEN": "PeekSecret|PeekLog",
+    "DEPLOY_TOKEN": "Masked|PeekLog",
+    "MY_SECRET_KEY": "Hidden"
+  }
+}
+```
+
+Capability gates:
+
+| Capability | Description |
+| :--- | :--- |
+| `AllowPeekEnvironmentKeys` | 環境変数名と metadata の一覧取得を許可します。 |
+| `AllowPeekEnvironmentValues` | key rule が許可する場合に、環境変数値の読み取りを許可します。 |
+| `AllowSetEnvironmentValues` | key rule が許可する場合に、1回の command execution 用の環境変数値設定を許可します。 |
+
+`EnvironmentValues` rules:
+
+| Rule | Type | Description |
+| :--- | :--- | :--- |
+| `Common` | alias | `PeekCommon|SetCommon` に展開します。 |
+| `Secret` | alias | `PeekSecret|SetSecret` に展開します。この rule を読み込むと warning を出します。 |
+| `Log` | alias | `PeekLog|SetLog` に展開します。`Log` 単体は configuration error です。 |
+| `PeekCommon` | permission | common 環境変数値の読み取りを許可します。 |
+| `SetCommon` | permission | 1回の command execution 用に common 環境変数値の設定を許可します。 |
+| `PeekSecret` | permission | secret 環境変数値の読み取りを許可します。`PeekLog` と組み合わせた場合は warning audit log を出します。 |
+| `SetSecret` | permission | 1回の command execution 用に secret 環境変数値の設定を許可します。設定時点でも強めの warning 対象です。 |
+| `Hidden` | control | key name、存在、値、設定可否をすべて隠します。他の rule より優先します。 |
+| `Masked` | control | key name、存在、値の長さ、masked value だけを表示します。実値は返しません。 |
+| `KeyOnly` | control | key name だけを表示します。値の読み取りと設定は許可しません。 |
+| `PeekLog` | audit | 値の読み取りまたは masked 表示時に warning audit log を出します。 |
+| `SetLog` | audit | 値の設定時に warning audit log を出します。 |
+| `NoLog` | audit | 通常 access log を抑制します。warning、denied、configuration-error logs は抑制しません。 |
+
+既定の扱い:
+
+- `EnvironmentValues` に書かれていない key でも、`AllowPeekEnvironmentKeys` がある場合は `get_environment_keys` で key name を表示できます。
+- `EnvironmentValues` に書かれていない key の値は読めません。
+- `EnvironmentValues` に書かれていない key は設定できません。
+- `EnvironmentValues` は value access と set の allowlist であり、key listing 専用の allowlist ではありません。
+
+Control rule の扱い:
+
+- `Hidden` は環境変数を unavailable に見せます。他の rule と組み合わせないでください。
+- `Masked` は値を露出せず、存在と長さだけ確認したい場合に使います。
+- `KeyOnly` は key name だけを意図的に見せたい場合に使います。metadata と audit logs で未設定 key と区別できます。
+
+Configuration errors:
+
+- `Log`, `PeekLog`, `SetLog`, `NoLog` の単独指定。
+- `Hidden` と他 rule の組み合わせ。
+- `KeyOnly` と peek / set permission の組み合わせ。
+- `Masked` と実値 peek / set permission の組み合わせ。
+- 同じ key に `Common` と `Secret` の両方を指定すること。
+
+Logging rules:
+
+- 環境変数値を logs に出してはいけません。
+- `Secret`, `PeekSecret`, `SetSecret` の設定は warning log 対象です。
+- `PeekLog`, `SetLog` は対象 operation で warning audit log を出します。
+- `NoLog` は通常 access log だけを抑制します。
 
 ### `Rights`
 

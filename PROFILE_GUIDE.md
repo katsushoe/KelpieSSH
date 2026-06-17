@@ -316,6 +316,9 @@ Common values:
 - `AllowSudo`
 - `AllowShowPassword`
 - `AllowShowPrivateKey`
+- `AllowPeekEnvironmentKeys`
+- `AllowPeekEnvironmentValues`
+- `AllowSetEnvironmentValues`
 - `AllowListPackage`
 - `AllowUpdatePackageIndex`
 - `AllowInstallPackage`
@@ -328,6 +331,81 @@ Troubleshooting:
 
 - Unknown names are configuration errors.
 - Do not use `Capabilities` to grant MCP permissions; MCP intentionally ignores them.
+
+### `EnvironmentValues`
+
+Per-environment-variable handling rules.
+`Capabilities` controls whether an environment operation can be called at all.
+`EnvironmentValues` controls what is allowed for each environment variable name.
+
+Example:
+
+```json
+{
+  "Capabilities": "AllowPeekEnvironmentKeys|AllowPeekEnvironmentValues|AllowSetEnvironmentValues",
+  "EnvironmentValues": {
+    "PATH": "Common|NoLog",
+    "LANG": "Common|NoLog",
+    "APP_ENV": "Common|SetLog",
+    "GITHUB_TOKEN": "PeekSecret|PeekLog",
+    "DEPLOY_TOKEN": "Masked|PeekLog",
+    "MY_SECRET_KEY": "Hidden"
+  }
+}
+```
+
+Capability gates:
+
+| Capability | Description |
+| :--- | :--- |
+| `AllowPeekEnvironmentKeys` | Allows listing environment variable names with metadata. |
+| `AllowPeekEnvironmentValues` | Allows reading environment variable values when the key rule permits it. |
+| `AllowSetEnvironmentValues` | Allows setting environment variable values for one command execution when the key rule permits it. |
+
+`EnvironmentValues` rules:
+
+| Rule | Type | Description |
+| :--- | :--- | :--- |
+| `Common` | alias | Expands to `PeekCommon|SetCommon`. |
+| `Secret` | alias | Expands to `PeekSecret|SetSecret`. Loading this rule emits a warning. |
+| `Log` | alias | Expands to `PeekLog|SetLog`. `Log` alone is a configuration error. |
+| `PeekCommon` | permission | Allows reading a common environment variable value. |
+| `SetCommon` | permission | Allows setting a common environment variable value for one command execution. |
+| `PeekSecret` | permission | Allows reading a secret environment variable value. Emits warning audit logs when combined with `PeekLog`. |
+| `SetSecret` | permission | Allows setting a secret environment variable value for one command execution. Emits stronger warnings when configured. |
+| `Hidden` | control | Hides the key name, existence, value, and set capability. Takes priority over all other rules. |
+| `Masked` | control | Shows the key name, existence, value length, and a masked value only. The real value is never returned. |
+| `KeyOnly` | control | Shows only the key name. Value read and set are not allowed. |
+| `PeekLog` | audit | Writes a warning audit log when the value is read or masked. |
+| `SetLog` | audit | Writes a warning audit log when the value is set. |
+| `NoLog` | audit | Suppresses normal access logs. Warning, denied, and configuration-error logs are not suppressed. |
+
+Default handling:
+
+- If a key is not listed in `EnvironmentValues`, `get_environment_keys` may show the key when `AllowPeekEnvironmentKeys` is present.
+- If a key is not listed in `EnvironmentValues`, its value cannot be read and cannot be set.
+- `EnvironmentValues` is therefore a value-access and set allowlist, not the only source for key listing.
+
+Control rule behavior:
+
+- `Hidden` makes the variable appear unavailable. It should not be combined with any other rule.
+- `Masked` is useful when operators need to confirm that a value exists and has the expected length without exposing it.
+- `KeyOnly` is useful when operators intentionally allow only the key name to appear; this is distinguishable from an unconfigured key in metadata and audit logs.
+
+Configuration errors:
+
+- `Log`, `PeekLog`, `SetLog`, or `NoLog` by itself.
+- Combining `Hidden` with any other rule.
+- Combining `KeyOnly` with peek or set permissions.
+- Combining `Masked` with real-value peek or set permissions.
+- Combining `Common` and `Secret` for the same key.
+
+Logging rules:
+
+- Environment variable values must never be written to logs.
+- `Secret`, `PeekSecret`, and `SetSecret` configuration should emit warning logs.
+- `PeekLog` and `SetLog` emit warning audit logs for matching operations.
+- `NoLog` suppresses normal access logs only.
 
 ### `Rights`
 
