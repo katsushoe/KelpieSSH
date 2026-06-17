@@ -66,6 +66,8 @@ Edit the generated profile before connecting. The profile file is created under:
 <KelpieHome>\profiles\vps01.json
 ```
 
+For profile syntax and field details, see [PROFILE_GUIDE.md](PROFILE_GUIDE.md).
+
 Set the target host, SSH user, authentication method, and key or password secret reference in that file. For private key authentication, place the private key file under `<KelpieHome>\keys` and set `Auth.PrivateKeyFile` to that file name. The matching public key must already be registered on the server. For password authentication, set `Auth.Method` to `password` and set `Auth.PasswordSecretName`; do not store the plain text password in the profile.
 
 #### 3. Connecting to server
@@ -169,6 +171,8 @@ Edit the generated profile before connecting:
 D:\Kelpie\profiles\vps01.json
 ```
 
+For profile syntax and field details, see [PROFILE_GUIDE.md](PROFILE_GUIDE.md).
+
 Set the target host, SSH user, authentication method, and key or password secret reference in that file. For private key authentication, place the private key file under `D:\Kelpie\keys` and set `Auth.PrivateKeyFile` to that file name. The matching public key must already be registered on the server. For password authentication, set `Auth.Method` to `password` and set `Auth.PasswordSecretName`; do not store the plain text password in the profile.
 
 #### 4. Connecting to server
@@ -216,6 +220,8 @@ D:\Kelpie\bin\kelpie.exe init vps01
 ```text
 D:\Kelpie\profiles\vps01.json
 ```
+
+For profile syntax and field details, see [PROFILE_GUIDE.md](PROFILE_GUIDE.md).
 
 Set the host, user, authentication method, and private key file name or password secret reference before running `kelpie open vps01`.
 

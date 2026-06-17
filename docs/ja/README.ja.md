@@ -66,6 +66,8 @@ kelpie init vps01
 <KelpieHome>\profiles\vps01.json
 ```
 
+Profile の記述方法の詳細は [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) を参照してください。
+
 このファイルに、接続先 host、SSH user、認証方式、鍵またはパスワード secret 参照を設定します。秘密鍵認証では、秘密鍵ファイルを `<KelpieHome>\keys` 配下に置き、`Auth.PrivateKeyFile` にそのファイル名を設定します。対応する公開鍵は、事前にサーバー側へ登録されている必要があります。パスワード認証では、`Auth.Method` を `password` にし、`Auth.PasswordSecretName` を設定します。平文パスワードを profile に保存してはいけません。
 
 #### 3. サーバーへの接続
@@ -169,6 +171,8 @@ D:\Kelpie\bin\kelpie.exe init vps01
 D:\Kelpie\profiles\vps01.json
 ```
 
+Profile の記述方法の詳細は [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) を参照してください。
+
 このファイルに、接続先 host、SSH user、認証方式、鍵またはパスワード secret 参照を設定します。秘密鍵認証では、秘密鍵ファイルを `D:\Kelpie\keys` 配下に置き、`Auth.PrivateKeyFile` にそのファイル名を設定します。対応する公開鍵は、事前にサーバー側へ登録されている必要があります。パスワード認証では、`Auth.Method` を `password` にし、`Auth.PasswordSecretName` を設定します。平文パスワードを profile に保存してはいけません。
 
 #### 4. サーバーへの接続
@@ -216,6 +220,8 @@ D:\Kelpie\bin\kelpie.exe init vps01
 ```text
 D:\Kelpie\profiles\vps01.json
 ```
+
+Profile の記述方法の詳細は [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) を参照してください。
 
 `kelpie open vps01` を実行する前に、host、user、認証方式、秘密鍵ファイル名またはパスワード secret 参照を設定します。
 
