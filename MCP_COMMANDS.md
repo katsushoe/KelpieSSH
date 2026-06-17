@@ -1,6 +1,6 @@
 # KelpieSSH MCP Commands
 
-Last updated: 2026-06-17
+Last updated: 2026-06-18
 
 This file is the English command reference for MCP callable tools exposed by `KelpieMCPServer`.
 For Japanese documentation, see [docs/ja/MCP_COMMANDS.ja.md](docs/ja/MCP_COMMANDS.ja.md).
@@ -50,7 +50,7 @@ This document describes the `name` and `arguments` used inside `tools/call`. In 
 | Group | Tools | Purpose |
 | :--- | :--- | :--- |
 | [Server health](#server-health) | `kelpie_ping` | Verify that the MCP server is reachable. |
-| [Profile management](#profile-management) | `profile_reload` | Reload saved SSH profiles from disk on demand. |
+| [Profile management](#profile-management) | `profile_reload`, `ssh_profile_capabilities` | Reload saved SSH profiles and inspect profile operation capabilities for an open SSH terminal connection. |
 | [Local diagnostics](#local-diagnostics) | `get_system_info`, `get_disk_usage`, `get_memory_usage`, `get_listening_ports` | Inspect the local host running `KelpieMCPServer`. |
 | [Capabilities and inventory](#capabilities-and-inventory) | `ssh_get_capabilities`, `get_target_inventory` | Inspect target command/tool support and installed helper/software inventory. |
 | [SSH diagnostics](#ssh-diagnostics) | `ssh_get_system_info`, `ssh_get_os_release`, `ssh_get_uptime`, `ssh_get_disk_usage`, `ssh_get_memory_usage`, `ssh_get_process_summary`, `ssh_get_inode_usage`, `ssh_get_mounts`, `ssh_get_network_addresses`, `ssh_get_routes`, `ssh_get_dns_config`, `ssh_check_http_local`, `ssh_check_tcp_connect_local`, `ssh_get_listening_ports`, `ssh_get_failed_services`, `ssh_get_journal_recent`, `ssh_tail_log` | Run allow-listed read-oriented diagnostics over SSH. |
@@ -206,11 +206,12 @@ Safety notes:
 
 ### Profile management
 
-Reload saved SSH profiles from disk on demand.
+Reload saved SSH profiles from disk on demand and inspect profile operation capabilities for an open SSH terminal connection.
 
 Tools in this group:
 
 - [`profile_reload`](#profile_reload)
+- [`ssh_profile_capabilities`](#ssh_profile_capabilities)
 
 #### `profile_reload`
 
@@ -263,6 +264,58 @@ The MCP execution result body is the return value sample above, wrapped by the c
 Safety notes:
 
 - This tool does not contact SSH targets. It updates only the MCP server's in-memory profile catalog, and existing terminal sessions keep their current connections.
+
+#### `ssh_profile_capabilities`
+
+Purpose:
+
+Returns profile operation capabilities for an open SSH terminal connection.
+
+Input arguments:
+
+- `handle`: SSH terminal handle returned by `ssh_terminal_open`.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_profile_capabilities",
+  "arguments": {
+    "handle": "term-a1b2c3d4e5f6"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer resolves the terminal handle to the connected profile. It reads the MCP server configuration and returns whether MCP-side profile reload is enabled for that connection. The tool does not contact the SSH target and does not read or print profile file contents.
+
+Return value:
+
+- Return type: `SshProfileCapabilitiesToolResult`.
+- `Handle`: requested terminal handle.
+- `ProfileName`: profile name associated with the terminal handle, or an empty string when the handle is not found.
+- `ReloadAllowed`: `true` when `ProfileOperations:Reload:MCP` is enabled in `kelpiemcp.json`; otherwise `false`.
+- `Reason`: stable reason string such as `allowed-by-config`, `disabled-by-config`, or `session-not-found`.
+
+Return value sample:
+
+```json
+{
+  "Handle": "term-a1b2c3d4e5f6",
+  "ProfileName": "vps01",
+  "ReloadAllowed": false,
+  "Reason": "disabled-by-config"
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-only tool. It exposes only the terminal handle, profile name, and reload capability flag.
 
 ### Local diagnostics
 

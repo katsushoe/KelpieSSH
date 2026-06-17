@@ -9,7 +9,8 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 
 | Group | Command | 内容 |
 | :--- | :--- | :--- |
-| MCP server control | `kelpiemcp start [--reload-config] [--reload-profile:<profile>]`, `kelpiemcp stop`, `kelpiemcp status` | `KelpieMCPServer` の起動、停止、状態確認を行う。 |
+| MCP server control | `kelpiemcp start [--reload-config]`, `kelpiemcp stop`, `kelpiemcp status` | `KelpieMCPServer` の起動、停止、状態確認を行う。 |
+| MCP profile trust | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile>`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | SSH profile の信頼 baseline 追加、更新、取り消し、確認を行う。 |
 | MCP Windows Service | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Windows Service 登録、登録解除、登録状態確認を行う。 |
 | MCP password session | `kelpiemcp password`, `kelpiemcp forget` | 起動中の MCP server に SSH パスワードを一時保存、削除する。 |
 | Compatibility | `kelpiemcp login`, `kelpiemcp logout` | 旧名互換。新規利用では `password` / `forget` を使う。 |
@@ -66,7 +67,7 @@ SSHプロファイルの認証設定は、同じ `profiles/<profile>.json` の�
 構文:
 
 ```powershell
-kelpiemcp start [--reload-config] [--reload-profile:<profile>]
+kelpiemcp start [--reload-config]
 ```
 
 引数詳細:
@@ -74,13 +75,8 @@ kelpiemcp start [--reload-config] [--reload-profile:<profile>]
 | 引数 | 必須 | 説明 |
 | :--- | :---: | :--- |
 | `--reload-config` | no | 管理者が編集済み `config/kelpiemcp.json` を明示的に信頼更新対象として指定する。現在の設定内容を今回の起動で採用し、次回起動時の trust store 基準 hash として更新する。 |
-| `--reload-profile:<profile>` | no | 管理者が編集済み SSH profile を明示的に再読み込み対象として指定する。対象 profile の JSON が正常な場合、その内容を今回の起動で採用し、次回起動時の trust store 基準 hash として更新する。複数 profile を指定する場合は、このオプションを繰り返す。 |
 
 引数サンプル:
-
-```powershell
-kelpiemcp start --reload-profile:vps01
-```
 
 MCPサーバー設定を正規に編集した後の例:
 
@@ -92,7 +88,7 @@ kelpiemcp start --reload-config
 
 起動中でなければ `KelpieMCPServer` の起動を要求します。Windows で `KelpieMCPServer` が Windows Service として登録済みの場合は Windows Service を開始します。この場合は管理者権限のターミナルから実行してください。未登録の場合は通常のローカルプロセスとして起動します。すでに起動中の場合は二重起動せず、起動中であることを返します。
 
-MCPサーバー起動時は、`kelpiemcp.json` と SSH profile ファイルの hash を protected trust store と照合します。通常起動で `kelpiemcp.json` の hash が一致しない場合、MCPサーバーは起動失敗します。通常起動で hash が一致しない profile は load エラーになり、他の profile はロード継続します。正規に `kelpiemcp.json` を編集した場合は `--reload-config`、正規に profile を編集した場合は `--reload-profile:<profile>` を指定して起動します。対象 profile の JSON が正常な場合だけ trust store を更新します。trust store の復号または認証に失敗した場合、MCPサーバーは起動失敗します。起動ユーザーは `kelpiemcp.json` と全 profile に不正がないことを確認し、trust store を退避または削除して再起動します。削除した場合、次回起動時に現在の `kelpiemcp.json` と全 profile が新規 baseline として登録されます。
+MCPサーバー起動時は、`kelpiemcp.json` と SSH profile ファイルの hash を protected trust store と照合します。通常起動で `kelpiemcp.json` の hash が一致しない場合、MCPサーバーは起動失敗します。通常起動で hash が一致しない profile は load エラーになり、他の profile はロード継続します。正規に `kelpiemcp.json` を編集した場合は `--reload-config` を指定して起動します。正規に profile を編集した場合は `kelpiemcp profile reload <profile>` で信頼 baseline を更新します。trust store の復号または認証に失敗した場合、MCPサーバーは起動失敗します。起動ユーザーは `kelpiemcp.json` と全 profile に不正がないことを確認し、trust store を退避または削除して再起動します。削除した場合、次回起動時に現在の `kelpiemcp.json` と全 profile が新規 baseline として登録されます。
 
 戻り値:
 
@@ -132,9 +128,9 @@ KelpieMCPServer is already running.
 安全メモ:
 
 - `--reload-config` は、編集した MCPサーバー設定が意図した内容であり、不正変更がないことを確認してから使う。
-- `--reload-profile:<profile>` は、編集した profile が意図した内容であり、不正変更がないことを確認してから使う。
+- `kelpiemcp profile reload <profile>` は、編集した profile が意図した内容であり、不正変更がないことを確認してから使う。
 - trust store を削除すると、次回起動時に現在の `kelpiemcp.json` と全 profile が信頼済み baseline として再登録される。
-- 共有PC、第三者が操作可能な端末、VPS上での運用では、`kelpiemcp`、`kelpiemcp.json`、profile JSON、`mcp_profile_trust.dat` のOS権限を管理者または運用管理者グループに制限すると、より強固に守れる。
+- 共有PC、第三者が操作可能な端末、VPS上での運用では、`kelpiemcp`、`kelpiemcp.json`、profile JSON、`mcp_trusted_store.dat` のOS権限を管理者または運用管理者グループに制限すると、より強固に守れる。
 
 ### `kelpiemcp stop`
 
@@ -212,6 +208,196 @@ Registered as Windows service: yes
 KelpieMCPServer: stopped
 Registered as Windows service: yes
 ```
+
+### `kelpiemcp profile add <profile>`
+
+目的:
+
+新しい SSH profile JSON を MCP trust store に信頼済みとして追加します。
+
+構文:
+
+```powershell
+kelpiemcp profile add vps02
+```
+
+引数詳細:
+
+- `profile`: `KelpieHome/profiles/<profile>.json` の `<profile>` 部分。対象ファイルは存在し、Kelpie SSH profile として読み込める必要があります。
+
+処理内容:
+
+`KelpieMCPServer` 起動中は、NamedPipe 経由で起動中サーバーへ要求し、profile hash を追加して in-memory catalog も再読み込みします。停止中は、`kelpiemcp` が profile を検証し、`dat/mcp_trusted_store.dat` の profile hash だけを更新します。
+
+戻り値:
+
+- exit code `0`: profile を信頼済みとして追加した。
+- exit code non-zero: profile 名不足、profile file 不在、JSON不正、trust store 無効、すでに信頼済み。
+- standard output: `SshProfileTrustOperationResult` JSON。
+
+戻り値サンプル:
+
+```json
+{
+  "Success": true,
+  "ProfileName": "vps02",
+  "Status": "add",
+  "Message": ""
+}
+```
+
+実行結果サンプル:
+
+```text
+{"Success":true,"ProfileName":"vps02","Status":"add","Message":""}
+```
+
+安全メモ:
+
+- 新規 profile の内容が意図したものか確認してから実行してください。
+
+### `kelpiemcp profile reload <profile>`
+
+目的:
+
+正規に編集した SSH profile JSON を新しい信頼 baseline として受け入れます。
+
+構文:
+
+```powershell
+kelpiemcp profile reload vps01
+```
+
+引数詳細:
+
+- `profile`: 既に信頼済みの SSH profile 名。現在の JSON が正常に読み込める必要があります。
+
+処理内容:
+
+`KelpieMCPServer` 起動中は、起動中サーバーが profile を検証し、trusted hash を更新して in-memory catalog も再読み込みします。停止中は、`kelpiemcp` が profile を検証し、`dat/mcp_trusted_store.dat` を更新します。
+
+戻り値:
+
+- exit code `0`: 編集済み profile を信頼済み baseline として受け入れた。
+- exit code non-zero: profile 不在、未信頼、JSON不正、trust store 更新失敗。
+- standard output: `SshProfileTrustOperationResult` JSON。
+
+戻り値サンプル:
+
+```json
+{
+  "Success": true,
+  "ProfileName": "vps01",
+  "Status": "reload",
+  "Message": ""
+}
+```
+
+実行結果サンプル:
+
+```text
+{"Success":true,"ProfileName":"vps01","Status":"reload","Message":""}
+```
+
+安全メモ:
+
+- このコマンドは現在の profile file 内容を信頼済みにします。実行前に変更内容を確認してください。
+
+### `kelpiemcp profile revoke <profile>`
+
+目的:
+
+指定 profile の信頼済み hash を MCP trust store から削除します。
+
+構文:
+
+```powershell
+kelpiemcp profile revoke vps01
+```
+
+引数詳細:
+
+- `profile`: 信頼を取り消す SSH profile 名。
+
+処理内容:
+
+`KelpieMCPServer` 起動中は、起動中サーバーが trusted hash を削除し、in-memory catalog を再読み込みします。停止中は、`kelpiemcp` が `dat/mcp_trusted_store.dat` から対象 profile entry を削除します。
+
+戻り値:
+
+- exit code `0`: 信頼済み entry を削除した。
+- exit code non-zero: profile 名不足、trust store 無効、対象 profile が未信頼。
+- standard output: `SshProfileTrustOperationResult` JSON。
+
+戻り値サンプル:
+
+```json
+{
+  "Success": true,
+  "ProfileName": "vps01",
+  "Status": "revoked",
+  "Message": ""
+}
+```
+
+実行結果サンプル:
+
+```text
+{"Success":true,"ProfileName":"vps01","Status":"revoked","Message":""}
+```
+
+安全メモ:
+
+- revoke 後の profile は、再度 `kelpiemcp profile add <profile>` するまで通常起動でロードされません。
+
+### `kelpiemcp profile-capabilities [profile]`
+
+目的:
+
+指定 profile に対して、信頼操作の add/reload/revoke が可能か確認します。
+
+構文:
+
+```powershell
+kelpiemcp profile-capabilities vps01
+kelpiemcp profile-capabilities
+```
+
+引数詳細:
+
+- `profile`: 省略可能。省略時は `kelpie open <profile>` で開いている profile を使用します。
+
+処理内容:
+
+profile file と trust store を確認します。SSH target には接続しません。
+
+戻り値:
+
+- exit code `0`: capabilities を表示した。
+- exit code non-zero: profile が指定されず、open profile もない。
+- standard output: `SshProfileTrustCapabilities` JSON。
+
+戻り値サンプル:
+
+```json
+{
+  "ProfileName": "vps01",
+  "AddAllowed": false,
+  "ReloadAllowed": true,
+  "RevokeAllowed": true,
+  "Reason": ""
+}
+```
+
+実行結果サンプル:
+
+```text
+{"ProfileName":"vps01","AddAllowed":false,"ReloadAllowed":true,"RevokeAllowed":true,"Reason":""}
+```
+
+安全メモ:
+
+- ローカル読み取り専用コマンドです。profile file 本文や秘密情報は表示しません。
 
 ### `kelpiemcp service register`
 

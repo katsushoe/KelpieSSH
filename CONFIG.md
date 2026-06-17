@@ -1,6 +1,6 @@
 # KelpieSSH Configuration
 
-Last updated: 2026-06-17
+Last updated: 2026-06-18
 
 This file is the English reference for KelpieSSH configuration file locations and host-level settings.
 For Japanese documentation, see [docs/ja/CONFIG.ja.md](docs/ja/CONFIG.ja.md).
@@ -86,6 +86,7 @@ Important values:
 | `LogDirectory` | Directory for MCP server logs. |
 | `Commands:ExecutablePath` | Optional explicit `KelpieMCPServer` executable path. |
 | `Commands:WorkingDirectory` | Optional server working directory. |
+| `ProfileOperations:Reload:MCP` | Whether MCP clients may use MCP-side profile reload capability. Default is `false`; intentional profile file edits are accepted with `kelpiemcp profile reload <profile>`. |
 
 By default, the MCP endpoint is:
 
@@ -107,6 +108,11 @@ Minimal example:
   "Server": {
     "Port": 45432,
     "ControlPipeName": "KelpieMCPServer.Control"
+  },
+  "ProfileOperations": {
+    "Reload": {
+      "MCP": false
+    }
   }
 }
 ```

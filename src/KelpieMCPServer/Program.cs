@@ -30,7 +30,7 @@ builder.Host.UseWindowsService(options =>
 
 builder.Configuration.Sources.Clear();
 var configFilePath = KelpieRuntimePaths.GetConfigFilePath(runtimeBaseDirectory, KelpieRuntimePaths.KelpieMcpConfigFileName);
-var trustStorePath = Path.Combine(KelpieRuntimePaths.GetDataDirectory(runtimeBaseDirectory), "mcp_profile_trust.dat");
+var trustStorePath = Path.Combine(KelpieRuntimePaths.GetDataDirectory(runtimeBaseDirectory), KelpieRuntimePaths.KelpieMcpTrustStoreFileName);
 VerifyConfigurationTrust(configFilePath, trustStorePath, ResolveReloadConfig(args));
 builder.Configuration.AddJsonFile(
     configFilePath,
@@ -99,7 +99,7 @@ builder.Services
         options.ServerInfo = new()
         {
             Name = "KelpieSSH",
-            Version = "0.1.34.1",
+            Version = "0.1.35.0",
         };
     })
     .WithHttpTransport(options =>
@@ -208,6 +208,7 @@ static void VerifyConfigurationTrust(string configFilePath, string trustStorePat
     }
 
     var trustStore = SshProfileTrustStore.Load(trustStorePath);
+    var trustStoreChanged = VerifyCreatorPathHash(trustStore);
     var currentHash = SshProfileTrustStore.ComputeFileHash(configFilePath);
     if (reloadConfig || !trustStore.TryGetConfigHash(out var trustedHash))
     {
@@ -221,4 +222,27 @@ static void VerifyConfigurationTrust(string configFilePath, string trustStorePat
         throw new InvalidOperationException(
             "MCP server configuration hash does not match trusted baseline. Start with --reload-config to accept the current configuration.");
     }
+
+    if (trustStoreChanged)
+    {
+        trustStore.Save(trustStorePath);
+    }
+}
+
+static bool VerifyCreatorPathHash(SshProfileTrustStore trustStore)
+{
+    var executablePath = Environment.ProcessPath ?? AppContext.BaseDirectory;
+    var currentCreatorPathHash = SshProfileTrustStore.ComputePathHash(executablePath);
+    if (!trustStore.TryGetCreatorPathHash(out var trustedCreatorPathHash))
+    {
+        trustStore.SetCreatorPathHashIfMissing(currentCreatorPathHash);
+        return true;
+    }
+
+    if (!string.Equals(currentCreatorPathHash, trustedCreatorPathHash, StringComparison.OrdinalIgnoreCase))
+    {
+        KpLog.Warn("MCP trust store creator path hash differs from current executable path hash.");
+    }
+
+    return false;
 }

@@ -47,7 +47,7 @@ The port and server options are configured in:
 
 The default server port is `45432`.
 
-Profiles are loaded into the MCP server when it starts. After editing files under `<KelpieHome>\profiles`, call the `profile_reload` MCP tool from the MCP client to reload the in-memory profile catalog without restarting the server. Changes to `kelpiemcp.json` still require a server restart.
+Profiles are loaded into the MCP server when it starts. After editing files under `<KelpieHome>\profiles`, the user runs `kelpiemcp profile reload <profile>` to update both the trust store and the in-memory profile catalog. The `profile_reload` MCP tool does not update trusted profile hashes and is not the acceptance path for intentional profile file edits. Changes to `kelpiemcp.json` require a server restart with `kelpiemcp start --reload-config`.
 
 ## Starting the Server
 

@@ -149,6 +149,99 @@ public sealed class SshConnectionProfileCatalogTests
     }
 
     [Fact]
+    public void ReloadingCatalog_WithTrustStore_ShouldRejectUntrustedNewProfileWhenStoreExists()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        File.WriteAllText(Path.Combine(directory, "vps01.json"), CreateProfileJson("deploy"));
+        _ = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
+
+        File.WriteAllText(Path.Combine(directory, "vps02.json"), CreateProfileJson("ops"));
+        var catalog = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
+
+        catalog.TryGet("vps02", out _).Should().BeFalse();
+        catalog.ProfileLoadErrors.Should().ContainSingle(error =>
+            error.ProfileName == "vps02" && error.Reason == "profile-not-trusted");
+    }
+
+    [Fact]
+    public void ReloadingCatalog_WithTrustStore_ShouldAddTrustedProfile()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        File.WriteAllText(Path.Combine(directory, "vps01.json"), CreateProfileJson("deploy"));
+        var catalog = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
+        File.WriteAllText(Path.Combine(directory, "vps02.json"), CreateProfileJson("ops"));
+
+        var result = catalog.AddTrustedProfile("vps02");
+        var nextCatalog = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
+
+        result.Success.Should().BeTrue();
+        result.Status.Should().Be("add");
+        nextCatalog.TryGet("vps02", out var profile).Should().BeTrue();
+        profile.UserName.Should().Be("ops");
+        nextCatalog.ProfileLoadErrors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ReloadingCatalog_WithTrustStore_ShouldReloadTrustedProfile()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        var profilePath = Path.Combine(directory, "vps01.json");
+        File.WriteAllText(profilePath, CreateProfileJson("deploy"));
+        var catalog = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
+
+        File.WriteAllText(profilePath, CreateProfileJson("ops"));
+        var result = catalog.ReloadTrustedProfile("vps01");
+        var nextCatalog = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
+
+        result.Success.Should().BeTrue();
+        result.Status.Should().Be("reload");
+        nextCatalog.TryGet("vps01", out var profile).Should().BeTrue();
+        profile.UserName.Should().Be("ops");
+        nextCatalog.ProfileLoadErrors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ReloadingCatalog_WithTrustStore_ShouldRevokeTrustedProfile()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        File.WriteAllText(Path.Combine(directory, "vps01.json"), CreateProfileJson("deploy"));
+        var catalog = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
+
+        var result = catalog.RevokeTrustedProfile("vps01");
+        var nextCatalog = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
+
+        result.Success.Should().BeTrue();
+        result.Status.Should().Be("revoked");
+        nextCatalog.TryGet("vps01", out _).Should().BeFalse();
+        nextCatalog.ProfileLoadErrors.Should().ContainSingle(error =>
+            error.ProfileName == "vps01" && error.Reason == "profile-not-trusted");
+    }
+
+    [Fact]
+    public void ReloadingCatalog_WithTrustStore_ShouldReturnTrustCapabilities()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        File.WriteAllText(Path.Combine(directory, "vps01.json"), CreateProfileJson("deploy"));
+        var catalog = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
+        File.WriteAllText(Path.Combine(directory, "vps02.json"), CreateProfileJson("ops"));
+
+        var trusted = catalog.GetTrustCapabilities("vps01");
+        var untrusted = catalog.GetTrustCapabilities("vps02");
+
+        trusted.AddAllowed.Should().BeFalse();
+        trusted.ReloadAllowed.Should().BeTrue();
+        trusted.RevokeAllowed.Should().BeTrue();
+        untrusted.AddAllowed.Should().BeTrue();
+        untrusted.ReloadAllowed.Should().BeFalse();
+        untrusted.RevokeAllowed.Should().BeFalse();
+    }
+
+    [Fact]
     public void ReloadingCatalog_WithTrustStore_ShouldFailWhenTrustStoreIsCorrupted()
     {
         var directory = CreateTempDirectory();
@@ -160,7 +253,7 @@ public sealed class SshConnectionProfileCatalogTests
         var action = () => new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
 
         action.Should().Throw<InvalidOperationException>()
-            .WithMessage("SSH profile trust store could not be read or verified.");
+            .WithMessage("MCP trust store could not be read or verified.");
     }
 
     [Fact]
@@ -193,6 +286,22 @@ public sealed class SshConnectionProfileCatalogTests
         var loaded = SshProfileTrustStore.Load(trustStorePath);
 
         loaded.TryGetConfigHash(out var actualHash).Should().BeTrue();
+        actualHash.Should().Be(expectedHash);
+    }
+
+    [Fact]
+    public void TrustStore_ShouldStoreCreatorPathHash()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        var expectedHash = SshProfileTrustStore.ComputePathHash(Path.Combine(directory, "KelpieMCPServer.exe"));
+
+        var trustStore = SshProfileTrustStore.Load(trustStorePath);
+        trustStore.SetCreatorPathHashIfMissing(expectedHash);
+        trustStore.Save(trustStorePath);
+        var loaded = SshProfileTrustStore.Load(trustStorePath);
+
+        loaded.TryGetCreatorPathHash(out var actualHash).Should().BeTrue();
         actualHash.Should().Be(expectedHash);
     }
 

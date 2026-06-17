@@ -123,6 +123,30 @@ public sealed class NamedPipeShutdownService : BackgroundService
                     continue;
                 }
 
+                if (TryGetArgument(message, "profile-add", out var profileAddName))
+                {
+                    await HandleProfileTrustOperationAsync(profileAddName, "add", writer, stoppingToken);
+                    continue;
+                }
+
+                if (TryGetArgument(message, "profile-reload", out var profileReloadName))
+                {
+                    await HandleProfileTrustOperationAsync(profileReloadName, "reload", writer, stoppingToken);
+                    continue;
+                }
+
+                if (TryGetArgument(message, "profile-revoke", out var profileRevokeName))
+                {
+                    await HandleProfileTrustOperationAsync(profileRevokeName, "revoke", writer, stoppingToken);
+                    continue;
+                }
+
+                if (TryGetArgument(message, "profile-capabilities", out var profileCapabilitiesName))
+                {
+                    await HandleProfileCapabilitiesAsync(profileCapabilitiesName, writer, stoppingToken);
+                    continue;
+                }
+
                 if (TryGetArgument(message, "kill", out var sessionHandle))
                 {
                     await HandleKillAsync(sessionHandle, writer, stoppingToken);
@@ -247,6 +271,56 @@ public sealed class NamedPipeShutdownService : BackgroundService
         KpLog.Info($"Interactive SSH session opened. profile={profile.Name}, handle={session.Handle}");
         var response = JsonSerializer.Serialize(session);
         await writer.WriteLineAsync(response);
+        await writer.FlushAsync(cancellationToken);
+    }
+
+    private async Task HandleProfileTrustOperationAsync(
+        string profileName,
+        string operation,
+        TextWriter writer,
+        CancellationToken cancellationToken)
+    {
+        if (_profileCatalog is not ReloadingSshConnectionProfileCatalog reloadingCatalog)
+        {
+            await writer.WriteLineAsync(JsonSerializer.Serialize(new SshProfileTrustOperationResult(
+                false,
+                profileName,
+                "trust-disabled",
+                "Profile trust store is not enabled.")));
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        var result = operation switch
+        {
+            "add" => reloadingCatalog.AddTrustedProfile(profileName),
+            "reload" => reloadingCatalog.ReloadTrustedProfile(profileName),
+            "revoke" => reloadingCatalog.RevokeTrustedProfile(profileName),
+            _ => new SshProfileTrustOperationResult(false, profileName, "unknown-operation", "Unknown profile trust operation."),
+        };
+
+        await writer.WriteLineAsync(JsonSerializer.Serialize(result));
+        await writer.FlushAsync(cancellationToken);
+    }
+
+    private async Task HandleProfileCapabilitiesAsync(
+        string profileName,
+        TextWriter writer,
+        CancellationToken cancellationToken)
+    {
+        if (_profileCatalog is not ReloadingSshConnectionProfileCatalog reloadingCatalog)
+        {
+            await writer.WriteLineAsync(JsonSerializer.Serialize(new SshProfileTrustCapabilities(
+                profileName,
+                false,
+                false,
+                false,
+                "trust-disabled")));
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        await writer.WriteLineAsync(JsonSerializer.Serialize(reloadingCatalog.GetTrustCapabilities(profileName)));
         await writer.FlushAsync(cancellationToken);
     }
 

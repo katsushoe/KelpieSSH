@@ -23,6 +23,11 @@ public static class KelpieRuntimePaths
     public const string KelpieMcpConfigFileName = "kelpiemcp.json";
 
     /// <summary>
+    /// Gets the MCP trust store file name.
+    /// </summary>
+    public const string KelpieMcpTrustStoreFileName = "mcp_trusted_store.dat";
+
+    /// <summary>
     /// Gets the Kelpie Desktop configuration file name.
     /// </summary>
     public const string KelpieDesktopConfigFileName = "kelpie_desktop.json";

@@ -20,11 +20,14 @@ public sealed class SshProfileTrustStore
 
     private readonly Dictionary<string, SshProfileTrustEntry> _profiles;
     private SshConfigTrustEntry? _config;
+    private string _creatorPathHashSha256;
 
     private SshProfileTrustStore(
+        string creatorPathHashSha256,
         SshConfigTrustEntry? config,
         Dictionary<string, SshProfileTrustEntry> profiles)
     {
+        _creatorPathHashSha256 = creatorPathHashSha256;
         _config = config;
         _profiles = profiles;
     }
@@ -43,12 +46,13 @@ public sealed class SshProfileTrustStore
     {
         if (string.IsNullOrWhiteSpace(filePath))
         {
-            throw new InvalidOperationException("SSH profile trust store path is required.");
+            throw new InvalidOperationException("MCP trust store path is required.");
         }
 
         if (!File.Exists(filePath))
         {
             return new SshProfileTrustStore(
+                string.Empty,
                 null,
                 new Dictionary<string, SshProfileTrustEntry>(StringComparer.OrdinalIgnoreCase))
             {
@@ -59,9 +63,9 @@ public sealed class SshProfileTrustStore
         try
         {
             var envelope = JsonSerializer.Deserialize<EncryptedTrustStoreEnvelope>(
-                    File.ReadAllText(filePath),
-                    JsonOptions)
-                ?? throw new InvalidOperationException("SSH profile trust store is empty.");
+                File.ReadAllText(filePath),
+                JsonOptions)
+                ?? throw new InvalidOperationException("MCP trust store is empty.");
 
             var nonce = Convert.FromBase64String(envelope.Nonce);
             var tag = Convert.FromBase64String(envelope.Tag);
@@ -80,7 +84,7 @@ public sealed class SshProfileTrustStore
                 .Where(entry => !string.IsNullOrWhiteSpace(entry.Name))
                 .ToDictionary(entry => entry.Name, StringComparer.OrdinalIgnoreCase);
 
-            return new SshProfileTrustStore(manifest.Config, profiles)
+            return new SshProfileTrustStore(manifest.CreatorPathHashSha256, manifest.Config, profiles)
             {
                 FileExisted = true,
             };
@@ -92,7 +96,7 @@ public sealed class SshProfileTrustStore
             or UnauthorizedAccessException
             or InvalidOperationException)
         {
-            throw new InvalidOperationException("SSH profile trust store could not be read or verified.", ex);
+            throw new InvalidOperationException("MCP trust store could not be read or verified.", ex);
         }
     }
 
@@ -104,7 +108,7 @@ public sealed class SshProfileTrustStore
     {
         if (string.IsNullOrWhiteSpace(filePath))
         {
-            throw new InvalidOperationException("SSH profile trust store path is required.");
+            throw new InvalidOperationException("MCP trust store path is required.");
         }
 
         var directory = Path.GetDirectoryName(Path.GetFullPath(filePath));
@@ -115,6 +119,7 @@ public sealed class SshProfileTrustStore
 
         var manifest = new TrustStoreManifest
         {
+            CreatorPathHashSha256 = _creatorPathHashSha256,
             Config = _config,
             Profiles = _profiles.Values
                 .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
@@ -138,6 +143,29 @@ public sealed class SshProfileTrustStore
         };
 
         File.WriteAllText(filePath, JsonSerializer.Serialize(envelope, JsonOptions));
+    }
+
+    /// <summary>
+    /// Tries to get the creator executable path hash.
+    /// </summary>
+    /// <param name="hashSha256">The trusted creator path SHA-256 hash.</param>
+    /// <returns><c>true</c> when a hash exists.</returns>
+    public bool TryGetCreatorPathHash(out string hashSha256)
+    {
+        hashSha256 = _creatorPathHashSha256;
+        return !string.IsNullOrWhiteSpace(hashSha256);
+    }
+
+    /// <summary>
+    /// Stores the creator executable path hash when it has not been set yet.
+    /// </summary>
+    /// <param name="hashSha256">The creator path SHA-256 hash.</param>
+    public void SetCreatorPathHashIfMissing(string hashSha256)
+    {
+        if (string.IsNullOrWhiteSpace(_creatorPathHashSha256))
+        {
+            _creatorPathHashSha256 = hashSha256;
+        }
     }
 
     /// <summary>
@@ -195,6 +223,16 @@ public sealed class SshProfileTrustStore
     }
 
     /// <summary>
+    /// Removes the trusted hash for one profile.
+    /// </summary>
+    /// <param name="profileName">The profile name.</param>
+    /// <returns><c>true</c> when the profile was removed.</returns>
+    public bool RemoveHash(string profileName)
+    {
+        return _profiles.Remove(profileName);
+    }
+
+    /// <summary>
     /// Computes a SHA-256 hash for a profile file.
     /// </summary>
     /// <param name="filePath">The profile file path.</param>
@@ -202,6 +240,23 @@ public sealed class SshProfileTrustStore
     public static string ComputeFileHash(string filePath)
     {
         return Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(filePath))).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Computes a SHA-256 hash for a normalized local path.
+    /// </summary>
+    /// <param name="path">The local path.</param>
+    /// <returns>The lowercase hexadecimal SHA-256 hash.</returns>
+    public static string ComputePathHash(string path)
+    {
+        var normalizedPath = Path.GetFullPath(path)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (OperatingSystem.IsWindows())
+        {
+            normalizedPath = normalizedPath.ToUpperInvariant();
+        }
+
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalizedPath))).ToLowerInvariant();
     }
 
     private static byte[] CreateKey()
@@ -212,6 +267,8 @@ public sealed class SshProfileTrustStore
     private sealed class TrustStoreManifest
     {
         public int FormatVersion { get; init; } = 2;
+
+        public string CreatorPathHashSha256 { get; init; } = string.Empty;
 
         public SshConfigTrustEntry? Config { get; init; }
 

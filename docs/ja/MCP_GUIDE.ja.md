@@ -47,7 +47,7 @@ port と server options は次のファイルで設定します。
 
 既定の server port は `45432` です。
 
-Profiles は MCP サーバー起動時にメモリへ読み込まれます。`<KelpieHome>\profiles` 配下のファイルを編集した後は、MCP client から `profile_reload` MCP tool を呼び出すと、サーバーを再起動せずに in-memory profile catalog を再読み込みできます。`kelpiemcp.json` の変更後は引き続き server restart が必要です。
+Profiles は MCP サーバー起動時にメモリへ読み込まれます。`<KelpieHome>\profiles` 配下のファイルを編集した後は、利用者が `kelpiemcp profile reload <profile>` を実行して trust store と in-memory profile catalog を更新します。`profile_reload` MCP tool は trust store の profile hash を更新しないため、正規の profile 編集を受け入れる操作には使いません。`kelpiemcp.json` の変更後は `kelpiemcp start --reload-config` による server restart が必要です。
 
 ## サーバー起動
 

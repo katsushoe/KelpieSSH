@@ -10,7 +10,8 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 
 | Group | Commands | Purpose |
 | :--- | :--- | :--- |
-| [MCP server control](#mcp-server-control) | `kelpiemcp start [--reload-config] [--reload-profile:<profile>]`, `kelpiemcp stop`, `kelpiemcp status` | Start, stop, and inspect `KelpieMCPServer`. |
+| [MCP server control](#mcp-server-control) | `kelpiemcp start [--reload-config]`, `kelpiemcp stop`, `kelpiemcp status` | Start, stop, and inspect `KelpieMCPServer`. |
+| [MCP profile trust](#mcp-profile-trust) | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile>`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | Add, reload, revoke, and inspect trusted SSH profile baselines. |
 | [MCP Windows Service](#mcp-windows-service) | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Register, unregister, and inspect the Windows Service entry. |
 | [MCP password session](#mcp-password-session) | `kelpiemcp password`, `kelpiemcp forget`, `kelpiemcp login`, `kelpiemcp logout` | Store or clear an SSH password in the running MCP server session. |
 | [Initialization](#initialization) | `kelpie init [profile]` | Create the local Kelpie home directory layout and sample configuration files. |
@@ -65,7 +66,7 @@ Otherwise, it starts a normal local process.
 During startup, `KelpieMCPServer` verifies the MCP server configuration file and SSH profile file hashes against the protected trust store.
 
 ```powershell
-kelpiemcp start [--reload-config] [--reload-profile:<profile>]
+kelpiemcp start [--reload-config]
 ```
 
 Arguments:
@@ -73,13 +74,6 @@ Arguments:
 | Argument | Required | Description |
 | :--- | :---: | :--- |
 | `--reload-config` | no | Explicitly accepts the current `config/kelpiemcp.json` content and updates the trust-store baseline hash for future starts. Use only after verifying the configuration change is intentional. |
-| `--reload-profile:<profile>` | no | Explicitly accepts the current JSON content of the named edited SSH profile. When the profile JSON is valid, the server loads it and updates the trust-store baseline hash for future starts. Repeat the option to accept multiple profiles. |
-
-Example after intentionally editing one profile:
-
-```powershell
-kelpiemcp start --reload-profile:vps01
-```
 
 Example after intentionally editing MCP server configuration:
 
@@ -102,7 +96,6 @@ Return value:
 - If the `kelpiemcp.json` hash differs from the trust store during normal startup, the MCP server startup fails.
 - If one profile hash differs from the trust store during normal startup, that profile is not loaded. Other profiles may continue to load.
 - `--reload-config` accepts the current MCP server configuration as the new trusted baseline.
-- `--reload-profile:<profile>` updates the trust store only when the target profile JSON is valid.
 
 Return value sample:
 
@@ -124,8 +117,8 @@ Safety notes:
 
 - Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
 - Use `--reload-config` only after verifying that the edited MCP server configuration is intentional and safe.
-- Use `--reload-profile:<profile>` only after verifying that the edited profile file is intentional and safe.
-- On shared PCs, third-party-operated terminals, or VPS-hosted deployments, restrict OS permissions for `kelpiemcp`, `kelpiemcp.json`, profile JSON files, and `mcp_profile_trust.dat` to administrators or the operations group for stronger protection.
+- Use `kelpiemcp profile reload <profile>` only after verifying that the edited profile file is intentional and safe.
+- On shared PCs, third-party-operated terminals, or VPS-hosted deployments, restrict OS permissions for `kelpiemcp`, `kelpiemcp.json`, profile JSON files, and `mcp_trusted_store.dat` to administrators or the operations group for stronger protection.
 
 #### `kelpiemcp stop`
 
@@ -205,6 +198,202 @@ The terminal execution result is represented by the return value sample above: p
 Safety notes:
 
 - Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
+### MCP profile trust
+
+Add, reload, revoke, and inspect trusted SSH profile baselines in the MCP trust store.
+
+Commands in this group:
+
+- [`kelpiemcp profile add <profile>`](#kelpiemcp-profile-add-profile)
+- [`kelpiemcp profile reload <profile>`](#kelpiemcp-profile-reload-profile)
+- [`kelpiemcp profile revoke <profile>`](#kelpiemcp-profile-revoke-profile)
+- [`kelpiemcp profile-capabilities [profile]`](#kelpiemcp-profile-capabilities-profile)
+
+#### `kelpiemcp profile add <profile>`
+
+Adds a new SSH profile JSON file to the trusted MCP store.
+
+```powershell
+kelpiemcp profile add vps02
+```
+
+Arguments:
+
+| Argument | Required | Description |
+| :--- | :---: | :--- |
+| `<profile>` | yes | SSH profile name. The file must exist as `profiles/<profile>.json` and must be valid JSON for a Kelpie SSH profile. |
+
+Processing:
+
+- When `KelpieMCPServer` is running, the request is sent to the running server. The server validates the profile, stores the profile hash, and reloads the in-memory catalog.
+- When `KelpieMCPServer` is not running, `kelpiemcp` validates the profile and updates `dat/mcp_trusted_store.dat`. The profile is loaded the next time the MCP server starts.
+
+Return value:
+
+- Exit code `0` when the profile is trusted.
+- Non-zero exit code when the profile name is missing, the profile file is missing, the JSON is invalid, trust is disabled, or the profile is already trusted.
+- Standard output is a JSON `SshProfileTrustOperationResult` with `Success`, `ProfileName`, `Status`, and `Message`.
+
+Return value sample:
+
+```json
+{
+  "Success": true,
+  "ProfileName": "vps02",
+  "Status": "add",
+  "Message": ""
+}
+```
+
+Execution result sample:
+
+```text
+{"Success":true,"ProfileName":"vps02","Status":"add","Message":""}
+```
+
+Safety notes:
+
+- Use only after verifying that the new profile file is intentional and safe.
+
+#### `kelpiemcp profile reload <profile>`
+
+Accepts an intentionally edited SSH profile JSON file as the new trusted baseline.
+
+```powershell
+kelpiemcp profile reload vps01
+```
+
+Arguments:
+
+| Argument | Required | Description |
+| :--- | :---: | :--- |
+| `<profile>` | yes | SSH profile name. The profile must already be trusted and the current JSON must be valid. |
+
+Processing:
+
+- When `KelpieMCPServer` is running, the server validates the profile, updates the trusted hash, and reloads the in-memory catalog.
+- When `KelpieMCPServer` is not running, `kelpiemcp` validates the profile and updates `dat/mcp_trusted_store.dat`. The edited profile is loaded the next time the MCP server starts.
+
+Return value:
+
+- Exit code `0` when the edited profile is accepted.
+- Non-zero exit code when the profile is missing, not trusted, invalid, or cannot be written to the trust store.
+- Standard output is a JSON `SshProfileTrustOperationResult`.
+
+Return value sample:
+
+```json
+{
+  "Success": true,
+  "ProfileName": "vps01",
+  "Status": "reload",
+  "Message": ""
+}
+```
+
+Execution result sample:
+
+```text
+{"Success":true,"ProfileName":"vps01","Status":"reload","Message":""}
+```
+
+Safety notes:
+
+- Use only after verifying that the profile change is legitimate. This command makes the current file content trusted.
+
+#### `kelpiemcp profile revoke <profile>`
+
+Removes one profile hash from the trusted MCP store.
+
+```powershell
+kelpiemcp profile revoke vps01
+```
+
+Arguments:
+
+| Argument | Required | Description |
+| :--- | :---: | :--- |
+| `<profile>` | yes | SSH profile name to remove from the trusted profile list. |
+
+Processing:
+
+- When `KelpieMCPServer` is running, the server removes the trusted hash and reloads the in-memory catalog.
+- When `KelpieMCPServer` is not running, `kelpiemcp` removes the profile entry from `dat/mcp_trusted_store.dat`.
+
+Return value:
+
+- Exit code `0` when the trusted entry is removed.
+- Non-zero exit code when the profile name is missing, trust is disabled, or the profile is not trusted.
+- Standard output is a JSON `SshProfileTrustOperationResult`.
+
+Return value sample:
+
+```json
+{
+  "Success": true,
+  "ProfileName": "vps01",
+  "Status": "revoked",
+  "Message": ""
+}
+```
+
+Execution result sample:
+
+```text
+{"Success":true,"ProfileName":"vps01","Status":"revoked","Message":""}
+```
+
+Safety notes:
+
+- A revoked profile is not loaded by normal MCP server startup until it is added again.
+
+#### `kelpiemcp profile-capabilities [profile]`
+
+Shows whether profile trust operations are currently possible for a profile.
+
+```powershell
+kelpiemcp profile-capabilities vps01
+kelpiemcp profile-capabilities
+```
+
+Arguments:
+
+| Argument | Required | Description |
+| :--- | :---: | :--- |
+| `[profile]` | no | SSH profile name. If omitted, `kelpiemcp` uses the profile currently opened by `kelpie open <profile>` when available. |
+
+Processing:
+
+The command checks the profile file and trust store. It does not contact the SSH target.
+
+Return value:
+
+- Exit code `0` when capabilities are printed.
+- Non-zero exit code when no profile is supplied and no open profile is available.
+- Standard output is a JSON `SshProfileTrustCapabilities` with `ProfileName`, `AddAllowed`, `ReloadAllowed`, `RevokeAllowed`, and `Reason`.
+
+Return value sample:
+
+```json
+{
+  "ProfileName": "vps01",
+  "AddAllowed": false,
+  "ReloadAllowed": true,
+  "RevokeAllowed": true,
+  "Reason": ""
+}
+```
+
+Execution result sample:
+
+```text
+{"ProfileName":"vps01","AddAllowed":false,"ReloadAllowed":true,"RevokeAllowed":true,"Reason":""}
+```
+
+Safety notes:
+
+- This is a local read-only command. It may reveal profile names, but it does not print secrets or profile file contents.
 
 ### MCP Windows Service
 

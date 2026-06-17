@@ -178,6 +178,10 @@ public static class KelpieHomeInitializer
                 var commands = GetOrCreateObject(node, "Commands", ref updated);
                 updated |= SetStringIfMissingOrWhiteSpace(commands, "ExecutablePath", Path.Combine(paths.McpDirectory, GetMcpExecutableName()));
                 updated |= SetWorkingDirectoryIfMissingOrLegacy(commands, paths);
+
+                var profileOperations = GetOrCreateObject(node, "ProfileOperations", ref updated);
+                var reload = GetOrCreateObject(profileOperations, "Reload", ref updated);
+                updated |= SetBoolIfMissing(reload, "MCP", false);
             }
 
             if (!updated)
@@ -233,6 +237,17 @@ public static class KelpieHomeInitializer
         return true;
     }
 
+    private static bool SetBoolIfMissing(JsonObject node, string propertyName, bool value)
+    {
+        if (node[propertyName] is not null)
+        {
+            return false;
+        }
+
+        node[propertyName] = value;
+        return true;
+    }
+
     private static bool SetWorkingDirectoryIfMissingOrLegacy(JsonObject node, KelpieHomePaths paths)
     {
         if (node["WorkingDirectory"] is JsonValue jsonValue
@@ -273,6 +288,13 @@ public static class KelpieHomeInitializer
             {
                 ExecutablePath = Path.Combine(paths.McpDirectory, GetMcpExecutableName()),
                 WorkingDirectory = paths.CommandDirectory,
+            },
+            ProfileOperations = new
+            {
+                Reload = new
+                {
+                    MCP = false,
+                },
             },
         });
     }

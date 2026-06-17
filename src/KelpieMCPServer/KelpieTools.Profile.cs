@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Kelpie.Core;
 using KelpieSSH.Application.Ssh;
+using Microsoft.Extensions.Configuration;
 using ModelContextProtocol.Server;
 
 namespace KelpieMCPServer;
@@ -36,6 +37,38 @@ public sealed partial class KelpieTools
     }
 
     /// <summary>
+    /// Returns profile operation capabilities for an open SSH terminal connection.
+    /// </summary>
+    /// <param name="terminalSessionManager">The SSH terminal session manager.</param>
+    /// <param name="configuration">The MCP server configuration.</param>
+    /// <param name="handle">The SSH terminal handle.</param>
+    /// <returns>The profile capabilities for the connection.</returns>
+    [McpServerTool(Name = "ssh_profile_capabilities")]
+    [Description("Returns profile operation capabilities for an open SSH terminal connection.")]
+    public static SshProfileCapabilitiesToolResult GetSshProfileCapabilities(
+        SshTerminalSessionManager terminalSessionManager,
+        IConfiguration configuration,
+        string handle)
+    {
+        KpLog.Info($"MCP tool called: ssh_profile_capabilities handle={handle}");
+        if (!terminalSessionManager.TryGetProfileName(handle, out var profileName))
+        {
+            return new SshProfileCapabilitiesToolResult(
+                handle,
+                string.Empty,
+                ReloadAllowed: false,
+                Reason: "session-not-found");
+        }
+
+        var reloadAllowed = configuration.GetValue<bool?>("ProfileOperations:Reload:MCP") == true;
+        return new SshProfileCapabilitiesToolResult(
+            handle,
+            profileName,
+            reloadAllowed,
+            reloadAllowed ? "allowed-by-config" : "disabled-by-config");
+    }
+
+    /// <summary>
     /// Represents the MCP profile reload result.
     /// </summary>
     /// <param name="Success">A value indicating whether reload succeeded.</param>
@@ -49,4 +82,17 @@ public sealed partial class KelpieTools
         int ProfileCount,
         string[] ProfileNames,
         string? ErrorMessage);
+
+    /// <summary>
+    /// Represents profile operation capabilities for one SSH terminal connection.
+    /// </summary>
+    /// <param name="Handle">The SSH terminal handle.</param>
+    /// <param name="ProfileName">The SSH profile name.</param>
+    /// <param name="ReloadAllowed">A value indicating whether MCP profile reload is allowed.</param>
+    /// <param name="Reason">The reason for the capability result.</param>
+    public sealed record SshProfileCapabilitiesToolResult(
+        string Handle,
+        string ProfileName,
+        bool ReloadAllowed,
+        string Reason);
 }

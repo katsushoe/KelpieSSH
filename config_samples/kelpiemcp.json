@@ -8,5 +8,10 @@
   "Commands": {
     "ExecutablePath": "/path/to/bin/mcp/KelpieMCPServer",
     "WorkingDirectory": "/path/to/bin"
+  },
+  "ProfileOperations": {
+    "Reload": {
+      "MCP": false
+    }
   }
 }

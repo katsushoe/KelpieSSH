@@ -76,6 +76,45 @@ if (string.Equals(command, "service", StringComparison.OrdinalIgnoreCase))
     return;
 }
 
+if (string.Equals(command, "profile", StringComparison.OrdinalIgnoreCase))
+{
+    var subcommand = args.Length > 1 ? args[1] : string.Empty;
+    var profileName = args.Length > 2 ? args[2] : string.Empty;
+    var options = CreateOptions(configuration);
+    if (string.Equals(subcommand, "add", StringComparison.OrdinalIgnoreCase))
+    {
+        await KelpieServerCommandRunner.ProfileAddAsync(options, profileName);
+        return;
+    }
+
+    if (string.Equals(subcommand, "reload", StringComparison.OrdinalIgnoreCase))
+    {
+        await KelpieServerCommandRunner.ProfileReloadAsync(options, profileName);
+        return;
+    }
+
+    if (string.Equals(subcommand, "revoke", StringComparison.OrdinalIgnoreCase))
+    {
+        await KelpieServerCommandRunner.ProfileRevokeAsync(options, profileName);
+        return;
+    }
+
+    Console.Error.WriteLine("Usage:");
+    Console.Error.WriteLine("  kelpiemcp profile add <profile>");
+    Console.Error.WriteLine("  kelpiemcp profile reload <profile>");
+    Console.Error.WriteLine("  kelpiemcp profile revoke <profile>");
+    Environment.ExitCode = 1;
+    return;
+}
+
+if (string.Equals(command, "profile-capabilities", StringComparison.OrdinalIgnoreCase))
+{
+    var profileName = args.Length > 1 ? args[1] : string.Empty;
+    var options = CreateOptions(configuration);
+    await KelpieServerCommandRunner.ProfileCapabilitiesAsync(options, profileName);
+    return;
+}
+
 if (string.Equals(command, "password", StringComparison.OrdinalIgnoreCase))
 {
     var profileName = args.Length > 1 ? args[1] : string.Empty;
@@ -173,12 +212,16 @@ static void ShowUsage(string command)
     }
 
     Console.Error.WriteLine("Usage:");
-    Console.Error.WriteLine("  kelpiemcp start [--reload-config] [--reload-profile:<profile>]");
+    Console.Error.WriteLine("  kelpiemcp start [--reload-config]");
     Console.Error.WriteLine("  kelpiemcp stop");
     Console.Error.WriteLine("  kelpiemcp status");
     Console.Error.WriteLine("  kelpiemcp service register");
     Console.Error.WriteLine("  kelpiemcp service unregister");
     Console.Error.WriteLine("  kelpiemcp service status");
+    Console.Error.WriteLine("  kelpiemcp profile add <profile>");
+    Console.Error.WriteLine("  kelpiemcp profile reload <profile>");
+    Console.Error.WriteLine("  kelpiemcp profile revoke <profile>");
+    Console.Error.WriteLine("  kelpiemcp profile-capabilities [profile]");
     Console.Error.WriteLine("  kelpiemcp password <profile>");
     Console.Error.WriteLine("  kelpiemcp forget <profile>");
 }

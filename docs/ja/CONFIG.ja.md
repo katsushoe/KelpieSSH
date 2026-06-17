@@ -1,6 +1,6 @@
 # KelpieSSH 設定
 
-最終更新: 2026-06-17
+最終更新: 2026-06-18
 
 この文書は、KelpieSSH の設定ファイル配置と host level settings をまとめる公開リファレンスです。
 Profile の詳細な設定ガイダンスは [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) を参照してください。
@@ -81,6 +81,7 @@ config_samples/
 | `LogDirectory` | MCP server logs の出力先。 |
 | `Commands:ExecutablePath` | 任意の `KelpieMCPServer` executable path。 |
 | `Commands:WorkingDirectory` | 任意の server working directory。 |
+| `ProfileOperations:Reload:MCP` | MCP client に MCP 経由の profile reload 可否を見せる設定。既定は `false`。正規の profile file 編集受け入れは `kelpiemcp profile reload <profile>` を使う。 |
 
 既定の MCP endpoint は次のとおりです。
 
@@ -102,6 +103,11 @@ http://127.0.0.1:45432/health
   "Server": {
     "Port": 45432,
     "ControlPipeName": "KelpieMCPServer.Control"
+  },
+  "ProfileOperations": {
+    "Reload": {
+      "MCP": false
+    }
   }
 }
 ```

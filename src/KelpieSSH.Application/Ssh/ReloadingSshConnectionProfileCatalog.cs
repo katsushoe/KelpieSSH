@@ -116,6 +116,156 @@ public sealed class ReloadingSshConnectionProfileCatalog : ISshConnectionProfile
         }
     }
 
+    /// <summary>
+    /// Adds a trusted profile and reloads the in-memory catalog.
+    /// </summary>
+    /// <param name="profileName">The profile name.</param>
+    /// <returns>The operation result.</returns>
+    public SshProfileTrustOperationResult AddTrustedProfile(string profileName)
+    {
+        return UpdateProfileTrust(profileName, SshProfileTrustOperation.Add);
+    }
+
+    /// <summary>
+    /// Reloads a trusted profile and updates its trusted hash.
+    /// </summary>
+    /// <param name="profileName">The profile name.</param>
+    /// <returns>The operation result.</returns>
+    public SshProfileTrustOperationResult ReloadTrustedProfile(string profileName)
+    {
+        return UpdateProfileTrust(profileName, SshProfileTrustOperation.Reload);
+    }
+
+    /// <summary>
+    /// Revokes a trusted profile and reloads the in-memory catalog.
+    /// </summary>
+    /// <param name="profileName">The profile name.</param>
+    /// <returns>The operation result.</returns>
+    public SshProfileTrustOperationResult RevokeTrustedProfile(string profileName)
+    {
+        if (string.IsNullOrWhiteSpace(_trustStorePath))
+        {
+            return new SshProfileTrustOperationResult(false, profileName, "trust-disabled", "Profile trust store is not enabled.");
+        }
+
+        var normalizedProfileName = NormalizeProfileName(profileName);
+        lock (_gate)
+        {
+            var trustStore = SshProfileTrustStore.Load(_trustStorePath);
+            if (!trustStore.TryGetHash(normalizedProfileName, out _))
+            {
+                return new SshProfileTrustOperationResult(false, normalizedProfileName, "profile-not-trusted", "SSH profile is not trusted.");
+            }
+
+            trustStore.RemoveHash(normalizedProfileName);
+            trustStore.Save(_trustStorePath);
+            Reload();
+            return new SshProfileTrustOperationResult(true, normalizedProfileName, "revoked", string.Empty);
+        }
+    }
+
+    /// <summary>
+    /// Gets profile trust operation capabilities.
+    /// </summary>
+    /// <param name="profileName">The profile name.</param>
+    /// <returns>The profile capabilities.</returns>
+    public SshProfileTrustCapabilities GetTrustCapabilities(string profileName)
+    {
+        if (string.IsNullOrWhiteSpace(_trustStorePath))
+        {
+            return new SshProfileTrustCapabilities(profileName, false, false, false, "trust-disabled");
+        }
+
+        var normalizedProfileName = NormalizeProfileName(profileName);
+        var profilePath = GetProfilePath(_profilesDirectory, normalizedProfileName);
+        var profileFileExists = File.Exists(profilePath);
+        var profileJsonValid = false;
+        if (profileFileExists)
+        {
+            try
+            {
+                _ = SshConnectionProfileFileLoader.LoadFile(profilePath);
+                profileJsonValid = true;
+            }
+            catch (Exception ex) when (ex is IOException
+                or UnauthorizedAccessException
+                or InvalidOperationException
+                or System.Text.Json.JsonException)
+            {
+                profileJsonValid = false;
+            }
+        }
+
+        var trustStore = SshProfileTrustStore.Load(_trustStorePath);
+        var trusted = trustStore.TryGetHash(normalizedProfileName, out _);
+        var addAllowed = profileFileExists && profileJsonValid && !trusted;
+        var reloadAllowed = profileFileExists && profileJsonValid && trusted;
+        var revokeAllowed = trusted;
+        var reason = profileFileExists
+            ? profileJsonValid
+                ? string.Empty
+                : "profile-json-invalid"
+            : "profile-file-not-found";
+        if (trusted && !profileFileExists)
+        {
+            reason = "profile-file-not-found";
+        }
+
+        return new SshProfileTrustCapabilities(
+            normalizedProfileName,
+            addAllowed,
+            reloadAllowed,
+            revokeAllowed,
+            reason);
+    }
+
+    private SshProfileTrustOperationResult UpdateProfileTrust(string profileName, SshProfileTrustOperation operation)
+    {
+        if (string.IsNullOrWhiteSpace(_trustStorePath))
+        {
+            return new SshProfileTrustOperationResult(false, profileName, "trust-disabled", "Profile trust store is not enabled.");
+        }
+
+        var normalizedProfileName = NormalizeProfileName(profileName);
+        var profilePath = GetProfilePath(_profilesDirectory, normalizedProfileName);
+        if (!File.Exists(profilePath))
+        {
+            return new SshProfileTrustOperationResult(false, normalizedProfileName, "profile-file-not-found", "SSH profile file was not found.");
+        }
+
+        try
+        {
+            _ = SshConnectionProfileFileLoader.LoadFile(profilePath);
+        }
+        catch (Exception ex) when (ex is IOException
+            or UnauthorizedAccessException
+            or InvalidOperationException
+            or System.Text.Json.JsonException)
+        {
+            return new SshProfileTrustOperationResult(false, normalizedProfileName, "profile-json-invalid", ex.Message);
+        }
+
+        lock (_gate)
+        {
+            var trustStore = SshProfileTrustStore.Load(_trustStorePath);
+            var trusted = trustStore.TryGetHash(normalizedProfileName, out _);
+            if (operation == SshProfileTrustOperation.Add && trusted)
+            {
+                return new SshProfileTrustOperationResult(false, normalizedProfileName, "profile-already-trusted", "SSH profile is already trusted.");
+            }
+
+            if (operation == SshProfileTrustOperation.Reload && !trusted)
+            {
+                return new SshProfileTrustOperationResult(false, normalizedProfileName, "profile-not-trusted", "SSH profile is not trusted.");
+            }
+
+            trustStore.SetHash(normalizedProfileName, SshProfileTrustStore.ComputeFileHash(profilePath));
+            trustStore.Save(_trustStorePath);
+            Reload();
+            return new SshProfileTrustOperationResult(true, normalizedProfileName, operation.ToString().ToLowerInvariant(), string.Empty);
+        }
+    }
+
     private static SshConnectionProfileCatalog LoadCatalog(
         string profilesDirectory,
         string? trustStorePath,
@@ -158,8 +308,21 @@ public sealed class ReloadingSshConnectionProfileCatalog : ISshConnectionProfile
 
                 var currentHash = SshProfileTrustStore.ComputeFileHash(filePath);
                 var explicitReload = reloadProfileSet.Contains(profileName);
+                if (!trustStore.TryGetHash(profileName, out var trustedHash))
+                {
+                    if (trustStore.FileExisted && !explicitReload)
+                    {
+                        errors.Add(new SshConnectionProfileLoadError(
+                            profileName,
+                            filePath,
+                            "profile-not-trusted",
+                            $"SSH profile is not trusted: {profileName}"));
+                        continue;
+                    }
+                }
+
                 if (!explicitReload
-                    && trustStore.TryGetHash(profileName, out var trustedHash)
+                    && !string.IsNullOrWhiteSpace(trustedHash)
                     && !string.Equals(currentHash, trustedHash, StringComparison.OrdinalIgnoreCase))
                 {
                     errors.Add(new SshConnectionProfileLoadError(
@@ -187,7 +350,7 @@ public sealed class ReloadingSshConnectionProfileCatalog : ISshConnectionProfile
                     continue;
                 }
 
-                if (explicitReload || !trustStore.TryGetHash(profileName, out _))
+                if (explicitReload || !trustStore.FileExisted)
                 {
                     trustStore.SetHash(profileName, currentHash);
                     trustStoreChanged = true;
@@ -222,6 +385,27 @@ public sealed class ReloadingSshConnectionProfileCatalog : ISshConnectionProfile
         loadErrors = errors;
         return new SshConnectionProfileCatalog(profiles);
     }
+
+    private static string NormalizeProfileName(string profileName)
+    {
+        if (string.IsNullOrWhiteSpace(profileName))
+        {
+            throw new InvalidOperationException("SSH profile name is required.");
+        }
+
+        return profileName.Trim();
+    }
+
+    private static string GetProfilePath(string profilesDirectory, string profileName)
+    {
+        return Path.Combine(profilesDirectory, profileName + ".json");
+    }
+}
+
+internal enum SshProfileTrustOperation
+{
+    Add,
+    Reload,
 }
 
 /// <summary>
@@ -251,3 +435,31 @@ public sealed record SshConnectionProfileLoadError(
     string FilePath,
     string Reason,
     string Message);
+
+/// <summary>
+/// Represents one profile trust operation result.
+/// </summary>
+/// <param name="Success">A value indicating whether the operation succeeded.</param>
+/// <param name="ProfileName">The profile name.</param>
+/// <param name="Status">The stable operation status.</param>
+/// <param name="Message">The human-readable message.</param>
+public sealed record SshProfileTrustOperationResult(
+    bool Success,
+    string ProfileName,
+    string Status,
+    string Message);
+
+/// <summary>
+/// Represents profile trust operation capabilities.
+/// </summary>
+/// <param name="ProfileName">The profile name.</param>
+/// <param name="AddAllowed">A value indicating whether add is possible.</param>
+/// <param name="ReloadAllowed">A value indicating whether reload is possible.</param>
+/// <param name="RevokeAllowed">A value indicating whether revoke is possible.</param>
+/// <param name="Reason">The reason when an operation is not possible.</param>
+public sealed record SshProfileTrustCapabilities(
+    string ProfileName,
+    bool AddAllowed,
+    bool ReloadAllowed,
+    bool RevokeAllowed,
+    string Reason);

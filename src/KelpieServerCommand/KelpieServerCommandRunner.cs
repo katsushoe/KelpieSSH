@@ -3,6 +3,7 @@ using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
 using Kelpie.Core;
+using KelpieSSH.Application.Ssh;
 
 namespace KelpieServerCommand;
 
@@ -284,6 +285,62 @@ public static class KelpieServerCommandRunner
     }
 
     /// <summary>
+    /// Adds a trusted SSH profile.
+    /// </summary>
+    /// <param name="options">The command options.</param>
+    /// <param name="profileName">The profile name.</param>
+    public static Task ProfileAddAsync(KelpieMcpServerOptions options, string profileName)
+    {
+        return RunProfileTrustOperationAsync(options, "profile-add", profileName, profile => CreateOfflineCatalog().AddTrustedProfile(profile));
+    }
+
+    /// <summary>
+    /// Reloads a trusted SSH profile.
+    /// </summary>
+    /// <param name="options">The command options.</param>
+    /// <param name="profileName">The profile name.</param>
+    public static Task ProfileReloadAsync(KelpieMcpServerOptions options, string profileName)
+    {
+        return RunProfileTrustOperationAsync(options, "profile-reload", profileName, profile => CreateOfflineCatalog().ReloadTrustedProfile(profile));
+    }
+
+    /// <summary>
+    /// Revokes a trusted SSH profile.
+    /// </summary>
+    /// <param name="options">The command options.</param>
+    /// <param name="profileName">The profile name.</param>
+    public static Task ProfileRevokeAsync(KelpieMcpServerOptions options, string profileName)
+    {
+        return RunProfileTrustOperationAsync(options, "profile-revoke", profileName, profile => CreateOfflineCatalog().RevokeTrustedProfile(profile));
+    }
+
+    /// <summary>
+    /// Prints profile trust operation capabilities.
+    /// </summary>
+    /// <param name="options">The command options.</param>
+    /// <param name="profileName">The optional profile name.</param>
+    public static async Task ProfileCapabilitiesAsync(KelpieMcpServerOptions options, string profileName)
+    {
+        var resolvedProfileName = string.IsNullOrWhiteSpace(profileName)
+            ? LoadOpenProfileName()
+            : profileName.Trim();
+        if (string.IsNullOrWhiteSpace(resolvedProfileName))
+        {
+            Console.Error.WriteLine("Profile name is required.");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var response = await SendControlCommandWithResponseAsync(
+            options.ControlPipeName,
+            "profile-capabilities " + resolvedProfileName,
+            TimeSpan.FromSeconds(3));
+        Console.WriteLine(!string.IsNullOrWhiteSpace(response)
+            ? response
+            : JsonSerializer.Serialize(CreateOfflineCatalog().GetTrustCapabilities(resolvedProfileName)));
+    }
+
+    /// <summary>
     /// Stores a password for one SSH profile in the running server session.
     /// </summary>
     /// <param name="options">The command options.</param>
@@ -529,6 +586,75 @@ public static class KelpieServerCommandRunner
 
         KpLog.Warn(message);
         Console.Error.WriteLine(message);
+    }
+
+    private static async Task RunProfileTrustOperationAsync(
+        KelpieMcpServerOptions options,
+        string pipeCommand,
+        string profileName,
+        Func<string, SshProfileTrustOperationResult> offlineOperation)
+    {
+        if (string.IsNullOrWhiteSpace(profileName))
+        {
+            Console.Error.WriteLine("Profile name is required.");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var normalizedProfileName = profileName.Trim();
+        var response = await SendControlCommandWithResponseAsync(
+            options.ControlPipeName,
+            pipeCommand + " " + normalizedProfileName,
+            TimeSpan.FromSeconds(3));
+        var result = !string.IsNullOrWhiteSpace(response)
+            ? JsonSerializer.Deserialize<SshProfileTrustOperationResult>(response)
+                ?? new SshProfileTrustOperationResult(false, normalizedProfileName, "invalid-response", "KelpieMCPServer returned an invalid response.")
+            : offlineOperation(normalizedProfileName);
+
+        Console.WriteLine(JsonSerializer.Serialize(result));
+        if (!result.Success)
+        {
+            Environment.ExitCode = 1;
+        }
+    }
+
+    private static ReloadingSshConnectionProfileCatalog CreateOfflineCatalog()
+    {
+        var profilesDirectory = KelpieRuntimePaths.GetProfilesDirectory(AppContext.BaseDirectory);
+        var trustStorePath = Path.Combine(
+            KelpieRuntimePaths.GetDataDirectory(AppContext.BaseDirectory),
+            KelpieRuntimePaths.KelpieMcpTrustStoreFileName);
+        return new ReloadingSshConnectionProfileCatalog(profilesDirectory, trustStorePath, []);
+    }
+
+    private static string? LoadOpenProfileName()
+    {
+        var statePath = Path.Combine(KelpieRuntimePaths.GetDataDirectory(AppContext.BaseDirectory), "storm_state.dat");
+        if (!File.Exists(statePath))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(statePath));
+            return document.RootElement.TryGetProperty("OpenProfile", out var openProfile)
+                && openProfile.ValueKind == JsonValueKind.String
+                    ? openProfile.GetString()
+                    : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     private static PingStatus ParsePingResponse(string? response)

@@ -1,6 +1,6 @@
 # KelpieSSH MCP コマンド
 
-最終更新: 2026-06-17
+最終更新: 2026-06-18
 
 このファイルは、KelpieSSH が MCP callable tool として公開するコマンドの正本です。
 通常のターミナルで実行する `kelpie` / `kelpiemcp` CLI コマンドは `COMMANDS.ja.md` を正本とします。
@@ -47,7 +47,7 @@ HTTP request body は REST 形式ではなく JSON-RPC です。たとえば診�
 | 分類 | MCP tool | 内容 |
 | :--- | :--- | :--- |
 | サーバー疎通 | `kelpie_ping` | `KelpieMCPServer` の疎通確認。 |
-| profile 管理 | `profile_reload` | 保存済み SSH profiles を disk からオンデマンドで再読み込みする。 |
+| profile 管理 | `profile_reload`, `ssh_profile_capabilities` | 保存済み SSH profiles の再読み込みと、接続中 terminal の profile 操作可否確認を行う。 |
 | ローカル診断 | `get_system_info`, `get_disk_usage`, `get_memory_usage`, `get_listening_ports` | `KelpieMCPServer` 実行ホストの診断。 |
 | 機能可否確認 | `ssh_get_capabilities`, `get_target_inventory` | SSH 接続先 profile ごとの OS / command / tool 可否、helper / software inventory を確認する。 |
 | SSH 診断 | `ssh_get_system_info`, `ssh_get_os_release`, `ssh_get_uptime`, `ssh_get_disk_usage`, `ssh_get_memory_usage`, `ssh_get_process_summary`, `ssh_get_inode_usage`, `ssh_get_mounts`, `ssh_get_network_addresses`, `ssh_get_routes`, `ssh_get_dns_config`, `ssh_cron_list`, `ssh_cron_validate`, `ssh_cron_check_write`, `ssh_cron_write`, `ssh_cron_rollback`, `ssh_cert_inspect`, `ssh_cert_expiry_check`, `ssh_user_list`, `ssh_user_info`, `ssh_group_list`, `ssh_group_info`, `ssh_sudoers_check`, `ssh_user_usage_check`, `ssh_user_check_group_change`, `ssh_user_apply_group_change`, `ssh_user_rollback_group_change`, `ssh_user_check_permission_change`, `ssh_user_apply_permission_change`, `ssh_user_rollback_permission_change`, `ssh_user_file_ownership_check`, `ssh_user_service_usage_check`, `ssh_service_residual_config_check`, `ssh_support_report_collect`, `ssh_firewall_status`, `ssh_firewall_check_rule`, `ssh_firewall_apply_rule`, `ssh_backup_plan_check`, `ssh_backup_run`, `ssh_backup_verify`, `ssh_audit_verify`, `ssh_audit_export`, `ssh_check_http_local`, `ssh_check_tcp_connect_local`, `ssh_get_listening_ports`, `ssh_get_failed_services`, `ssh_get_journal_recent`, `ssh_tail_log`, `ssh_run_allowed_command`, `ssh_run_remote_operation` | 許可済み SSH 診断コマンドの実行。 |
@@ -158,6 +158,59 @@ MCP server が `KelpieHome/profiles/*.json` を読み直し、reload が成功�
 - この tool が変更するのは MCP server の in-memory profile catalog だけです。
 - 既存の SSH terminal session は現在の接続を維持します。新しい tool call は再読み込み後の profile を使います。
 - `kelpiemcp.json` は再読み込みしません。server configuration を変更した場合は MCP server を再起動してください。
+
+### `ssh_profile_capabilities`
+
+目的:
+
+開いている SSH terminal connection について、profile 操作可否を返します。
+
+入力引数:
+
+- `handle`: `ssh_terminal_open` が返した SSH terminal handle。
+
+呼び出しサンプル:
+
+```json
+{
+  "name": "ssh_profile_capabilities",
+  "arguments": {
+    "handle": "term-a1b2c3d4e5f6"
+  }
+}
+```
+
+確認文字列:
+
+- なし。
+
+処理内容:
+
+MCP server は terminal handle から接続中 profile を解決します。`kelpiemcp.json` の `ProfileOperations:Reload:MCP` を読み、MCP経由の reload が許可されているか返します。SSH target には接続せず、profile file 本文も返しません。
+
+戻り値:
+
+- `SshProfileCapabilitiesToolResult`
+- `Handle`: 要求された terminal handle。
+- `ProfileName`: handle に紐づく profile 名。handle が見つからない場合は空文字。
+- `ReloadAllowed`: `ProfileOperations:Reload:MCP` が有効なら `true`、それ以外は `false`。
+- `Reason`: `allowed-by-config`、`disabled-by-config`、`session-not-found` などの理由。
+
+実行結果サンプル:
+
+```json
+{
+  "Handle": "term-a1b2c3d4e5f6",
+  "ProfileName": "vps01",
+  "ReloadAllowed": false,
+  "Reason": "disabled-by-config"
+}
+```
+
+安全上の注意:
+
+- 読み取り専用です。
+- terminal handle、profile 名、reload 可否だけを返します。
 
 ### `get_system_info`
 

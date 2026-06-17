@@ -148,6 +148,29 @@ public sealed class SshTerminalSessionManager : IAsyncDisposable
         return new SshTerminalCloseResult(handle, session.ProfileName, true, string.Empty);
     }
 
+    /// <summary>
+    /// Gets the SSH profile name for an open terminal session.
+    /// </summary>
+    /// <param name="handle">The terminal session handle.</param>
+    /// <param name="profileName">The resolved SSH profile name.</param>
+    /// <returns><c>true</c> when the session exists.</returns>
+    public bool TryGetProfileName(string handle, out string profileName)
+    {
+        profileName = string.Empty;
+        if (string.IsNullOrWhiteSpace(handle))
+        {
+            return false;
+        }
+
+        if (!_sessions.TryGetValue(handle, out var session))
+        {
+            return false;
+        }
+
+        profileName = session.ProfileName;
+        return true;
+    }
+
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
