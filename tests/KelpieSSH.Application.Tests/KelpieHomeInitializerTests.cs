@@ -201,6 +201,64 @@ public sealed class KelpieHomeInitializerTests
         }
     }
 
+    [Fact]
+    public void CreateProfile_creates_profile_in_initialized_home()
+    {
+        var homeDirectory = CreateTempDirectory();
+
+        try
+        {
+            KelpieHomeInitializer.Initialize(homeDirectory);
+
+            var profilePath = KelpieHomeInitializer.CreateProfile(homeDirectory, "vps02");
+
+            File.Exists(profilePath).Should().BeTrue();
+            profilePath.Should().Be(Path.Combine(homeDirectory, "profiles", "vps02.json"));
+            File.ReadAllText(profilePath).Should().Contain("vps02_ed25519");
+        }
+        finally
+        {
+            Directory.Delete(homeDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void CreateProfile_rejects_existing_profile()
+    {
+        var homeDirectory = CreateTempDirectory();
+
+        try
+        {
+            KelpieHomeInitializer.Initialize(homeDirectory, "vps01");
+
+            var action = () => KelpieHomeInitializer.CreateProfile(homeDirectory, "vps01");
+
+            action.Should().Throw<IOException>().WithMessage("SSH profile already exists: vps01");
+        }
+        finally
+        {
+            Directory.Delete(homeDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void CreateProfile_requires_initialized_home()
+    {
+        var homeDirectory = CreateTempDirectory();
+
+        try
+        {
+            var action = () => KelpieHomeInitializer.CreateProfile(homeDirectory, "vps01");
+
+            action.Should().Throw<DirectoryNotFoundException>()
+                .WithMessage("Kelpie home is not initialized. Run `kelpie init` first.");
+        }
+        finally
+        {
+            Directory.Delete(homeDirectory, recursive: true);
+        }
+    }
+
     private static string CreateTempDirectory()
     {
         var directory = Path.Combine(Path.GetTempPath(), "kelpie-init-tests", Guid.NewGuid().ToString("N"));

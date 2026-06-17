@@ -65,6 +65,42 @@ public static class KelpieHomeInitializer
             existingFiles.ToArray());
     }
 
+    /// <summary>
+    /// Creates a new SSH profile sample file in an initialized Kelpie home directory.
+    /// </summary>
+    /// <param name="homeDirectory">The initialized Kelpie home directory.</param>
+    /// <param name="profileName">The SSH profile name to create.</param>
+    /// <returns>The created profile file path.</returns>
+    public static string CreateProfile(string homeDirectory, string? profileName)
+    {
+        if (string.IsNullOrWhiteSpace(homeDirectory))
+        {
+            throw new ArgumentException("Home directory is required.", nameof(homeDirectory));
+        }
+
+        var normalizedProfileName = NormalizeProfileName(profileName);
+        var fullHomeDirectory = Path.GetFullPath(homeDirectory);
+        var configDirectory = Path.Combine(fullHomeDirectory, "config");
+        var profilesDirectory = Path.Combine(fullHomeDirectory, "profiles");
+
+        if (!Directory.Exists(configDirectory)
+            || !Directory.Exists(profilesDirectory)
+            || !File.Exists(Path.Combine(configDirectory, KelpieRuntimePaths.KelpieConfigFileName))
+            || !File.Exists(Path.Combine(configDirectory, KelpieRuntimePaths.KelpieMcpConfigFileName)))
+        {
+            throw new DirectoryNotFoundException("Kelpie home is not initialized. Run `kelpie init` first.");
+        }
+
+        var profileFile = Path.Combine(profilesDirectory, $"{normalizedProfileName}.json");
+        if (File.Exists(profileFile))
+        {
+            throw new IOException($"SSH profile already exists: {normalizedProfileName}");
+        }
+
+        File.WriteAllText(profileFile, CreateProfileJson(normalizedProfileName));
+        return profileFile;
+    }
+
     private static string NormalizeProfileName(string? profileName)
     {
         var normalizedProfileName = string.IsNullOrWhiteSpace(profileName)

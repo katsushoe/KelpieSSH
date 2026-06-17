@@ -161,9 +161,25 @@ if (string.Equals(command, "profile", StringComparison.OrdinalIgnoreCase))
 {
     KpLog.Info("Kelpie CLI profile requested.");
     var subcommand = args.Length > 1 ? args[1] : string.Empty;
+    if (string.Equals(subcommand, "create", StringComparison.OrdinalIgnoreCase))
+    {
+        if (args.Length != 3)
+        {
+            Console.Error.WriteLine("Usage:");
+            Console.Error.WriteLine("  kelpie profile create <profile>");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var createProfileName = args.Length > 2 ? args[2] : string.Empty;
+        CreateProfile(createProfileName);
+        return;
+    }
+
     if (!string.Equals(subcommand, "show", StringComparison.OrdinalIgnoreCase))
     {
         Console.Error.WriteLine("Usage:");
+        Console.Error.WriteLine("  kelpie profile create <profile>");
         Console.Error.WriteLine("  kelpie profile show <profile>");
         Environment.ExitCode = 1;
         return;
@@ -273,6 +289,7 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpie profiles");
     writer.WriteLine("  kelpie sessions");
     writer.WriteLine("  kelpie kill <handle>");
+    writer.WriteLine("  kelpie profile create <profile>");
     writer.WriteLine("  kelpie profile show <profile>");
     writer.WriteLine("  kelpie status <profile>");
     writer.WriteLine("  kelpie diag <profile>");
@@ -342,6 +359,42 @@ static void WriteInitializedPaths(string title, IReadOnlyCollection<string> path
     foreach (var path in paths)
     {
         Console.WriteLine($"  {path}");
+    }
+}
+
+static void CreateProfile(string profileName)
+{
+    if (string.IsNullOrWhiteSpace(profileName))
+    {
+        Console.Error.WriteLine("Usage:");
+        Console.Error.WriteLine("  kelpie profile create <profile>");
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    try
+    {
+        var homeDirectory = KelpieRuntimePaths.GetHomeDirectory(AppContext.BaseDirectory);
+        var profilePath = KelpieHomeInitializer.CreateProfile(homeDirectory, profileName);
+        Console.WriteLine($"Created profile: {profileName}");
+        Console.WriteLine($"Profile file: {profilePath}");
+    }
+    catch (ArgumentException ex)
+    {
+        Console.Error.WriteLine(ex.Message);
+        Environment.ExitCode = 1;
+    }
+    catch (IOException ex)
+    {
+        KpLog.Err($"Kelpie profile create failed. exceptionType={ex.GetType().FullName ?? "UnknownException"}");
+        Console.Error.WriteLine(ex.Message);
+        Environment.ExitCode = 1;
+    }
+    catch (UnauthorizedAccessException ex)
+    {
+        KpLog.Err($"Kelpie profile create failed. exceptionType={ex.GetType().FullName ?? "UnknownException"}");
+        Console.Error.WriteLine(ex.Message);
+        Environment.ExitCode = 1;
     }
 }
 

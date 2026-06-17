@@ -15,7 +15,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | MCP password session | `kelpiemcp password`, `kelpiemcp forget` | 起動中の MCP server に SSH パスワードを一時保存、削除する。 |
 | Compatibility | `kelpiemcp login`, `kelpiemcp logout` | 旧名互換。新規利用では `password` / `forget` を使う。 |
 | Initialization | `kelpie init` | `KelpieHome` 配下の初期ディレクトリとサンプル設定を作成する。 |
-| Profile/session | `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
+| Profile/session | `kelpie profile create`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイルひな形作成、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
 | Mode/UI | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | CLI/GUI モードや一時的な起動方式を切り替える。 |
 | Diagnostics | `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | プロファイル情報、MCP server 状態、SSH 診断、サービスログを表示する。 |
 | Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | profile policy に従って remote 環境変数の key 表示、値参照、一時設定、永続化を行う。 |
@@ -640,6 +640,7 @@ kelpie init vps01
 処理内容:
 
 `KelpieHome` 配下に `config`、`profiles`、`keys` などの初期ディレクトリとサンプル設定ファイルを作成します。既存ファイルは上書きしません。
+初期化済み `KelpieHome` に profile ひな形だけを追加する場合は `kelpie profile create <profile>` を使います。
 
 実行結果サンプル:
 
@@ -995,6 +996,48 @@ SSH session killed: ssh-a1b2c3d4e5f6
 
 ```text
 SSH session was not found: ssh-missing
+```
+
+### `kelpie profile create <profile>`
+
+目的:
+
+初期化済み `KelpieHome` に、新しい SSH profile ひな形を1つ作成します。
+
+構文:
+
+```powershell
+kelpie profile create vps02
+```
+
+引数詳細:
+
+- `profile`: 作成するプロファイル名。`KelpieHome/profiles/<profile>.json` として作成されます。パス区切り文字やファイル名に使えない文字は拒否します。
+
+処理内容:
+
+`kelpie init` 済みの `KelpieHome` を前提に、`profiles/<profile>.json` だけを新規作成します。`config/kelpie.json`、`config/kelpiemcp.json`、ディレクトリ、trust store、open profile 状態は作成・更新しません。既に同名 profile がある場合はエラーにします。
+
+MCPサーバーの protected trust store へ反映する場合は、作成した profile 内容を確認した後に `kelpiemcp profile add <profile>` を実行します。
+
+戻り値:
+
+- exit code `0`: profile ひな形を作成した。
+- exit code non-zero: profile 名不足、profile 名不正、`KelpieHome` 未初期化、同名 profile 既存、またはファイル作成失敗。
+- standard output: 作成した profile 名とファイルパス。
+- standard error: 検証エラーまたはファイル操作エラー。
+
+実行結果サンプル:
+
+```text
+Created profile: vps02
+Profile file: D:\Kelpie\profiles\vps02.json
+```
+
+既に存在する場合:
+
+```text
+SSH profile already exists: vps02
 ```
 
 ### `kelpie profile show <profile>`
@@ -1475,6 +1518,7 @@ Usage:
   kelpie profiles
   kelpie sessions
   kelpie kill <handle>
+  kelpie profile create <profile>
   kelpie profile show <profile>
   kelpie status <profile>
   kelpie diag <profile>

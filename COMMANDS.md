@@ -15,7 +15,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | [MCP Windows Service](#mcp-windows-service) | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Register, unregister, and inspect the Windows Service entry. |
 | [MCP password session](#mcp-password-session) | `kelpiemcp password`, `kelpiemcp forget`, `kelpiemcp login`, `kelpiemcp logout` | Store or clear an SSH password in the running MCP server session. |
 | [Initialization](#initialization) | `kelpie init [profile]` | Create the local Kelpie home directory layout and sample configuration files. |
-| [Profile/session](#profilesession) | `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | Select profiles and manage interactive SSH sessions. |
+| [Profile/session](#profilesession) | `kelpie profile create`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | Create profile templates, select profiles, and manage interactive SSH sessions. |
 | [Mode/UI](#modeui) | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | Switch CLI/GUI mode or choose a temporary launch mode. |
 | [Diagnostics](#diagnostics) | `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | Show profile information, MCP server status, SSH diagnostics, and service logs. |
 | [Environment](#environment) | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | List, read, temporarily set, or persist remote environment variables under profile policy. |
@@ -671,6 +671,7 @@ kelpie init vps01
 
 When a profile name is supplied, a named sample profile is created under `profiles/<profile>.json`.
 Existing configuration files are not overwritten.
+Use `kelpie profile create <profile>` when the Kelpie home is already initialized and only a new profile template should be created.
 
 Return value:
 
@@ -702,6 +703,7 @@ Select SSH profiles and manage interactive or temporary sessions.
 Commands in this group:
 
 - [`kelpie profiles`](#kelpie-profiles)
+- [`kelpie profile create <profile>`](#kelpie-profile-create-profile)
 - [`kelpie profile show <profile>`](#kelpie-profile-show-profile)
 - [`kelpie open <profile>`](#kelpie-open-profile)
 - [`kelpie login`](#kelpie-login)
@@ -739,6 +741,48 @@ The terminal execution result is represented by the return value sample above: p
 Safety notes:
 
 - Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
+#### `kelpie profile create <profile>`
+
+Creates one new SSH profile template in an already initialized Kelpie home directory.
+
+```powershell
+kelpie profile create vps02
+```
+
+Arguments:
+
+| Argument | Required | Description |
+| :--- | :---: | :--- |
+| `<profile>` | yes | SSH profile name. The file is created as `profiles/<profile>.json`. Path separators and invalid file-name characters are rejected. |
+
+Processing:
+
+- Requires an initialized Kelpie home created by `kelpie init`.
+- Creates only `profiles/<profile>.json`.
+- Does not create or update `config/kelpie.json`, `config/kelpiemcp.json`, directories, trust-store entries, or open-profile state.
+- Fails when `profiles/<profile>.json` already exists.
+- After creating a profile that should be visible to a protected MCP server, review the file and run `kelpiemcp profile add <profile>`.
+
+Return value:
+
+- Exit code `0` when the profile template is created.
+- Non-zero exit code when the profile name is missing or invalid, Kelpie home is not initialized, the profile already exists, or the file cannot be written.
+- Standard output contains the created profile name and file path.
+- Standard error contains validation and file-system errors.
+
+Execution result sample:
+
+```text
+Created profile: vps02
+Profile file: D:\Kelpie\profiles\vps02.json
+```
+
+Existing profile sample:
+
+```text
+SSH profile already exists: vps02
+```
 
 #### `kelpie profile show <profile>`
 
