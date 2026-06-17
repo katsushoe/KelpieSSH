@@ -323,7 +323,11 @@ SSH connection profiles are configured as one JSON file per server under `Kelpie
 
 Runtime configuration does not set a default SSH profile. Specify the profile explicitly with commands such as `kelpie open vps01` or MCP tool `profileName`.
 
-Profiles are host-side persistence adapters, not the core library execution boundary. The Application API also accepts `SshRemoteOperation`, which represents one SSH operation with endpoint, credential, policy, operation, and options. Existing CLI and MCP profile loaders convert saved profiles into `SshRemoteOperation` before execution, while product-specific concepts such as edition limits, license state, ads, support, display order, notes, and customer data stay outside KelpieSSH.
+Profiles are saved SSH connection settings supported by the KelpieSSH library. `SshConnectionProfile`, `SshConnectionProfileFileLoader`, and `SshConnectionProfileCatalog` are public library-level profile APIs used by CLI, MCP, and products such as KelpiePro.
+
+The Application API also accepts `SshRemoteOperation`, which represents one SSH operation with endpoint, credential, policy, operation, and options. `SshRemoteOperation` is useful when a caller wants to execute a one-off operation without relying on a saved profile. Existing CLI and MCP profile loaders can convert saved profiles into `SshRemoteOperation` before execution.
+
+Product-specific concepts such as profile count limits, edition limits, license state, ads, support, display order, notes, and customer data stay outside KelpieSSH. KelpiePro can implement Free/Standard differences by limiting how many OSS profiles it loads or exposes, without adding edition policy to the OSS profile model.
 
 ```json
 {

@@ -1,7 +1,7 @@
 namespace KelpieSSH.Application.Ssh;
 
 /// <summary>
-/// Represents SSH connection settings for one target host.
+/// Represents one saved SSH profile in the KelpieSSH library.
 /// </summary>
 public sealed class SshConnectionProfile
 {

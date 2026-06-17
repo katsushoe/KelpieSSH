@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace KelpieSSH.Application.Ssh;
 
 /// <summary>
-/// Loads SSH connection profiles from server profile JSON files.
+/// Loads saved SSH profiles from profile JSON files.
 /// </summary>
 public static class SshConnectionProfileFileLoader
 {
@@ -13,9 +13,9 @@ public static class SshConnectionProfileFileLoader
     };
 
     /// <summary>
-    /// Loads all SSH profiles from a directory.
+    /// Loads all saved SSH profiles from a directory.
     /// </summary>
-    /// <param name="serversDirectory">The directory that contains server profile JSON files.</param>
+    /// <param name="serversDirectory">The directory that contains profile JSON files.</param>
     /// <returns>The loaded SSH connection profiles.</returns>
     public static IReadOnlyCollection<SshConnectionProfile> LoadDirectory(string serversDirectory)
     {
@@ -32,9 +32,9 @@ public static class SshConnectionProfileFileLoader
     }
 
     /// <summary>
-    /// Loads one SSH profile from a server profile JSON file.
+    /// Loads one saved SSH profile from a profile JSON file.
     /// </summary>
-    /// <param name="filePath">The server profile JSON file path.</param>
+    /// <param name="filePath">The profile JSON file path.</param>
     /// <returns>The loaded SSH connection profile.</returns>
     public static SshConnectionProfile LoadFile(string filePath)
     {

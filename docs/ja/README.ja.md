@@ -323,7 +323,11 @@ SSH connection profiles は、`KelpieHome/profiles` 配下にサーバーごと1
 
 runtime configuration は既定 SSH profile を設定しません。`kelpie open vps01` や MCP tool の `profileName` のように、profile を明示してください。
 
-Profiles は host 側の永続化 adapter であり、core library の実行境界ではありません。Application API は `SshRemoteOperation` も受け取ります。`SshRemoteOperation` は endpoint、credential、policy、operation、options を持つ1回の SSH 操作を表します。既存の CLI と MCP profile loaders は、保存済み profile を実行前に `SshRemoteOperation` へ変換します。edition limits、license state、ads、support、display order、notes、customer data などの製品固有概念は KelpieSSH の外側に置きます。
+Profiles は、KelpieSSH library が扱う保存済み SSH 接続設定です。`SshConnectionProfile`、`SshConnectionProfileFileLoader`、`SshConnectionProfileCatalog` は、CLI、MCP、KelpiePro などの製品から利用できる library level の profile API です。
+
+Application API は `SshRemoteOperation` も受け取ります。`SshRemoteOperation` は endpoint、credential、policy、operation、options を持つ1回の SSH 操作を表します。保存済み profile に依存せず、1回限りの操作を直接実行したい caller 向けの入力です。既存の CLI と MCP profile loaders は、保存済み profile を実行前に `SshRemoteOperation` へ変換できます。
+
+profile count limits、edition limits、license state、ads、support、display order、notes、customer data などの製品固有概念は KelpieSSH の外側に置きます。KelpiePro は、OSS profile model に edition policy を入れず、読み込むまたは表示する OSS profile 数を制限することで Free / Standard の差を実装できます。
 
 ```json
 {

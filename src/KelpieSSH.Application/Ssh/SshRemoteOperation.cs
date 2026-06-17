@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace KelpieSSH.Application.Ssh;
 
 /// <summary>
-/// Represents one SSH operation request independent from any saved profile.
+/// Represents one SSH operation request for callers that bypass saved profiles.
 /// </summary>
 /// <param name="Endpoint">The SSH endpoint.</param>
 /// <param name="Credential">The SSH credential reference.</param>
@@ -20,7 +20,7 @@ public sealed record SshRemoteOperation(
     [property: JsonPropertyName("target")] SshRemoteTarget? Target = null)
 {
     /// <summary>
-    /// Creates an operation request from a host-side saved profile.
+    /// Creates an operation request from a saved SSH profile.
     /// </summary>
     /// <param name="profile">The saved SSH profile.</param>
     /// <param name="operationKind">The operation kind.</param>
