@@ -228,6 +228,7 @@ Profile の記述方法の詳細は [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) �
 ### AI users
 
 AI の MCP サーバーとして Kelpie を使う場合は、[MCP_GUIDE.ja.md](MCP_GUIDE.ja.md) にしたがってサーバーを設定、起動してください。
+MCP サーバーの停止とパスワードセッションの削除も [MCP_GUIDE.ja.md](MCP_GUIDE.ja.md) を参照してください。
 
 ### 切断とログアウト
 
@@ -235,18 +236,6 @@ AI の MCP サーバーとして Kelpie を使う場合は、[MCP_GUIDE.ja.md](M
 
 ```text
 logout
-```
-
-パスワード認証の MCP access を使っている場合、不要になった password session を削除します。
-
-```powershell
-kelpiemcp forget vps01
-```
-
-AI access が不要になったら MCP サーバーを停止します。
-
-```powershell
-kelpiemcp stop
 ```
 
 ## Kelpie command-line tools

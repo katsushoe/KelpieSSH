@@ -228,6 +228,7 @@ Set the host, user, authentication method, and private key file name or password
 ### AI users
 
 When using Kelpie as an AI MCP server, configure and start the server by following [MCP_GUIDE.md](MCP_GUIDE.md).
+MCP server shutdown and password-session cleanup are also covered in [MCP_GUIDE.md](MCP_GUIDE.md).
 
 ### Disconnecting and logging out
 
@@ -235,18 +236,6 @@ To close an interactive SSH session started with `kelpie login`, type `logout` o
 
 ```text
 logout
-```
-
-If you are using password-based MCP access, clear the password session when it is no longer needed:
-
-```powershell
-kelpiemcp forget vps01
-```
-
-Stop the MCP server when AI access is no longer needed:
-
-```powershell
-kelpiemcp stop
 ```
 
 ## Kelpie command-line tools
