@@ -77,7 +77,7 @@ Open an elevated terminal and register the service:
 kelpiemcp service register
 ```
 
-The service is registered as `KelpieMCPServer` with manual startup. Start it with:
+The service is registered as `KelpieMCPServer` with automatic startup and a service description. Start it immediately with:
 
 ```powershell
 Start-Service KelpieMCPServer

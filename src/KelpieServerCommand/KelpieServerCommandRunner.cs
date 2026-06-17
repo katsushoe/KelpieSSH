@@ -14,6 +14,7 @@ public static class KelpieServerCommandRunner
     private static readonly TimeSpan PipeConnectionTimeout = TimeSpan.FromMilliseconds(300);
     private const string WindowsServiceName = "KelpieMCPServer";
     private const string WindowsServiceDisplayName = "KelpieSSH MCP Server";
+    private const string WindowsServiceDescription = "Provides the local KelpieSSH MCP server endpoint for AI clients.";
 
     /// <summary>
     /// Starts the Kelpie MCP server body if it is not already running.
@@ -94,23 +95,12 @@ public static class KelpieServerCommandRunner
             return;
         }
 
-        if (await WindowsServiceExistsAsync())
-        {
-            Console.WriteLine($"Windows Service is already registered: {WindowsServiceName}");
-            return;
-        }
-
         var serverCommand = ResolveServerCommand(options);
         var binPath = CreateWindowsServiceBinPath(serverCommand);
-        var result = await RunScAsync(
-            "create",
-            WindowsServiceName,
-            "binPath=",
-            binPath,
-            "start=",
-            "demand",
-            "DisplayName=",
-            WindowsServiceDisplayName);
+        var serviceExists = await WindowsServiceExistsAsync();
+        var result = serviceExists
+            ? await ConfigureWindowsServiceAsync(binPath)
+            : await CreateWindowsServiceAsync(binPath);
 
         if (result.ExitCode != 0)
         {
@@ -118,7 +108,17 @@ public static class KelpieServerCommandRunner
             return;
         }
 
-        Console.WriteLine($"Windows Service registered: {WindowsServiceName}");
+        var descriptionResult = await RunScAsync("description", WindowsServiceName, WindowsServiceDescription);
+        if (descriptionResult.ExitCode != 0)
+        {
+            WriteScFailure("Failed to set Windows Service description.", descriptionResult);
+            return;
+        }
+
+        Console.WriteLine(serviceExists
+            ? $"Windows Service updated: {WindowsServiceName}"
+            : $"Windows Service registered: {WindowsServiceName}");
+        Console.WriteLine("Startup type: automatic");
         Console.WriteLine($"Binary path: {binPath}");
     }
 
@@ -694,6 +694,32 @@ public static class KelpieServerCommandRunner
     {
         var result = await RunScAsync("query", WindowsServiceName);
         return result.ExitCode == 0;
+    }
+
+    private static Task<ScCommandResult> CreateWindowsServiceAsync(string binPath)
+    {
+        return RunScAsync(
+            "create",
+            WindowsServiceName,
+            "binPath=",
+            binPath,
+            "start=",
+            "auto",
+            "DisplayName=",
+            WindowsServiceDisplayName);
+    }
+
+    private static Task<ScCommandResult> ConfigureWindowsServiceAsync(string binPath)
+    {
+        return RunScAsync(
+            "config",
+            WindowsServiceName,
+            "binPath=",
+            binPath,
+            "start=",
+            "auto",
+            "DisplayName=",
+            WindowsServiceDisplayName);
     }
 
     private static async Task<ScCommandResult> RunScAsync(params string[] arguments)

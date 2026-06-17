@@ -77,7 +77,7 @@ Windows では、`KelpieMCPServer` を Windows Service として登録できま�
 kelpiemcp service register
 ```
 
-サービス名は `KelpieMCPServer` です。登録時の startup type は手動起動です。起動するには次のコマンドを使います。
+サービス名は `KelpieMCPServer` です。登録時の startup type は自動起動で、サービス説明文も設定されます。すぐに起動するには次のコマンドを使います。
 
 ```powershell
 Start-Service KelpieMCPServer

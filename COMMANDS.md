@@ -170,7 +170,7 @@ Working as Windows service: no
 
 ### `kelpiemcp service register`
 
-Registers `KelpieMCPServer` as a manual-start Windows Service. Run from an elevated terminal.
+Registers `KelpieMCPServer` as an automatic-start Windows Service and sets its service description. Run from an elevated terminal.
 
 ```powershell
 kelpiemcp service register

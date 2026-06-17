@@ -190,7 +190,7 @@ kelpiemcp service register
 
 処理内容:
 
-Windows Service 名 `KelpieMCPServer` を手動起動サービスとして登録します。管理者権限のターミナルから実行してください。
+Windows Service 名 `KelpieMCPServer` を自動起動サービスとして登録し、サービス説明文も設定します。管理者権限のターミナルから実行してください。
 
 実行結果サンプル:
 
