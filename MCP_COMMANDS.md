@@ -43,7 +43,7 @@ The HTTP request body is JSON-RPC, not a REST-style resource request. For exampl
 }
 ```
 
-This document describes the `name` and `arguments` used inside `tools/call`. In each tool section, the call sample shows the `params` object that goes inside a JSON-RPC `tools/call` request. AI users normally only need the tool behavior and safety notes; MCP client implementers may also need the JSON-RPC flow above.
+This document describes the `name` and `arguments` used inside `tools/call`. In each tool section, the call sample shows the `params` object that goes inside a JSON-RPC `tools/call` request. Return value samples show the `structuredContent` object or text content returned by the tool after execution. AI users normally only need the tool behavior and safety notes; MCP client implementers may also need the JSON-RPC flow above.
 
 ## Tool Groups
 
@@ -94,7 +94,7 @@ SSH command tools usually return `SshToolResult`:
 - `TimedOut`: `true` when Kelpie stopped waiting because the command timeout elapsed.
 - `Error`: Kelpie-side validation, policy, connection, or execution error message when the tool could not produce a normal SSH command result.
 
-`SshToolResult` sample:
+`SshToolResult` return value sample:
 
 ```json
 {
@@ -174,7 +174,7 @@ Execution:
 
 Returns a small text response without contacting any SSH target.
 
-Result sample:
+Return value sample:
 
 ```text
 KelpieSSH MCP server is running.
@@ -207,7 +207,7 @@ Execution:
 
 The MCP server rereads `KelpieHome/profiles/*.json` and replaces the in-memory profile catalog only when reload succeeds. If reload fails because a profile JSON file is invalid or cannot be read, the last successfully loaded profile catalog remains active.
 
-Result sample:
+Return value sample:
 
 ```json
 {
@@ -256,7 +256,7 @@ Execution:
 
 Collects local OS, runtime, disk, memory, or listening-port information. These tools do not connect to SSH profiles.
 
-Result sample:
+Return value sample:
 
 ```json
 {
@@ -297,7 +297,7 @@ Execution:
 
 Runs a fixed read-only OS probe and combines the result with profile mode and provider support. This is the dynamic per-profile capability check; MCP `tools/list` only shows the static product tool list.
 
-Result sample:
+Return value sample:
 
 ```json
 {
@@ -352,7 +352,7 @@ Execution:
 
 Runs the allow-listed `target_inventory` operation. Individual helper/software probes have short per-item timeouts. A missing helper is reported as `Not Available`; the tool fails only when the SSH connection or OS probe fails.
 
-Result sample:
+Return value sample:
 
 ```json
 {
@@ -437,7 +437,7 @@ Execution:
 
 Each tool maps to one managed command from the allow-list. Arguments are validated before command text is built. Arbitrary shell options are not accepted.
 
-Result sample:
+Return value sample:
 
 ```json
 {
@@ -559,7 +559,7 @@ Execution:
 `persist_environment_value` writes one key/value to `~/.kelpie/.env` and creates a timestamped `.kelpie` backup before writing.
 `remove_persistent_environment_value` removes one key from `~/.kelpie/.env` and creates a timestamped `.kelpie` backup before writing.
 
-Result sample:
+Return value sample:
 
 ```json
 {
@@ -667,7 +667,7 @@ Execution:
 
 For managed operations, Kelpie resolves the command from the command catalog and evaluates mode, roles, allowed roots, special paths, and channel policy. For raw operations, raw shell policy must also pass.
 
-Result sample:
+Return value sample:
 
 ```json
 {
@@ -724,7 +724,7 @@ Execution:
 
 `ssh_terminal_open` creates a session and returns a rendered screen snapshot. `ssh_terminal_send` writes input to the session. `ssh_terminal_snapshot` returns the current rendered screen. `ssh_terminal_close` closes the session. `ssh_connection_close` is the connection-oriented alias for closing the same persistent terminal connection by handle. `ssh_logout` clears the in-memory password session for one profile.
 
-Result sample:
+Return value sample:
 
 ```json
 {
@@ -762,7 +762,7 @@ Safety notes:
 }
 ```
 
-`ssh_connection_close` result sample:
+`ssh_connection_close` return value sample:
 
 ```json
 {
@@ -784,7 +784,7 @@ Safety notes:
 }
 ```
 
-`ssh_logout` result sample:
+`ssh_logout` return value sample:
 
 ```json
 {

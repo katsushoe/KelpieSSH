@@ -31,7 +31,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 
 ## Return Value Specification
 
-Terminal commands return information through the process exit code, standard output, and standard error.
+Terminal commands return information through the process exit code, standard output, and standard error. They do not return JSON directly; JSON samples in this section are documentation objects that represent the process return values.
 
 Unless a command section states a more specific contract:
 
@@ -64,6 +64,16 @@ Return value:
 - Exit code `0` when initialization completes.
 - Standard output describes created and existing directories/files. The structured internal result is `KelpieHomeInitializationResult` with `HomeDirectory`, `ProfileName`, `CreatedDirectories`, `CreatedFiles`, and `ExistingFiles`.
 
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
 ### `kelpie version`
 
 Shows the `kelpie` command version.
@@ -77,6 +87,16 @@ Return value:
 
 - Exit code `0` when the version is printed.
 - Standard output contains the `kelpie` product version string.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
 
 ### `kelpie help`
 
@@ -92,6 +112,16 @@ Return value:
 - Exit code `0` when help text is printed.
 - Standard output contains terminal help text for the available command set.
 
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
 ### `kelpie profiles`
 
 Lists configured SSH profiles.
@@ -104,6 +134,16 @@ Return value:
 
 - Exit code `0` when the profile list is read.
 - Standard output contains configured profile names and sanitized summary information only.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
 
 ### `kelpie profile show <profile>`
 
@@ -119,6 +159,16 @@ Return value:
 - Exit code `0` when the profile exists and the sanitized summary is printed.
 - Standard output contains profile metadata safe for terminal display. Secret values are not returned.
 
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
 ### `kelpie open <profile>`
 
 Stores the selected profile name in local runtime state for later commands that use the open profile.
@@ -132,6 +182,16 @@ Return value:
 - Exit code `0` when the profile selection is saved.
 - Standard output confirms the selected profile.
 
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
 ### `kelpie status <profile>`
 
 Shows MCP server status and a sanitized profile summary.
@@ -144,6 +204,16 @@ Return value:
 
 - Exit code `0` when status information is collected.
 - Standard output contains MCP server status and sanitized profile information.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
 
 ### `kelpie diag <profile>`
 
@@ -162,6 +232,16 @@ Return value:
 - Standard output contains read-only diagnostic summaries returned by allowed SSH commands.
 - Standard error contains SSH or policy errors if the diagnostic run fails.
 
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
 ### `kelpie logs <profile> <service> [lines]`
 
 Reads recent logs for a systemd service over SSH.
@@ -179,6 +259,16 @@ Return value:
 - Exit code `0` when the log command completes successfully.
 - Standard output contains the bounded log output returned by the allowed SSH command.
 - Standard error contains validation, SSH, policy, or remote command errors.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
 
 ### `kelpie env keys <profile>`
 
@@ -207,6 +297,16 @@ PATH
 SHELL
 ```
 
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
 ### `kelpie env peek <profile> <key>`
 
 Reads one remote environment variable value when the profile permits it.
@@ -232,6 +332,16 @@ Masked example:
 ************ (length=12)
 ```
 
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
 ### `kelpie env set <profile> <key> <value> -- <command>`
 
 Runs one command with one environment variable value set for that execution only.
@@ -253,6 +363,16 @@ Return value:
 - Exit code `0` when the allowed command runs with the temporary environment value.
 - Standard output and standard error are the bounded output streams from the allowed remote command.
 - The provided environment value is not a persisted return value.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
 
 ### `kelpie env list <profile>`
 
@@ -277,6 +397,16 @@ Return value:
 - Exit code `0` when the remote Kelpie env file is read or treated as empty.
 - Standard output contains persisted key names only.
 - Values and hidden keys are not returned.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
 
 ### `kelpie env persist <profile> <key> <value>`
 
@@ -309,6 +439,16 @@ Return value:
 - Standard output confirms the persisted key and backup/write operation without printing secret values.
 - Standard error contains validation, policy, SSH, or remote write errors.
 
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
 ### `kelpie env remove <profile> <key>`
 
 Removes one environment variable from the remote Kelpie env file.
@@ -326,6 +466,16 @@ Return value:
 - Exit code `0` when the key is removed or the remote env file is updated successfully.
 - Standard output confirms the removed key and backup/write operation without printing secret values.
 
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
 ### `kelpie cli`
 
 Switches Kelpie to CLI mode.
@@ -339,6 +489,16 @@ Return value:
 - Exit code `0` when CLI mode is selected.
 - Standard output confirms the mode change.
 
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
 ### `kelpie gui`
 
 Starts or switches to GUI mode when a GUI frontend is available.
@@ -351,6 +511,16 @@ Return value:
 
 - Exit code `0` when GUI mode is selected or the GUI frontend is started.
 - Standard output contains a user-facing status message.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
 
 ### `kelpiemcp start`
 
@@ -374,6 +544,16 @@ Return value:
 - Standard output reports whether a Windows Service start was requested or a local process was started.
 - Standard error contains startup failures, including service-control failures.
 
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
 ### `kelpiemcp stop`
 
 Stops the local MCP server process.
@@ -386,6 +566,16 @@ Return value:
 
 - Exit code `0` when the stop request is sent successfully.
 - Standard output contains a stop confirmation when available.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
 
 ### `kelpiemcp status`
 
@@ -417,6 +607,16 @@ Return value:
 - Exit code `0` when status is printed.
 - Standard output contains MCP process status, endpoint URLs when running, control pipe name when available, and Windows Service registration state.
 
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
 ### `kelpiemcp service register`
 
 Registers `KelpieMCPServer` as an automatic-start Windows Service and sets its service description. Run from a terminal running as administrator.
@@ -430,6 +630,16 @@ Return value:
 - Exit code `0` when Windows Service registration succeeds.
 - Standard output contains the service-control result.
 - Standard error contains Windows Service registration errors.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
 
 ### `kelpiemcp service unregister`
 
@@ -445,6 +655,16 @@ Return value:
 - Standard output contains the service-control result.
 - Standard error contains Windows Service unregistration errors.
 
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
 ### `kelpiemcp service status`
 
 Shows whether the `KelpieMCPServer` Windows Service is registered.
@@ -457,6 +677,16 @@ Return value:
 
 - Exit code `0` when service status is printed.
 - Standard output reports whether the Windows Service is registered.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
 
 ### `kelpiemcp password <profile>`
 
@@ -474,6 +704,16 @@ Return value:
 - Standard output confirms that a password session was stored.
 - The password itself is never returned.
 
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
 ### `kelpiemcp forget <profile>`
 
 Clears the in-memory password session for a profile.
@@ -487,6 +727,16 @@ Return value:
 - Exit code `0` when the running MCP server clears or accepts the clear request for the profile.
 - Standard output confirms the password session cleanup.
 - The previous password value is never returned.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
 
 ## Safety Notes
 
