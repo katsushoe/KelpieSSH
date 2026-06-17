@@ -46,3 +46,6 @@ SCENARIO.md
 SPEC.md
 TODO.md
 progress/
+
+.github/
+src/KelpieMCPServer/Properties/
