@@ -8,6 +8,43 @@ Terminal CLI commands are documented in [COMMANDS.md](COMMANDS.md).
 
 `MCP_COMMANDS.md` follows the same command-reference standard as `COMMANDS.md`: each tool group documents its purpose, input fields, input examples, execution behavior, result shape, and safety notes. Individual tool schemas are exposed by MCP `tools/list`; this document explains how those tools are intended to be used safely.
 
+## How MCP Tools Are Called
+
+KelpieSSH MCP tools are not REST resources. They are MCP JSON-RPC methods carried over the Streamable HTTP MCP transport.
+
+In normal AI client usage, the user does not call these HTTP requests directly. Codex, Claude, or another MCP client connects to the local Streamable HTTP endpoint, discovers tools, and sends tool calls on the user's behalf.
+
+The default endpoint is documented in [MCP_GUIDE.md](MCP_GUIDE.md). A typical configured endpoint is:
+
+```text
+http://127.0.0.1:45432/mcp
+```
+
+The usual flow is:
+
+1. The MCP client sends `initialize` to establish protocol capabilities.
+2. The MCP client sends `tools/list` to discover available tool names and JSON schemas.
+3. The MCP client sends `tools/call` with the selected tool name and arguments.
+4. `KelpieMCPServer` validates the request, resolves any saved profile or `SshRemoteOperation`, applies policy checks, runs the allowed operation, and returns the result to the MCP client.
+
+The HTTP request body is JSON-RPC, not a REST-style resource request. For example, a direct diagnostic call has this shape:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_target_inventory",
+    "arguments": {
+      "profileName": "vps01"
+    }
+  }
+}
+```
+
+This document describes the `name` and `arguments` used inside `tools/call`. AI users normally only need the tool behavior and safety notes; MCP client implementers may also need the JSON-RPC flow above.
+
 ## Tool Groups
 
 | Group | Tools | Purpose |

@@ -5,6 +5,43 @@
 このファイルは、KelpieSSH が MCP callable tool として公開するコマンドの正本です。
 通常のターミナルで実行する `kelpie` / `kelpiemcp` CLI コマンドは `COMMANDS.ja.md` を正本とします。
 
+## MCP tool の呼び出し方式
+
+KelpieSSH の MCP tool は REST resource ではありません。Streamable HTTP MCP transport 上で送受信される MCP JSON-RPC method です。
+
+通常の AI クライアント利用では、利用者が HTTP request を直接組み立てる必要はありません。Codex、Claude、その他の MCP client が local Streamable HTTP endpoint に接続し、tool 一覧の取得と tool 呼び出しを代行します。
+
+既定 endpoint は [MCP_GUIDE.ja.md](MCP_GUIDE.ja.md) を参照してください。典型的な endpoint は次の形式です。
+
+```text
+http://127.0.0.1:45432/mcp
+```
+
+通常の流れは次の通りです。
+
+1. MCP client が `initialize` を送信し、protocol capability を確立します。
+2. MCP client が `tools/list` を送信し、利用可能な tool 名と JSON schema を取得します。
+3. MCP client が `tools/call` に tool 名と引数を入れて送信します。
+4. `KelpieMCPServer` が request を検証し、必要に応じて保存済み profile または `SshRemoteOperation` を解決し、policy check 後に許可済み operation を実行して結果を返します。
+
+HTTP request body は REST 形式ではなく JSON-RPC です。たとえば診断 tool を直接呼ぶ場合は次の形になります。
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_target_inventory",
+    "arguments": {
+      "profileName": "vps01"
+    }
+  }
+}
+```
+
+この文書では、`tools/call` の中で指定する `name` と `arguments` を説明します。AI 利用者は通常、内部の JSON-RPC 呼び出し方式までは意識せず、各 tool の動作と安全上の注意を確認すれば十分です。
+
 ## コマンド分類
 
 | 分類 | MCP tool | 内容 |
