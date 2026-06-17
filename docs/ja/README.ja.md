@@ -64,6 +64,8 @@ kelpie init vps01
 <KelpieHome>\profiles\vps01.json
 ```
 
+このファイルに、接続先 host、SSH user、認証方式、鍵またはパスワード secret 参照を設定します。秘密鍵認証では、秘密鍵ファイルを `<KelpieHome>\keys` 配下に置き、`Auth.PrivateKeyFile` にそのファイル名を設定します。対応する公開鍵は、事前にサーバー側へ登録されている必要があります。パスワード認証では、`Auth.Method` を `password` にし、`Auth.PasswordSecretName` を設定します。平文パスワードを profile に保存してはいけません。
+
 #### 3. サーバーへの接続
 
 profile を編集した後、対象サーバーを開きます。
@@ -164,6 +166,8 @@ D:\Kelpie\bin\kelpie.exe init vps01
 D:\Kelpie\profiles\vps01.json
 ```
 
+このファイルに、接続先 host、SSH user、認証方式、鍵またはパスワード secret 参照を設定します。秘密鍵認証では、秘密鍵ファイルを `D:\Kelpie\keys` 配下に置き、`Auth.PrivateKeyFile` にそのファイル名を設定します。対応する公開鍵は、事前にサーバー側へ登録されている必要があります。パスワード認証では、`Auth.Method` を `password` にし、`Auth.PasswordSecretName` を設定します。平文パスワードを profile に保存してはいけません。
+
 #### 4. サーバーへの接続
 
 profile を編集した後、対象サーバーを開きます。
@@ -198,7 +202,19 @@ dotnet publish src\KelpieMCPServer\KelpieMCPServer.csproj -c Release -o D:\Kelpi
 D:\Kelpie\bin\kelpie.exe init
 ```
 
-`kelpie init` は既存の設定ファイルを上書きしません。利用前に生成された host、user、key、policy の値を編集してください。
+名前付き profile を作成する場合は、接続前に初期化します。
+
+```powershell
+D:\Kelpie\bin\kelpie.exe init vps01
+```
+
+`kelpie init` は既存の設定ファイルを上書きしません。利用前に生成された profile を編集してください。
+
+```text
+D:\Kelpie\profiles\vps01.json
+```
+
+`kelpie open vps01` を実行する前に、host、user、認証方式、秘密鍵ファイル名またはパスワード secret 参照を設定します。
 
 ## MCP サーバー
 

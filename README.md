@@ -64,6 +64,8 @@ Edit the generated profile before connecting. The profile file is created under:
 <KelpieHome>\profiles\vps01.json
 ```
 
+Set the target host, SSH user, authentication method, and key or password secret reference in that file. For private key authentication, place the private key file under `<KelpieHome>\keys` and set `Auth.PrivateKeyFile` to that file name. The matching public key must already be registered on the server. For password authentication, set `Auth.Method` to `password` and set `Auth.PasswordSecretName`; do not store the plain text password in the profile.
+
 #### 3. Connecting to server
 
 After editing the profile, open the target server:
@@ -164,6 +166,8 @@ Edit the generated profile before connecting:
 D:\Kelpie\profiles\vps01.json
 ```
 
+Set the target host, SSH user, authentication method, and key or password secret reference in that file. For private key authentication, place the private key file under `D:\Kelpie\keys` and set `Auth.PrivateKeyFile` to that file name. The matching public key must already be registered on the server. For password authentication, set `Auth.Method` to `password` and set `Auth.PasswordSecretName`; do not store the plain text password in the profile.
+
 #### 4. Connecting to server
 
 After editing the profile, open the target server:
@@ -198,7 +202,19 @@ dotnet publish src\KelpieMCPServer\KelpieMCPServer.csproj -c Release -o D:\Kelpi
 D:\Kelpie\bin\kelpie.exe init
 ```
 
-`kelpie init` does not overwrite existing configuration files. Edit the generated host, user, key, and policy values before use.
+To create a named profile, initialize it before connecting:
+
+```powershell
+D:\Kelpie\bin\kelpie.exe init vps01
+```
+
+`kelpie init` does not overwrite existing configuration files. Edit the generated profile before use:
+
+```text
+D:\Kelpie\profiles\vps01.json
+```
+
+Set the host, user, authentication method, and private key file name or password secret reference before running `kelpie open vps01`.
 
 ## MCP server
 
