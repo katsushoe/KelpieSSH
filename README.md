@@ -113,11 +113,18 @@ if (($userPath -split ";") -notcontains $kelpieBin) {
 }
 ```
 
-Open a new terminal after updating `PATH`, then run the same command check:
+Open a new terminal after updating `PATH`.
+
+Verify that the command is available:
 
 ```powershell
 kelpie version
-kelpiemcp status
+```
+
+Expected output:
+
+```text
+kelpie 0.1.4.1
 ```
 
 If you do not want to update `PATH`, keep using full paths such as `D:\Kelpie\bin\kelpie.exe`.

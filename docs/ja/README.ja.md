@@ -113,11 +113,18 @@ if (($userPath -split ";") -notcontains $kelpieBin) {
 }
 ```
 
-`PATH` 更新後は新しいターミナルを開き、同じ確認コマンドを実行します。
+`PATH` 更新後は新しいターミナルを開いてください。
+
+コマンドを実行できることを確認します。
 
 ```powershell
 kelpie version
-kelpiemcp status
+```
+
+出力例:
+
+```text
+kelpie 0.1.4.1
 ```
 
 `PATH` を更新したくない場合は、`D:\Kelpie\bin\kelpie.exe` のようなフルパスを使い続けてください。
