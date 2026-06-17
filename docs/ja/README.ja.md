@@ -84,7 +84,7 @@ Windows が不明な発行元または SmartScreen 警告を表示する場合�
 
 #### 1. Zip バイナリの配置
 
-zip 形式の配布物または一時的なローカル配置を使う場合は、コマンドを `bin` ディレクトリ配下に置きます。
+`KelpieSSH-x.x.x.x-x64.zip` を `D:\Kelpie` に展開します。展開後は次の構成になります。
 
 ```text
 D:\Kelpie

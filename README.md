@@ -84,7 +84,7 @@ If Windows shows an unknown publisher or SmartScreen warning, confirm that the M
 
 #### 1. Placing the zip binaries
 
-If you are using a zip-style binary distribution or temporary local layout, place the commands under a `bin` directory:
+Extract `KelpieSSH-x.x.x.x-x64.zip` to `D:\Kelpie`. The extracted directory should have this layout:
 
 ```text
 D:\Kelpie
