@@ -789,14 +789,15 @@ public static class KelpieServerCommandRunner
     {
         KpLog.Warn($"{message} scExitCode={result.ExitCode}");
         Console.Error.WriteLine(message);
-        Console.Error.WriteLine("Run this command from a terminal running as administrator.");
         if (result.ExitCode == 5)
         {
-            Console.Error.WriteLine("Access denied.");
+            Console.Error.WriteLine("Reason: Access denied.");
+            Console.Error.WriteLine("Run this command from a terminal running as administrator.");
             Environment.ExitCode = result.ExitCode;
             return;
         }
 
+        Console.Error.WriteLine("Run this command from a terminal running as administrator.");
         if (!string.IsNullOrWhiteSpace(result.StandardOutput))
         {
             Console.Error.Write(result.StandardOutput);
