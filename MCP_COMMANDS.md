@@ -54,6 +54,7 @@ This document describes the `name` and `arguments` used inside `tools/call`. In 
 | Capabilities and inventory | `ssh_get_capabilities`, `get_target_inventory` | Inspect target command/tool support and installed helper/software inventory. |
 | SSH diagnostics | `ssh_get_system_info`, `ssh_get_os_release`, `ssh_get_uptime`, `ssh_get_disk_usage`, `ssh_get_memory_usage`, `ssh_get_process_summary`, `ssh_get_inode_usage`, `ssh_get_mounts`, `ssh_get_network_addresses`, `ssh_get_routes`, `ssh_get_dns_config`, `ssh_check_http_local`, `ssh_check_tcp_connect_local`, `ssh_get_listening_ports`, `ssh_get_failed_services`, `ssh_get_journal_recent`, `ssh_tail_log` | Run allow-listed read-oriented diagnostics over SSH. |
 | Cron, certificate, user, firewall, backup, and audit checks | `ssh_cron_list`, `ssh_cron_validate`, `ssh_cron_check_write`, `ssh_cron_write`, `ssh_cron_rollback`, `ssh_cert_inspect`, `ssh_cert_expiry_check`, `ssh_user_list`, `ssh_user_info`, `ssh_group_list`, `ssh_group_info`, `ssh_sudoers_check`, `ssh_user_usage_check`, `ssh_user_check_group_change`, `ssh_user_apply_group_change`, `ssh_user_rollback_group_change`, `ssh_user_check_permission_change`, `ssh_user_apply_permission_change`, `ssh_user_rollback_permission_change`, `ssh_user_file_ownership_check`, `ssh_user_service_usage_check`, `ssh_service_residual_config_check`, `ssh_support_report_collect`, `ssh_firewall_status`, `ssh_firewall_check_rule`, `ssh_firewall_apply_rule`, `ssh_backup_plan_check`, `ssh_backup_run`, `ssh_backup_verify`, `ssh_audit_verify`, `ssh_audit_export` | Inspect or change sensitive server-maintenance state through bounded checks and confirmation-gated operations. |
+| Environment | `get_environment_keys`, `peek_environment_value`, `set_environment_value` | List, read, or set remote environment variables under profile policy. |
 | Generic execution | `ssh_run_allowed_command`, `ssh_run_remote_operation` | Run an allow-listed managed operation through policy checks. |
 | Terminal | `ssh_terminal_open`, `ssh_terminal_send`, `ssh_terminal_snapshot`, `ssh_terminal_close` | Manage an interactive SSH terminal session. |
 | Packages | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove` | Inspect packages and run confirmation-gated package operations. |
@@ -364,6 +365,87 @@ Safety notes:
 - Read-oriented by default.
 - Log output can contain application data. Avoid copying raw log bodies into public documents.
 - Service names, limits, ports, and path-like arguments are validated.
+
+### Environment tools
+
+Tools:
+
+- `get_environment_keys`
+- `peek_environment_value`
+- `set_environment_value`
+
+Purpose:
+
+Lists, reads, or temporarily sets remote environment variables under profile `Capabilities` and `EnvironmentValues` policy.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `key`: environment variable key for `peek_environment_value` and `set_environment_value`.
+- `value`: environment variable value for `set_environment_value`.
+- `command`: command to run with the environment value for `set_environment_value`.
+
+`get_environment_keys` params sample:
+
+```json
+{
+  "name": "get_environment_keys",
+  "arguments": {
+    "profileName": "vps01"
+  }
+}
+```
+
+`peek_environment_value` params sample:
+
+```json
+{
+  "name": "peek_environment_value",
+  "arguments": {
+    "profileName": "vps01",
+    "key": "PATH"
+  }
+}
+```
+
+`set_environment_value` params sample:
+
+```json
+{
+  "name": "set_environment_value",
+  "arguments": {
+    "profileName": "vps01",
+    "key": "APP_ENV",
+    "value": "production",
+    "command": "printenv APP_ENV"
+  }
+}
+```
+
+Execution:
+
+`get_environment_keys` requires `AllowPeekEnvironmentKeys` and returns key names only. Keys marked `Hidden` in `EnvironmentValues` are filtered.
+`peek_environment_value` requires `AllowPeekEnvironmentValues` and a matching `EnvironmentValues` rule such as `PeekCommon`, `PeekSecret`, or `Masked`.
+`set_environment_value` requires `AllowSetEnvironmentValues` and a matching `SetCommon` or `SetSecret` rule. The value is applied only to the single command execution and is not persisted on the remote host.
+
+Result sample:
+
+```json
+{
+  "ProfileName": "vps01",
+  "CommandName": "set_environment_value",
+  "CommandText": "env APP_ENV=(hidden) printenv APP_ENV",
+  "ExitCode": 0,
+  "StandardOutput": "production\n"
+}
+```
+
+Safety notes:
+
+- Environment variable values can be secrets. Do not paste raw values into public documents, logs, or issues.
+- `set_environment_value` masks the value in returned `CommandText`.
+- `Hidden` keys appear unavailable; `Masked` keys return masked output and length only.
+- Keys not listed in `EnvironmentValues` may be listed by `get_environment_keys` if key listing is enabled, but their values cannot be read or set.
 
 ### Generic execution tools
 

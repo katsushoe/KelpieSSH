@@ -34,7 +34,7 @@ public sealed partial class KelpieTools
             .ToArray();
 
         var commandLookup = commands.ToDictionary(command => command.CommandName, StringComparer.OrdinalIgnoreCase);
-        var tools = CreateSshToolCapabilities(commandLookup);
+        var tools = CreateSshToolCapabilities(profile, commandLookup);
         var probe = await sshCommandService.ExecuteAsync(
             profile,
             "get_os_release",
@@ -56,6 +56,7 @@ public sealed partial class KelpieTools
     }
 
     private static SshToolCapability[] CreateSshToolCapabilities(
+        SshConnectionProfile profile,
         IReadOnlyDictionary<string, SshCommandCapability> commands)
     {
         return
@@ -124,6 +125,24 @@ public sealed partial class KelpieTools
             CreateSshToolCapability("ssh_service_restart", "service_restart", commands),
             CreateSshToolCapability("ssh_service_stop", "service_stop", commands),
             CreateSshToolCapability("ssh_service_disable", "service_disable", commands),
+            CreateEnvironmentToolCapability(
+                profile,
+                "get_environment_keys",
+                "get_environment_keys",
+                KelpiePolicyNames.AllowPeekEnvironmentKeys,
+                nameof(SshCommandRiskLevel.ReadOnly)),
+            CreateEnvironmentToolCapability(
+                profile,
+                "peek_environment_value",
+                "peek_environment_value",
+                KelpiePolicyNames.AllowPeekEnvironmentValues,
+                nameof(SshCommandRiskLevel.ReadOnly)),
+            CreateEnvironmentToolCapability(
+                profile,
+                "set_environment_value",
+                "set_environment_value",
+                KelpiePolicyNames.AllowSetEnvironmentValues,
+                "EnvironmentSet"),
         ];
     }
 
@@ -150,6 +169,33 @@ public sealed partial class KelpieTools
             RiskLevel: string.Empty,
             RequiresConfirmation: false,
             UnavailableReason: "Command is not available for this profile.");
+    }
+
+    private static SshToolCapability CreateEnvironmentToolCapability(
+        SshConnectionProfile profile,
+        string toolName,
+        string commandName,
+        string requiredCapability,
+        string riskLevel)
+    {
+        if (profile.Capabilities.Allows(requiredCapability))
+        {
+            return new SshToolCapability(
+                toolName,
+                commandName,
+                Available: true,
+                riskLevel,
+                RequiresConfirmation: false,
+                UnavailableReason: null);
+        }
+
+        return new SshToolCapability(
+            toolName,
+            commandName,
+            Available: false,
+            RiskLevel: string.Empty,
+            RequiresConfirmation: false,
+            UnavailableReason: $"{requiredCapability} is not enabled for this profile.");
     }
 
     /// <summary>

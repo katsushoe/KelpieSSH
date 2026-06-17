@@ -180,6 +180,107 @@ public sealed class KelpieToolsSshTests
     }
 
     [Fact]
+    public async Task GetSshCapabilitiesAsync_ShouldReturnEnvironmentToolCapabilities()
+    {
+        var profile = CreateProfile(
+            "vps01",
+            capabilities: PolicySet.FromNames(
+            [
+                KelpiePolicyNames.AllowPeekEnvironmentKeys,
+                KelpiePolicyNames.AllowPeekEnvironmentValues,
+            ]));
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var result = await KelpieTools.GetSshCapabilitiesAsync(service, profiles, "vps01");
+
+        result.Tools.Should().Contain(tool =>
+            tool.ToolName == "get_environment_keys"
+            && tool.Available
+            && tool.RiskLevel == nameof(SshCommandRiskLevel.ReadOnly));
+        result.Tools.Should().Contain(tool =>
+            tool.ToolName == "peek_environment_value"
+            && tool.Available
+            && tool.RiskLevel == nameof(SshCommandRiskLevel.ReadOnly));
+        result.Tools.Should().Contain(tool =>
+            tool.ToolName == "set_environment_value"
+            && !tool.Available
+            && tool.UnavailableReason == "AllowSetEnvironmentValues is not enabled for this profile.");
+    }
+
+    [Fact]
+    public async Task GetEnvironmentKeysAsync_ShouldUseNamedProfile()
+    {
+        var profile = CreateProfile(
+            "vps01",
+            capabilities: PolicySet.FromNames([KelpiePolicyNames.AllowPeekEnvironmentKeys]),
+            environmentValues:
+            [
+                new EnvironmentValueRule("MY_SECRET_KEY", EnvironmentValueAccess.Hidden),
+            ]);
+        var runner = new FakeSshCommandRunner("PATH\nMY_SECRET_KEY\nLANG\n", string.Empty);
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var result = await KelpieTools.GetEnvironmentKeysAsync(service, profiles, "vps01");
+
+        result.ProfileName.Should().Be("vps01");
+        result.CommandName.Should().Be("get_environment_keys");
+        result.StandardOutput.Should().Be($"PATH{Environment.NewLine}LANG{Environment.NewLine}");
+        runner.LastRequest!.Profile.Should().BeSameAs(profile);
+    }
+
+    [Fact]
+    public async Task PeekEnvironmentValueAsync_ShouldUseNamedProfile()
+    {
+        var profile = CreateProfile(
+            "vps01",
+            capabilities: PolicySet.FromNames([KelpiePolicyNames.AllowPeekEnvironmentValues]),
+            environmentValues:
+            [
+                new EnvironmentValueRule("APP_ENV", EnvironmentValueAccess.PeekCommon),
+            ]);
+        var runner = new FakeSshCommandRunner("production\n", string.Empty);
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var result = await KelpieTools.PeekEnvironmentValueAsync(service, profiles, "vps01", "APP_ENV");
+
+        result.CommandName.Should().Be("peek_environment_value");
+        result.CommandText.Should().Be("printenv 'APP_ENV'");
+        result.StandardOutput.Should().Be("production\n");
+    }
+
+    [Fact]
+    public async Task SetEnvironmentValueAsync_ShouldMaskValueInMcpResult()
+    {
+        var profile = CreateProfile(
+            "vps01",
+            capabilities: PolicySet.FromNames([KelpiePolicyNames.AllowSetEnvironmentValues]),
+            environmentValues:
+            [
+                new EnvironmentValueRule("APP_ENV", EnvironmentValueAccess.SetCommon),
+            ]);
+        var runner = new FakeSshCommandRunner("production\n", string.Empty);
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var result = await KelpieTools.SetEnvironmentValueAsync(
+            service,
+            profiles,
+            "vps01",
+            "APP_ENV",
+            "production",
+            "uname -a");
+
+        result.CommandName.Should().Be("set_environment_value");
+        result.CommandText.Should().Be("env APP_ENV=(hidden) uname -a");
+        result.CommandText.Should().NotContain("production");
+        runner.LastRequest!.CommandText.Should().Be("env APP_ENV='production' uname -a");
+    }
+
+    [Fact]
     public async Task GetTargetInventoryAsync_ShouldReturnStructuredInventory()
     {
         var profile = CreateProfile("vps02", osFamily: "ubuntu", packageManager: "apt");
@@ -2772,7 +2873,9 @@ public sealed class KelpieToolsSshTests
         string name,
         KelpiePolicyMode mode = KelpiePolicyMode.Safe,
         string osFamily = "debian",
-        string packageManager = "apt")
+        string packageManager = "apt",
+        PolicySet? capabilities = null,
+        IReadOnlyCollection<EnvironmentValueRule>? environmentValues = null)
     {
         return new SshConnectionProfile
         {
@@ -2783,7 +2886,8 @@ public sealed class KelpieToolsSshTests
             OsFamily = osFamily,
             PackageManager = packageManager,
             Mode = mode,
-            Capabilities = PolicySet.Empty,
+            Capabilities = capabilities ?? PolicySet.Empty,
+            EnvironmentValues = environmentValues ?? [],
         };
     }
 

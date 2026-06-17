@@ -50,6 +50,7 @@ HTTP request body は REST 形式ではなく JSON-RPC です。たとえば診�
 | ローカル診断 | `get_system_info`, `get_disk_usage`, `get_memory_usage`, `get_listening_ports` | `KelpieMCPServer` 実行ホストの診断。 |
 | 機能可否確認 | `ssh_get_capabilities`, `get_target_inventory` | SSH 接続先 profile ごとの OS / command / tool 可否、helper / software inventory を確認する。 |
 | SSH 診断 | `ssh_get_system_info`, `ssh_get_os_release`, `ssh_get_uptime`, `ssh_get_disk_usage`, `ssh_get_memory_usage`, `ssh_get_process_summary`, `ssh_get_inode_usage`, `ssh_get_mounts`, `ssh_get_network_addresses`, `ssh_get_routes`, `ssh_get_dns_config`, `ssh_cron_list`, `ssh_cron_validate`, `ssh_cron_check_write`, `ssh_cron_write`, `ssh_cron_rollback`, `ssh_cert_inspect`, `ssh_cert_expiry_check`, `ssh_user_list`, `ssh_user_info`, `ssh_group_list`, `ssh_group_info`, `ssh_sudoers_check`, `ssh_user_usage_check`, `ssh_user_check_group_change`, `ssh_user_apply_group_change`, `ssh_user_rollback_group_change`, `ssh_user_check_permission_change`, `ssh_user_apply_permission_change`, `ssh_user_rollback_permission_change`, `ssh_user_file_ownership_check`, `ssh_user_service_usage_check`, `ssh_service_residual_config_check`, `ssh_support_report_collect`, `ssh_firewall_status`, `ssh_firewall_check_rule`, `ssh_firewall_apply_rule`, `ssh_backup_plan_check`, `ssh_backup_run`, `ssh_backup_verify`, `ssh_audit_verify`, `ssh_audit_export`, `ssh_check_http_local`, `ssh_check_tcp_connect_local`, `ssh_get_listening_ports`, `ssh_get_failed_services`, `ssh_get_journal_recent`, `ssh_tail_log`, `ssh_run_allowed_command`, `ssh_run_remote_operation` | 許可済み SSH 診断コマンドの実行。 |
+| 環境変数 | `get_environment_keys`, `peek_environment_value`, `set_environment_value` | profile policy に従って remote 環境変数の key 表示、値参照、一時設定を行う。 |
 | SSH ターミナル | `ssh_terminal_open`, `ssh_terminal_send`, `ssh_terminal_snapshot`, `ssh_terminal_close` | PTY 付き対話ターミナルの操作。 |
 | パッケージ操作 | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove` | package の確認、検索、dry-run、確認付き変更。 |
 | サービス操作 | `ssh_service_status`, `ssh_service_is_active`, `ssh_service_is_enabled`, `ssh_list_services`, `ssh_service_enable_now`, `ssh_service_reload`, `ssh_service_restart`, `ssh_service_stop`, `ssh_service_disable` | systemd service の状態確認と確認付き変更。 |
@@ -304,6 +305,95 @@ KelpieSSH MCP server is running.
 安全上の注意:
 
 - 読み取り専用です。
+
+### 環境変数 tool
+
+対象 tool:
+
+- `get_environment_keys`
+- `peek_environment_value`
+- `set_environment_value`
+
+目的:
+
+profile の `Capabilities` と `EnvironmentValues` policy に従って、remote 環境変数の key 表示、値参照、1回だけの一時設定を行います。
+
+入力引数:
+
+- `profileName`: SSH プロファイル名。
+- `key`: `peek_environment_value` / `set_environment_value` で使う環境変数名。
+- `value`: `set_environment_value` で1回の command execution に付与する値。
+- `command`: `set_environment_value` で実行する command。
+
+`get_environment_keys` 呼び出しサンプル:
+
+```json
+{
+  "name": "get_environment_keys",
+  "arguments": {
+    "profileName": "vps01"
+  }
+}
+```
+
+`peek_environment_value` 呼び出しサンプル:
+
+```json
+{
+  "name": "peek_environment_value",
+  "arguments": {
+    "profileName": "vps01",
+    "key": "PATH"
+  }
+}
+```
+
+`set_environment_value` 呼び出しサンプル:
+
+```json
+{
+  "name": "set_environment_value",
+  "arguments": {
+    "profileName": "vps01",
+    "key": "APP_ENV",
+    "value": "production",
+    "command": "printenv APP_ENV"
+  }
+}
+```
+
+確認文字列:
+
+- なし。
+
+処理内容:
+
+`get_environment_keys` は `AllowPeekEnvironmentKeys` がある場合だけ実行できます。`EnvironmentValues` で `Hidden` にした key は出力から除外します。
+`peek_environment_value` は `AllowPeekEnvironmentValues` と、対象 key の `PeekCommon` / `PeekSecret` / `Masked` rule が必要です。
+`set_environment_value` は `AllowSetEnvironmentValues` と、対象 key の `SetCommon` / `SetSecret` rule が必要です。remote host へ永続保存せず、指定 command の1回の実行にだけ値を付与します。
+
+戻り値:
+
+- `SshToolResult`
+
+実行結果サンプル:
+
+```json
+{
+  "ProfileName": "vps01",
+  "CommandName": "set_environment_value",
+  "CommandText": "env APP_ENV=(hidden) printenv APP_ENV",
+  "ExitCode": 0,
+  "StandardOutput": "production\n"
+}
+```
+
+安全上の注意:
+
+- 環境変数値は secret の可能性があります。raw value を公開文書、公開 issue、公開ログに貼り付けないでください。
+- `set_environment_value` は戻り値の `CommandText` で value を `(hidden)` としてマスクします。
+- `Hidden` key は存在しないものとして扱います。`Masked` key は masked output と長さだけを返します。
+- `EnvironmentValues` に未定義の key は、key 一覧に表示されることはありますが、値の参照と設定はできません。
 
 ### `ssh_run_allowed_command`
 
