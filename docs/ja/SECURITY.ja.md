@@ -8,9 +8,13 @@ KelpieSSH は現在 early alpha 開発段階です。セキュリティ修正は
 
 ## 脆弱性の報告
 
-セキュリティ問題は、利用可能な場合は GitHub security advisories を使って非公開で報告してください。利用できない場合は、リポジトリ owner profile 経由で maintainer へ連絡してください。
+セキュリティ問題は、利用可能な場合は GitHub security advisories を使って非公開で報告してください。
+
+GitHub security advisories を利用できない場合は、[shoe0604@akatsukisoft.com](mailto:shoe0604@akatsukisoft.com) へ直接連絡してください。
 
 秘密情報の露出、認証回避、安全でないコマンド実行、remote host への意図しない access につながる脆弱性を public issue に投稿しないでください。
+
+報告時は、影響を受ける version、環境、再現手順、想定される影響、関連する log や screenshot を含めてください。ただし、実 password、private key、passphrase、本番 profile files、秘密情報を含む raw log は含めないでください。
 
 ## セキュリティモデル
 
@@ -20,6 +24,8 @@ KelpieSSH は、SSH 越しの VPS 診断と保守を補助しつつ、コマン�
 - 平文 password を JSON 設定ファイルに保存してはいけません。
 - password authentication は実行中の `KelpieMCPServer` session の memory にのみ保持します。
 - SSH command execution は policy-based で、allow-listed diagnostic operations から始めます。
+- Path-based operations は `AllowedRoots` と `SpecialPaths` で制限してください。
+- MCP tools は secrets を表示してはいけません。
 - 危険な変更操作は dedicated command、policy check、confirmation string を通す必要があります。
 
 ## 秘密情報の扱い

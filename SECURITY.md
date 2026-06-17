@@ -6,9 +6,13 @@ KelpieSSH is currently in early alpha development. Security fixes are applied to
 
 ## Reporting a Vulnerability
 
-Please report security issues privately by using GitHub security advisories if available, or by contacting the maintainers through the repository owner profile.
+Please report security issues privately by using GitHub security advisories if available.
+
+If GitHub security advisories are not available, contact the maintainer directly at [shoe0604@akatsukisoft.com](mailto:shoe0604@akatsukisoft.com).
 
 Do not open a public issue for vulnerabilities that expose secrets, authentication bypasses, unsafe command execution, or unintended access to remote hosts.
+
+When reporting a vulnerability, include the affected version, environment, reproduction steps, expected impact, and any relevant logs or screenshots. Do not include real passwords, private keys, passphrases, production profile files, or raw logs containing secrets.
 
 ## Security Model
 
@@ -20,6 +24,7 @@ KelpieSSH is intended to assist VPS diagnostics and maintenance over SSH while k
 - SSH command execution is policy-based and starts from allow-listed diagnostic operations.
 - Path-based operations should be constrained with `AllowedRoots` and `SpecialPaths`.
 - Secrets must not be displayed through MCP tools.
+- Operations that may change remote state should use dedicated commands, policy checks, and explicit confirmation where applicable.
 
 ## User Responsibilities
 
