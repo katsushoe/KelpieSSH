@@ -19,10 +19,10 @@
     <Company>Akatsukisoft</Company>
     <Copyright>Copyright (c) 2026 Akatsukisoft</Copyright>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-    <Version>0.1.34.0</Version>
-    <AssemblyVersion>0.1.34.0</AssemblyVersion>
-    <FileVersion>0.1.34.0</FileVersion>
-    <InformationalVersion>0.1.34.0</InformationalVersion>
+    <Version>0.1.34.1</Version>
+    <AssemblyVersion>0.1.34.1</AssemblyVersion>
+    <FileVersion>0.1.34.1</FileVersion>
+    <InformationalVersion>0.1.34.1</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <OutputType>Exe</OutputType>
     <RootNamespace>KelpieMCPServer</RootNamespace>

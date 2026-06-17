@@ -38,7 +38,7 @@ public static class KelpieServerCommandRunner
         {
             var started = startWindowsServiceAsync is not null
                 ? await startWindowsServiceAsync()
-                : await StartWindowsServiceAndWriteFailureAsync(options.ReloadProfileNames);
+                : await StartWindowsServiceAndWriteFailureAsync(options.ReloadConfig, options.ReloadProfileNames);
             if (!started)
             {
                 return;
@@ -51,7 +51,7 @@ public static class KelpieServerCommandRunner
 
         var serverCommand = AddServerArguments(
             ResolveServerCommand(options),
-            options.ReloadProfileNames.Select(profileName => "--reload:" + profileName));
+            CreateServerStartArguments(options));
         StartServerProcess(serverCommand);
         KpLog.Info("KelpieMCPServer start requested.");
         Console.WriteLine("KelpieMCPServer start requested.");
@@ -743,17 +743,19 @@ public static class KelpieServerCommandRunner
 
     private static Task<bool> StartWindowsServiceAndWriteFailureAsync()
     {
-        return StartWindowsServiceAndWriteFailureAsync([]);
+        return StartWindowsServiceAndWriteFailureAsync(reloadConfig: false, []);
     }
 
-    private static async Task<bool> StartWindowsServiceAndWriteFailureAsync(IReadOnlyCollection<string> reloadProfileNames)
+    private static async Task<bool> StartWindowsServiceAndWriteFailureAsync(
+        bool reloadConfig,
+        IReadOnlyCollection<string> reloadProfileNames)
     {
         var arguments = new List<string>
         {
             "start",
             WindowsServiceName,
         };
-        arguments.AddRange(reloadProfileNames.Select(profileName => "--reload:" + profileName));
+        arguments.AddRange(CreateServerStartArguments(reloadConfig, reloadProfileNames));
 
         var result = await RunScAsync(arguments.ToArray());
         if (result.ExitCode == 0)
@@ -843,6 +845,25 @@ public static class KelpieServerCommandRunner
         }
 
         Environment.ExitCode = result.ExitCode == 0 ? 1 : result.ExitCode;
+    }
+
+    private static IReadOnlyCollection<string> CreateServerStartArguments(KelpieMcpServerOptions options)
+    {
+        return CreateServerStartArguments(options.ReloadConfig, options.ReloadProfileNames);
+    }
+
+    private static IReadOnlyCollection<string> CreateServerStartArguments(
+        bool reloadConfig,
+        IReadOnlyCollection<string> reloadProfileNames)
+    {
+        var arguments = new List<string>();
+        if (reloadConfig)
+        {
+            arguments.Add("--reload-config");
+        }
+
+        arguments.AddRange(reloadProfileNames.Select(profileName => "--reload-profile:" + profileName));
+        return arguments;
     }
 
     private sealed record ServerCommand(string FileName, string Arguments, string WorkingDirectory);

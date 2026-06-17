@@ -179,6 +179,64 @@ public sealed class SshConnectionProfileCatalogTests
     }
 
     [Fact]
+    public void TrustStore_ShouldStoreConfigHash()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        var configPath = Path.Combine(directory, "kelpiemcp.json");
+        File.WriteAllText(configPath, """{"Server":{"Port":45432}}""");
+        var expectedHash = SshProfileTrustStore.ComputeFileHash(configPath);
+
+        var trustStore = SshProfileTrustStore.Load(trustStorePath);
+        trustStore.SetConfigHash(expectedHash);
+        trustStore.Save(trustStorePath);
+        var loaded = SshProfileTrustStore.Load(trustStorePath);
+
+        loaded.TryGetConfigHash(out var actualHash).Should().BeTrue();
+        actualHash.Should().Be(expectedHash);
+    }
+
+    [Fact]
+    public void TrustStore_ShouldDetectConfigHashMismatch()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        var configPath = Path.Combine(directory, "kelpiemcp.json");
+        File.WriteAllText(configPath, """{"Server":{"Port":45432}}""");
+        var trustStore = SshProfileTrustStore.Load(trustStorePath);
+        trustStore.SetConfigHash(SshProfileTrustStore.ComputeFileHash(configPath));
+        trustStore.Save(trustStorePath);
+
+        File.WriteAllText(configPath, """{"Server":{"Port":45433}}""");
+        var loaded = SshProfileTrustStore.Load(trustStorePath);
+        var currentHash = SshProfileTrustStore.ComputeFileHash(configPath);
+
+        loaded.TryGetConfigHash(out var trustedHash).Should().BeTrue();
+        trustedHash.Should().NotBe(currentHash);
+    }
+
+    [Fact]
+    public void TrustStore_ShouldAcceptConfigHashUpdate()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        var configPath = Path.Combine(directory, "kelpiemcp.json");
+        File.WriteAllText(configPath, """{"Server":{"Port":45432}}""");
+        var trustStore = SshProfileTrustStore.Load(trustStorePath);
+        trustStore.SetConfigHash(SshProfileTrustStore.ComputeFileHash(configPath));
+        trustStore.Save(trustStorePath);
+
+        File.WriteAllText(configPath, """{"Server":{"Port":45433}}""");
+        var reloadedStore = SshProfileTrustStore.Load(trustStorePath);
+        reloadedStore.SetConfigHash(SshProfileTrustStore.ComputeFileHash(configPath));
+        reloadedStore.Save(trustStorePath);
+        var loaded = SshProfileTrustStore.Load(trustStorePath);
+
+        loaded.TryGetConfigHash(out var trustedHash).Should().BeTrue();
+        trustedHash.Should().Be(SshProfileTrustStore.ComputeFileHash(configPath));
+    }
+
+    [Fact]
     public void ToProfile_ShouldResolveRelativePrivateKeyPath()
     {
         var options = new SshConnectionProfileOptions

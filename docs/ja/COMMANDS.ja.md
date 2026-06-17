@@ -9,7 +9,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 
 | Group | Command | 内容 |
 | :--- | :--- | :--- |
-| MCP server control | `kelpiemcp start [--reload:<profile>]`, `kelpiemcp stop`, `kelpiemcp status` | `KelpieMCPServer` の起動、停止、状態確認を行う。 |
+| MCP server control | `kelpiemcp start [--reload-config] [--reload-profile:<profile>]`, `kelpiemcp stop`, `kelpiemcp status` | `KelpieMCPServer` の起動、停止、状態確認を行う。 |
 | MCP Windows Service | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Windows Service 登録、登録解除、登録状態確認を行う。 |
 | MCP password session | `kelpiemcp password`, `kelpiemcp forget` | 起動中の MCP server に SSH パスワードを一時保存、削除する。 |
 | Compatibility | `kelpiemcp login`, `kelpiemcp logout` | 旧名互換。新規利用では `password` / `forget` を使う。 |
@@ -66,26 +66,33 @@ SSHプロファイルの認証設定は、同じ `profiles/<profile>.json` の�
 構文:
 
 ```powershell
-kelpiemcp start [--reload:<profile>]
+kelpiemcp start [--reload-config] [--reload-profile:<profile>]
 ```
 
 引数詳細:
 
 | 引数 | 必須 | 説明 |
 | :--- | :---: | :--- |
-| `--reload:<profile>` | no | 管理者が編集済み SSH profile を明示的に再読み込み対象として指定する。対象 profile の JSON が正常な場合、その内容を今回の起動で採用し、次回起動時の trust store 基準 hash として更新する。複数 profile を指定する場合は、このオプションを繰り返す。 |
+| `--reload-config` | no | 管理者が編集済み `config/kelpiemcp.json` を明示的に信頼更新対象として指定する。現在の設定内容を今回の起動で採用し、次回起動時の trust store 基準 hash として更新する。 |
+| `--reload-profile:<profile>` | no | 管理者が編集済み SSH profile を明示的に再読み込み対象として指定する。対象 profile の JSON が正常な場合、その内容を今回の起動で採用し、次回起動時の trust store 基準 hash として更新する。複数 profile を指定する場合は、このオプションを繰り返す。 |
 
 引数サンプル:
 
 ```powershell
-kelpiemcp start --reload:vps01
+kelpiemcp start --reload-profile:vps01
+```
+
+MCPサーバー設定を正規に編集した後の例:
+
+```powershell
+kelpiemcp start --reload-config
 ```
 
 処理内容:
 
 起動中でなければ `KelpieMCPServer` の起動を要求します。Windows で `KelpieMCPServer` が Windows Service として登録済みの場合は Windows Service を開始します。この場合は管理者権限のターミナルから実行してください。未登録の場合は通常のローカルプロセスとして起動します。すでに起動中の場合は二重起動せず、起動中であることを返します。
 
-MCPサーバー起動時は、SSH profile ファイルの hash を protected trust store と照合します。通常起動で hash が一致しない profile は load エラーになり、他の profile はロード継続します。正規に profile を編集した場合は、`--reload:<profile>` を指定して起動します。対象 profile の JSON が正常な場合だけ trust store を更新します。trust store の復号または認証に失敗した場合、MCPサーバーは起動失敗します。起動ユーザーは全 profile に不正がないことを確認し、trust store を退避または削除して再起動します。削除した場合、次回起動時に全 profile が新規 baseline として登録されます。
+MCPサーバー起動時は、`kelpiemcp.json` と SSH profile ファイルの hash を protected trust store と照合します。通常起動で `kelpiemcp.json` の hash が一致しない場合、MCPサーバーは起動失敗します。通常起動で hash が一致しない profile は load エラーになり、他の profile はロード継続します。正規に `kelpiemcp.json` を編集した場合は `--reload-config`、正規に profile を編集した場合は `--reload-profile:<profile>` を指定して起動します。対象 profile の JSON が正常な場合だけ trust store を更新します。trust store の復号または認証に失敗した場合、MCPサーバーは起動失敗します。起動ユーザーは `kelpiemcp.json` と全 profile に不正がないことを確認し、trust store を退避または削除して再起動します。削除した場合、次回起動時に現在の `kelpiemcp.json` と全 profile が新規 baseline として登録されます。
 
 戻り値:
 
@@ -124,8 +131,10 @@ KelpieMCPServer is already running.
 
 安全メモ:
 
-- `--reload:<profile>` は、編集した profile が意図した内容であり、不正変更がないことを確認してから使う。
-- trust store を削除すると、次回起動時に全 profile が信頼済み baseline として再登録される。
+- `--reload-config` は、編集した MCPサーバー設定が意図した内容であり、不正変更がないことを確認してから使う。
+- `--reload-profile:<profile>` は、編集した profile が意図した内容であり、不正変更がないことを確認してから使う。
+- trust store を削除すると、次回起動時に現在の `kelpiemcp.json` と全 profile が信頼済み baseline として再登録される。
+- 共有PC、第三者が操作可能な端末、VPS上での運用では、`kelpiemcp`、`kelpiemcp.json`、profile JSON、`mcp_profile_trust.dat` のOS権限を管理者または運用管理者グループに制限すると、より強固に守れる。
 
 ### `kelpiemcp stop`
 

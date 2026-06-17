@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace KelpieSSH.Application.Ssh;
 
 /// <summary>
-/// Stores trusted SSH profile hashes in an AES-GCM protected file.
+/// Stores trusted MCP configuration and SSH profile hashes in an AES-GCM protected file.
 /// </summary>
 public sealed class SshProfileTrustStore
 {
@@ -19,9 +19,13 @@ public sealed class SshProfileTrustStore
     };
 
     private readonly Dictionary<string, SshProfileTrustEntry> _profiles;
+    private SshConfigTrustEntry? _config;
 
-    private SshProfileTrustStore(Dictionary<string, SshProfileTrustEntry> profiles)
+    private SshProfileTrustStore(
+        SshConfigTrustEntry? config,
+        Dictionary<string, SshProfileTrustEntry> profiles)
     {
+        _config = config;
         _profiles = profiles;
     }
 
@@ -44,7 +48,9 @@ public sealed class SshProfileTrustStore
 
         if (!File.Exists(filePath))
         {
-            return new SshProfileTrustStore(new Dictionary<string, SshProfileTrustEntry>(StringComparer.OrdinalIgnoreCase))
+            return new SshProfileTrustStore(
+                null,
+                new Dictionary<string, SshProfileTrustEntry>(StringComparer.OrdinalIgnoreCase))
             {
                 FileExisted = false,
             };
@@ -74,7 +80,7 @@ public sealed class SshProfileTrustStore
                 .Where(entry => !string.IsNullOrWhiteSpace(entry.Name))
                 .ToDictionary(entry => entry.Name, StringComparer.OrdinalIgnoreCase);
 
-            return new SshProfileTrustStore(profiles)
+            return new SshProfileTrustStore(manifest.Config, profiles)
             {
                 FileExisted = true,
             };
@@ -109,6 +115,7 @@ public sealed class SshProfileTrustStore
 
         var manifest = new TrustStoreManifest
         {
+            Config = _config,
             Profiles = _profiles.Values
                 .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
                 .ToArray(),
@@ -124,13 +131,39 @@ public sealed class SshProfileTrustStore
 
         var envelope = new EncryptedTrustStoreEnvelope
         {
-            Version = 1,
+            FormatVersion = 1,
             Nonce = Convert.ToBase64String(nonce),
             Tag = Convert.ToBase64String(tag),
             Ciphertext = Convert.ToBase64String(ciphertext),
         };
 
         File.WriteAllText(filePath, JsonSerializer.Serialize(envelope, JsonOptions));
+    }
+
+    /// <summary>
+    /// Tries to get the trusted hash for the MCP server configuration file.
+    /// </summary>
+    /// <param name="hashSha256">The trusted SHA-256 hash.</param>
+    /// <returns><c>true</c> when a trusted hash exists.</returns>
+    public bool TryGetConfigHash(out string hashSha256)
+    {
+        if (_config is not null)
+        {
+            hashSha256 = _config.HashSha256;
+            return true;
+        }
+
+        hashSha256 = string.Empty;
+        return false;
+    }
+
+    /// <summary>
+    /// Stores the trusted hash for the MCP server configuration file.
+    /// </summary>
+    /// <param name="hashSha256">The SHA-256 hash.</param>
+    public void SetConfigHash(string hashSha256)
+    {
+        _config = new SshConfigTrustEntry(hashSha256);
     }
 
     /// <summary>
@@ -158,10 +191,7 @@ public sealed class SshProfileTrustStore
     /// <param name="hashSha256">The SHA-256 hash.</param>
     public void SetHash(string profileName, string hashSha256)
     {
-        _profiles[profileName] = new SshProfileTrustEntry(
-            profileName,
-            hashSha256,
-            DateTimeOffset.UtcNow);
+        _profiles[profileName] = new SshProfileTrustEntry(profileName, hashSha256);
     }
 
     /// <summary>
@@ -181,14 +211,16 @@ public sealed class SshProfileTrustStore
 
     private sealed class TrustStoreManifest
     {
-        public int Version { get; init; } = 1;
+        public int FormatVersion { get; init; } = 2;
+
+        public SshConfigTrustEntry? Config { get; init; }
 
         public IReadOnlyCollection<SshProfileTrustEntry> Profiles { get; init; } = [];
     }
 
     private sealed class EncryptedTrustStoreEnvelope
     {
-        public int Version { get; init; }
+        public int FormatVersion { get; init; }
 
         public string Nonce { get; init; } = string.Empty;
 
@@ -199,12 +231,16 @@ public sealed class SshProfileTrustStore
 }
 
 /// <summary>
+/// Represents the trusted MCP server configuration file hash.
+/// </summary>
+/// <param name="HashSha256">The trusted configuration file SHA-256 hash.</param>
+public sealed record SshConfigTrustEntry(string HashSha256);
+
+/// <summary>
 /// Represents one trusted SSH profile hash entry.
 /// </summary>
 /// <param name="Name">The profile name.</param>
 /// <param name="HashSha256">The trusted profile file SHA-256 hash.</param>
-/// <param name="TrustedAtUtc">The time when the hash was trusted.</param>
 public sealed record SshProfileTrustEntry(
     string Name,
-    string HashSha256,
-    DateTimeOffset TrustedAtUtc);
+    string HashSha256);

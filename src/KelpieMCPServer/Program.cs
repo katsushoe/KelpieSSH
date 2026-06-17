@@ -29,8 +29,11 @@ builder.Host.UseWindowsService(options =>
 });
 
 builder.Configuration.Sources.Clear();
+var configFilePath = KelpieRuntimePaths.GetConfigFilePath(runtimeBaseDirectory, KelpieRuntimePaths.KelpieMcpConfigFileName);
+var trustStorePath = Path.Combine(KelpieRuntimePaths.GetDataDirectory(runtimeBaseDirectory), "mcp_profile_trust.dat");
+VerifyConfigurationTrust(configFilePath, trustStorePath, ResolveReloadConfig(args));
 builder.Configuration.AddJsonFile(
-    KelpieRuntimePaths.GetConfigFilePath(runtimeBaseDirectory, KelpieRuntimePaths.KelpieMcpConfigFileName),
+    configFilePath,
     optional: true,
     reloadOnChange: false);
 
@@ -55,7 +58,6 @@ if (string.IsNullOrWhiteSpace(controlPipeName))
 
 var serverUrl = $"http://127.0.0.1:{configuredPort.Value}";
 var profilesDirectory = KelpieRuntimePaths.GetProfilesDirectory(runtimeBaseDirectory);
-var trustStorePath = Path.Combine(KelpieRuntimePaths.GetDataDirectory(runtimeBaseDirectory), "mcp_profile_trust.dat");
 var reloadProfileNames = ResolveReloadProfileNames(args);
 
 builder.WebHost.UseUrls(serverUrl);
@@ -97,7 +99,7 @@ builder.Services
         options.ServerInfo = new()
         {
             Name = "KelpieSSH",
-            Version = "0.1.34.0",
+            Version = "0.1.34.1",
         };
     })
     .WithHttpTransport(options =>
@@ -170,10 +172,15 @@ static string ResolveRuntimeBaseDirectory(string[] args)
     return Environment.CurrentDirectory;
 }
 
+static bool ResolveReloadConfig(string[] args)
+{
+    return args.Any(arg => string.Equals(arg, "--reload-config", StringComparison.OrdinalIgnoreCase));
+}
+
 static IReadOnlyCollection<string> ResolveReloadProfileNames(string[] args)
 {
     var reloadProfileNames = new List<string>();
-    const string prefix = "--reload:";
+    const string prefix = "--reload-profile:";
     foreach (var arg in args)
     {
         if (!arg.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
@@ -191,4 +198,27 @@ static IReadOnlyCollection<string> ResolveReloadProfileNames(string[] args)
     return reloadProfileNames
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .ToArray();
+}
+
+static void VerifyConfigurationTrust(string configFilePath, string trustStorePath, bool reloadConfig)
+{
+    if (!File.Exists(configFilePath))
+    {
+        return;
+    }
+
+    var trustStore = SshProfileTrustStore.Load(trustStorePath);
+    var currentHash = SshProfileTrustStore.ComputeFileHash(configFilePath);
+    if (reloadConfig || !trustStore.TryGetConfigHash(out var trustedHash))
+    {
+        trustStore.SetConfigHash(currentHash);
+        trustStore.Save(trustStorePath);
+        return;
+    }
+
+    if (!string.Equals(currentHash, trustedHash, StringComparison.OrdinalIgnoreCase))
+    {
+        throw new InvalidOperationException(
+            "MCP server configuration hash does not match trusted baseline. Start with --reload-config to accept the current configuration.");
+    }
 }

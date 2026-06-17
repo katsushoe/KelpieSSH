@@ -28,6 +28,11 @@ public sealed class KelpieMcpServerOptions
     public string? ServerWorkingDirectory { get; init; }
 
     /// <summary>
+    /// Gets a value indicating whether the MCP server configuration file is explicitly accepted for this server start.
+    /// </summary>
+    public bool ReloadConfig { get; init; }
+
+    /// <summary>
     /// Gets the profile names explicitly accepted for this server start.
     /// </summary>
     public IReadOnlyCollection<string> ReloadProfileNames { get; init; } = [];

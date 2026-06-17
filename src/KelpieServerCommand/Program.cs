@@ -22,7 +22,10 @@ var command = args.Length > 0 ? args[0] : string.Empty;
 if (string.Equals(command, "start", StringComparison.OrdinalIgnoreCase))
 {
     KpLog.Info("KelpieServerCommand start requested.");
-    var options = CreateStartOptions(configuration, ParseReloadProfileNames(args.Skip(1)));
+    var options = CreateStartOptions(
+        configuration,
+        ParseReloadConfig(args.Skip(1)),
+        ParseReloadProfileNames(args.Skip(1)));
     await KelpieServerCommandRunner.StartAsync(options);
     return;
 }
@@ -119,6 +122,7 @@ static KelpieMcpServerOptions CreateOptions(IConfiguration configuration)
 
 static KelpieMcpServerOptions CreateStartOptions(
     IConfiguration configuration,
+    bool reloadConfig,
     IReadOnlyCollection<string> reloadProfileNames)
 {
     var options = KelpieMcpServerOptions.FromConfiguration(configuration);
@@ -128,14 +132,20 @@ static KelpieMcpServerOptions CreateStartOptions(
         ServerPort = options.ServerPort,
         ServerExecutablePath = options.ServerExecutablePath,
         ServerWorkingDirectory = options.ServerWorkingDirectory,
+        ReloadConfig = reloadConfig,
         ReloadProfileNames = reloadProfileNames,
     };
+}
+
+static bool ParseReloadConfig(IEnumerable<string> args)
+{
+    return args.Any(arg => string.Equals(arg, "--reload-config", StringComparison.OrdinalIgnoreCase));
 }
 
 static IReadOnlyCollection<string> ParseReloadProfileNames(IEnumerable<string> args)
 {
     var reloadProfileNames = new List<string>();
-    const string prefix = "--reload:";
+    const string prefix = "--reload-profile:";
     foreach (var arg in args)
     {
         if (!arg.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
@@ -163,7 +173,7 @@ static void ShowUsage(string command)
     }
 
     Console.Error.WriteLine("Usage:");
-    Console.Error.WriteLine("  kelpiemcp start [--reload:<profile>]");
+    Console.Error.WriteLine("  kelpiemcp start [--reload-config] [--reload-profile:<profile>]");
     Console.Error.WriteLine("  kelpiemcp stop");
     Console.Error.WriteLine("  kelpiemcp status");
     Console.Error.WriteLine("  kelpiemcp service register");
