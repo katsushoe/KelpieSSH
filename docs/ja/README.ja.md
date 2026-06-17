@@ -276,7 +276,7 @@ kelpie logs vps01 nginx.service
 kelpie logs vps01 nginx.service 200
 ```
 
-現時点では、`kelpie diag` と `kelpie logs` は CLI プロセスから SSH コマンドを直接実行し、秘密鍵 profile を主な対象とします。`kelpie status` はローカル MCP サーバーの状態も表示できますが、上記 command-line tools の利用に MCP サーバーは不要です。
+`kelpie login`、`kelpie diag`、`kelpie logs` は CLI プロセスから SSH 操作を直接実行します。password profile の場合、CLI は実行時にパスワードを尋ね、現在の command process 内にだけ保持します。`kelpie status` はローカル MCP サーバーの状態も表示できますが、上記 command-line tools の利用に MCP サーバーは不要です。
 
 ## セキュリティ
 
@@ -284,7 +284,7 @@ KelpieSSH は、読み取り中心の診断と許可リスト方式の SSH コ�
 
 実ホスト名、実ユーザー名、パスワード、passphrase、秘密鍵、本番 profile ファイルをコミットしないでください。実際の `profiles/*.json`、`keys/`、`dat/`、`logs/` は公開リポジトリの外に置いてください。
 
-パスワード認証は runtime のみで扱います。`kelpie login` は現在の CLI login プロセス用にパスワードを尋ね、`kelpiemcp password <profile>` は実行中の `KelpieMCPServer` プロセス内にのみパスワードを保持します。平文パスワードを JSON 設定ファイルに保存してはいけません。
+パスワード認証は runtime のみで扱います。CLI SSH command は現在の command process 用にパスワードを尋ね、`kelpiemcp password <profile>` は実行中の `KelpieMCPServer` プロセス内にのみパスワードを保持します。平文パスワードを JSON 設定ファイルに保存してはいけません。
 
 脆弱性報告と対応対象 version の方針は [SECURITY.ja.md](SECURITY.ja.md) を参照してください。
 

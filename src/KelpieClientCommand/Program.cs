@@ -518,7 +518,7 @@ static async Task RunDiagnosticsAsync(SshConnectionProfileCatalog catalog, strin
         return;
     }
 
-    var service = CreateSshCommandService();
+    var service = CreateSshCommandService(profile);
     var commandNames = new[]
     {
         "get_system_info",
@@ -553,7 +553,7 @@ static async Task RunLogsAsync(
         return;
     }
 
-    var service = CreateSshCommandService();
+    var service = CreateSshCommandService(profile);
     await ExecuteAndPrintAsync(
         service,
         profile,
@@ -659,9 +659,12 @@ static string ReadPasswordFromConsole(string profileName)
     }
 }
 
-static SshCommandService CreateSshCommandService()
+static SshCommandService CreateSshCommandService(SshConnectionProfile profile)
 {
-    return new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), new SshNetCommandRunner());
+    var passwordProvider = CreateCliPasswordProvider(profile);
+    return new SshCommandService(
+        CommandProcessingProviderCatalog.CreateDefault(),
+        passwordProvider is null ? new SshNetCommandRunner() : new SshNetCommandRunner(passwordProvider));
 }
 
 static async Task ExecuteAndPrintAsync(

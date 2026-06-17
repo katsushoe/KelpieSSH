@@ -103,6 +103,7 @@ kelpie diag vps01
 ```
 
 This command requires a reachable SSH target and valid authentication.
+For password profiles, the CLI prompts for the password once and reuses it for all diagnostic commands in the current `kelpie diag` process.
 
 ### `kelpie logs <profile> <service> [lines]`
 
@@ -114,6 +115,7 @@ kelpie logs vps01 nginx.service 200
 ```
 
 The service name and line count are validated before command execution.
+For password profiles, the CLI prompts for the password for the current `kelpie logs` process.
 
 ### `kelpie cli`
 

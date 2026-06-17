@@ -786,6 +786,7 @@ kelpie diag vps01
 処理内容:
 
 対象プロファイルに対して、許可済み診断コマンドをまとめて SSH 実行します。
+password profile の場合、CLI は最初に1回だけパスワードを尋ね、現在の `kelpie diag` プロセス内で各診断コマンドに使い回します。
 
 実行結果サンプル:
 
@@ -833,6 +834,7 @@ kelpie logs vps01 nginx.service 200
 処理内容:
 
 対象プロファイルで `tail_log` 相当の許可済み SSH コマンドを実行し、指定 service のログを取得します。
+password profile の場合、CLI は現在の `kelpie logs` プロセス用にパスワードを尋ねます。
 
 実行結果サンプル:
 
