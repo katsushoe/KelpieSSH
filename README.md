@@ -227,22 +227,34 @@ Set the host, user, authentication method, and private key file name or password
 
 ## MCP server
 
-Start the local MCP server before connecting from Codex.
+The MCP server is the local bridge between Codex and KelpieSSH. Codex connects to this server over Streamable HTTP, and the server then runs the allowed KelpieSSH operations against the configured SSH profiles.
+
+Start the MCP server when you want Codex or another MCP client to use KelpieSSH tools. For normal terminal-only use, such as `kelpie open vps01` or `kelpie status vps01`, the MCP server is not required.
+
+Start the local MCP server before connecting from Codex:
 
 ```powershell
 kelpiemcp start
 ```
 
-Stop it with:
-
-```powershell
-kelpiemcp stop
-```
-
-Check the local server status with:
+Check that it is running:
 
 ```powershell
 kelpiemcp status
+```
+
+By default, `KelpieMCPServer` listens on port `45432` and exposes the MCP endpoint at:
+
+```text
+http://127.0.0.1:45432/mcp
+```
+
+The port is configured in `config/kelpiemcp.json`. Add this URL to Codex after the server is running.
+
+Stop the MCP server when you no longer need MCP access:
+
+```powershell
+kelpiemcp stop
 ```
 
 For password-based SSH profiles, store or clear the password in the running server session with:
@@ -282,14 +294,6 @@ kelpie logs vps01 nginx.service 200
 At this stage, `kelpie diag` and `kelpie logs` run SSH commands directly from the CLI process and are intended for private-key profiles. `kelpiemcp password` stores password authentication only in the running `KelpieMCPServer` session.
 
 The password is sent to the running `KelpieMCPServer` over the local control pipe and kept only in memory for that server process.
-
-By default, `KelpieMCPServer` listens on port `45432` and exposes the MCP endpoint at:
-
-```text
-http://127.0.0.1:45432/mcp
-```
-
-The port is configured in `config/kelpiemcp.json`.
 
 ## Security
 

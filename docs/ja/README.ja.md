@@ -227,22 +227,34 @@ Profile の記述方法の詳細は [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) �
 
 ## MCP サーバー
 
+MCP サーバーは、Codex と KelpieSSH をつなぐローカルの橋渡しです。Codex は Streamable HTTP でこのサーバーに接続し、サーバーは設定済み SSH profile に対して許可された KelpieSSH 操作を実行します。
+
+Codex やほかの MCP client から KelpieSSH tools を使う場合に MCP サーバーを起動します。`kelpie open vps01` や `kelpie status vps01` のような通常のターミナル利用だけであれば、MCP サーバーは不要です。
+
 Codex から接続する前に、ローカル MCP サーバーを起動します。
 
 ```powershell
 kelpiemcp start
 ```
 
-停止するには次を実行します。
-
-```powershell
-kelpiemcp stop
-```
-
-ローカル サーバーの状態を確認します。
+起動していることを確認します。
 
 ```powershell
 kelpiemcp status
+```
+
+既定では、`KelpieMCPServer` は port `45432` で待ち受け、次の MCP endpoint を公開します。
+
+```text
+http://127.0.0.1:45432/mcp
+```
+
+port は `config/kelpiemcp.json` で設定します。サーバー起動後、この URL を Codex に追加します。
+
+MCP access が不要になったら、MCP サーバーを停止します。
+
+```powershell
+kelpiemcp stop
 ```
 
 パスワード認証の SSH profile を使う場合は、実行中のサーバー セッションにパスワードを保存または削除します。
@@ -282,14 +294,6 @@ kelpie logs vps01 nginx.service 200
 現時点では、`kelpie diag` と `kelpie logs` は CLI プロセスから SSH コマンドを直接実行し、秘密鍵 profile を主な対象とします。`kelpiemcp password` は実行中の `KelpieMCPServer` セッションにのみパスワード認証情報を保存します。
 
 パスワードはローカル control pipe を通して実行中の `KelpieMCPServer` へ送られ、そのサーバー プロセスのメモリ内にのみ保持されます。
-
-既定では、`KelpieMCPServer` は port `45432` で待ち受け、次の MCP endpoint を公開します。
-
-```text
-http://127.0.0.1:45432/mcp
-```
-
-port は `config/kelpiemcp.json` で設定します。
 
 ## セキュリティ
 
