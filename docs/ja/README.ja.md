@@ -30,13 +30,13 @@ KelpieSSH の使い方に合わせて導入方法を選びます。
 
 インストール後、新しいターミナルを開いてください。
 
-ローカルの Kelpie ディレクトリ構成を初期化します。
+ローカルの Kelpie 設定ファイルを作成します。
 
 ```powershell
 kelpie init
 ```
 
-`kelpie init` はコマンド ディレクトリの親ディレクトリを Kelpie home として扱います。既定の MSI 構成では、`bin` の1つ上のディレクトリが home です。
+`kelpie init` は、Kelpie home 配下に設定、profile、key、data、log 用のディレクトリを作成します。
 
 初期化時に名前付き SSH profile を作成するには、次のように実行します。
 
@@ -83,13 +83,13 @@ kelpie version
 kelpiemcp status
 ```
 
-ローカルの Kelpie ディレクトリ構成を初期化します。
+ローカルの Kelpie 設定ファイルを作成します。
 
 ```powershell
 D:\Kelpie\bin\kelpie.exe init
 ```
 
-`D:\Kelpie\bin\kelpie.exe` から `kelpie init` を実行した場合、`D:\Kelpie` 配下に次の構成が作成されます。
+`D:\Kelpie\bin\kelpie.exe` から `kelpie init` を実行した場合、`D:\Kelpie` 配下に次のファイルとディレクトリが作成されます。
 
 ```text
 D:\Kelpie

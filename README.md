@@ -30,13 +30,13 @@ For normal use, download the KelpieSSH `.msi` installer from GitHub Releases and
 
 After installation, open a new terminal.
 
-Initialize the local Kelpie directory layout:
+Create the local Kelpie settings files:
 
 ```powershell
 kelpie init
 ```
 
-`kelpie init` uses the parent directory of the command directory as Kelpie home. With the default MSI layout, the home directory is the directory above `bin`.
+`kelpie init` creates the local configuration, profile, key, data, and log directories under Kelpie home.
 
 To create a named SSH profile at initialization time:
 
@@ -83,13 +83,13 @@ kelpie version
 kelpiemcp status
 ```
 
-Initialize the local Kelpie directory layout:
+Create the local Kelpie settings files:
 
 ```powershell
 D:\Kelpie\bin\kelpie.exe init
 ```
 
-`kelpie init` uses the parent directory of the command directory as Kelpie home. With `D:\Kelpie\bin\kelpie.exe`, it creates files under `D:\Kelpie`:
+With `D:\Kelpie\bin\kelpie.exe`, `kelpie init` creates files under `D:\Kelpie`:
 
 ```text
 D:\Kelpie
