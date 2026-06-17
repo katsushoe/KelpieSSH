@@ -7,6 +7,23 @@ namespace KelpieSSH.Application.Tests.Ssh;
 public sealed class KelpieToolsSshTests
 {
     [Fact]
+    public void ReloadProfiles_ShouldReloadProfileCatalog()
+    {
+        var directory = CreateTempDirectory();
+        File.WriteAllText(Path.Combine(directory, "vps01.json"), CreateProfileJson("deploy"));
+        var profiles = new ReloadingSshConnectionProfileCatalog(directory);
+        File.WriteAllText(Path.Combine(directory, "vps02.json"), CreateProfileJson("ops"));
+
+        var result = KelpieTools.ReloadProfiles(profiles);
+
+        result.Success.Should().BeTrue();
+        result.ProfileCount.Should().Be(2);
+        result.ProfileNames.Should().Equal("vps01", "vps02");
+        profiles.TryGet("vps02", out var profile).Should().BeTrue();
+        profile.UserName.Should().Be("ops");
+    }
+
+    [Fact]
     public async Task GetSshSystemInfoAsync_ShouldUseNamedProfile()
     {
         var profile = CreateProfile("vps01");
@@ -2894,6 +2911,33 @@ public sealed class KelpieToolsSshTests
     private static SshCommandService CreateProviderBackedService(ISshCommandRunner runner)
     {
         return new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+    }
+
+    private static string CreateTempDirectory()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "kelpie-profiles-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        return directory;
+    }
+
+    private static string CreateProfileJson(string userName)
+    {
+        return $$"""
+        {
+          "Host": {
+            "Address": "example.invalid"
+          },
+          "Auth": {
+            "UserName": "{{userName}}",
+            "Method": "privateKey",
+            "PrivateKeyFile": "id_ed25519"
+          },
+          "Platform": {
+            "OsFamily": "debian",
+            "PackageManager": "apt"
+          }
+        }
+        """;
     }
 
     private sealed class FakeSshCommandRunner : ISshCommandRunner

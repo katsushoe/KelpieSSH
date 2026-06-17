@@ -47,6 +47,8 @@ port と server options は次のファイルで設定します。
 
 既定の server port は `45432` です。
 
+Profiles は MCP サーバー起動時にメモリへ読み込まれます。`<KelpieHome>\profiles` 配下のファイルを編集した後は、MCP client から `profile_reload` MCP tool を呼び出すと、サーバーを再起動せずに in-memory profile catalog を再読み込みできます。`kelpiemcp.json` の変更後は引き続き server restart が必要です。
+
 ## サーバー起動
 
 Codex、Claude、またはほかの MCP client から接続する前に、ローカル MCP サーバーを起動します。

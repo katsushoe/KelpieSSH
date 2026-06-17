@@ -64,9 +64,9 @@ builder.Logging.AddConsole(options =>
 });
 
 builder.Services.AddSingleton(new KelpieServerControlOptions(controlPipeName));
-builder.Services.AddSingleton<ISshConnectionProfileCatalog>(
-    new SshConnectionProfileCatalog(
-        SshConnectionProfileFileLoader.LoadDirectory(profilesDirectory)));
+builder.Services.AddSingleton(new ReloadingSshConnectionProfileCatalog(profilesDirectory));
+builder.Services.AddSingleton<ISshConnectionProfileCatalog>(serviceProvider =>
+    serviceProvider.GetRequiredService<ReloadingSshConnectionProfileCatalog>());
 builder.Services.AddSingleton(CommandProcessingProviderCatalog.CreateDefault());
 builder.Services.AddSingleton(ServiceConfigPathsProviderCatalog.CreateDefault());
 builder.Services.AddSingleton<IWebPublicFileProvider, WebPublicFileProvider>();
@@ -86,7 +86,7 @@ builder.Services
         options.ServerInfo = new()
         {
             Name = "KelpieSSH",
-            Version = "0.1.30.0",
+            Version = "0.1.32.0",
         };
     })
     .WithHttpTransport(options =>

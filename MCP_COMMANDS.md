@@ -50,6 +50,7 @@ This document describes the `name` and `arguments` used inside `tools/call`. In 
 | Group | Tools | Purpose |
 | :--- | :--- | :--- |
 | Server health | `kelpie_ping` | Verify that the MCP server is reachable. |
+| Profile management | `profile_reload` | Reload saved SSH profiles from disk on demand. |
 | Local diagnostics | `get_system_info`, `get_disk_usage`, `get_memory_usage`, `get_listening_ports` | Inspect the local host running `KelpieMCPServer`. |
 | Capabilities and inventory | `ssh_get_capabilities`, `get_target_inventory` | Inspect target command/tool support and installed helper/software inventory. |
 | SSH diagnostics | `ssh_get_system_info`, `ssh_get_os_release`, `ssh_get_uptime`, `ssh_get_disk_usage`, `ssh_get_memory_usage`, `ssh_get_process_summary`, `ssh_get_inode_usage`, `ssh_get_mounts`, `ssh_get_network_addresses`, `ssh_get_routes`, `ssh_get_dns_config`, `ssh_check_http_local`, `ssh_check_tcp_connect_local`, `ssh_get_listening_ports`, `ssh_get_failed_services`, `ssh_get_journal_recent`, `ssh_tail_log` | Run allow-listed read-oriented diagnostics over SSH. |
@@ -136,6 +137,48 @@ KelpieSSH MCP server is running.
 Safety notes:
 
 - Read-only.
+
+### `profile_reload`
+
+Purpose:
+
+Reloads saved SSH profile JSON files from the Kelpie profiles directory without restarting `KelpieMCPServer`.
+
+Input arguments:
+
+- None.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "profile_reload",
+  "arguments": {}
+}
+```
+
+Execution:
+
+The MCP server rereads `KelpieHome/profiles/*.json` and replaces the in-memory profile catalog only when reload succeeds. If reload fails because a profile JSON file is invalid or cannot be read, the last successfully loaded profile catalog remains active.
+
+Result sample:
+
+```json
+{
+  "Success": true,
+  "ProfilesDirectory": "D:\\Kelpie\\profiles",
+  "ProfileCount": 2,
+  "ProfileNames": ["vps01", "vps02"],
+  "ErrorMessage": null
+}
+```
+
+Safety notes:
+
+- Read-only for remote SSH targets.
+- This tool changes only the MCP server's in-memory profile catalog.
+- Existing SSH terminal sessions keep their current connection. New tool calls use the reloaded profiles.
+- The tool does not reload `kelpiemcp.json`; restart the MCP server after changing server configuration.
 
 ### Local diagnostics
 

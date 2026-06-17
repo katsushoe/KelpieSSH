@@ -33,6 +33,69 @@ public sealed class SshConnectionProfileCatalogTests
     }
 
     [Fact]
+    public void ReloadingCatalog_ShouldLoadAddedProfileOnReload()
+    {
+        var directory = CreateTempDirectory();
+        File.WriteAllText(Path.Combine(directory, "vps01.json"), CreateProfileJson("deploy"));
+        var catalog = new ReloadingSshConnectionProfileCatalog(directory);
+
+        File.WriteAllText(Path.Combine(directory, "vps02.json"), CreateProfileJson("ops"));
+        catalog.TryGet("vps02", out _).Should().BeFalse();
+
+        var reload = catalog.Reload();
+
+        var result = catalog.TryGet("vps02", out var profile);
+
+        reload.Success.Should().BeTrue();
+        reload.ProfileNames.Should().Equal("vps01", "vps02");
+        result.Should().BeTrue();
+        profile.UserName.Should().Be("ops");
+    }
+
+    [Fact]
+    public void ReloadingCatalog_ShouldLoadUpdatedProfileOnReload()
+    {
+        var directory = CreateTempDirectory();
+        var profilePath = Path.Combine(directory, "vps01.json");
+        File.WriteAllText(profilePath, CreateProfileJson("deploy"));
+        var catalog = new ReloadingSshConnectionProfileCatalog(directory);
+
+        catalog.TryGet("vps01", out var first).Should().BeTrue();
+        first.UserName.Should().Be("deploy");
+        File.WriteAllText(profilePath, CreateProfileJson("ops"));
+        catalog.TryGet("vps01", out var beforeReload).Should().BeTrue();
+        beforeReload.UserName.Should().Be("deploy");
+
+        var reload = catalog.Reload();
+
+        var result = catalog.TryGet("vps01", out var second);
+
+        reload.Success.Should().BeTrue();
+        result.Should().BeTrue();
+        second.UserName.Should().Be("ops");
+    }
+
+    [Fact]
+    public void ReloadingCatalog_ShouldKeepLastGoodCatalogWhenReloadFails()
+    {
+        var directory = CreateTempDirectory();
+        var profilePath = Path.Combine(directory, "vps01.json");
+        File.WriteAllText(profilePath, CreateProfileJson("deploy"));
+        var catalog = new ReloadingSshConnectionProfileCatalog(directory);
+
+        File.WriteAllText(profilePath, "{ invalid json");
+        var reload = catalog.Reload();
+
+        var result = catalog.TryGet("vps01", out var profile);
+
+        reload.Success.Should().BeFalse();
+        reload.ErrorMessage.Should().NotBeNullOrWhiteSpace();
+        result.Should().BeTrue();
+        profile.UserName.Should().Be("deploy");
+        catalog.LastReloadError.Should().NotBeNull();
+    }
+
+    [Fact]
     public void ToProfile_ShouldResolveRelativePrivateKeyPath()
     {
         var options = new SshConnectionProfileOptions
@@ -355,6 +418,33 @@ public sealed class SshConnectionProfileCatalogTests
             PackageManager = "apt",
             Capabilities = PolicySet.Empty,
         };
+    }
+
+    private static string CreateTempDirectory()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "kelpie-profiles-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        return directory;
+    }
+
+    private static string CreateProfileJson(string userName)
+    {
+        return $$"""
+        {
+          "Host": {
+            "Address": "example.invalid"
+          },
+          "Auth": {
+            "UserName": "{{userName}}",
+            "Method": "privateKey",
+            "PrivateKeyFile": "id_ed25519"
+          },
+          "Platform": {
+            "OsFamily": "debian",
+            "PackageManager": "apt"
+          }
+        }
+        """;
     }
 
     private static SshConnectionProfileOptions CreateProfileOptions()

@@ -26,6 +26,8 @@ kelpie profile show vps01
 kelpie status vps01
 ```
 
+Terminal CLI commands は command flow ごとに profile file を読み取ります。`KelpieMCPServer` は起動中、profiles を in-memory catalog として保持します。MCP 利用中に profile JSON files を編集した場合は、`profile_reload` MCP tool を呼び出すか、MCP サーバーを再起動してください。
+
 ## Profile の作成
 
 名前付き profile を作成します。

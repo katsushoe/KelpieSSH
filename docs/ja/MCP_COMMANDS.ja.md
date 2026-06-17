@@ -40,13 +40,14 @@ HTTP request body は REST 形式ではなく JSON-RPC です。たとえば診�
 }
 ```
 
-この文書では、`tools/call` の中で指定する `name` と `arguments` を説明します。各 tool の引数サンプルは、JSON-RPC `tools/call` request の `params.arguments` に入る値です。AI 利用者は通常、内部の JSON-RPC 呼び出し方式までは意識せず、各 tool の動作と安全上の注意を確認すれば十分です。
+この文書では、`tools/call` の中で指定する `name` と `arguments` を説明します。各 tool の呼び出しサンプルは、JSON-RPC `tools/call` request の `params` に入る形を示します。AI 利用者は通常、内部の JSON-RPC 呼び出し方式までは意識せず、各 tool の動作と安全上の注意を確認すれば十分です。
 
 ## コマンド分類
 
 | 分類 | MCP tool | 内容 |
 | :--- | :--- | :--- |
 | サーバー疎通 | `kelpie_ping` | `KelpieMCPServer` の疎通確認。 |
+| profile 管理 | `profile_reload` | 保存済み SSH profiles を disk からオンデマンドで再読み込みする。 |
 | ローカル診断 | `get_system_info`, `get_disk_usage`, `get_memory_usage`, `get_listening_ports` | `KelpieMCPServer` 実行ホストの診断。 |
 | 機能可否確認 | `ssh_get_capabilities`, `get_target_inventory` | SSH 接続先 profile ごとの OS / command / tool 可否、helper / software inventory を確認する。 |
 | SSH 診断 | `ssh_get_system_info`, `ssh_get_os_release`, `ssh_get_uptime`, `ssh_get_disk_usage`, `ssh_get_memory_usage`, `ssh_get_process_summary`, `ssh_get_inode_usage`, `ssh_get_mounts`, `ssh_get_network_addresses`, `ssh_get_routes`, `ssh_get_dns_config`, `ssh_cron_list`, `ssh_cron_validate`, `ssh_cron_check_write`, `ssh_cron_write`, `ssh_cron_rollback`, `ssh_cert_inspect`, `ssh_cert_expiry_check`, `ssh_user_list`, `ssh_user_info`, `ssh_group_list`, `ssh_group_info`, `ssh_sudoers_check`, `ssh_user_usage_check`, `ssh_user_check_group_change`, `ssh_user_apply_group_change`, `ssh_user_rollback_group_change`, `ssh_user_check_permission_change`, `ssh_user_apply_permission_change`, `ssh_user_rollback_permission_change`, `ssh_user_file_ownership_check`, `ssh_user_service_usage_check`, `ssh_service_residual_config_check`, `ssh_support_report_collect`, `ssh_firewall_status`, `ssh_firewall_check_rule`, `ssh_firewall_apply_rule`, `ssh_backup_plan_check`, `ssh_backup_run`, `ssh_backup_verify`, `ssh_audit_verify`, `ssh_audit_export`, `ssh_check_http_local`, `ssh_check_tcp_connect_local`, `ssh_get_listening_ports`, `ssh_get_failed_services`, `ssh_get_journal_recent`, `ssh_tail_log`, `ssh_run_allowed_command`, `ssh_run_remote_operation` | 許可済み SSH 診断コマンドの実行。 |
@@ -106,6 +107,57 @@ KelpieSSH MCP server is running.
 安全上の注意:
 
 - 読み取り専用です。
+
+### `profile_reload`
+
+目的:
+
+`KelpieMCPServer` を再起動せずに、Kelpie profiles directory の保存済み SSH profile JSON files を再読み込みします。
+
+入力引数:
+
+- なし。
+
+呼び出しサンプル:
+
+```json
+{
+  "name": "profile_reload",
+  "arguments": {}
+}
+```
+
+確認文字列:
+
+- なし。
+
+処理内容:
+
+MCP server が `KelpieHome/profiles/*.json` を読み直し、reload が成功した場合だけ in-memory profile catalog を差し替えます。Profile JSON が不正、または読み取りに失敗した場合は、最後に正常読み込みした profile catalog を維持します。
+
+戻り値:
+
+- `ProfileReloadToolResult`
+
+実行結果サンプル:
+
+```json
+{
+  "Success": true,
+  "ProfilesDirectory": "D:\\Kelpie\\profiles",
+  "ProfileCount": 2,
+  "ProfileNames": ["vps01", "vps02"],
+  "ErrorMessage": null
+}
+```
+
+安全上の注意:
+
+- SSH 接続先には接続しません。
+- SSH 接続先の file、process、settings は変更しません。
+- この tool が変更するのは MCP server の in-memory profile catalog だけです。
+- 既存の SSH terminal session は現在の接続を維持します。新しい tool call は再読み込み後の profile を使います。
+- `kelpiemcp.json` は再読み込みしません。server configuration を変更した場合は MCP server を再起動してください。
 
 ### `get_system_info`
 
