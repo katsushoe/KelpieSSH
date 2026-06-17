@@ -227,6 +227,26 @@ Profile の記述方法の詳細は [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) �
 
 AI の MCP サーバーとして Kelpie を使う場合は、[MCP_GUIDE.ja.md](MCP_GUIDE.ja.md) にしたがってサーバーを設定、起動してください。
 
+### 切断とログアウト
+
+`kelpie login` で開始した対話 SSH session を閉じるには、session 内で `logout` または `exit` を入力します。
+
+```text
+logout
+```
+
+パスワード認証の MCP access を使っている場合、不要になった password session を削除します。
+
+```powershell
+kelpiemcp forget vps01
+```
+
+AI access が不要になったら MCP サーバーを停止します。
+
+```powershell
+kelpiemcp stop
+```
+
 ## Kelpie command-line tools
 
 通常のターミナル利用では、`kelpie` command-line tools に MCP サーバーは不要です。ローカル設定の初期化、profile 確認、対象 profile の open、対話 SSH session、診断、service log の tail は、ターミナルから直接実行できます。

@@ -227,6 +227,26 @@ Set the host, user, authentication method, and private key file name or password
 
 When using Kelpie as an AI MCP server, configure and start the server by following [MCP_GUIDE.md](MCP_GUIDE.md).
 
+### Disconnecting and logging out
+
+To close an interactive SSH session started with `kelpie login`, type `logout` or `exit` in the session:
+
+```text
+logout
+```
+
+If you are using password-based MCP access, clear the password session when it is no longer needed:
+
+```powershell
+kelpiemcp forget vps01
+```
+
+Stop the MCP server when AI access is no longer needed:
+
+```powershell
+kelpiemcp stop
+```
+
 ## Kelpie command-line tools
 
 The `kelpie` command-line tools do not require the MCP server for normal terminal use. Use them directly from a terminal to initialize local settings, inspect profiles, open a target profile, start an interactive SSH session, run diagnostics, or tail service logs.
