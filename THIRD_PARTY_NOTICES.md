@@ -51,6 +51,7 @@ BouncyCastle.Cryptography is published on NuGet as MIT. Its package README also 
 | `Microsoft.Extensions.FileSystemGlobbing` | `10.0.8` | MIT | https://dot.net/ | Copyright (c) Microsoft Corporation. All rights reserved. |
 | `Microsoft.Extensions.Hosting` | `10.0.8` | MIT | https://dot.net/ | Copyright (c) Microsoft Corporation. All rights reserved. |
 | `Microsoft.Extensions.Hosting.Abstractions` | `10.0.8` | MIT | https://dot.net/ | Copyright (c) Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Hosting.WindowsServices` | `10.0.8` | MIT | https://dot.net/ | Copyright (c) Microsoft Corporation. All rights reserved. |
 | `Microsoft.Extensions.Logging` | `10.0.8` | MIT | https://dot.net/ | Copyright (c) Microsoft Corporation. All rights reserved. |
 | `Microsoft.Extensions.Logging.Abstractions` | `8.0.3` | MIT | https://dot.net/ | Copyright (c) Microsoft Corporation. All rights reserved. |
 | `Microsoft.Extensions.Logging.Abstractions` | `10.0.8` | MIT | https://dot.net/ | Copyright (c) Microsoft Corporation. All rights reserved. |
@@ -70,6 +71,7 @@ BouncyCastle.Cryptography is published on NuGet as MIT. Its package README also 
 | `System.Diagnostics.EventLog` | `10.0.8` | MIT | https://dot.net/ | Copyright (c) Microsoft Corporation. All rights reserved. |
 | `System.IO.Pipelines` | `10.0.8` | MIT | https://dot.net/ | Copyright (c) Microsoft Corporation. All rights reserved. |
 | `System.Net.ServerSentEvents` | `10.0.7` | MIT | https://dot.net/ | Copyright (c) Microsoft Corporation. All rights reserved. |
+| `System.ServiceProcess.ServiceController` | `10.0.8` | MIT | https://dot.net/ | Copyright (c) Microsoft Corporation. All rights reserved. |
 | `System.Text.Encodings.Web` | `10.0.8` | MIT | https://dot.net/ | Copyright (c) Microsoft Corporation. All rights reserved. |
 | `System.Text.Json` | `10.0.8` | MIT | https://dot.net/ | Copyright (c) Microsoft Corporation. All rights reserved. |
 

@@ -67,6 +67,42 @@ MCP access が不要になったら、MCP サーバーを停止します。
 kelpiemcp stop
 ```
 
+## Windows Service 登録方法
+
+Windows では、`KelpieMCPServer` を Windows Service として登録できます。MCP server body を Windows Service Control Manager で管理したい場合に使います。
+
+管理者権限のターミナルでサービスを登録します。
+
+```powershell
+kelpiemcp service register
+```
+
+サービス名は `KelpieMCPServer` です。登録時の startup type は手動起動です。起動するには次のコマンドを使います。
+
+```powershell
+Start-Service KelpieMCPServer
+```
+
+サービス登録状態を確認します。
+
+```powershell
+kelpiemcp service status
+```
+
+登録解除前に、実行中のサービスを停止します。
+
+```powershell
+Stop-Service KelpieMCPServer
+```
+
+管理者権限のターミナルでサービス登録を解除します。
+
+```powershell
+kelpiemcp service unregister
+```
+
+Windows Service は通常の `kelpiemcp start` プロセスと同じ Kelpie home 配下の `config\kelpiemcp.json`、profiles、data、logs を使います。通常プロセス起動と Windows Service 起動はどちらか一方を使い、同時に起動しないでください。
+
 ## AI client 接続設定
 
 既定の Streamable HTTP MCP endpoint は次のとおりです。

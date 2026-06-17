@@ -11,6 +11,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | Group | Commands | Purpose |
 | :--- | :--- | :--- |
 | MCP server control | `kelpiemcp start`, `kelpiemcp stop`, `kelpiemcp status` | Start, stop, and inspect `KelpieMCPServer`. |
+| MCP Windows Service | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Register, unregister, and inspect the Windows Service entry. |
 | MCP password session | `kelpiemcp password`, `kelpiemcp forget` | Store or clear an SSH password in the running MCP server session. |
 | Initialization | `kelpie init [profile]` | Create the local Kelpie home directory layout and sample configuration files. |
 | Profile/session | `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | Select profiles and manage interactive SSH sessions. |
@@ -155,6 +156,30 @@ Shows whether the local MCP server is running.
 
 ```powershell
 kelpiemcp status
+```
+
+### `kelpiemcp service register`
+
+Registers `KelpieMCPServer` as a manual-start Windows Service. Run from an elevated terminal.
+
+```powershell
+kelpiemcp service register
+```
+
+### `kelpiemcp service unregister`
+
+Unregisters the `KelpieMCPServer` Windows Service. Stop the service before unregistering it. Run from an elevated terminal.
+
+```powershell
+kelpiemcp service unregister
+```
+
+### `kelpiemcp service status`
+
+Shows whether the `KelpieMCPServer` Windows Service is registered.
+
+```powershell
+kelpiemcp service status
 ```
 
 ### `kelpiemcp password <profile>`

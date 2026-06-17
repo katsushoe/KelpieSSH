@@ -10,6 +10,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | Group | Command | 内容 |
 | :--- | :--- | :--- |
 | MCP server control | `kelpiemcp start`, `kelpiemcp stop`, `kelpiemcp status` | `KelpieMCPServer` の起動、停止、状態確認を行う。 |
+| MCP Windows Service | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Windows Service 登録、登録解除、登録状態確認を行う。 |
 | MCP password session | `kelpiemcp password`, `kelpiemcp forget` | 起動中の MCP server に SSH パスワードを一時保存、削除する。 |
 | Compatibility | `kelpiemcp login`, `kelpiemcp logout` | 旧名互換。新規利用では `password` / `forget` を使う。 |
 | Initialization | `kelpie init` | `KelpieHome` 配下の初期ディレクトリとサンプル設定を作成する。 |
@@ -164,6 +165,98 @@ Control pipe: KelpieMCPServer.Control
 
 ```text
 KelpieMCPServer: stopped
+```
+
+### `kelpiemcp service register`
+
+目的:
+
+`KelpieMCPServer` を Windows Service として登録します。
+
+構文:
+
+```powershell
+kelpiemcp service register
+```
+
+引数詳細:
+
+- なし。
+
+引数サンプル:
+
+- なし。
+
+処理内容:
+
+Windows Service 名 `KelpieMCPServer` を手動起動サービスとして登録します。管理者権限のターミナルから実行してください。
+
+実行結果サンプル:
+
+```text
+Windows Service registered: KelpieMCPServer
+Binary path: "D:\Kelpie\bin\mcp\KelpieMCPServer.exe" --runtime-base "D:\Kelpie\bin"
+```
+
+### `kelpiemcp service unregister`
+
+目的:
+
+`KelpieMCPServer` の Windows Service 登録を解除します。
+
+構文:
+
+```powershell
+kelpiemcp service unregister
+```
+
+引数詳細:
+
+- なし。
+
+引数サンプル:
+
+- なし。
+
+処理内容:
+
+Windows Service 名 `KelpieMCPServer` の登録を解除します。実行中の場合は先に `Stop-Service KelpieMCPServer` で停止してください。管理者権限のターミナルから実行してください。
+
+実行結果サンプル:
+
+```text
+Windows Service unregistered: KelpieMCPServer
+```
+
+### `kelpiemcp service status`
+
+目的:
+
+`KelpieMCPServer` の Windows Service 登録状態を表示します。
+
+構文:
+
+```powershell
+kelpiemcp service status
+```
+
+引数詳細:
+
+- なし。
+
+引数サンプル:
+
+- なし。
+
+処理内容:
+
+Windows Service 名 `KelpieMCPServer` の登録状態を確認します。
+
+実行結果サンプル:
+
+```text
+Windows Service: registered (KelpieMCPServer)
+STATE              : 1  STOPPED
 ```
 
 ### `kelpiemcp password <profile>`

@@ -26,7 +26,7 @@
 | 実行ファイル | プロジェクト | バージョン | 主な責務 | 配置例 |
 | :--- | :--- | :--- | :--- | :--- |
 | `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.1.4.1` | VPS 操作 CLI。初期化、プロファイル確認、診断、ログ取得、GUI/CLI モード切替を担当します。 | `KelpieHome/bin/kelpie.exe` |
-| `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.1.1.2` | MCP サーバー制御 CLI。`start` / `stop` / `status` / `password` / `forget` を担当します。 | `KelpieHome/bin/kelpiemcp.exe` |
+| `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.1.1.2` | MCP サーバー制御 CLI。`start` / `stop` / `status` / `service register` / `service unregister` / `password` / `forget` を担当します。 | `KelpieHome/bin/kelpiemcp.exe` |
 | `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.1.29.0` | Streamable HTTP MCP サーバー本体。Codex などの MCP クライアントへ SSH 診断ツールを公開します。 | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
 | `kelpie-web-permission-helper` | `src/KelpieWebPermissionHelper/KelpieWebPermissionHelper.csproj` | `0.1.0.4` | SSH先に配置する sudo helper。Web公開ルート配下に限定して権限指定付き atomic write と owner / mode 変更を行います。 | `/usr/local/libexec/kelpie/kelpie-web-permission-helper` |
 
@@ -59,6 +59,7 @@
 - `kelpiemcp start` による MCP サーバープロセス起動。
 - `kelpiemcp stop` による NamedPipe 経由の停止要求。
 - `kelpiemcp status` による稼働状態確認。
+- `kelpiemcp service register` / `kelpiemcp service unregister` による Windows Service 登録管理。
 - `kelpiemcp password <profile>` による起動中サーバーへの一時パスワード登録。
 - `kelpiemcp forget <profile>` による一時パスワード削除。
 
@@ -85,6 +86,7 @@
 - `KelpieSSH.Application`
 - `KelpieSSH.Infrastructure`
 - `Microsoft.Extensions.Hosting`
+- `Microsoft.Extensions.Hosting.WindowsServices`
 - `ModelContextProtocol`
 - `ModelContextProtocol.AspNetCore`
 
@@ -192,6 +194,7 @@ KelpieSSH の外部接続実装を持つライブラリです。
 | `Microsoft.Extensions.Configuration.Abstractions` | `10.0.8` | MIT | `Kelpie.Core` | 設定読み取りの抽象 API。設定値をコードへ直書きせず、JSON や外部設定から扱うために使います。 |
 | `Microsoft.Extensions.Configuration.Json` | `10.0.8` | MIT | `KelpieClientCommand`, `KelpieServerCommand` | `kelpie.json` / `kelpiemcp.json` などの JSON 設定ファイル読み取りに使います。 |
 | `Microsoft.Extensions.Hosting` | `10.0.8` | MIT | `KelpieMCPServer` | MCP サーバーのホスト、DI、ライフサイクル管理に使います。 |
+| `Microsoft.Extensions.Hosting.WindowsServices` | `10.0.8` | MIT | `KelpieMCPServer` | Windows Service として MCP サーバーをホストするために使います。 |
 | `ModelContextProtocol` | `1.3.0` | Apache-2.0 | `KelpieMCPServer` | MCP ツール定義、MCP プロトコル連携に使います。 |
 | `ModelContextProtocol.AspNetCore` | `1.3.0` | Apache-2.0 | `KelpieMCPServer` | ASP.NET Core 上で Streamable HTTP MCP エンドポイントを公開するために使います。 |
 | `SSH.NET` | `2025.1.0` | MIT | `KelpieSSH.Infrastructure` | SSH 接続、コマンド実行、秘密鍵認証、ShellStream による対話シェル処理に使います。 |
@@ -216,6 +219,12 @@ KelpieSSH では、`KelpieHome/config/kelpie.json` と `KelpieHome/config/kelpie
 .NET の汎用ホスト基盤です。
 
 KelpieSSH では、`KelpieMCPServer` の起動、停止、DI、ログ、ライフサイクル制御を整理するために使います。
+
+## `Microsoft.Extensions.Hosting.WindowsServices`
+
+.NET Generic Host を Windows Service として実行するための Microsoft 公式パッケージです。
+
+KelpieSSH では、`KelpieMCPServer` を Windows Service として登録、起動できるようにするために使います。
 
 ## `ModelContextProtocol`
 

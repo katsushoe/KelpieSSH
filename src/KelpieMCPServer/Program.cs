@@ -5,9 +5,10 @@ using KelpieSSH.Infrastructure.Ssh;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-var runtimeBaseDirectory = Environment.CurrentDirectory;
+var runtimeBaseDirectory = ResolveRuntimeBaseDirectory(args);
 KpLogSetup.Configure(
     runtimeBaseDirectory,
     "kelpiemcp.log",
@@ -21,6 +22,10 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
     Args = args,
     ContentRootPath = AppContext.BaseDirectory,
+});
+builder.Host.UseWindowsService(options =>
+{
+    options.ServiceName = "KelpieMCPServer";
 });
 
 builder.Configuration.Sources.Clear();
@@ -126,4 +131,30 @@ catch (Exception ex)
 finally
 {
     KpLog.Flush();
+}
+
+static string ResolveRuntimeBaseDirectory(string[] args)
+{
+    for (var index = 0; index < args.Length; index++)
+    {
+        var arg = args[index];
+        if (string.Equals(arg, "--runtime-base", StringComparison.OrdinalIgnoreCase)
+            && index + 1 < args.Length
+            && !string.IsNullOrWhiteSpace(args[index + 1]))
+        {
+            return Path.GetFullPath(args[index + 1]);
+        }
+
+        const string prefix = "--runtime-base=";
+        if (arg.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var value = arg[prefix.Length..];
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return Path.GetFullPath(value);
+            }
+        }
+    }
+
+    return Environment.CurrentDirectory;
 }

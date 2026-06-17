@@ -31,6 +31,7 @@ Runtime package を追加または更新した場合は、英語版 [THIRD_PARTY
 | `ModelContextProtocol` | MCP server abstractions。 |
 | `ModelContextProtocol.AspNetCore` | Streamable HTTP MCP transport。 |
 | `Microsoft.Extensions.Hosting` | ASP.NET Core hosting support。 |
+| `Microsoft.Extensions.Hosting.WindowsServices` | Windows Service hosting integration。 |
 
 # 再配布時の注意
 

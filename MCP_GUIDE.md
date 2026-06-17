@@ -67,6 +67,42 @@ Stop the MCP server when you no longer need MCP access:
 kelpiemcp stop
 ```
 
+## Windows Service Registration
+
+On Windows, you can register `KelpieMCPServer` as a Windows Service when you want the MCP server body to be managed by Windows Service Control Manager.
+
+Open an elevated terminal and register the service:
+
+```powershell
+kelpiemcp service register
+```
+
+The service is registered as `KelpieMCPServer` with manual startup. Start it with:
+
+```powershell
+Start-Service KelpieMCPServer
+```
+
+Check the service registration state:
+
+```powershell
+kelpiemcp service status
+```
+
+Stop the running service before unregistering it:
+
+```powershell
+Stop-Service KelpieMCPServer
+```
+
+Unregister the service from an elevated terminal:
+
+```powershell
+kelpiemcp service unregister
+```
+
+The service uses the same `config\kelpiemcp.json`, profiles, data, and logs under Kelpie home as the normal `kelpiemcp start` process. Use either normal process startup or Windows Service startup for one MCP server instance; do not run both at the same time.
+
 ## AI Client Connection Settings
 
 The default Streamable HTTP MCP endpoint is:

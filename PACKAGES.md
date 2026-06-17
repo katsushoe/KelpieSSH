@@ -44,6 +44,7 @@ KelpieSSH libraries are packable where appropriate.
 | `ModelContextProtocol` | `KelpieMCPServer` | MCP server abstractions. |
 | `ModelContextProtocol.AspNetCore` | `KelpieMCPServer` | Streamable HTTP MCP transport. |
 | `Microsoft.Extensions.Hosting` | `KelpieMCPServer` | ASP.NET Core hosting support. |
+| `Microsoft.Extensions.Hosting.WindowsServices` | `KelpieMCPServer` | Windows Service hosting integration. |
 
 ## Test Dependencies
 

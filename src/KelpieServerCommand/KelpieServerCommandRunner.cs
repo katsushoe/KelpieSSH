@@ -12,6 +12,8 @@ namespace KelpieServerCommand;
 public static class KelpieServerCommandRunner
 {
     private static readonly TimeSpan PipeConnectionTimeout = TimeSpan.FromMilliseconds(300);
+    private const string WindowsServiceName = "KelpieMCPServer";
+    private const string WindowsServiceDisplayName = "KelpieSSH MCP Server";
 
     /// <summary>
     /// Starts the Kelpie MCP server body if it is not already running.
@@ -75,6 +77,104 @@ public static class KelpieServerCommandRunner
 
         KpLog.Info("KelpieMCPServer status: stopped.");
         Console.WriteLine("KelpieMCPServer: stopped");
+    }
+
+    /// <summary>
+    /// Registers KelpieMCPServer as a Windows Service.
+    /// </summary>
+    /// <param name="options">The command options.</param>
+    public static async Task RegisterServiceAsync(KelpieMcpServerOptions options)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Console.Error.WriteLine("Windows Service registration is supported on Windows only.");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        if (await WindowsServiceExistsAsync())
+        {
+            Console.WriteLine($"Windows Service is already registered: {WindowsServiceName}");
+            return;
+        }
+
+        var serverCommand = ResolveServerCommand(options);
+        var binPath = CreateWindowsServiceBinPath(serverCommand);
+        var result = await RunScAsync(
+            "create",
+            WindowsServiceName,
+            "binPath=",
+            binPath,
+            "start=",
+            "demand",
+            "DisplayName=",
+            WindowsServiceDisplayName);
+
+        if (result.ExitCode != 0)
+        {
+            WriteScFailure("Failed to register Windows Service.", result);
+            return;
+        }
+
+        Console.WriteLine($"Windows Service registered: {WindowsServiceName}");
+        Console.WriteLine($"Binary path: {binPath}");
+    }
+
+    /// <summary>
+    /// Unregisters the KelpieMCPServer Windows Service.
+    /// </summary>
+    public static async Task UnregisterServiceAsync()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Console.Error.WriteLine("Windows Service registration is supported on Windows only.");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        if (!await WindowsServiceExistsAsync())
+        {
+            Console.WriteLine($"Windows Service is not registered: {WindowsServiceName}");
+            return;
+        }
+
+        var result = await RunScAsync("delete", WindowsServiceName);
+        if (result.ExitCode != 0)
+        {
+            WriteScFailure("Failed to unregister Windows Service.", result);
+            return;
+        }
+
+        Console.WriteLine($"Windows Service unregistered: {WindowsServiceName}");
+    }
+
+    /// <summary>
+    /// Prints the KelpieMCPServer Windows Service registration status.
+    /// </summary>
+    public static async Task ServiceStatusAsync()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Console.Error.WriteLine("Windows Service status is supported on Windows only.");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var result = await RunScAsync("query", WindowsServiceName);
+        if (result.ExitCode != 0)
+        {
+            Console.WriteLine($"Windows Service: not registered ({WindowsServiceName})");
+            return;
+        }
+
+        Console.WriteLine($"Windows Service: registered ({WindowsServiceName})");
+        var stateLine = result.StandardOutput
+            .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries)
+            .FirstOrDefault(line => line.Contains("STATE", StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(stateLine))
+        {
+            Console.WriteLine(stateLine.Trim());
+        }
     }
 
     /// <summary>
@@ -531,7 +631,81 @@ public static class KelpieServerCommandRunner
         KpLog.Debug($"KelpieMCPServer process start issued. pid={process.Id}");
     }
 
+    private static string CreateWindowsServiceBinPath(ServerCommand serverCommand)
+    {
+        var runtimeBase = serverCommand.WorkingDirectory;
+        var runtimeBaseArgument = "--runtime-base " + QuoteWindowsCommandLineArgument(runtimeBase);
+
+        if (string.Equals(serverCommand.FileName, "dotnet", StringComparison.OrdinalIgnoreCase))
+        {
+            return QuoteWindowsCommandLineArgument("dotnet") + " "
+                + serverCommand.Arguments + " "
+                + runtimeBaseArgument;
+        }
+
+        return QuoteWindowsCommandLineArgument(serverCommand.FileName) + " " + runtimeBaseArgument;
+    }
+
+    private static string QuoteWindowsCommandLineArgument(string value)
+    {
+        return "\"" + value.Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
+    }
+
+    private static async Task<bool> WindowsServiceExistsAsync()
+    {
+        var result = await RunScAsync("query", WindowsServiceName);
+        return result.ExitCode == 0;
+    }
+
+    private static async Task<ScCommandResult> RunScAsync(params string[] arguments)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "sc.exe",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
+
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        using var process = Process.Start(startInfo);
+        if (process is null)
+        {
+            throw new InvalidOperationException("Failed to start sc.exe.");
+        }
+
+        var standardOutput = await process.StandardOutput.ReadToEndAsync();
+        var standardError = await process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        return new ScCommandResult(process.ExitCode, standardOutput, standardError);
+    }
+
+    private static void WriteScFailure(string message, ScCommandResult result)
+    {
+        KpLog.Warn($"{message} scExitCode={result.ExitCode}");
+        Console.Error.WriteLine(message);
+        Console.Error.WriteLine("Run this command from an elevated terminal.");
+        if (!string.IsNullOrWhiteSpace(result.StandardOutput))
+        {
+            Console.Error.Write(result.StandardOutput);
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.StandardError))
+        {
+            Console.Error.Write(result.StandardError);
+        }
+
+        Environment.ExitCode = result.ExitCode == 0 ? 1 : result.ExitCode;
+    }
+
     private sealed record ServerCommand(string FileName, string Arguments, string WorkingDirectory);
+
+    private sealed record ScCommandResult(int ExitCode, string StandardOutput, string StandardError);
 
     private sealed record KelpieSessionEntry(
         string Handle,
