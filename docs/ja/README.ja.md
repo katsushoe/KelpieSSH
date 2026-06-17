@@ -26,14 +26,9 @@ KelpieSSH の使い方に合わせて導入方法を選びます。
 
 ### バイナリ利用者
 
-通常利用では、GitHub Releases から MSI インストーラーをダウンロードして実行します。
+通常利用では、GitHub Releases から KelpieSSH の `.msi` インストーラーをダウンロードして実行します。
 
-MSI は KelpieSSH をユーザー ローカルのプログラム ディレクトリへインストールし、コマンド ディレクトリをユーザー `PATH` に登録します。インストール後、新しいターミナルを開いてコマンドを確認します。
-
-```powershell
-kelpie version
-kelpiemcp status
-```
+インストール後、新しいターミナルを開いてください。
 
 ローカルの Kelpie ディレクトリ構成を初期化します。
 
@@ -142,15 +137,6 @@ dotnet publish src\KelpieServerCommand\KelpieServerCommand.csproj -c Release -o 
 dotnet publish src\KelpieMCPServer\KelpieMCPServer.csproj -c Release -o D:\Kelpie\bin\mcp
 D:\Kelpie\bin\kelpie.exe init
 ```
-
-ソースから MSI を作成する場合は、WiX 6 をインストールしてから次を実行します。
-
-```powershell
-dotnet tool install --global wix --version 6.*
-.\scripts\Build-Msi.ps1
-```
-
-生成された MSI は `.artifacts\msi` 配下に出力されます。
 
 `kelpie init` は既存の設定ファイルを上書きしません。利用前に生成された host、user、key、policy の値を編集してください。
 

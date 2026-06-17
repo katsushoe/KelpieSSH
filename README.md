@@ -26,14 +26,9 @@ Choose the setup path that matches how you want to use KelpieSSH.
 
 ### Binary users
 
-For normal use, download the MSI installer from GitHub Releases and run it.
+For normal use, download the KelpieSSH `.msi` installer from GitHub Releases and run it.
 
-The MSI installs KelpieSSH under the user-local program directory and registers the command directory in the user `PATH`. After installation, open a new terminal and check that the commands are available:
-
-```powershell
-kelpie version
-kelpiemcp status
-```
+After installation, open a new terminal.
 
 Initialize the local Kelpie directory layout:
 
@@ -142,15 +137,6 @@ dotnet publish src\KelpieServerCommand\KelpieServerCommand.csproj -c Release -o 
 dotnet publish src\KelpieMCPServer\KelpieMCPServer.csproj -c Release -o D:\Kelpie\bin\mcp
 D:\Kelpie\bin\kelpie.exe init
 ```
-
-To build an MSI from source, install WiX 6 and run:
-
-```powershell
-dotnet tool install --global wix --version 6.*
-.\scripts\Build-Msi.ps1
-```
-
-The generated MSI is written under `.artifacts\msi`.
 
 `kelpie init` does not overwrite existing configuration files. Edit the generated host, user, key, and policy values before use.
 
