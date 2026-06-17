@@ -17,7 +17,7 @@ public sealed class KelpieServerCommandRunnerTests
 
         try
         {
-            await KelpieServerCommandRunner.StatusAsync(options);
+            await KelpieServerCommandRunner.StatusAsync(options, () => Task.FromResult(false));
         }
         finally
         {
@@ -25,7 +25,7 @@ public sealed class KelpieServerCommandRunnerTests
         }
 
         output.ToString().Should().Contain("KelpieMCPServer: stopped");
-        output.ToString().Should().Contain("Working as Windows service: no");
+        output.ToString().Should().Contain("Registered as Windows service: no");
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class KelpieServerCommandRunnerTests
 
         try
         {
-            await KelpieServerCommandRunner.StatusAsync(options);
+            await KelpieServerCommandRunner.StatusAsync(options, () => Task.FromResult(true));
         }
         finally
         {
@@ -50,7 +50,7 @@ public sealed class KelpieServerCommandRunnerTests
         output.ToString().Should().Contain("KelpieMCPServer: running");
         output.ToString().Should().Contain("MCP URL: http://127.0.0.1:45432/mcp");
         output.ToString().Should().Contain($"Control pipe: {options.ControlPipeName}");
-        output.ToString().Should().Contain("Working as Windows service: no");
+        output.ToString().Should().Contain("Registered as Windows service: yes");
     }
 
     [Fact]

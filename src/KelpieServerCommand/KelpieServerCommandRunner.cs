@@ -57,8 +57,12 @@ public static class KelpieServerCommandRunner
     /// Prints the current Kelpie MCP server body status.
     /// </summary>
     /// <param name="options">The command options.</param>
-    public static async Task StatusAsync(KelpieMcpServerOptions options)
+    public static async Task StatusAsync(
+        KelpieMcpServerOptions options,
+        Func<Task<bool>>? windowsServiceExistsAsync = null)
     {
+        var registeredAsWindowsService = OperatingSystem.IsWindows()
+            && await (windowsServiceExistsAsync ?? WindowsServiceExistsAsync)();
         var response = await SendControlCommandWithResponseAsync(
             options.ControlPipeName,
             "ping",
@@ -74,13 +78,13 @@ public static class KelpieServerCommandRunner
             Console.WriteLine($"MCP URL: {mcpUrl}");
             Console.WriteLine($"Health URL: {healthUrl}");
             Console.WriteLine($"Control pipe: {options.ControlPipeName}");
-            Console.WriteLine($"Working as Windows service: {FormatYesNo(status.WorkingAsWindowsService)}");
+            Console.WriteLine($"Registered as Windows service: {FormatYesNo(registeredAsWindowsService)}");
             return;
         }
 
         KpLog.Info("KelpieMCPServer status: stopped.");
         Console.WriteLine("KelpieMCPServer: stopped");
-        Console.WriteLine("Working as Windows service: no");
+        Console.WriteLine($"Registered as Windows service: {FormatYesNo(registeredAsWindowsService)}");
     }
 
     /// <summary>
