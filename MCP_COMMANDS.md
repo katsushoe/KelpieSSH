@@ -6,7 +6,7 @@ This file is the English command reference for MCP callable tools exposed by `Ke
 For Japanese documentation, see [docs/ja/MCP_COMMANDS.ja.md](docs/ja/MCP_COMMANDS.ja.md).
 Terminal CLI commands are documented in [COMMANDS.md](COMMANDS.md).
 
-`MCP_COMMANDS.md` follows the same command-reference standard as `COMMANDS.md`: each tool group documents its purpose, input fields, input examples, execution behavior, result shape, and safety notes. Individual tool schemas are exposed by MCP `tools/list`; this document explains how those tools are intended to be used safely.
+`MCP_COMMANDS.md` follows the same command-reference standard as `COMMANDS.md`: each MCP tool has its own section with purpose, input fields, input examples, execution behavior, return value specification and sample, execution result sample, and safety notes. Individual tool schemas are exposed by MCP `tools/list`; this document explains how those tools are intended to be used safely.
 
 ## How MCP Tools Are Called
 
@@ -151,11 +151,13 @@ Tools that can change a remote target require an exact `confirmation` string. If
 
 ## Commands
 
+Each MCP tool is documented in its own section. Do not merge multiple tools into one command explanation; the tool group table above is only an index.
+
 ### `kelpie_ping`
 
 Purpose:
 
-Verifies that `KelpieMCPServer` is running and can answer MCP tool calls.
+Verifies that the KelpieSSH MCP server is running.
 
 Input arguments:
 
@@ -170,9 +172,15 @@ Input arguments:
 }
 ```
 
-Execution:
+Processing:
 
-Returns a small text response without contacting any SSH target.
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `string`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
 
 Return value sample:
 
@@ -180,15 +188,19 @@ Return value sample:
 KelpieSSH MCP server is running.
 ```
 
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
 Safety notes:
 
-- Read-only.
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
 ### `profile_reload`
 
 Purpose:
 
-Reloads saved SSH profile JSON files from the Kelpie profiles directory without restarting `KelpieMCPServer`.
+Reloads SSH profile JSON files from the Kelpie profiles directory on demand.
 
 Input arguments:
 
@@ -203,9 +215,15 @@ Input arguments:
 }
 ```
 
-Execution:
+Processing:
 
-The MCP server rereads `KelpieHome/profiles/*.json` and replaces the in-memory profile catalog only when reload succeeds. If reload fails because a profile JSON file is invalid or cannot be read, the last successfully loaded profile catalog remains active.
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `ProfileReloadToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
 
 Return value sample:
 
@@ -214,30 +232,27 @@ Return value sample:
   "Success": true,
   "ProfilesDirectory": "D:\\Kelpie\\profiles",
   "ProfileCount": 2,
-  "ProfileNames": ["vps01", "vps02"],
+  "ProfileNames": [
+    "vps01",
+    "vps02"
+  ],
   "ErrorMessage": null
 }
 ```
 
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
 Safety notes:
 
-- Read-only for remote SSH targets.
-- This tool changes only the MCP server's in-memory profile catalog.
-- Existing SSH terminal sessions keep their current connection. New tool calls use the reloaded profiles.
-- The tool does not reload `kelpiemcp.json`; restart the MCP server after changing server configuration.
+- This tool does not contact SSH targets. It updates only the MCP server's in-memory profile catalog, and existing terminal sessions keep their current connections.
 
-### Local diagnostics
-
-Tools:
-
-- `get_system_info`
-- `get_disk_usage`
-- `get_memory_usage`
-- `get_listening_ports`
+### `get_system_info`
 
 Purpose:
 
-Inspects the local machine running `KelpieMCPServer`.
+Returns basic OS, runtime, machine, and process information for the local KelpieMCPServer host.
 
 Input arguments:
 
@@ -252,31 +267,193 @@ Input arguments:
 }
 ```
 
-Execution:
+Processing:
 
-Collects local OS, runtime, disk, memory, or listening-port information. These tools do not connect to SSH profiles.
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SystemInfoResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
 
 Return value sample:
 
 ```json
 {
-  "MachineName": "HOST",
-  "OSDescription": "Microsoft Windows ...",
-  "ProcessId": 1234,
-  "BaseDirectory": "D:\\Kelpie\\bin\\mcp\\"
+  "MachineName": "<value>",
+  "UserName": "deploy",
+  "OSDescription": "<value>",
+  "OSArchitecture": "<value>",
+  "ProcessArchitecture": "<value>",
+  "FrameworkDescription": "<value>",
+  "ProcessorCount": 0,
+  "Is64BitOperatingSystem": true,
+  "Is64BitProcess": true,
+  "ProcessId": 0,
+  "BaseDirectory": "<value>"
 }
 ```
 
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
 Safety notes:
 
-- Read-only.
-- Local listening-port data may include process IDs. Do not paste raw results into public issues if they reveal private environment details.
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `get_disk_usage`
+
+Purpose:
+
+Returns disk usage for ready local drives on the KelpieMCPServer host.
+
+Input arguments:
+
+- None.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "get_disk_usage",
+  "arguments": {}
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `DiskUsageResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "Drives": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `get_memory_usage`
+
+Purpose:
+
+Returns process and managed runtime memory usage for KelpieMCPServer.
+
+Input arguments:
+
+- None.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "get_memory_usage",
+  "arguments": {}
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `MemoryUsageResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "WorkingSetBytes": 0,
+  "PrivateMemoryBytes": 0,
+  "VirtualMemoryBytes": 0,
+  "ManagedTotalBytes": 0,
+  "HeapSizeBytes": 0,
+  "HighMemoryLoadThresholdBytes": 0,
+  "MemoryLoadBytes": 0,
+  "TotalAvailableMemoryBytes": 0
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `get_listening_ports`
+
+Purpose:
+
+Returns local listening TCP/UDP ports from the KelpieMCPServer host.
+
+Input arguments:
+
+- None.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "get_listening_ports",
+  "arguments": {}
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `ListeningPortsResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "Command": "<value>",
+  "Arguments": "<value>",
+  "ExitCode": 0,
+  "StandardError": "",
+  "Ports": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
 ### `ssh_get_capabilities`
 
 Purpose:
 
-Checks which SSH commands and MCP tools are available for a specific profile.
+Checks profile-specific SSH command and MCP tool capabilities.
 
 Input arguments:
 
@@ -293,39 +470,40 @@ Input arguments:
 }
 ```
 
-Execution:
+Processing:
 
-Runs a fixed read-only OS probe and combines the result with profile mode and provider support. This is the dynamic per-profile capability check; MCP `tools/list` only shows the static product tool list.
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshCapabilityResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
 
 Return value sample:
 
 ```json
 {
   "ProfileName": "vps01",
-  "OsFamily": "alma",
-  "PackageManager": "dnf",
+  "OsFamily": "<value>",
+  "PackageManager": "<value>",
+  "Mode": "<value>",
   "ProbeSucceeded": true,
-  "Commands": [
-    {
-      "CommandName": "pkg_search",
-      "RiskLevel": "ReadOnly",
-      "RequiresConfirmation": false
-    }
-  ],
-  "Tools": [
-    {
-      "ToolName": "ssh_pkg_search",
-      "CommandName": "pkg_search",
-      "Available": true
-    }
-  ]
+  "ProbeCommandName": "<command-name>",
+  "ProbeCommandText": "<command text>",
+  "ProbeExitCode": 0,
+  "Commands": [],
+  "Tools": []
 }
 ```
 
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
 Safety notes:
 
-- Read-only.
-- Do not run unavailable alternatives automatically. Explain the reason and ask the user before changing packages, services, or configuration.
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
 ### `get_target_inventory`
 
@@ -343,82 +521,973 @@ Input arguments:
 {
   "name": "get_target_inventory",
   "arguments": {
-    "profileName": "vps02"
+    "profileName": "vps01"
   }
 }
 ```
 
-Execution:
+Processing:
 
-Runs the allow-listed `target_inventory` operation. Individual helper/software probes have short per-item timeouts. A missing helper is reported as `Not Available`; the tool fails only when the SSH connection or OS probe fails.
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `TargetInventoryResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
 
 Return value sample:
 
 ```json
 {
-  "Profile": "vps02",
-  "Os": {
-    "Family": "alma",
-    "Name": "AlmaLinux",
-    "Version": "9.8",
-    "PackageManager": "dnf"
-  },
-  "Helpers": [
-    {
-      "Name": "Python",
-      "Status": "Available",
-      "Version": "3.9.25"
-    }
-  ],
-  "Software": [
-    {
-      "Name": "nginx",
-      "Status": "Available",
-      "Version": "1.20.1"
-    }
-  ]
+  "Profile": "vps01",
+  "Os": "<value>",
+  "Helpers": [],
+  "Software": []
 }
 ```
 
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
 Safety notes:
 
-- Read-only.
-- Does not install missing software.
-- Does not return file bodies, private keys, passwords, or raw log bodies.
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### SSH diagnostic tools
-
-Tools:
-
-- `ssh_get_system_info`
-- `ssh_get_os_release`
-- `ssh_get_uptime`
-- `ssh_get_disk_usage`
-- `ssh_get_memory_usage`
-- `ssh_get_process_summary`
-- `ssh_get_inode_usage`
-- `ssh_get_mounts`
-- `ssh_get_network_addresses`
-- `ssh_get_routes`
-- `ssh_get_dns_config`
-- `ssh_check_http_local`
-- `ssh_check_tcp_connect_local`
-- `ssh_get_listening_ports`
-- `ssh_get_failed_services`
-- `ssh_get_journal_recent`
-- `ssh_tail_log`
+### `ssh_get_system_info`
 
 Purpose:
 
-Runs bounded, allow-listed diagnostic commands on the SSH target.
+Runs the allowed get_system_info command against a configured SSH profile.
 
-Common input arguments:
+Input arguments:
 
 - `profileName`: SSH profile name.
-- `limit`: Maximum row count for bounded list tools.
-- `lines`: Maximum log lines for log tools.
-- `service`: systemd service name for service/log tools.
-- `port`: Local port for `ssh_check_http_local` and `ssh_check_tcp_connect_local`.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_get_system_info",
+  "arguments": {
+    "profileName": "vps01"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_get_system_info",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_get_os_release`
+
+Purpose:
+
+Runs the allowed get_os_release command against a configured SSH profile.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_get_os_release",
+  "arguments": {
+    "profileName": "vps01"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_get_os_release",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_get_uptime`
+
+Purpose:
+
+Runs the allowed get_uptime command against a configured SSH profile.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_get_uptime",
+  "arguments": {
+    "profileName": "vps01"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_get_uptime",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_get_disk_usage`
+
+Purpose:
+
+Runs the allowed get_disk_usage command against a configured SSH profile.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_get_disk_usage",
+  "arguments": {
+    "profileName": "vps01"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_get_disk_usage",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_get_memory_usage`
+
+Purpose:
+
+Runs the allowed get_memory_usage command against a configured SSH profile.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_get_memory_usage",
+  "arguments": {
+    "profileName": "vps01"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_get_memory_usage",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_get_process_summary`
+
+Purpose:
+
+Runs the allowed get_process_summary command against a configured SSH profile.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `sortBy`: Tool-specific argument of type `string` defined by the MCP schema.
+- `limit`: Maximum number of rows to return.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_get_process_summary",
+  "arguments": {
+    "profileName": "vps01",
+    "sortBy": "<value>",
+    "limit": 40
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_get_process_summary",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_get_inode_usage`
+
+Purpose:
+
+Runs the allowed get_inode_usage command against a configured SSH profile.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_get_inode_usage",
+  "arguments": {
+    "profileName": "vps01"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_get_inode_usage",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_get_mounts`
+
+Purpose:
+
+Runs the allowed get_mounts command against a configured SSH profile.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_get_mounts",
+  "arguments": {
+    "profileName": "vps01"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_get_mounts",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_get_network_addresses`
+
+Purpose:
+
+Runs the allowed get_network_addresses command against a configured SSH profile.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_get_network_addresses",
+  "arguments": {
+    "profileName": "vps01"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_get_network_addresses",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_get_routes`
+
+Purpose:
+
+Runs the allowed get_routes command against a configured SSH profile.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_get_routes",
+  "arguments": {
+    "profileName": "vps01"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_get_routes",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_get_dns_config`
+
+Purpose:
+
+Runs the allowed get_dns_config command against a configured SSH profile.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_get_dns_config",
+  "arguments": {
+    "profileName": "vps01"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_get_dns_config",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_check_http_local`
+
+Purpose:
+
+Checks an HTTP response from 127.0.0.1 on a configured SSH profile with a validated port.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `port`: TCP or UDP port number.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_check_http_local",
+  "arguments": {
+    "profileName": "vps01",
+    "port": 443
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_check_http_local",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_check_tcp_connect_local`
+
+Purpose:
+
+Checks TCP connectivity to 127.0.0.1 on a configured SSH profile with a validated port.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `port`: TCP or UDP port number.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_check_tcp_connect_local",
+  "arguments": {
+    "profileName": "vps01",
+    "port": 443
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_check_tcp_connect_local",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_get_listening_ports`
+
+Purpose:
+
+Runs the allowed get_listening_ports command against a configured SSH profile.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_get_listening_ports",
+  "arguments": {
+    "profileName": "vps01"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_get_listening_ports",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_get_failed_services`
+
+Purpose:
+
+Runs the allowed get_failed_services command against a configured SSH profile.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_get_failed_services",
+  "arguments": {
+    "profileName": "vps01"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_get_failed_services",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_get_journal_recent`
+
+Purpose:
+
+Runs the allowed get_journal_recent command against a configured SSH profile.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `lines`: Maximum number of log or terminal lines to return.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_get_journal_recent",
+  "arguments": {
+    "profileName": "vps01",
+    "lines": 120
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_get_journal_recent",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_tail_log`
+
+Purpose:
+
+Runs the allowed tail_log command against a configured SSH profile for one systemd service.
+
+Input arguments:
+
+- `service`: systemd service name.
+- `profileName`: SSH profile name.
+- `lines`: Maximum number of log or terminal lines to return.
 
 `tools/call` params sample:
 
@@ -426,58 +1495,1997 @@ Common input arguments:
 {
   "name": "ssh_tail_log",
   "arguments": {
-    "profileName": "vps01",
     "service": "nginx.service",
-    "lines": "100"
+    "profileName": "vps01",
+    "lines": 120
   }
 }
 ```
 
-Execution:
+Processing:
 
-Each tool maps to one managed command from the allow-list. Arguments are validated before command text is built. Arbitrary shell options are not accepted.
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
 
 Return value sample:
 
 ```json
 {
-  "ProfileName": "vps01",
-  "CommandName": "tail_log",
+  "CommandName": "ssh_tail_log",
+  "Host": "example.invalid",
   "ExitCode": 0,
-  "StandardOutput": "Jun 17 12:00:00 host nginx[123]: started\n",
-  "TimedOut": false
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
 }
 ```
 
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
 Safety notes:
 
-- Read-oriented by default.
-- Log output can contain application data. Avoid copying raw log bodies into public documents.
-- Service names, limits, ports, and path-like arguments are validated.
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### Environment tools
-
-Tools:
-
-- `get_environment_keys`
-- `peek_environment_value`
-- `set_environment_value`
-- `list_persistent_environment_keys`
-- `persist_environment_value`
-- `remove_persistent_environment_value`
+### `ssh_cron_list`
 
 Purpose:
 
-Lists, reads, temporarily sets, or persists remote environment variables under profile `Capabilities` and `EnvironmentValues` policy.
+Lists system and current-user cron entries with a bounded result limit.
 
 Input arguments:
 
 - `profileName`: SSH profile name.
-- `key`: environment variable key for key-specific tools.
-- `value`: environment variable value for `set_environment_value` and `persist_environment_value`.
-- `command`: command to run with the environment value for `set_environment_value`.
+- `limit`: Maximum number of rows to return.
 
-`get_environment_keys` params sample:
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_cron_list",
+  "arguments": {
+    "profileName": "vps01",
+    "limit": 40
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_cron_list",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_cron_validate`
+
+Purpose:
+
+Validates a cron expression, run user, command text, and /var/log path without changing cron files.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `cronExpression`: Cron expression.
+- `runUser`: User account used to run a scheduled task or command.
+- `command`: Managed command text or command name accepted by policy.
+- `logPath`: Tool-specific argument of type `string` defined by the MCP schema.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_cron_validate",
+  "arguments": {
+    "profileName": "vps01",
+    "cronExpression": "*/15 * * * *",
+    "runUser": "deploy",
+    "command": "uptime",
+    "logPath": "<value>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_cron_validate",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_cron_check_write`
+
+Purpose:
+
+Checks cron write inputs, target, confirmation token, and rollback support without changing cron files.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `targetType`: Target category used by the operation.
+- `runUser`: User account used to run a scheduled task or command.
+- `cronExpression`: Cron expression.
+- `command`: Managed command text or command name accepted by policy.
+- `logPath`: Tool-specific argument of type `string` defined by the MCP schema.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_cron_check_write",
+  "arguments": {
+    "profileName": "vps01",
+    "targetType": "service",
+    "runUser": "deploy",
+    "cronExpression": "*/15 * * * *",
+    "command": "uptime",
+    "logPath": "<value>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_cron_check_write",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_cron_write`
+
+Purpose:
+
+Writes one managed cron entry after explicit confirmation and creates a rollback backup.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `targetType`: Target category used by the operation.
+- `runUser`: User account used to run a scheduled task or command.
+- `cronExpression`: Cron expression.
+- `command`: Managed command text or command name accepted by policy.
+- `logPath`: Tool-specific argument of type `string` defined by the MCP schema.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_cron_write",
+  "arguments": {
+    "profileName": "vps01",
+    "targetType": "service",
+    "runUser": "deploy",
+    "cronExpression": "*/15 * * * *",
+    "command": "uptime",
+    "logPath": "<value>",
+    "confirmation": "<confirmation-token-from-check-result>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_cron_write",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_cron_rollback`
+
+Purpose:
+
+Restores the latest Kelpie-managed cron backup after explicit confirmation.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `targetType`: Target category used by the operation.
+- `runUser`: User account used to run a scheduled task or command.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_cron_rollback",
+  "arguments": {
+    "profileName": "vps01",
+    "targetType": "service",
+    "runUser": "deploy",
+    "confirmation": "<confirmation-token-from-check-result>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_cron_rollback",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_cert_inspect`
+
+Purpose:
+
+Inspects issuer, subject, dates, and SAN for a certificate under approved certificate directories.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `path`: Target path validated by the tool policy or provider.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_cert_inspect",
+  "arguments": {
+    "profileName": "vps01",
+    "path": "/var/www/example/index.html"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_cert_inspect",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_cert_expiry_check`
+
+Purpose:
+
+Checks whether a certificate under approved certificate directories is valid for the requested number of days.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `path`: Target path validated by the tool policy or provider.
+- `days`: Tool-specific argument of type `string` defined by the MCP schema.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_cert_expiry_check",
+  "arguments": {
+    "profileName": "vps01",
+    "path": "/var/www/example/index.html",
+    "days": "<value>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_cert_expiry_check",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_user_list`
+
+Purpose:
+
+Lists local users with UID, GID, home directory, and shell using a bounded result limit.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `limit`: Maximum number of rows to return.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_user_list",
+  "arguments": {
+    "profileName": "vps01",
+    "limit": 40
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_user_list",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_user_info`
+
+Purpose:
+
+Returns UID, GID, primary group, supplementary groups, home, and shell for one local user.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `user`: User account name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_user_info",
+  "arguments": {
+    "profileName": "vps01",
+    "user": "deploy"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_user_info",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_group_list`
+
+Purpose:
+
+Lists local groups with GID and member names using a bounded result limit.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `limit`: Maximum number of rows to return.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_group_list",
+  "arguments": {
+    "profileName": "vps01",
+    "limit": 40
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_group_list",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_group_info`
+
+Purpose:
+
+Returns GID and member names for one local group.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `group`: Group name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_group_info",
+  "arguments": {
+    "profileName": "vps01",
+    "group": "www-data"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_group_info",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_sudoers_check`
+
+Purpose:
+
+Summarizes whether one user or group has sudoers evidence without returning sudoers file content.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `targetType`: Target category used by the operation.
+- `name`: Target name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_sudoers_check",
+  "arguments": {
+    "profileName": "vps01",
+    "targetType": "service",
+    "name": "nginx"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_sudoers_check",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_user_usage_check`
+
+Purpose:
+
+Checks whether one user or group is referenced by services, cron owners, or common owned paths with bounded output.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `targetType`: Target category used by the operation.
+- `name`: Target name.
+- `limit`: Maximum number of rows to return.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_user_usage_check",
+  "arguments": {
+    "profileName": "vps01",
+    "targetType": "service",
+    "name": "nginx",
+    "limit": 40
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_user_usage_check",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_user_check_group_change`
+
+Purpose:
+
+Checks a user supplementary group change and returns the diff and confirmation token without applying it.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `user`: User account name.
+- `groups`: Comma-separated or tool-specific group list.
+- `mode`: Three-digit octal mode for permission changes.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_user_check_group_change",
+  "arguments": {
+    "profileName": "vps01",
+    "user": "deploy",
+    "groups": "www-data",
+    "mode": "755"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_user_check_group_change",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_user_apply_group_change`
+
+Purpose:
+
+Applies a user supplementary group change after explicit confirmation.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `user`: User account name.
+- `groups`: Comma-separated or tool-specific group list.
+- `mode`: Three-digit octal mode for permission changes.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_user_apply_group_change",
+  "arguments": {
+    "profileName": "vps01",
+    "user": "deploy",
+    "groups": "www-data",
+    "mode": "755",
+    "confirmation": "<confirmation-token-from-check-result>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_user_apply_group_change",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_user_rollback_group_change`
+
+Purpose:
+
+Restores the latest user supplementary group backup after explicit confirmation.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `user`: User account name.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_user_rollback_group_change",
+  "arguments": {
+    "profileName": "vps01",
+    "user": "deploy",
+    "confirmation": "<confirmation-token-from-check-result>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_user_rollback_group_change",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_user_check_permission_change`
+
+Purpose:
+
+Checks a user shell, login, or sudo permission change without applying it.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `user`: User account name.
+- `shell`: Requested login shell.
+- `login`: Requested login state: enabled, disabled, or unchanged.
+- `sudo`: Requested sudo state.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_user_check_permission_change",
+  "arguments": {
+    "profileName": "vps01",
+    "user": "deploy",
+    "shell": "/usr/sbin/nologin",
+    "login": "unchanged",
+    "sudo": "unchanged"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_user_check_permission_change",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_user_apply_permission_change`
+
+Purpose:
+
+Applies a user shell, login, or sudo permission change after explicit confirmation.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `user`: User account name.
+- `shell`: Requested login shell.
+- `login`: Requested login state: enabled, disabled, or unchanged.
+- `sudo`: Requested sudo state.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_user_apply_permission_change",
+  "arguments": {
+    "profileName": "vps01",
+    "user": "deploy",
+    "shell": "/usr/sbin/nologin",
+    "login": "unchanged",
+    "sudo": "unchanged",
+    "confirmation": "<confirmation-token-from-check-result>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_user_apply_permission_change",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_user_rollback_permission_change`
+
+Purpose:
+
+Restores the latest user shell, login, and managed sudo permission backup after explicit confirmation.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `user`: User account name.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_user_rollback_permission_change",
+  "arguments": {
+    "profileName": "vps01",
+    "user": "deploy",
+    "confirmation": "<confirmation-token-from-check-result>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_user_rollback_permission_change",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_user_file_ownership_check`
+
+Purpose:
+
+Checks whether one user or group owns files under an approved root using a bounded non-following scan.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `targetType`: Target category used by the operation.
+- `name`: Target name.
+- `scanRoot`: Root path for a bounded scan.
+- `depth`: Maximum scan depth.
+- `limit`: Maximum number of rows to return.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_user_file_ownership_check",
+  "arguments": {
+    "profileName": "vps01",
+    "targetType": "service",
+    "name": "nginx",
+    "scanRoot": "/var/www",
+    "depth": 3,
+    "limit": 40
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_user_file_ownership_check",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_user_service_usage_check`
+
+Purpose:
+
+Checks systemd User, Group, and SupplementaryGroups references for one user or group.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `targetType`: Target category used by the operation.
+- `name`: Target name.
+- `limit`: Maximum number of rows to return.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_user_service_usage_check",
+  "arguments": {
+    "profileName": "vps01",
+    "targetType": "service",
+    "name": "nginx",
+    "limit": 40
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_user_service_usage_check",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_service_residual_config_check`
+
+Purpose:
+
+Checks common service unit, config, log, data, and runtime residual paths without reading file contents.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `service`: systemd service name.
+- `limit`: Maximum number of rows to return.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_service_residual_config_check",
+  "arguments": {
+    "profileName": "vps01",
+    "service": "nginx.service",
+    "limit": 40
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_service_residual_config_check",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_support_report_collect`
+
+Purpose:
+
+Collects a sanitized read-only support report without host names, IP addresses, usernames, or file contents.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `limit`: Maximum number of rows to return.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_support_report_collect",
+  "arguments": {
+    "profileName": "vps01",
+    "limit": 40
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_support_report_collect",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_firewall_status`
+
+Purpose:
+
+Checks firewalld and ufw availability and status without returning rule bodies.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_firewall_status",
+  "arguments": {
+    "profileName": "vps01"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_firewall_status",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_firewall_check_rule`
+
+Purpose:
+
+Checks one firewalld rule change and returns state plus confirmation token without applying it.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `action`: Requested action.
+- `target`: Operation target.
+- `value`: Environment variable value.
+- `zone`: Firewall zone.
+- `permanent`: Whether the firewall rule should be permanent.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_firewall_check_rule",
+  "arguments": {
+    "profileName": "vps01",
+    "action": "allow",
+    "target": "https://127.0.0.1/",
+    "value": "production",
+    "zone": "public",
+    "permanent": false
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_firewall_check_rule",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_firewall_apply_rule`
+
+Purpose:
+
+Applies one firewalld rule change after explicit confirmation.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `action`: Requested action.
+- `target`: Operation target.
+- `value`: Environment variable value.
+- `zone`: Firewall zone.
+- `permanent`: Whether the firewall rule should be permanent.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_firewall_apply_rule",
+  "arguments": {
+    "profileName": "vps01",
+    "action": "allow",
+    "target": "https://127.0.0.1/",
+    "value": "production",
+    "zone": "public",
+    "permanent": false,
+    "confirmation": "<confirmation-token-from-check-result>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_firewall_apply_rule",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_backup_plan_check`
+
+Purpose:
+
+Checks backup scope, estimated file counts, and confirmation token without creating a backup.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `scanRoot`: Root path for a bounded scan.
+- `depth`: Maximum scan depth.
+- `limit`: Maximum number of rows to return.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_backup_plan_check",
+  "arguments": {
+    "profileName": "vps01",
+    "scanRoot": "/var/www",
+    "depth": 3,
+    "limit": 40
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_backup_plan_check",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_backup_run`
+
+Purpose:
+
+Creates a bounded provider-approved backup archive after explicit confirmation.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `scanRoot`: Root path for a bounded scan.
+- `depth`: Maximum scan depth.
+- `limit`: Maximum number of rows to return.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_backup_run",
+  "arguments": {
+    "profileName": "vps01",
+    "scanRoot": "/var/www",
+    "depth": 3,
+    "limit": 40,
+    "confirmation": "<confirmation-token-from-check-result>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_backup_run",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_backup_verify`
+
+Purpose:
+
+Verifies whether an approved backup archive exists and can be listed without returning archive entries.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `backupPath`: Backup path returned by a previous write operation.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_backup_verify",
+  "arguments": {
+    "profileName": "vps01",
+    "backupPath": "/var/backups/kelpie/example.bak"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_backup_verify",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_audit_verify`
+
+Purpose:
+
+Verifies a Kelpie audit log hash chain without returning log bodies.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `logPath`: Tool-specific argument of type `string` defined by the MCP schema.
+- `limit`: Maximum number of rows to return.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_audit_verify",
+  "arguments": {
+    "profileName": "vps01",
+    "logPath": "<value>",
+    "limit": 40
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_audit_verify",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_audit_export`
+
+Purpose:
+
+Exports a sanitized Kelpie audit log summary without raw log bodies.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `logPath`: Tool-specific argument of type `string` defined by the MCP schema.
+- `limit`: Maximum number of rows to return.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_audit_export",
+  "arguments": {
+    "profileName": "vps01",
+    "logPath": "<value>",
+    "limit": 40
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_audit_export",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `get_environment_keys`
+
+Purpose:
+
+Lists remote environment variable keys for a configured SSH profile when profile policy allows it.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
 
 ```json
 {
@@ -488,19 +3496,115 @@ Input arguments:
 }
 ```
 
-`peek_environment_value` params sample:
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "get_environment_keys",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Do not record secrets or raw sensitive values in public documents or logs.
+
+### `peek_environment_value`
+
+Purpose:
+
+Reads one remote environment variable value only when profile policy allows the key.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `key`: Environment variable key.
+
+`tools/call` params sample:
 
 ```json
 {
   "name": "peek_environment_value",
   "arguments": {
     "profileName": "vps01",
-    "key": "PATH"
+    "key": "APP_ENV"
   }
 }
 ```
 
-`set_environment_value` params sample:
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "peek_environment_value",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Do not record secrets or raw sensitive values in public documents or logs.
+
+### `set_environment_value`
+
+Purpose:
+
+Runs one command with one remote environment variable set for that execution only. The value is not persisted.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `key`: Environment variable key.
+- `value`: Environment variable value.
+- `command`: Managed command text or command name accepted by policy.
+
+`tools/call` params sample:
 
 ```json
 {
@@ -509,12 +3613,58 @@ Input arguments:
     "profileName": "vps01",
     "key": "APP_ENV",
     "value": "production",
-    "command": "printenv APP_ENV"
+    "command": "uptime"
   }
 }
 ```
 
-`list_persistent_environment_keys` params sample:
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "set_environment_value",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Do not record secrets or raw sensitive values in public documents or logs.
+
+### `list_persistent_environment_keys`
+
+Purpose:
+
+Lists environment variable keys persisted in ~/.kelpie/.env when profile policy allows key listing.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
 
 ```json
 {
@@ -525,7 +3675,55 @@ Input arguments:
 }
 ```
 
-`persist_environment_value` params sample:
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "list_persistent_environment_keys",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Do not record secrets or raw sensitive values in public documents or logs.
+
+### `persist_environment_value`
+
+Purpose:
+
+Persists one remote environment variable value in ~/.kelpie/.env when profile policy allows setting the key.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `key`: Environment variable key.
+- `value`: Environment variable value.
+
+`tools/call` params sample:
 
 ```json
 {
@@ -538,7 +3736,54 @@ Input arguments:
 }
 ```
 
-`remove_persistent_environment_value` params sample:
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "persist_environment_value",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Do not record secrets or raw sensitive values in public documents or logs.
+
+### `remove_persistent_environment_value`
+
+Purpose:
+
+Removes one remote environment variable value from ~/.kelpie/.env when profile policy allows setting the key.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `key`: Environment variable key.
+
+`tools/call` params sample:
 
 ```json
 {
@@ -550,53 +3795,53 @@ Input arguments:
 }
 ```
 
-Execution:
+Processing:
 
-`get_environment_keys` requires `AllowPeekEnvironmentKeys` and returns key names only. Keys marked `Hidden` in `EnvironmentValues` are filtered.
-`peek_environment_value` requires `AllowPeekEnvironmentValues` and a matching `EnvironmentValues` rule such as `PeekCommon`, `PeekSecret`, or `Masked`.
-`set_environment_value` requires `AllowSetEnvironmentValues` and a matching `SetCommon` or `SetSecret` rule. It sources `~/.kelpie/.env` if present, then applies the supplied key/value only to the single command execution.
-`list_persistent_environment_keys` reads key names from `~/.kelpie/.env` and requires `AllowPeekEnvironmentKeys`.
-`persist_environment_value` writes one key/value to `~/.kelpie/.env` and creates a timestamped `.kelpie` backup before writing.
-`remove_persistent_environment_value` removes one key from `~/.kelpie/.env` and creates a timestamped `.kelpie` backup before writing.
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
 
 Return value sample:
 
 ```json
 {
-  "ProfileName": "vps01",
-  "CommandName": "set_environment_value",
-  "CommandText": "env APP_ENV=(hidden) printenv APP_ENV",
+  "CommandName": "remove_persistent_environment_value",
+  "Host": "example.invalid",
   "ExitCode": 0,
-  "StandardOutput": "production\n"
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
 }
 ```
 
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
 Safety notes:
 
-- Environment variable values can be secrets. Do not paste raw values into public documents, logs, or issues.
-- `set_environment_value` masks the value in returned `CommandText`.
-- `persist_environment_value` masks the value in returned `CommandText`.
-- `Hidden` keys appear unavailable; `Masked` keys return masked output and length only.
-- Keys not listed in `EnvironmentValues` may be listed by `get_environment_keys` if key listing is enabled, but their values cannot be read or set.
-- Persisted values affect future executions only when the shell, cron job, service, or Kelpie command sources `~/.kelpie/.env`.
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### Generic execution tools
-
-Tools:
-
-- `ssh_run_allowed_command`
-- `ssh_run_remote_operation`
+### `ssh_run_allowed_command`
 
 Purpose:
 
-Runs one allow-listed managed command, either through a saved profile or through a one-off `SshRemoteOperation`.
+Runs one allowed read-only diagnostic command against a configured SSH profile.
 
 Input arguments:
 
-- `profileName`: SSH profile name for `ssh_run_allowed_command`.
-- `commandName`: managed command name for `ssh_run_allowed_command`.
-- `arguments`: command-specific key/value arguments.
-- `operation`: complete `SshRemoteOperation` for `ssh_run_remote_operation`.
+- `commandName`: Allow-listed command name.
+- `profileName`: SSH profile name.
+- `arguments`: Key-value command arguments.
 
 `tools/call` params sample:
 
@@ -604,108 +3849,126 @@ Input arguments:
 {
   "name": "ssh_run_allowed_command",
   "arguments": {
-    "profileName": "vps01",
     "commandName": "get_system_info",
+    "profileName": "vps01",
     "arguments": {}
   }
 }
 ```
 
-`ssh_run_remote_operation` params sample:
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_run_allowed_command",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_run_remote_operation`
+
+Purpose:
+
+Runs one SSH remote operation from endpoint, credential, policy, operation, and options inputs.
+
+Input arguments:
+
+- `operation`: SshRemoteOperation object containing endpoint, credential, policy, operation, and options.
+
+`tools/call` params sample:
 
 ```json
 {
   "name": "ssh_run_remote_operation",
   "arguments": {
     "operation": {
-      "endpoint": {
-        "host": "203.0.113.10",
-        "port": 22
+      "operation": {
+        "commandName": "get_system_info",
+        "arguments": {}
       },
       "credential": {
-        "user_name": "deploy",
-        "kind": "private_key",
-        "private_key_path": "id_ed25519"
+        "userName": "deploy",
+        "method": "privateKey"
       },
-      "policy": {
-        "mode": "maintenance",
-        "roles": ["web_admin"],
-        "allowed_roots": [
-          {
-            "path": "/var/www/example",
-            "access": ["read", "list", "write", "cd"]
-          }
-        ],
-        "special_paths": [
-          {
-            "pattern": "**/.env",
-            "action": "deny"
-          }
-        ]
-      },
-      "operation": {
-        "kind": "managed",
-        "name": "service_status",
-        "arguments": {
-          "service": "nginx"
-        }
-      },
-      "options": {
-        "timeout_seconds": 30,
-        "correlation_id": "op-example"
-      },
-      "target": {
-        "os_family": "debian",
-        "package_manager": "apt"
+      "endpoint": {
+        "port": 22,
+        "host": "example.invalid"
       }
     }
   }
 }
 ```
 
-Execution:
+Processing:
 
-For managed operations, Kelpie resolves the command from the command catalog and evaluates mode, roles, allowed roots, special paths, and channel policy. For raw operations, raw shell policy must also pass.
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshRemoteOperationToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
 
 Return value sample:
 
 ```json
 {
-  "ProfileName": "vps01",
   "CommandName": "get_system_info",
-  "ExitCode": 0,
-  "StandardOutput": "Linux example ...\n"
+  "StandardError": "",
+  "StandardOutput": "<remote command stdout>",
+  "Error": "",
+  "ExitCode": 0
 }
 ```
 
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
 Safety notes:
 
-- Unknown `commandName` values are rejected.
-- `SshRemoteOperation` is a single execution input, not a saved-profile or product-edition model.
-- Product policy such as Free/Standard limits is outside this API boundary.
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### Terminal tools
-
-Tools:
-
-- `ssh_terminal_open`
-- `ssh_terminal_send`
-- `ssh_terminal_snapshot`
-- `ssh_terminal_close`
-- `ssh_connection_close`
-- `ssh_logout`
+### `ssh_terminal_open`
 
 Purpose:
 
-Manages a PTY-backed interactive SSH terminal session.
+Opens an interactive SSH terminal session and returns the initial rendered screen snapshot.
 
 Input arguments:
 
-- `profileName`: SSH profile name for `ssh_terminal_open`.
-- `handle`: terminal session handle returned by `ssh_terminal_open`.
-- `input`: raw input sent by `ssh_terminal_send`.
-- `columns`: terminal width, optional.
-- `rows`: terminal height, optional.
+- `profileName`: SSH profile name.
+- `columns`: Terminal width in columns.
+- `rows`: Terminal height in rows.
+- `pixelWidth`: Terminal render width in pixels.
+- `pixelHeight`: Terminal render height in pixels.
 
 `tools/call` params sample:
 
@@ -715,65 +3978,273 @@ Input arguments:
   "arguments": {
     "profileName": "vps01",
     "columns": 120,
-    "rows": 40
+    "rows": 40,
+    "pixelWidth": 960,
+    "pixelHeight": 640
   }
 }
 ```
 
-Execution:
+Processing:
 
-`ssh_terminal_open` creates a session and returns a rendered screen snapshot. `ssh_terminal_send` writes input to the session. `ssh_terminal_snapshot` returns the current rendered screen. `ssh_terminal_close` closes the session. `ssh_connection_close` is the connection-oriented alias for closing the same persistent terminal connection by handle. `ssh_logout` clears the in-memory password session for one profile.
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshTerminalSnapshotResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
 
 Return value sample:
 
 ```json
 {
-  "Handle": "term-123456789abc",
   "ProfileName": "vps01",
-  "Columns": 120,
   "Rows": 40,
-  "CursorRow": 0,
-  "CursorColumn": 0,
-  "Lines": ["$ "],
-  "Text": "$ ",
-  "RawOutput": "$ ",
+  "Handle": "term-a1b2c3d4e5f6",
+  "Text": "<terminal screen text>",
+  "Error": "",
   "Connected": true,
-  "StartedAtUtc": "2026-06-17T12:00:00Z",
-  "CapturedAtUtc": "2026-06-17T12:00:01Z"
+  "Columns": 120,
+  "Lines": [
+    "<terminal screen line>"
+  ]
 }
 ```
 
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
 Safety notes:
 
-- Terminal input is interactive and may have side effects on the remote host.
-- Raw shell policy still applies.
-- Close unused sessions with `ssh_terminal_close`.
-- Use `ssh_connection_close` when the user intent is "close the SSH connection" for a terminal handle.
-- Use `ssh_logout` to forget the password session for a password-based profile. Existing terminal connections remain connected until they are closed.
+- Persistent terminal sessions can carry remote state; close handles when they are no longer needed.
 
-`ssh_connection_close` params sample:
+### `ssh_terminal_send`
+
+Purpose:
+
+Sends raw input to an interactive SSH terminal session and returns the updated rendered screen snapshot.
+
+Input arguments:
+
+- `handle`: Terminal connection handle returned by ssh_terminal_open.
+- `input`: Text to send to the terminal session.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_terminal_send",
+  "arguments": {
+    "handle": "term-a1b2c3d4e5f6",
+    "input": "exit"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshTerminalSnapshotResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "ProfileName": "vps01",
+  "Rows": 40,
+  "Handle": "term-a1b2c3d4e5f6",
+  "Text": "<terminal screen text>",
+  "Error": "",
+  "Connected": true,
+  "Columns": 120,
+  "Lines": [
+    "<terminal screen line>"
+  ]
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Persistent terminal sessions can carry remote state; close handles when they are no longer needed.
+
+### `ssh_terminal_snapshot`
+
+Purpose:
+
+Returns the current rendered screen snapshot for an interactive SSH terminal session.
+
+Input arguments:
+
+- `handle`: Terminal connection handle returned by ssh_terminal_open.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_terminal_snapshot",
+  "arguments": {
+    "handle": "term-a1b2c3d4e5f6"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshTerminalSnapshotResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "ProfileName": "vps01",
+  "Rows": 40,
+  "Handle": "term-a1b2c3d4e5f6",
+  "Text": "<terminal screen text>",
+  "Error": "",
+  "Connected": true,
+  "Columns": 120,
+  "Lines": [
+    "<terminal screen line>"
+  ]
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Persistent terminal sessions can carry remote state; close handles when they are no longer needed.
+
+### `ssh_terminal_close`
+
+Purpose:
+
+Closes an interactive SSH terminal session.
+
+Input arguments:
+
+- `handle`: Terminal connection handle returned by ssh_terminal_open.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_terminal_close",
+  "arguments": {
+    "handle": "term-a1b2c3d4e5f6"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshTerminalCloseResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "Closed": true,
+  "Handle": "term-a1b2c3d4e5f6",
+  "ProfileName": "vps01",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Persistent terminal sessions can carry remote state; close handles when they are no longer needed.
+
+### `ssh_connection_close`
+
+Purpose:
+
+Closes a persistent SSH terminal connection opened by ssh_terminal_open.
+
+Input arguments:
+
+- `handle`: Terminal connection handle returned by ssh_terminal_open.
+
+`tools/call` params sample:
 
 ```json
 {
   "name": "ssh_connection_close",
   "arguments": {
-    "handle": "term-123"
+    "handle": "term-a1b2c3d4e5f6"
   }
 }
 ```
 
-`ssh_connection_close` return value sample:
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshTerminalCloseResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
 
 ```json
 {
-  "Handle": "term-123456789abc",
-  "ProfileName": "vps01",
   "Closed": true,
+  "Handle": "term-a1b2c3d4e5f6",
+  "ProfileName": "vps01",
   "Error": ""
 }
 ```
 
-`ssh_logout` params sample:
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Persistent terminal sessions can carry remote state; close handles when they are no longer needed.
+
+### `ssh_logout`
+
+Purpose:
+
+Clears the in-memory SSH password session for a configured SSH profile.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
 
 ```json
 {
@@ -784,7 +4255,17 @@ Safety notes:
 }
 ```
 
-`ssh_logout` return value sample:
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshLogoutResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
 
 ```json
 {
@@ -794,31 +4275,81 @@ Safety notes:
 }
 ```
 
-### Package tools
+Execution result sample:
 
-Tools:
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
 
-- `ssh_pkg_check_updates`
-- `ssh_pkg_info`
-- `ssh_pkg_search`
-- `ssh_pkg_list_installed`
-- `ssh_pkg_simulate_install`
-- `ssh_pkg_install`
-- `ssh_pkg_install_confirmed`
-- `ssh_pkg_simulate_remove`
-- `ssh_pkg_remove`
+Safety notes:
+
+- Clears only the in-memory password session for the specified profile; it does not close existing terminal connections.
+
+### `ssh_pkg_check_updates`
 
 Purpose:
 
-Inspects packages and gates package changes behind dry-run and confirmation flows.
+Runs the allowed pkg_check_updates command against a configured SSH profile.
 
 Input arguments:
 
 - `profileName`: SSH profile name.
-- `packageName`: package name for package-specific tools.
-- `query`: package search text.
-- `limit`: maximum row count for list/search tools.
-- `confirmation`: required for confirmed install/remove execution.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_pkg_check_updates",
+  "arguments": {
+    "profileName": "vps01"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_pkg_check_updates",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_pkg_info`
+
+Purpose:
+
+Runs the allowed pkg_info command against a configured SSH profile.
+
+Input arguments:
+
+- `package`: Package name.
+- `profileName`: SSH profile name.
 
 `tools/call` params sample:
 
@@ -826,53 +4357,477 @@ Input arguments:
 {
   "name": "ssh_pkg_info",
   "arguments": {
-    "profileName": "vps01",
-    "packageName": "nginx"
+    "package": "nginx",
+    "profileName": "vps01"
   }
 }
 ```
 
-Execution:
+Processing:
 
-Read tools query package metadata. `ssh_pkg_simulate_install` and `ssh_pkg_simulate_remove` run dry-run commands. `ssh_pkg_install` and `ssh_pkg_remove` return a confirmation request rather than making changes directly. Confirmed execution requires the matching confirmation string.
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
 
-Confirmation examples:
+Return value:
 
-```text
-pkg_install:nginx
-pkg_remove:nginx
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_pkg_info",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
 ```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
 
 Safety notes:
 
-- Package install/remove changes the remote target and must be explicitly confirmed.
-- Package manager support depends on detected OS and configured provider.
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### Service tools
-
-Tools:
-
-- `ssh_service_status`
-- `ssh_service_is_active`
-- `ssh_service_is_enabled`
-- `ssh_list_services`
-- `ssh_service_enable_now`
-- `ssh_service_reload`
-- `ssh_service_restart`
-- `ssh_service_stop`
-- `ssh_service_disable`
+### `ssh_pkg_search`
 
 Purpose:
 
-Inspects and safely manages systemd services.
+Runs a limited package search against a configured SSH profile.
 
 Input arguments:
 
+- `query`: Text search query.
 - `profileName`: SSH profile name.
+- `limit`: Maximum number of rows to return.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_pkg_search",
+  "arguments": {
+    "query": "server_name",
+    "profileName": "vps01",
+    "limit": 40
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_pkg_search",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_pkg_list_installed`
+
+Purpose:
+
+Runs a limited installed-package listing against a configured SSH profile.
+
+Input arguments:
+
+- `filter`: Tool-specific argument of type `string` defined by the MCP schema.
+- `profileName`: SSH profile name.
+- `limit`: Maximum number of rows to return.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_pkg_list_installed",
+  "arguments": {
+    "filter": "<value>",
+    "profileName": "vps01",
+    "limit": 40
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_pkg_list_installed",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_pkg_simulate_install`
+
+Purpose:
+
+Runs the allowed pkg_simulate_install dry-run command against a configured SSH profile.
+
+Input arguments:
+
+- `package`: Package name.
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_pkg_simulate_install",
+  "arguments": {
+    "package": "nginx",
+    "profileName": "vps01"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_pkg_simulate_install",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_pkg_install`
+
+Purpose:
+
+Returns a confirmation request for the pkg_install command without executing it.
+
+Input arguments:
+
+- `package`: Package name.
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_pkg_install",
+  "arguments": {
+    "package": "nginx",
+    "profileName": "vps01"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshConfirmationResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_pkg_install",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_pkg_install_confirmed`
+
+Purpose:
+
+Runs the allowed pkg_install command after explicit confirmation. The confirmation argument must be pkg_install:<package>.
+
+Input arguments:
+
+- `package`: Package name.
+- `profileName`: SSH profile name.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_pkg_install_confirmed",
+  "arguments": {
+    "package": "nginx",
+    "profileName": "vps01",
+    "confirmation": "<confirmation-token-from-check-result>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_pkg_install_confirmed",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_pkg_simulate_remove`
+
+Purpose:
+
+Runs the allowed pkg_simulate_remove dry-run command against a configured SSH profile.
+
+Input arguments:
+
+- `package`: Package name.
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_pkg_simulate_remove",
+  "arguments": {
+    "package": "nginx",
+    "profileName": "vps01"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_pkg_simulate_remove",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_pkg_remove`
+
+Purpose:
+
+Returns a confirmation request for the pkg_remove command without executing it.
+
+Input arguments:
+
+- `package`: Package name.
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_pkg_remove",
+  "arguments": {
+    "package": "nginx",
+    "profileName": "vps01"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshConfirmationResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_pkg_remove",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_service_status`
+
+Purpose:
+
+Runs systemctl status for one service without changing service state.
+
+Input arguments:
+
 - `service`: systemd service name.
-- `state`: optional state filter for list tools.
-- `limit`: maximum row count.
-- `confirmation`: required for service state changes.
+- `profileName`: SSH profile name.
 
 `tools/call` params sample:
 
@@ -880,53 +4835,658 @@ Input arguments:
 {
   "name": "ssh_service_status",
   "arguments": {
-    "profileName": "vps01",
-    "service": "nginx.service"
+    "service": "nginx.service",
+    "profileName": "vps01"
   }
 }
 ```
 
-Execution:
+Processing:
 
-Status tools run read-only `systemctl` checks. Change tools run `systemctl enable --now`, `reload`, `restart`, `stop`, or `disable` only after confirmation.
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
 
-Confirmation examples:
+Return value:
 
-```text
-service_restart:nginx.service
-service_stop:nginx.service
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_service_status",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
 ```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
 
 Safety notes:
 
-- Service changes can interrupt workloads.
-- Service names are validated and arbitrary shell fragments are rejected.
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### Service configuration and log tools
-
-Tools:
-
-- `service_config_paths`
-- `service_config_file_check_read`
-- `service_config_file_read`
-- `service_config_file_check_write`
-- `service_config_file_write`
-- `service_config_file_rollback`
-- `service_config_file_commit`
-- `service_config_test`
-- `service_logfile_read`
+### `ssh_service_is_active`
 
 Purpose:
 
-Operates on provider-approved service configuration files and logs.
+Runs systemctl is-active for one service without changing service state.
+
+Input arguments:
+
+- `service`: systemd service name.
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_service_is_active",
+  "arguments": {
+    "service": "nginx.service",
+    "profileName": "vps01"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_service_is_active",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_service_is_enabled`
+
+Purpose:
+
+Runs systemctl is-enabled for one service without changing service state.
+
+Input arguments:
+
+- `service`: systemd service name.
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_service_is_enabled",
+  "arguments": {
+    "service": "nginx.service",
+    "profileName": "vps01"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_service_is_enabled",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_list_services`
+
+Purpose:
+
+Lists systemd service units with a validated state filter and line limit.
 
 Input arguments:
 
 - `profileName`: SSH profile name.
-- `service`: supported service key or service name.
-- `path`: provider-approved configuration or log path.
-- `contentBase64`: replacement file content for writes.
-- `confirmation`: required for write, rollback, commit, and test actions.
+- `state`: Tool-specific argument of type `string` defined by the MCP schema.
+- `limit`: Maximum number of rows to return.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_list_services",
+  "arguments": {
+    "profileName": "vps01",
+    "state": "<value>",
+    "limit": 40
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_list_services",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `ssh_service_enable_now`
+
+Purpose:
+
+Runs systemctl enable --now for one service after explicit confirmation.
+
+Input arguments:
+
+- `service`: systemd service name.
+- `profileName`: SSH profile name.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_service_enable_now",
+  "arguments": {
+    "service": "nginx.service",
+    "profileName": "vps01",
+    "confirmation": "<confirmation-token-from-check-result>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_service_enable_now",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_service_reload`
+
+Purpose:
+
+Runs systemctl reload for one service after explicit confirmation.
+
+Input arguments:
+
+- `service`: systemd service name.
+- `profileName`: SSH profile name.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_service_reload",
+  "arguments": {
+    "service": "nginx.service",
+    "profileName": "vps01",
+    "confirmation": "<confirmation-token-from-check-result>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_service_reload",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_service_restart`
+
+Purpose:
+
+Runs systemctl restart for one service after explicit confirmation.
+
+Input arguments:
+
+- `service`: systemd service name.
+- `profileName`: SSH profile name.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_service_restart",
+  "arguments": {
+    "service": "nginx.service",
+    "profileName": "vps01",
+    "confirmation": "<confirmation-token-from-check-result>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_service_restart",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_service_stop`
+
+Purpose:
+
+Runs systemctl stop for one service after explicit confirmation.
+
+Input arguments:
+
+- `service`: systemd service name.
+- `profileName`: SSH profile name.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_service_stop",
+  "arguments": {
+    "service": "nginx.service",
+    "profileName": "vps01",
+    "confirmation": "<confirmation-token-from-check-result>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_service_stop",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `ssh_service_disable`
+
+Purpose:
+
+Runs systemctl disable for one service after explicit confirmation.
+
+Input arguments:
+
+- `service`: systemd service name.
+- `profileName`: SSH profile name.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_service_disable",
+  "arguments": {
+    "service": "nginx.service",
+    "profileName": "vps01",
+    "confirmation": "<confirmation-token-from-check-result>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "ssh_service_disable",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<remote command stdout>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `service_config_paths`
+
+Purpose:
+
+Returns configuration file paths for a supported service on a configured SSH profile.
+
+Input arguments:
+
+- `serviceKey`: Tool-specific argument of type `string` defined by the MCP schema.
+- `profileName`: SSH profile name.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "service_config_paths",
+  "arguments": {
+    "serviceKey": "<value>",
+    "profileName": "vps01"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `ServiceConfigPathsResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "ServiceKey": "default",
+  "DisplayName": "<display name>",
+  "MainConfig": "/path/example",
+  "ConfigFiles": [],
+  "IncludePatterns": [],
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `service_config_file_check_read`
+
+Purpose:
+
+Checks whether one provider-approved configuration file can be read without returning its content.
+
+Input arguments:
+
+- `serviceKey`: Tool-specific argument of type `string` defined by the MCP schema.
+- `profileName`: SSH profile name.
+- `path`: Target path validated by the tool policy or provider.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "service_config_file_check_read",
+  "arguments": {
+    "serviceKey": "<value>",
+    "profileName": "vps01",
+    "path": "/var/www/example/index.html"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `ServiceConfigFileAccessCheckResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "ServiceKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/path/example",
+  "CanRead": true,
+  "CanWrite": true,
+  "RequiresConfirmation": true,
+  "Confirmation": "<value>",
+  "Method": "<value>",
+  "TargetKey": "<value>",
+  "Encoding": "<value>",
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `service_config_file_read`
+
+Purpose:
+
+Reads one provider-approved configuration file for a supported service on a configured SSH profile.
+
+Input arguments:
+
+- `serviceKey`: Tool-specific argument of type `string` defined by the MCP schema.
+- `profileName`: SSH profile name.
+- `path`: Target path validated by the tool policy or provider.
 
 `tools/call` params sample:
 
@@ -934,57 +5494,617 @@ Input arguments:
 {
   "name": "service_config_file_read",
   "arguments": {
+    "serviceKey": "<value>",
     "profileName": "vps01",
-    "service": "nginx",
-    "path": "/etc/nginx/nginx.conf"
+    "path": "/var/www/example/index.html"
   }
 }
 ```
 
-Execution:
+Processing:
 
-Check tools validate access without returning content or making changes. Read tools return bounded file content. Write tools create a backup before applying changes. Rollback restores the backup. Commit removes the Kelpie backup after the user accepts the edit.
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `ServiceConfigFileReadResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "ServiceKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/path/example",
+  "Content": "<output text>",
+  "Encoding": "<value>",
+  "Truncated": true,
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
 
 Safety notes:
 
-- Only provider-approved paths are accessible.
-- Configuration writes are confirmation-gated.
-- Log reads are bounded; avoid sharing raw logs publicly.
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### Web file tools
-
-Tools:
-
-- `web_file_list`
-- `web_file_search_name`
-- `web_file_search_text`
-- `web_file_stat`
-- `web_file_check_write`
-- `web_file_check_permissions`
-- `web_file_read`
-- `web_file_head`
-- `web_file_tail`
-- `web_file_write`
-- `web_change_owner`
-- `web_change_owner_recursive`
-- `web_change_mode`
-- `web_change_mode_recursive`
+### `service_config_file_check_write`
 
 Purpose:
 
-Operates on provider-approved web roots using site-relative absolute paths.
+Checks whether one provider-limited configuration edit can be written without applying changes.
+
+Input arguments:
+
+- `serviceKey`: Tool-specific argument of type `string` defined by the MCP schema.
+- `profileName`: SSH profile name.
+- `path`: Target path validated by the tool policy or provider.
+- `targetKey`: Configured target key.
+- `method`: HTTP method or operation method.
+- `targetValue`: Tool-specific argument of type `string?` defined by the MCP schema.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "service_config_file_check_write",
+  "arguments": {
+    "serviceKey": "<value>",
+    "profileName": "vps01",
+    "path": "/var/www/example/index.html",
+    "targetKey": "main",
+    "method": "GET",
+    "targetValue": "<value>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `ServiceConfigFileAccessCheckResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "ServiceKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/path/example",
+  "CanRead": true,
+  "CanWrite": true,
+  "RequiresConfirmation": true,
+  "Confirmation": "<value>",
+  "Method": "<value>",
+  "TargetKey": "<value>",
+  "Encoding": "<value>",
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `service_config_file_write`
+
+Purpose:
+
+Applies one provider-limited configuration edit after explicit confirmation.
+
+Input arguments:
+
+- `serviceKey`: Tool-specific argument of type `string` defined by the MCP schema.
+- `profileName`: SSH profile name.
+- `path`: Target path validated by the tool policy or provider.
+- `targetKey`: Configured target key.
+- `method`: HTTP method or operation method.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+- `targetValue`: Tool-specific argument of type `string?` defined by the MCP schema.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "service_config_file_write",
+  "arguments": {
+    "serviceKey": "<value>",
+    "profileName": "vps01",
+    "path": "/var/www/example/index.html",
+    "targetKey": "main",
+    "method": "GET",
+    "confirmation": "<confirmation-token-from-check-result>",
+    "targetValue": "<value>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `ServiceConfigFileWriteResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "ServiceKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/path/example",
+  "Encoding": "<value>",
+  "BytesWritten": 0,
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `service_config_file_rollback`
+
+Purpose:
+
+Restores one provider-approved configuration file from its Kelpie backup after explicit confirmation.
+
+Input arguments:
+
+- `serviceKey`: Tool-specific argument of type `string` defined by the MCP schema.
+- `profileName`: SSH profile name.
+- `path`: Target path validated by the tool policy or provider.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "service_config_file_rollback",
+  "arguments": {
+    "serviceKey": "<value>",
+    "profileName": "vps01",
+    "path": "/var/www/example/index.html",
+    "confirmation": "<confirmation-token-from-check-result>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `ServiceConfigFileBackupActionResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "ServiceKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/path/example",
+  "BackupPath": "/path/example",
+  "Changed": true,
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `service_config_file_commit`
+
+Purpose:
+
+Commits one provider-approved configuration file edit by removing its Kelpie backup after explicit confirmation.
+
+Input arguments:
+
+- `serviceKey`: Tool-specific argument of type `string` defined by the MCP schema.
+- `profileName`: SSH profile name.
+- `path`: Target path validated by the tool policy or provider.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "service_config_file_commit",
+  "arguments": {
+    "serviceKey": "<value>",
+    "profileName": "vps01",
+    "path": "/var/www/example/index.html",
+    "confirmation": "<confirmation-token-from-check-result>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `ServiceConfigFileBackupActionResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "ServiceKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/path/example",
+  "BackupPath": "/path/example",
+  "Changed": true,
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `service_config_test`
+
+Purpose:
+
+Tests provider-managed configuration files for a supported service after explicit confirmation.
+
+Input arguments:
+
+- `serviceKey`: Tool-specific argument of type `string` defined by the MCP schema.
+- `profileName`: SSH profile name.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "service_config_test",
+  "arguments": {
+    "serviceKey": "<value>",
+    "profileName": "vps01",
+    "confirmation": "<confirmation-token-from-check-result>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `ServiceConfigFileTestResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "ServiceKey": "default",
+  "DisplayName": "<display name>",
+  "TestCommand": "<command text>",
+  "ExitCode": 0,
+  "StandardOutput": "<output text>",
+  "StandardError": "",
+  "Stdout": null,
+  "Stderr": null,
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `service_logfile_read`
+
+Purpose:
+
+Reads one provider-approved log file for a supported service on a configured SSH profile.
+
+Input arguments:
+
+- `serviceKey`: Tool-specific argument of type `string` defined by the MCP schema.
+- `profileName`: SSH profile name.
+- `logKey`: Configured log key.
+- `sinceMinutes`: Tool-specific argument of type `int?` defined by the MCP schema.
+- `lines`: Maximum number of log or terminal lines to return.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "service_logfile_read",
+  "arguments": {
+    "serviceKey": "<value>",
+    "profileName": "vps01",
+    "logKey": "access",
+    "sinceMinutes": "<value>",
+    "lines": 120
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `ServiceLogfileReadResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "ServiceKey": "default",
+  "DisplayName": "<display name>",
+  "LogKey": "default",
+  "Path": "/path/example",
+  "Content": "<output text>",
+  "Encoding": "<value>",
+  "Truncated": true,
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `web_file_list`
+
+Purpose:
+
+Lists provider-approved web files and directories on a configured SSH profile.
 
 Input arguments:
 
 - `profileName`: SSH profile name.
-- `siteKey`: web site configuration key.
-- `path`: site-relative absolute path such as `/index.html`.
-- `pattern`: file-name glob for name search.
-- `query`: text search query.
-- `maxDepth`, `limit`, `maxBytes`, `maxLines`: bounded read/search controls.
-- `contentBase64`: replacement file content for writes.
-- `owner`, `group`, `mode`: optional owner/group/mode changes.
-- `confirmation`: required for write and permission changes.
+- `siteKey`: Configured web site key.
+- `path`: Target path validated by the tool policy or provider.
+- `maxDepth`: Maximum traversal depth.
+- `limit`: Maximum number of rows to return.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "web_file_list",
+  "arguments": {
+    "profileName": "vps01",
+    "siteKey": "default",
+    "path": "/var/www/example/index.html",
+    "maxDepth": 3,
+    "limit": 40
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `WebPublicFileListResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "SiteKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/path/example",
+  "ResolvedPath": "/path/example",
+  "Exists": true,
+  "Entries": [],
+  "Truncated": true,
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `web_file_search_name`
+
+Purpose:
+
+Searches provider-approved web file and directory names with a restricted glob pattern.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `siteKey`: Configured web site key.
+- `pattern`: Search pattern or glob accepted by the tool.
+- `path`: Target path validated by the tool policy or provider.
+- `maxDepth`: Maximum traversal depth.
+- `limit`: Maximum number of rows to return.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "web_file_search_name",
+  "arguments": {
+    "profileName": "vps01",
+    "siteKey": "default",
+    "pattern": "*.conf",
+    "path": "/var/www/example/index.html",
+    "maxDepth": 3,
+    "limit": 40
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `WebPublicFileListResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "SiteKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/path/example",
+  "ResolvedPath": "/path/example",
+  "Exists": true,
+  "Entries": [],
+  "Truncated": true,
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `web_file_search_text`
+
+Purpose:
+
+Searches readable provider-approved web text files with bounded file size and result limits.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `siteKey`: Configured web site key.
+- `query`: Text search query.
+- `path`: Target path validated by the tool policy or provider.
+- `maxDepth`: Maximum traversal depth.
+- `limit`: Maximum number of rows to return.
+- `maxFileBytes`: Tool-specific argument of type `int` defined by the MCP schema.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "web_file_search_text",
+  "arguments": {
+    "profileName": "vps01",
+    "siteKey": "default",
+    "query": "server_name",
+    "path": "/var/www/example/index.html",
+    "maxDepth": 3,
+    "limit": 40,
+    "maxFileBytes": "<value>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `WebPublicTextSearchResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "SiteKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/path/example",
+  "ResolvedPath": "/path/example",
+  "Query": "<value>",
+  "Exists": true,
+  "Matches": [],
+  "Truncated": true,
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `web_file_stat`
+
+Purpose:
+
+Returns metadata for one provider-approved web public path on a configured SSH profile.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `siteKey`: Configured web site key.
+- `path`: Target path validated by the tool policy or provider.
 
 `tools/call` params sample:
 
@@ -994,12 +6114,395 @@ Input arguments:
   "arguments": {
     "profileName": "vps01",
     "siteKey": "default",
-    "path": "/index.html"
+    "path": "/var/www/example/index.html"
   }
 }
 ```
 
-Write `tools/call` params sample:
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `WebPublicFileStatResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "SiteKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/path/example",
+  "ResolvedPath": "/path/example",
+  "Exists": true,
+  "Type": "<value>",
+  "Size": 0,
+  "Mode": "<value>",
+  "Owner": "<value>",
+  "Group": "<value>",
+  "LastModified": "<value>",
+  "IsSymlink": true,
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `web_file_check_write`
+
+Purpose:
+
+Checks whether one provider-approved web file can be written without applying changes.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `siteKey`: Configured web site key.
+- `path`: Target path validated by the tool policy or provider.
+- `contentType`: Content type metadata for written content.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "web_file_check_write",
+  "arguments": {
+    "profileName": "vps01",
+    "siteKey": "default",
+    "path": "/var/www/example/index.html",
+    "contentType": "text/html"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `WebPublicFileWriteCheckResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "SiteKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/path/example",
+  "ResolvedPath": "/path/example",
+  "Exists": true,
+  "CanWrite": true,
+  "RequiresConfirmation": true,
+  "Confirmation": "<value>",
+  "ContentType": "<output text>",
+  "Reason": "<value>",
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `web_file_check_permissions`
+
+Purpose:
+
+Checks whether one provider-approved web public path is eligible for owner/group or mode changes without applying changes.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `siteKey`: Configured web site key.
+- `path`: Target path validated by the tool policy or provider.
+- `owner`: Owner account name.
+- `group`: Group name.
+- `mode`: Three-digit octal mode for permission changes.
+- `recursive`: Tool-specific argument of type `bool` defined by the MCP schema.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "web_file_check_permissions",
+  "arguments": {
+    "profileName": "vps01",
+    "siteKey": "default",
+    "path": "/var/www/example/index.html",
+    "owner": "www-data",
+    "group": "www-data",
+    "mode": "755",
+    "recursive": "<value>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `WebPublicPermissionCheckResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "SiteKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/path/example",
+  "ResolvedPath": "/path/example",
+  "Exists": true,
+  "Type": "<value>",
+  "CurrentOwner": "<value>",
+  "CurrentGroup": "<value>",
+  "CurrentMode": "<value>",
+  "CanChangeOwner": true,
+  "CanChangeMode": true,
+  "OwnerConfirmation": "<value>",
+  "ModeConfirmation": "<value>",
+  "Reason": "<value>",
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `web_file_read`
+
+Purpose:
+
+Reads one provider-approved web file on a configured SSH profile.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `siteKey`: Configured web site key.
+- `path`: Target path validated by the tool policy or provider.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "web_file_read",
+  "arguments": {
+    "profileName": "vps01",
+    "siteKey": "default",
+    "path": "/var/www/example/index.html"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `WebPublicFileReadResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "SiteKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/path/example",
+  "ResolvedPath": "/path/example",
+  "Exists": true,
+  "ContentBase64": "<output text>",
+  "Encoding": "<value>",
+  "ContentType": "<output text>",
+  "Size": 0,
+  "LastModified": "<value>",
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `web_file_head`
+
+Purpose:
+
+Reads the beginning of one provider-approved web file with bounded bytes and lines.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `siteKey`: Configured web site key.
+- `path`: Target path validated by the tool policy or provider.
+- `maxBytes`: Maximum number of bytes to read.
+- `maxLines`: Maximum number of lines to read.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "web_file_head",
+  "arguments": {
+    "profileName": "vps01",
+    "siteKey": "default",
+    "path": "/var/www/example/index.html",
+    "maxBytes": 4096,
+    "maxLines": 80
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `WebPublicFileReadResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "SiteKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/path/example",
+  "ResolvedPath": "/path/example",
+  "Exists": true,
+  "ContentBase64": "<output text>",
+  "Encoding": "<value>",
+  "ContentType": "<output text>",
+  "Size": 0,
+  "LastModified": "<value>",
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `web_file_tail`
+
+Purpose:
+
+Reads the end of one provider-approved web file with bounded bytes and lines.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `siteKey`: Configured web site key.
+- `path`: Target path validated by the tool policy or provider.
+- `maxBytes`: Maximum number of bytes to read.
+- `maxLines`: Maximum number of lines to read.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "web_file_tail",
+  "arguments": {
+    "profileName": "vps01",
+    "siteKey": "default",
+    "path": "/var/www/example/index.html",
+    "maxBytes": 4096,
+    "maxLines": 80
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `WebPublicFileReadResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "SiteKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/path/example",
+  "ResolvedPath": "/path/example",
+  "Exists": true,
+  "ContentBase64": "<output text>",
+  "Encoding": "<value>",
+  "ContentType": "<output text>",
+  "Size": 0,
+  "LastModified": "<value>",
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+### `web_file_write`
+
+Purpose:
+
+Writes one provider-approved web file after explicit confirmation, optionally applying owner[:group] and/or mode atomically through the sudo helper.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `siteKey`: Configured web site key.
+- `path`: Target path validated by the tool policy or provider.
+- `contentBase64`: Base64-encoded replacement content.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+- `encoding`: Text encoding label.
+- `contentType`: Content type metadata for written content.
+- `owner`: Owner account name.
+- `mode`: Three-digit octal mode for permission changes.
+
+`tools/call` params sample:
 
 ```json
 {
@@ -1007,81 +6510,307 @@ Write `tools/call` params sample:
   "arguments": {
     "profileName": "vps01",
     "siteKey": "default",
-    "path": "/index.html",
+    "path": "/var/www/example/index.html",
     "contentBase64": "PGgxPkhlbGxvIEtlbHBpZTwvaDE+Cg==",
-    "contentType": "text/html",
+    "confirmation": "<confirmation-token-from-check-result>",
     "encoding": "utf-8",
-    "confirmation": "web_file_write:default:/index.html"
+    "contentType": "text/html",
+    "owner": "www-data",
+    "mode": "755"
   }
 }
 ```
 
-Execution:
+Processing:
 
-List/search/read tools resolve paths inside the configured web root and refuse traversal outside the root. Write and permission tools require confirmation and revalidate target paths before changing anything.
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
 
-Confirmation examples:
+Return value:
 
-```text
-web_file_write:default:/index.html
-web_change_owner:default:/my_dir/index.html:www-data:www-data
-web_change_mode:default:/my_dir/index.html:775
+- Return type: `WebPublicFileWriteResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "SiteKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/path/example",
+  "ResolvedPath": "/path/example",
+  "Written": true,
+  "Created": true,
+  "Overwritten": true,
+  "ContentType": "<output text>",
+  "Size": 0,
+  "Warnings": []
+}
 ```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
 
 Safety notes:
 
-- `path` must stay inside the configured web root.
-- Recursive owner/mode changes skip symlinks and reject symlink targets.
-- `owner` / `group` cannot be `root` or `0`.
-- `mode` must be three octal digits and cannot be world-writable.
-- Owner/mode operations use the dedicated Kelpie web permission helper; do not grant broad sudo permissions to `python3`, `chown`, or `chmod`.
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### Cron, certificate, user, firewall, backup, and audit tools
-
-Tools:
-
-- Cron: `ssh_cron_list`, `ssh_cron_validate`, `ssh_cron_check_write`, `ssh_cron_write`, `ssh_cron_rollback`
-- Certificates: `ssh_cert_inspect`, `ssh_cert_expiry_check`
-- Users/groups: `ssh_user_list`, `ssh_user_info`, `ssh_group_list`, `ssh_group_info`, `ssh_sudoers_check`, `ssh_user_usage_check`, `ssh_user_file_ownership_check`, `ssh_user_service_usage_check`
-- User changes: `ssh_user_check_group_change`, `ssh_user_apply_group_change`, `ssh_user_rollback_group_change`, `ssh_user_check_permission_change`, `ssh_user_apply_permission_change`, `ssh_user_rollback_permission_change`
-- Residual config: `ssh_service_residual_config_check`
-- Support report: `ssh_support_report_collect`
-- Firewall: `ssh_firewall_status`, `ssh_firewall_check_rule`, `ssh_firewall_apply_rule`
-- Backup: `ssh_backup_plan_check`, `ssh_backup_run`, `ssh_backup_verify`
-- Audit: `ssh_audit_verify`, `ssh_audit_export`
+### `web_change_owner`
 
 Purpose:
 
-Provides bounded maintenance checks and confirmation-gated changes for sensitive server state.
+Runs sudo chown for one provider-approved web public path after explicit confirmation.
 
 Input arguments:
 
 - `profileName`: SSH profile name.
-- Tool-specific names such as `user`, `group`, `service`, `path`, `zone`, `port`, `protocol`, or `scope`.
-- `confirmation`: required for write/apply/run/rollback operations.
+- `siteKey`: Configured web site key.
+- `path`: Target path validated by the tool policy or provider.
+- `owner`: Owner account name.
+- `group`: Group name.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
 
 `tools/call` params sample:
 
 ```json
 {
-  "name": "ssh_user_check_group_change",
+  "name": "web_change_owner",
   "arguments": {
     "profileName": "vps01",
-    "user": "deploy",
-    "group": "web-admin"
+    "siteKey": "default",
+    "path": "/var/www/example/index.html",
+    "owner": "www-data",
+    "group": "www-data",
+    "confirmation": "<confirmation-token-from-check-result>"
   }
 }
 ```
 
-Execution:
+Processing:
 
-Check tools inspect current state and return a safe summary plus a confirmation token when a matching apply tool exists. Apply/run/rollback tools require the exact confirmation token and revalidate the target before changing anything.
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `WebPublicPermissionChangeResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "SiteKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/path/example",
+  "ResolvedPath": "/path/example",
+  "Changed": true,
+  "Owner": "<value>",
+  "Group": "<value>",
+  "Mode": "<value>",
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
 
 Safety notes:
 
-- These tools can affect login, sudo, firewall, backup, audit, or scheduler behavior.
-- Use the check tool first, review the returned diff or plan, then call the apply/run tool only with the returned confirmation token.
-- Do not record raw sudoers content, raw audit logs, host-specific secrets, or customer data in public documents.
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `web_change_owner_recursive`
+
+Purpose:
+
+Runs sudo chown recursively for one provider-approved web public directory tree after explicit confirmation. Symbolic links are skipped.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `siteKey`: Configured web site key.
+- `path`: Target path validated by the tool policy or provider.
+- `owner`: Owner account name.
+- `group`: Group name.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "web_change_owner_recursive",
+  "arguments": {
+    "profileName": "vps01",
+    "siteKey": "default",
+    "path": "/var/www/example/index.html",
+    "owner": "www-data",
+    "group": "www-data",
+    "confirmation": "<confirmation-token-from-check-result>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `WebPublicPermissionChangeResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "SiteKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/path/example",
+  "ResolvedPath": "/path/example",
+  "Changed": true,
+  "Owner": "<value>",
+  "Group": "<value>",
+  "Mode": "<value>",
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `web_change_mode`
+
+Purpose:
+
+Runs sudo chmod for one provider-approved web public path after explicit confirmation.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `siteKey`: Configured web site key.
+- `path`: Target path validated by the tool policy or provider.
+- `mode`: Three-digit octal mode for permission changes.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "web_change_mode",
+  "arguments": {
+    "profileName": "vps01",
+    "siteKey": "default",
+    "path": "/var/www/example/index.html",
+    "mode": "755",
+    "confirmation": "<confirmation-token-from-check-result>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `WebPublicPermissionChangeResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "SiteKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/path/example",
+  "ResolvedPath": "/path/example",
+  "Changed": true,
+  "Owner": "<value>",
+  "Group": "<value>",
+  "Mode": "<value>",
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+### `web_change_mode_recursive`
+
+Purpose:
+
+Runs sudo chmod recursively for one provider-approved web public directory tree after explicit confirmation. Symbolic links are skipped.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `siteKey`: Configured web site key.
+- `path`: Target path validated by the tool policy or provider.
+- `mode`: Three-digit octal mode for permission changes.
+- `confirmation`: Exact confirmation token returned by a check or simulate tool.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "web_change_mode_recursive",
+  "arguments": {
+    "profileName": "vps01",
+    "siteKey": "default",
+    "path": "/var/www/example/index.html",
+    "mode": "755",
+    "confirmation": "<confirmation-token-from-check-result>"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+
+Return value:
+
+- Return type: `WebPublicPermissionChangeResult`.
+- The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
+- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "SiteKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/path/example",
+  "ResolvedPath": "/path/example",
+  "Changed": true,
+  "Owner": "<value>",
+  "Group": "<value>",
+  "Mode": "<value>",
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
 ## Safety Notes
 
@@ -1093,3 +6822,7 @@ Safety notes:
 - Confirmation-gated tools do not change the target unless the confirmation string matches exactly.
 - Service configuration and web file operations are limited to provider-approved paths.
 - Real host names, real user names, secrets, raw log bodies containing secrets, and unpublished settings must not be recorded in committed documents.
+
+
+
+
