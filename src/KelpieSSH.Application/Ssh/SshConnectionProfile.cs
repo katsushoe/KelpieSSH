@@ -91,6 +91,11 @@ public sealed class SshConnectionProfile
     public IReadOnlyCollection<SpecialPathRule> SpecialPaths { get; init; } = [];
 
     /// <summary>
+    /// Gets the per-environment-variable rules.
+    /// </summary>
+    public IReadOnlyCollection<EnvironmentValueRule> EnvironmentValues { get; init; } = [];
+
+    /// <summary>
     /// Gets the provider-approved web public sites.
     /// </summary>
     public IReadOnlyCollection<WebPublicSite> WebPublicSites { get; init; } = [];
@@ -139,6 +144,7 @@ public sealed class SshConnectionProfile
             AllowedRoots = user.AllowedRootRules.Select(rule => rule.Path).ToArray(),
             AllowedRootRules = user.AllowedRootRules,
             SpecialPaths = user.SpecialPaths,
+            EnvironmentValues = user.EnvironmentValues,
             WebPublicSites = WebPublicSites,
             Services = Services,
             Users = Users,
@@ -229,6 +235,20 @@ public sealed class SshConnectionProfile
             if (string.IsNullOrWhiteSpace(specialPath.Pattern))
             {
                 throw new InvalidOperationException("SSH special path must not be empty.");
+            }
+        }
+
+        var environmentKeys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var environmentValue in EnvironmentValues)
+        {
+            if (string.IsNullOrWhiteSpace(environmentValue.Key))
+            {
+                throw new InvalidOperationException("SSH environment value key must not be empty.");
+            }
+
+            if (!environmentKeys.Add(environmentValue.Key))
+            {
+                throw new InvalidOperationException($"SSH environment value key is duplicated: {environmentValue.Key}");
             }
         }
 

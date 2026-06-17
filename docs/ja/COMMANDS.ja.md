@@ -17,6 +17,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | Profile/session | `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
 | Mode/UI | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | CLI/GUI モードや一時的な起動方式を切り替える。 |
 | Diagnostics | `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | プロファイル情報、MCP server 状態、SSH 診断、サービスログを表示する。 |
+| Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env set` | profile policy に従って remote 環境変数の key 表示、値参照、一時設定を行う。 |
 | Help/version | `kelpie version`, `kelpie help` | バージョンとヘルプを表示する。 |
 | Candidates | `kelpie services`, `kelpie pkg ...` | 今後追加候補。 |
 
@@ -952,6 +953,121 @@ Jun 05 06:21:14 example nginx[1235]: client 203.0.113.10 closed keepalive connec
 SSH command argument contains a dangerous fragment: service
 ```
 
+### `kelpie env keys <profile>`
+
+目的:
+
+対象 profile の SSH user から見える remote 環境変数名を一覧表示します。
+
+構文:
+
+```powershell
+kelpie env keys vps01
+```
+
+引数詳細:
+
+- `profile`: 環境変数名を取得するプロファイル名。
+
+引数サンプル:
+
+- `profile`: `vps01`
+
+処理内容:
+
+profile の `Capabilities` に `AllowPeekEnvironmentKeys` がある場合だけ実行できます。
+`EnvironmentValues` で `Hidden` にした key は出力から除外します。
+このコマンドは値を表示しません。
+
+実行結果サンプル:
+
+```text
+HOME
+LANG
+PATH
+SHELL
+```
+
+### `kelpie env peek <profile> <key>`
+
+目的:
+
+profile が許可した remote 環境変数値を1つ参照します。
+
+構文:
+
+```powershell
+kelpie env peek vps01 PATH
+```
+
+引数詳細:
+
+- `profile`: 環境変数値を参照するプロファイル名。
+- `key`: 参照する環境変数名。
+
+引数サンプル:
+
+- `profile`: `vps01`
+- `key`: `PATH`
+
+処理内容:
+
+profile の `Capabilities` に `AllowPeekEnvironmentValues` が必要です。
+さらに、対象 key が `EnvironmentValues` で `PeekCommon`、`PeekSecret`、または `Masked` として許可されている必要があります。
+`Masked` の場合は実値を返さず、masked value と長さだけを表示します。
+`Hidden` と未定義 key の値は参照できません。
+
+実行結果サンプル:
+
+```text
+/usr/local/bin:/usr/bin:/bin
+```
+
+masked の場合:
+
+```text
+************ (length=12)
+```
+
+### `kelpie env set <profile> <key> <value> -- <command>`
+
+目的:
+
+1回の command execution にだけ remote 環境変数値を付与して実行します。remote host に永続保存しません。
+
+構文:
+
+```powershell
+kelpie env set vps01 APP_ENV production -- printenv APP_ENV
+```
+
+引数詳細:
+
+- `profile`: 環境変数を一時設定して command を実行するプロファイル名。
+- `key`: 設定する環境変数名。
+- `value`: 1回の command execution に付与する値。
+- `command`: `--` 以降に書く実行コマンド。
+
+引数サンプル:
+
+- `profile`: `vps01`
+- `key`: `APP_ENV`
+- `value`: `production`
+- `command`: `printenv APP_ENV`
+
+処理内容:
+
+profile の `Capabilities` に `AllowSetEnvironmentValues` が必要です。
+さらに、対象 key が `EnvironmentValues` で `SetCommon` または `SetSecret` として許可されている必要があります。
+`--` 以降の command は `kelpie login` の対話コマンドと同じ raw-command policy で検査されます。
+環境変数値を公開ログや issue に貼り付けないでください。
+
+実行結果サンプル:
+
+```text
+production
+```
+
 ### `kelpie version`
 
 目的:
@@ -1029,6 +1145,9 @@ Usage:
   kelpie status <profile>
   kelpie diag <profile>
   kelpie logs <profile> <service> [lines]
+  kelpie env keys <profile>
+  kelpie env peek <profile> <key>
+  kelpie env set <profile> <key> <value> -- <command>
   kelpie version
   kelpie help
 

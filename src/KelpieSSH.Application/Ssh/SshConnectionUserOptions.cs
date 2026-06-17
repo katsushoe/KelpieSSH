@@ -61,4 +61,9 @@ public sealed class SshConnectionUserOptions
     /// Gets or sets the special paths for this user.
     /// </summary>
     public JsonElement SpecialPaths { get; set; }
+
+    /// <summary>
+    /// Gets or sets per-environment-variable rules for this user.
+    /// </summary>
+    public JsonElement EnvironmentValues { get; set; }
 }

@@ -17,6 +17,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | Profile/session | `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | Select profiles and manage interactive SSH sessions. |
 | Mode/UI | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | Switch CLI/GUI mode or choose a temporary launch mode. |
 | Diagnostics | `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | Show profile information, MCP server status, SSH diagnostics, and service logs. |
+| Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env set` | List, read, or set remote environment variables under profile policy. |
 | Help/version | `kelpie version`, `kelpie help`, `kelpie --help`, `kelpie --version` | Show version and help text. |
 
 ## Common Rules
@@ -117,6 +118,60 @@ kelpie logs vps01 nginx.service 200
 
 The service name and line count are validated before command execution.
 For password profiles, the CLI prompts for the password for the current `kelpie logs` process.
+
+### `kelpie env keys <profile>`
+
+Lists remote environment variable names visible to the selected SSH user.
+
+```powershell
+kelpie env keys vps01
+```
+
+This command requires `AllowPeekEnvironmentKeys` in the profile `Capabilities`.
+Keys marked `Hidden` in `EnvironmentValues` are filtered from the output.
+Values are never printed by this command.
+
+Example:
+
+```text
+HOME
+LANG
+PATH
+SHELL
+```
+
+### `kelpie env peek <profile> <key>`
+
+Reads one remote environment variable value when the profile permits it.
+
+```powershell
+kelpie env peek vps01 PATH
+```
+
+This command requires `AllowPeekEnvironmentValues` in `Capabilities`.
+The requested key must be listed in `EnvironmentValues` with `PeekCommon`, `PeekSecret`, or `Masked`.
+`Masked` returns a masked value and length only.
+`Hidden` and unlisted keys cannot be read.
+
+Masked example:
+
+```text
+************ (length=12)
+```
+
+### `kelpie env set <profile> <key> <value> -- <command>`
+
+Runs one command with one environment variable value set for that execution only.
+It does not persist the value on the remote host.
+
+```powershell
+kelpie env set vps01 APP_ENV production -- printenv APP_ENV
+```
+
+This command requires `AllowSetEnvironmentValues` in `Capabilities`.
+The requested key must be listed in `EnvironmentValues` with `SetCommon` or `SetSecret`.
+The command after `--` is checked by the same CLI raw-command policy used by `kelpie login`.
+Environment variable values must not be pasted into public logs or issues.
 
 ### `kelpie cli`
 

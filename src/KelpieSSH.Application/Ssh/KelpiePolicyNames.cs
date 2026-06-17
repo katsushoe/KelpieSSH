@@ -26,6 +26,21 @@ public static class KelpiePolicyNames
     public const string AllowShowPrivateKey = nameof(AllowShowPrivateKey);
 
     /// <summary>
+    /// Allows listing environment variable keys.
+    /// </summary>
+    public const string AllowPeekEnvironmentKeys = nameof(AllowPeekEnvironmentKeys);
+
+    /// <summary>
+    /// Allows reading environment variable values when profile rules permit it.
+    /// </summary>
+    public const string AllowPeekEnvironmentValues = nameof(AllowPeekEnvironmentValues);
+
+    /// <summary>
+    /// Allows setting environment variable values for one command execution when profile rules permit it.
+    /// </summary>
+    public const string AllowSetEnvironmentValues = nameof(AllowSetEnvironmentValues);
+
+    /// <summary>
     /// Allows package list commands.
     /// </summary>
     public const string AllowListPackage = nameof(AllowListPackage);
@@ -72,6 +87,9 @@ public static class KelpiePolicyNames
             AllowSudo,
             AllowShowPassword,
             AllowShowPrivateKey,
+            AllowPeekEnvironmentKeys,
+            AllowPeekEnvironmentValues,
+            AllowSetEnvironmentValues,
             AllowListPackage,
             AllowUpdatePackageIndex,
             AllowInstallPackage,

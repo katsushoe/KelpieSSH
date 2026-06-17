@@ -78,6 +78,11 @@ public sealed class SshConnectionProfileOptions
     public JsonElement SpecialPaths { get; set; }
 
     /// <summary>
+    /// Gets or sets per-environment-variable rules.
+    /// </summary>
+    public JsonElement EnvironmentValues { get; set; }
+
+    /// <summary>
     /// Gets or sets the default user name when Users is configured.
     /// </summary>
     public string DefaultUser { get; set; } = string.Empty;
@@ -117,6 +122,7 @@ public sealed class SshConnectionProfileOptions
         var rights = ReadRights(Rights);
         var allowedRootRules = ResolveAllowedRootRules(Capabilities, policy, AllowedRoots, rights);
         var specialPaths = ReadSpecialPaths(SpecialPaths);
+        var environmentValues = ReadEnvironmentValues(EnvironmentValues);
         var webPublicSites = ReadWebPublicSites(WebPublicSites, rights);
         var services = ReadServices(Services);
         var profileRoles = ResolveRoles(Mode, Roles, defaultRoles: [KelpieRoleNames.Safe]);
@@ -130,6 +136,7 @@ public sealed class SshConnectionProfileOptions
             capabilities,
             allowedRootRules,
             specialPaths,
+            environmentValues,
             rights,
             webPublicSites,
             services,
@@ -158,6 +165,7 @@ public sealed class SshConnectionProfileOptions
             AllowedRoots = selectedUser.AllowedRootRules.Select(rule => rule.Path).ToArray(),
             AllowedRootRules = selectedUser.AllowedRootRules,
             SpecialPaths = selectedUser.SpecialPaths,
+            EnvironmentValues = selectedUser.EnvironmentValues,
             WebPublicSites = webPublicSites,
             Services = services,
             Roles = selectedUser.Roles,
@@ -408,6 +416,34 @@ public sealed class SshConnectionProfileOptions
         return specialPathsElement
             .EnumerateObject()
             .Select(item => new SpecialPathRule(item.Name, ReadSpecialPathAction(item.Value)))
+            .ToArray();
+    }
+
+    private static IReadOnlyCollection<EnvironmentValueRule> ReadEnvironmentValues(JsonElement environmentValuesElement)
+    {
+        if (environmentValuesElement.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
+        {
+            return [];
+        }
+
+        if (environmentValuesElement.ValueKind != JsonValueKind.Object)
+        {
+            throw new InvalidOperationException("SSH environment values must be an object.");
+        }
+
+        return environmentValuesElement
+            .EnumerateObject()
+            .Select(item =>
+            {
+                if (item.Value.ValueKind != JsonValueKind.String)
+                {
+                    throw new InvalidOperationException("SSH environment value access must be a string.");
+                }
+
+                return new EnvironmentValueRule(
+                    item.Name,
+                    EnvironmentValueAccessText.Parse(item.Value.GetString()));
+            })
             .ToArray();
     }
 
@@ -667,6 +703,7 @@ public sealed class SshConnectionProfileOptions
         PolicySet profileCapabilities,
         IReadOnlyCollection<AllowedRootRule> profileAllowedRoots,
         IReadOnlyCollection<SpecialPathRule> profileSpecialPaths,
+        IReadOnlyCollection<EnvironmentValueRule> profileEnvironmentValues,
         IReadOnlyDictionary<string, AllowedRootAccess> rights,
         IReadOnlyCollection<WebPublicSite> webPublicSites,
         SshConnectionServices services,
@@ -690,6 +727,7 @@ public sealed class SshConnectionProfileOptions
                     Roles = profileRoles,
                     AllowedRootRules = profileAllowedRoots,
                     SpecialPaths = profileSpecialPaths,
+                    EnvironmentValues = profileEnvironmentValues,
                 },
             ];
         }
@@ -729,6 +767,9 @@ public sealed class SshConnectionProfileOptions
                 SpecialPaths = user.SpecialPaths.ValueKind == JsonValueKind.Undefined
                     ? profileSpecialPaths
                     : ReadSpecialPaths(user.SpecialPaths),
+                EnvironmentValues = user.EnvironmentValues.ValueKind == JsonValueKind.Undefined
+                    ? profileEnvironmentValues
+                    : ReadEnvironmentValues(user.EnvironmentValues),
             };
         }).ToArray();
     }
@@ -800,6 +841,7 @@ public sealed class SshConnectionProfileOptions
             Capabilities = ReadOptionalElement(userElement, "Capabilities"),
             AllowedRoots = ReadOptionalElement(userElement, "AllowedRoots"),
             SpecialPaths = ReadOptionalElement(userElement, "SpecialPaths"),
+            EnvironmentValues = ReadOptionalElement(userElement, "EnvironmentValues"),
         };
     }
 

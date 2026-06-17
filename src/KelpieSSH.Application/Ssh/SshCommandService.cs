@@ -313,6 +313,155 @@ public sealed class SshCommandService
         return await _sshCommandRunner.ExecuteAsync(request, cancellationToken);
     }
 
+    /// <summary>
+    /// Lists environment variable keys visible to the selected SSH user.
+    /// </summary>
+    /// <param name="profile">The SSH connection profile.</param>
+    /// <param name="timeout">The optional timeout override.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The SSH command result.</returns>
+    public async Task<SshCommandResult> GetEnvironmentKeysAsync(
+        SshConnectionProfile profile,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        EnsureNonRoot(profile);
+        EnsureCapability(profile, KelpiePolicyNames.AllowPeekEnvironmentKeys);
+
+        var request = new SshCommandRequest(
+            profile,
+            "get_environment_keys",
+            "printenv | cut -d= -f1 | sort",
+            timeout ?? TimeSpan.FromSeconds(10),
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+        var result = await _sshCommandRunner.ExecuteAsync(request, cancellationToken);
+        var hiddenKeys = profile.EnvironmentValues
+            .Where(rule => rule.IsHidden)
+            .Select(rule => rule.Key)
+            .ToHashSet(StringComparer.Ordinal);
+        if (hiddenKeys.Count == 0 || string.IsNullOrEmpty(result.StandardOutput))
+        {
+            return result;
+        }
+
+        var filteredOutput = string.Join(
+            Environment.NewLine,
+            result.StandardOutput
+                .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(key => !hiddenKeys.Contains(key)));
+        if (!string.IsNullOrEmpty(filteredOutput))
+        {
+            filteredOutput += Environment.NewLine;
+        }
+
+        return result with { StandardOutput = filteredOutput };
+    }
+
+    /// <summary>
+    /// Reads one environment variable value when profile rules permit it.
+    /// </summary>
+    /// <param name="profile">The SSH connection profile.</param>
+    /// <param name="key">The environment variable key.</param>
+    /// <param name="timeout">The optional timeout override.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The SSH command result.</returns>
+    public async Task<SshCommandResult> PeekEnvironmentValueAsync(
+        SshConnectionProfile profile,
+        string key,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        EnsureNonRoot(profile);
+        EnsureCapability(profile, KelpiePolicyNames.AllowPeekEnvironmentValues);
+        ValidateEnvironmentKey(key);
+
+        var rule = FindEnvironmentValueRule(profile, key)
+            ?? throw new KelpiePolicyError($"environment value is not allowed: {key}");
+        if (rule.IsHidden || rule.Access.HasFlag(EnvironmentValueAccess.KeyOnly))
+        {
+            throw new KelpiePolicyError($"environment value is not allowed: {key}");
+        }
+
+        var request = new SshCommandRequest(
+            profile,
+            "peek_environment_value",
+            $"printenv {QuoteShellArgument(key)}",
+            timeout ?? TimeSpan.FromSeconds(10),
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["key"] = key,
+            });
+        var result = await _sshCommandRunner.ExecuteAsync(request, cancellationToken);
+        if (!rule.Access.HasFlag(EnvironmentValueAccess.Masked))
+        {
+            if (!rule.AllowsPeekValue)
+            {
+                throw new KelpiePolicyError($"environment value is not allowed: {key}");
+            }
+
+            return result;
+        }
+
+        var value = result.StandardOutput.TrimEnd('\r', '\n');
+        var maskedValue = value.Length == 0
+            ? "(empty)"
+            : new string('*', value.Length);
+        return result with
+        {
+            StandardOutput = $"{maskedValue} (length={value.Length}){Environment.NewLine}",
+        };
+    }
+
+    /// <summary>
+    /// Executes one command with one environment variable value set for that execution only.
+    /// </summary>
+    /// <param name="profile">The SSH connection profile.</param>
+    /// <param name="key">The environment variable key.</param>
+    /// <param name="value">The environment variable value.</param>
+    /// <param name="commandText">The command to execute.</param>
+    /// <param name="timeout">The optional timeout override.</param>
+    /// <param name="channel">The execution channel.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The SSH command result.</returns>
+    public async Task<SshCommandResult> SetEnvironmentValueAsync(
+        SshConnectionProfile profile,
+        string key,
+        string value,
+        string commandText,
+        TimeSpan? timeout = null,
+        KelpieExecutionChannel channel = KelpieExecutionChannel.Cli,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        EnsureNonRoot(profile);
+        EnsureCapability(profile, KelpiePolicyNames.AllowSetEnvironmentValues);
+        ValidateEnvironmentKey(key);
+
+        var rule = FindEnvironmentValueRule(profile, key)
+            ?? throw new KelpiePolicyError($"environment value set is not allowed: {key}");
+        if (!rule.AllowsSetValue || rule.IsHidden)
+        {
+            throw new KelpiePolicyError($"environment value set is not allowed: {key}");
+        }
+
+        var trimmedCommandText = commandText.Trim();
+        _rawShellCommandPolicy.EnsureAllowed(profile, trimmedCommandText, channel);
+        var request = new SshCommandRequest(
+            profile,
+            "set_environment_value",
+            $"env {key}={QuoteShellArgument(value)} {trimmedCommandText}",
+            timeout ?? TimeSpan.FromSeconds(30),
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["key"] = key,
+                ["command"] = trimmedCommandText,
+            });
+
+        return await _sshCommandRunner.ExecuteAsync(request, cancellationToken);
+    }
+
     private IAllowedCommandCatalog ResolveAllowedCommandCatalog(SshConnectionProfile profile)
     {
         if (_allowedCommandCatalog is not null)
@@ -321,5 +470,45 @@ public sealed class SshCommandService
         }
 
         return AllowedCommandCatalog.CreateForProfile(profile, _commandProcessingProviders ?? []);
+    }
+
+    private static void EnsureNonRoot(SshConnectionProfile profile)
+    {
+        if (string.Equals(profile.UserName, "root", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Direct root SSH login is not allowed.");
+        }
+    }
+
+    private static void EnsureCapability(SshConnectionProfile profile, string capability)
+    {
+        if (!profile.Capabilities.Allows(capability))
+        {
+            throw new KelpiePolicyError($"{capability} is required.");
+        }
+    }
+
+    private static EnvironmentValueRule? FindEnvironmentValueRule(SshConnectionProfile profile, string key)
+    {
+        return profile.EnvironmentValues.FirstOrDefault(rule =>
+            string.Equals(rule.Key, key, StringComparison.Ordinal));
+    }
+
+    private static void ValidateEnvironmentKey(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            throw new InvalidOperationException("Environment variable key is required.");
+        }
+
+        if (!key.All(ch => char.IsAsciiLetterOrDigit(ch) || ch == '_') || char.IsDigit(key[0]))
+        {
+            throw new InvalidOperationException($"Environment variable key is invalid: {key}");
+        }
+    }
+
+    private static string QuoteShellArgument(string value)
+    {
+        return "'" + value.Replace("'", "'\"'\"'", StringComparison.Ordinal) + "'";
     }
 }

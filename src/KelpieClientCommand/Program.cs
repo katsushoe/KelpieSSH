@@ -200,6 +200,13 @@ if (string.Equals(command, "logs", StringComparison.OrdinalIgnoreCase))
     return;
 }
 
+if (string.Equals(command, "env", StringComparison.OrdinalIgnoreCase))
+{
+    KpLog.Info("Kelpie CLI env requested.");
+    await RunEnvironmentAsync(LoadProfileCatalog(), args);
+    return;
+}
+
 ShowUsage(command);
 Environment.ExitCode = string.IsNullOrWhiteSpace(command) ? 0 : 1;
 
@@ -270,6 +277,9 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpie status <profile>");
     writer.WriteLine("  kelpie diag <profile>");
     writer.WriteLine("  kelpie logs <profile> <service> [lines]");
+    writer.WriteLine("  kelpie env keys <profile>");
+    writer.WriteLine("  kelpie env peek <profile> <key>");
+    writer.WriteLine("  kelpie env set <profile> <key> <value> -- <command>");
     writer.WriteLine("  kelpie version");
     writer.WriteLine("  kelpie help");
     writer.WriteLine();
@@ -563,6 +573,133 @@ static async Task RunLogsAsync(
             ["service"] = serviceName,
             ["lines"] = lines,
         });
+}
+
+static async Task RunEnvironmentAsync(SshConnectionProfileCatalog catalog, string[] args)
+{
+    var subcommand = args.Length > 1 ? args[1] : string.Empty;
+    if (string.Equals(subcommand, "keys", StringComparison.OrdinalIgnoreCase))
+    {
+        if (args.Length != 3)
+        {
+            WriteEnvironmentUsage();
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var profileName = args[2];
+        KpLog.Info($"Kelpie CLI env keys requested. profile={profileName}");
+        if (!TryResolveProfile(catalog, profileName, out var profile))
+        {
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        await ExecuteEnvironmentAndPrintAsync(
+            CreateSshCommandService(profile),
+            service => service.GetEnvironmentKeysAsync(profile));
+        return;
+    }
+
+    if (string.Equals(subcommand, "peek", StringComparison.OrdinalIgnoreCase))
+    {
+        if (args.Length != 4)
+        {
+            WriteEnvironmentUsage();
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var profileName = args[2];
+        var key = args[3];
+        KpLog.Info($"Kelpie CLI env peek requested. profile={profileName}, key={key}");
+        if (!TryResolveProfile(catalog, profileName, out var profile))
+        {
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        await ExecuteEnvironmentAndPrintAsync(
+            CreateSshCommandService(profile),
+            service => service.PeekEnvironmentValueAsync(profile, key));
+        return;
+    }
+
+    if (string.Equals(subcommand, "set", StringComparison.OrdinalIgnoreCase))
+    {
+        if (args.Length < 7)
+        {
+            WriteEnvironmentUsage();
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var separatorIndex = Array.IndexOf(args, "--", 5);
+        if (separatorIndex < 0 || separatorIndex == args.Length - 1)
+        {
+            WriteEnvironmentUsage();
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var profileName = args[2];
+        var key = args[3];
+        var value = args[4];
+        var commandText = string.Join(' ', args.Skip(separatorIndex + 1));
+        KpLog.Info($"Kelpie CLI env set requested. profile={profileName}, key={key}");
+        if (!TryResolveProfile(catalog, profileName, out var profile))
+        {
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        await ExecuteEnvironmentAndPrintAsync(
+            CreateSshCommandService(profile),
+            service => service.SetEnvironmentValueAsync(profile, key, value, commandText));
+        return;
+    }
+
+    WriteEnvironmentUsage();
+    Environment.ExitCode = 1;
+}
+
+static void WriteEnvironmentUsage()
+{
+    Console.Error.WriteLine("Usage:");
+    Console.Error.WriteLine("  kelpie env keys <profile>");
+    Console.Error.WriteLine("  kelpie env peek <profile> <key>");
+    Console.Error.WriteLine("  kelpie env set <profile> <key> <value> -- <command>");
+}
+
+static async Task ExecuteEnvironmentAndPrintAsync(
+    SshCommandService service,
+    Func<SshCommandService, Task<SshCommandResult>> executeAsync)
+{
+    SshCommandResult result;
+    try
+    {
+        result = await executeAsync(service);
+    }
+    catch (Exception ex) when (ex is InvalidOperationException or KelpiePolicyError or SshException)
+    {
+        KpLog.Warn(ex.Message);
+        Console.Error.WriteLine(ex.Message);
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    Console.Write(result.StandardOutput);
+
+    if (!string.IsNullOrEmpty(result.StandardError))
+    {
+        Console.Error.Write(result.StandardError);
+    }
+
+    if (result.ExitCode != 0)
+    {
+        Console.Error.WriteLine($"ExitCode: {result.ExitCode}");
+        Environment.ExitCode = result.ExitCode;
+    }
 }
 
 static async Task RunInteractiveLoginAsync(SshConnectionProfile profile)

@@ -54,4 +54,9 @@ public sealed class SshConnectionUser
     /// Gets the special path rules.
     /// </summary>
     public IReadOnlyCollection<SpecialPathRule> SpecialPaths { get; init; } = [];
+
+    /// <summary>
+    /// Gets the per-environment-variable rules.
+    /// </summary>
+    public IReadOnlyCollection<EnvironmentValueRule> EnvironmentValues { get; init; } = [];
 }

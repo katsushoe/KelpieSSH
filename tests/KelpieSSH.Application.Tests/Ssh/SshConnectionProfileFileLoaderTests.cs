@@ -229,6 +229,27 @@ public sealed class SshConnectionProfileFileLoaderTests
     }
 
     [Fact]
+    public void LoadFile_ShouldReadEnvironmentValues()
+    {
+        var directory = CreateTempDirectory();
+        var filePath = Path.Combine(directory, "vps01.json");
+        File.WriteAllText(filePath, CreateProfileJsonWithEnvironmentValues("keys/id_ed25519"));
+
+        var profile = SshConnectionProfileFileLoader.LoadFile(filePath);
+
+        profile.Capabilities.Allows(KelpiePolicyNames.AllowPeekEnvironmentKeys).Should().BeTrue();
+        profile.Capabilities.Allows(KelpiePolicyNames.AllowPeekEnvironmentValues).Should().BeTrue();
+        profile.Capabilities.Allows(KelpiePolicyNames.AllowSetEnvironmentValues).Should().BeTrue();
+        profile.EnvironmentValues.Should().ContainSingle(rule =>
+            rule.Key == "PATH"
+            && rule.Access.HasFlag(EnvironmentValueAccess.PeekCommon)
+            && rule.Access.HasFlag(EnvironmentValueAccess.SetCommon)
+            && rule.Access.HasFlag(EnvironmentValueAccess.NoLog));
+        profile.EnvironmentValues.Should().ContainSingle(rule =>
+            rule.Key == "MY_SECRET_KEY" && rule.Access == EnvironmentValueAccess.Hidden);
+    }
+
+    [Fact]
     public void LoadFile_ShouldRejectMisspelledWebPublicAllowedFiles()
     {
         var directory = CreateTempDirectory();
@@ -602,6 +623,32 @@ public sealed class SshConnectionProfileFileLoaderTests
               "MaxReadBytes": 1048576,
               "MaxWriteBytes": 2097152
             }
+          }
+        }
+        """;
+    }
+
+    private static string CreateProfileJsonWithEnvironmentValues(string privateKeyPath)
+    {
+        return $$"""
+        {
+          "Host": {
+            "Address": "example.invalid",
+            "Port": 22
+          },
+          "Authentication": {
+            "UserName": "deploy",
+            "Method": "privateKey",
+            "PrivateKeyPath": "{{privateKeyPath}}"
+          },
+          "Platform": {
+            "OsFamily": "debian",
+            "PackageManager": "apt"
+          },
+          "Capabilities": "AllowPeekEnvironmentKeys|AllowPeekEnvironmentValues|AllowSetEnvironmentValues",
+          "EnvironmentValues": {
+            "PATH": "Common|NoLog",
+            "MY_SECRET_KEY": "Hidden"
           }
         }
         """;

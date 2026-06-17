@@ -423,6 +423,95 @@ public sealed class SshCommandServiceTests
         runner.LastRequest!.CommandText.Should().Be("sudo -n nginx -t");
     }
 
+    [Fact]
+    public async Task GetEnvironmentKeysAsync_ShouldRequireCapability()
+    {
+        var service = CreateProviderBackedService(new FakeSshCommandRunner());
+        var profile = CreateProfile("deploy");
+
+        var action = async () => await service.GetEnvironmentKeysAsync(profile);
+
+        await action.Should().ThrowAsync<KelpiePolicyError>()
+            .WithMessage("KelpiePolicyError: AllowPeekEnvironmentKeys is required.");
+    }
+
+    [Fact]
+    public async Task GetEnvironmentKeysAsync_ShouldFilterHiddenKeys()
+    {
+        var runner = new FakeSshCommandRunner("PATH\nMY_SECRET_KEY\nLANG\n");
+        var service = CreateProviderBackedService(runner);
+        var profile = CreateProfile(
+            "deploy",
+            capabilities: PolicySet.FromNames([KelpiePolicyNames.AllowPeekEnvironmentKeys]),
+            environmentValues:
+            [
+                new EnvironmentValueRule("MY_SECRET_KEY", EnvironmentValueAccess.Hidden),
+            ]);
+
+        var result = await service.GetEnvironmentKeysAsync(profile);
+
+        runner.LastRequest.Should().NotBeNull();
+        runner.LastRequest!.CommandText.Should().Be("printenv | cut -d= -f1 | sort");
+        result.StandardOutput.Should().Be($"PATH{Environment.NewLine}LANG{Environment.NewLine}");
+    }
+
+    [Fact]
+    public async Task PeekEnvironmentValueAsync_ShouldReturnCommonValue()
+    {
+        var runner = new FakeSshCommandRunner("hello\n");
+        var service = CreateProviderBackedService(runner);
+        var profile = CreateProfile(
+            "deploy",
+            capabilities: PolicySet.FromNames([KelpiePolicyNames.AllowPeekEnvironmentValues]),
+            environmentValues:
+            [
+                new EnvironmentValueRule("APP_ENV", EnvironmentValueAccess.PeekCommon),
+            ]);
+
+        var result = await service.PeekEnvironmentValueAsync(profile, "APP_ENV");
+
+        runner.LastRequest.Should().NotBeNull();
+        runner.LastRequest!.CommandText.Should().Be("printenv 'APP_ENV'");
+        result.StandardOutput.Should().Be("hello\n");
+    }
+
+    [Fact]
+    public async Task PeekEnvironmentValueAsync_ShouldMaskMaskedValue()
+    {
+        var runner = new FakeSshCommandRunner("secret\n");
+        var service = CreateProviderBackedService(runner);
+        var profile = CreateProfile(
+            "deploy",
+            capabilities: PolicySet.FromNames([KelpiePolicyNames.AllowPeekEnvironmentValues]),
+            environmentValues:
+            [
+                new EnvironmentValueRule("DEPLOY_TOKEN", EnvironmentValueAccess.Masked),
+            ]);
+
+        var result = await service.PeekEnvironmentValueAsync(profile, "DEPLOY_TOKEN");
+
+        result.StandardOutput.Should().Be($"****** (length=6){Environment.NewLine}");
+    }
+
+    [Fact]
+    public async Task SetEnvironmentValueAsync_ShouldRunCommandWithEnvironmentValue()
+    {
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profile = CreateProfile(
+            "deploy",
+            capabilities: PolicySet.FromNames([KelpiePolicyNames.AllowSetEnvironmentValues]),
+            environmentValues:
+            [
+                new EnvironmentValueRule("APP_ENV", EnvironmentValueAccess.SetCommon),
+            ]);
+
+        await service.SetEnvironmentValueAsync(profile, "APP_ENV", "production", "uname -a");
+
+        runner.LastRequest.Should().NotBeNull();
+        runner.LastRequest!.CommandText.Should().Be("env APP_ENV='production' uname -a");
+    }
+
     private static SshConnectionProfile CreateProfile(
         string userName,
         string osFamily = "debian",
@@ -431,7 +520,9 @@ public sealed class SshCommandServiceTests
         IReadOnlyCollection<string>? allowedRoots = null,
         IReadOnlyCollection<AllowedRootRule>? allowedRootRules = null,
         IReadOnlyCollection<SpecialPathRule>? specialPaths = null,
-        IReadOnlyCollection<string>? roles = null)
+        IReadOnlyCollection<string>? roles = null,
+        PolicySet? capabilities = null,
+        IReadOnlyCollection<EnvironmentValueRule>? environmentValues = null)
     {
         return new SshConnectionProfile
         {
@@ -442,11 +533,12 @@ public sealed class SshCommandServiceTests
             OsFamily = osFamily,
             PackageManager = packageManager,
             Mode = mode,
-            Capabilities = PolicySet.Empty,
+            Capabilities = capabilities ?? PolicySet.Empty,
             Roles = roles ?? [],
             AllowedRoots = allowedRoots ?? [],
             AllowedRootRules = allowedRootRules ?? [],
             SpecialPaths = specialPaths ?? [],
+            EnvironmentValues = environmentValues ?? [],
         };
     }
 
@@ -457,6 +549,13 @@ public sealed class SshCommandServiceTests
 
     private sealed class FakeSshCommandRunner : ISshCommandRunner
     {
+        private readonly string _standardOutput;
+
+        public FakeSshCommandRunner(string standardOutput = "ok")
+        {
+            _standardOutput = standardOutput;
+        }
+
         public SshCommandRequest? LastRequest { get; private set; }
 
         public Task<SshCommandResult> ExecuteAsync(
@@ -468,7 +567,7 @@ public sealed class SshCommandServiceTests
                 request.CommandName,
                 request.CommandText,
                 0,
-                "ok",
+                _standardOutput,
                 string.Empty,
                 DateTimeOffset.UtcNow,
                 DateTimeOffset.UtcNow,
