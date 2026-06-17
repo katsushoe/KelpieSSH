@@ -66,10 +66,16 @@ Edit the generated profile before connecting. The profile file is created under:
 
 #### 3. Connecting to server
 
-After editing the profile, check the connection:
+After editing the profile, open the target server:
 
 ```powershell
-kelpie status vps01
+kelpie open vps01
+```
+
+For password-based profiles, sign in after opening the target:
+
+```powershell
+kelpie login
 ```
 
 If Windows shows an unknown publisher or SmartScreen warning, confirm that the MSI was downloaded from the official GitHub Release and compare the published checksum if one is provided.

@@ -66,10 +66,16 @@ kelpie init vps01
 
 #### 3. サーバーへの接続
 
-profile を編集した後、接続を確認します。
+profile を編集した後、対象サーバーを開きます。
 
 ```powershell
-kelpie status vps01
+kelpie open vps01
+```
+
+パスワード認証の profile では、対象を開いた後にログインします。
+
+```powershell
+kelpie login
 ```
 
 Windows が不明な発行元または SmartScreen 警告を表示する場合は、MSI が公式 GitHub Release からダウンロードされたものか確認し、提供されている場合は公開 checksum と照合してください。
