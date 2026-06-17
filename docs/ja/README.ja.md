@@ -30,13 +30,11 @@ KelpieSSH の使い方に合わせて導入方法を選びます。
 
 インストール後、新しいターミナルを開いてください。
 
-ローカルの Kelpie 設定ファイルを作成します。
+ターミナルで次を実行します。
 
 ```powershell
 kelpie init
 ```
-
-`kelpie init` は、Kelpie home 配下に設定、profile、key、data、log 用のディレクトリを作成します。
 
 初期化時に名前付き SSH profile を作成するには、次のように実行します。
 
@@ -83,7 +81,7 @@ kelpie version
 kelpiemcp status
 ```
 
-ローカルの Kelpie 設定ファイルを作成します。
+ターミナルで次を実行します。
 
 ```powershell
 D:\Kelpie\bin\kelpie.exe init

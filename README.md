@@ -30,13 +30,11 @@ For normal use, download the KelpieSSH `.msi` installer from GitHub Releases and
 
 After installation, open a new terminal.
 
-Create the local Kelpie settings files:
+Execute this command in the terminal:
 
 ```powershell
 kelpie init
 ```
-
-`kelpie init` creates the local configuration, profile, key, data, and log directories under Kelpie home.
 
 To create a named SSH profile at initialization time:
 
@@ -83,7 +81,7 @@ kelpie version
 kelpiemcp status
 ```
 
-Create the local Kelpie settings files:
+Execute this command in the terminal:
 
 ```powershell
 D:\Kelpie\bin\kelpie.exe init
