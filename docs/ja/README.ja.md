@@ -10,14 +10,15 @@ English documentation is available in [README.md](../../README.md).
 
 SSH profile 設定は [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) を参照してください。
 
-`kelpie` は `config/kelpie.json` を読み込みます。`kelpiemcp` と `KelpieMCPServer` は `config/kelpiemcp.json` を読み込みます。
+AI MCP サーバー設定は [MCP_GUIDE.ja.md](MCP_GUIDE.ja.md) を参照してください。
+
+`kelpie` は `config/kelpie.json` を読み込みます。
 
 設定サンプルは `config_samples/` 配下にあります。
 
 ```text
 config_samples/
 ├─ kelpie.json
-├─ kelpiemcp.json
 └─ servers/
    └─ vps01.json
 ```
@@ -90,20 +91,19 @@ Windows が不明な発行元または SmartScreen 警告を表示する場合�
 
 #### 1. Zip バイナリの配置
 
-`KelpieSSH-x.x.x.x-x64.zip` を `D:\Kelpie` に展開します。展開後は次の構成になります。
+`KelpieSSH-x.x.x.x-x64.zip` を `D:\Kelpie` に展開します。CLI 利用に関係する主なファイルは次の構成で配置されます。
 
 ```text
 D:\Kelpie
 ├─ bin
 │  ├─ kelpie.exe
-│  ├─ kelpiemcp.exe
-│  └─ mcp
-│     └─ KelpieMCPServer.exe
+│  └─ kelpiemcp.exe
 ├─ config_samples
 ├─ docs
 ├─ README.md
 ├─ COMMANDS.md
 ├─ CONFIG.md
+├─ MCP_GUIDE.md
 └─ PROFILE_GUIDE.md
 ```
 
@@ -144,13 +144,12 @@ kelpie 0.1.4.1
 D:\Kelpie\bin\kelpie.exe init
 ```
 
-`D:\Kelpie\bin\kelpie.exe` から `kelpie init` を実行した場合、`D:\Kelpie` 配下に次のファイルとディレクトリが作成されます。
+`D:\Kelpie\bin\kelpie.exe` から `kelpie init` を実行した場合、CLI 利用に関係する主なファイルとディレクトリが `D:\Kelpie` 配下に作成されます。
 
 ```text
 D:\Kelpie
 ├─ config
-│  ├─ kelpie.json
-│  └─ kelpiemcp.json
+│  └─ kelpie.json
 ├─ profiles
 │  └─ sample.json
 ├─ keys
@@ -205,7 +204,6 @@ dotnet test
 ```powershell
 dotnet publish src\KelpieClientCommand\KelpieClientCommand.csproj -c Release -o D:\Kelpie\bin
 dotnet publish src\KelpieServerCommand\KelpieServerCommand.csproj -c Release -o D:\Kelpie\bin
-dotnet publish src\KelpieMCPServer\KelpieMCPServer.csproj -c Release -o D:\Kelpie\bin\mcp
 D:\Kelpie\bin\kelpie.exe init
 ```
 
@@ -224,6 +222,10 @@ D:\Kelpie\profiles\vps01.json
 Profile の記述方法の詳細は [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) を参照してください。
 
 `kelpie open vps01` を実行する前に、host、user、認証方式、秘密鍵ファイル名またはパスワード secret 参照を設定します。
+
+### AI users
+
+AI の MCP サーバーとして Kelpie を使う場合は、[MCP_GUIDE.ja.md](MCP_GUIDE.ja.md) にしたがってサーバーを設定、起動してください。
 
 ## Kelpie command-line tools
 
@@ -265,47 +267,6 @@ kelpie logs vps01 nginx.service 200
 
 現時点では、`kelpie diag` と `kelpie logs` は CLI プロセスから SSH コマンドを直接実行し、秘密鍵 profile を主な対象とします。`kelpie status` はローカル MCP サーバーの状態も表示できますが、上記 command-line tools の利用に MCP サーバーは不要です。
 
-## MCP サーバー
-
-MCP サーバーは、Codex と KelpieSSH をつなぐローカルの橋渡しです。Codex は Streamable HTTP でこのサーバーに接続し、サーバーは設定済み SSH profile に対して許可された KelpieSSH 操作を実行します。
-
-Codex やほかの MCP client から KelpieSSH tools を使う場合に MCP サーバーを起動します。`kelpie open vps01` や `kelpie status vps01` のような通常のターミナル利用だけであれば、MCP サーバーは不要です。
-
-Codex から接続する前に、ローカル MCP サーバーを起動します。
-
-```powershell
-kelpiemcp start
-```
-
-起動していることを確認します。
-
-```powershell
-kelpiemcp status
-```
-
-既定では、`KelpieMCPServer` は port `45432` で待ち受け、次の MCP endpoint を公開します。
-
-```text
-http://127.0.0.1:45432/mcp
-```
-
-port は `config/kelpiemcp.json` で設定します。サーバー起動後、この URL を Codex に追加します。
-
-MCP access が不要になったら、MCP サーバーを停止します。
-
-```powershell
-kelpiemcp stop
-```
-
-パスワード認証の SSH profile を使う場合は、実行中のサーバー セッションにパスワードを保存または削除します。
-
-```powershell
-kelpiemcp password vps01
-kelpiemcp forget vps01
-```
-
-パスワードはローカル control pipe を通して実行中の `KelpieMCPServer` へ送られ、そのサーバー プロセスのメモリ内にのみ保持されます。
-
 ## セキュリティ
 
 KelpieSSH は、読み取り中心の診断と許可リスト方式の SSH コマンド実行から始める設計です。
@@ -329,40 +290,6 @@ KelpiePro は有償の closed-source desktop product として計画されてい
 KelpieSSH packages または binaries を KelpiePro と再配布する場合は、KelpieSSH の MIT license notice と [THIRD_PARTY_NOTICES.ja.md](THIRD_PARTY_NOTICES.ja.md) に記載された third-party notices を installer、application about box、bundled documentation、または同等の notices location に含めてください。
 
 現在の runtime dependency review では、KelpieSSH runtime packages に GPL、AGPL、LGPL、SSPL、Commons Clause、その他の non-permissive dependencies は確認されていません。package version を追加または更新した場合は、`THIRD_PARTY_NOTICES.md` を再確認してください。
-
-## Codex MCP 設定
-
-Codex MCP 設定へ Streamable HTTP MCP server URL を追加します。
-
-```toml
-[mcp_servers.kelpie]
-url = "http://127.0.0.1:45432/mcp"
-```
-
-`Server:Port` を変更した場合は、Codex 側の URL も合わせて更新してください。
-
-## MCP tools
-
-現在の tools は次のとおりです。
-
-- `kelpie_ping`
-- `get_system_info`
-- `get_disk_usage`
-- `get_memory_usage`
-- `get_listening_ports`
-- `ssh_run_allowed_command`
-- `get_target_inventory`
-- `ssh_get_system_info`
-- `ssh_get_disk_usage`
-- `ssh_get_memory_usage`
-- `ssh_get_listening_ports`
-- `ssh_get_failed_services`
-- `ssh_tail_log`
-
-SSH tool results は raw `StandardOutput` / `StandardError` strings を保持し、行配列も公開します。
-
-- `Stdout` / `Stderr`: ANSI escape sequences を保持したまま行分割した出力。
-- `StdoutPlain` / `StderrPlain`: ANSI escape sequences を除去した後に行分割した出力。
 
 ## SSH profiles
 

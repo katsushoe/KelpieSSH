@@ -33,6 +33,7 @@ This file is the public source of truth for KelpieSSH Git-managed public documen
 | `DOCUMENTS.md` | `DOCUMENTS.md` | Yes | Directory and document canonical-location index. |
 | `COMMANDS.md` | `COMMANDS.md` | Yes | Public terminal CLI command reference. Japanese version is under `docs/ja/`. |
 | `MCP_COMMANDS.md` | `MCP_COMMANDS.md` | Yes | Public MCP callable tool reference. Japanese version is under `docs/ja/`. |
+| `MCP_GUIDE.md` | `MCP_GUIDE.md` | Yes | Public AI MCP server setup, layout, startup, and usage guide. Japanese version is under `docs/ja/`. |
 | `CONFIG.md` | `CONFIG.md` | Yes | Public configuration reference. Japanese version is under `docs/ja/`. |
 | `PROFILE_GUIDE.md` | `PROFILE_GUIDE.md` | Yes | Public SSH profile configuration guide. Japanese version is under `docs/ja/`. |
 | `PACKAGES.md` | `PACKAGES.md` | Yes | Public package, dependency, package-source, and update-policy reference. Japanese version is under `docs/ja/`. |

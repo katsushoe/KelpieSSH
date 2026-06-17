@@ -10,14 +10,15 @@ Configuration details are documented in [CONFIG.md](CONFIG.md).
 
 SSH profile setup is documented in [PROFILE_GUIDE.md](PROFILE_GUIDE.md).
 
-`kelpie` reads `config/kelpie.json`; `kelpiemcp` and `KelpieMCPServer` read `config/kelpiemcp.json`.
+AI MCP server setup is documented in [MCP_GUIDE.md](MCP_GUIDE.md).
+
+`kelpie` reads `config/kelpie.json`.
 
 Sample configuration files are provided under `config_samples/`:
 
 ```text
 config_samples/
 ├─ kelpie.json
-├─ kelpiemcp.json
 └─ servers/
    └─ vps01.json
 ```
@@ -90,20 +91,19 @@ If Windows shows an unknown publisher or SmartScreen warning, confirm that the M
 
 #### 1. Placing the zip binaries
 
-Extract `KelpieSSH-x.x.x.x-x64.zip` to `D:\Kelpie`. The extracted directory should have this layout:
+Extract `KelpieSSH-x.x.x.x-x64.zip` to `D:\Kelpie`. The CLI-related files are placed like this:
 
 ```text
 D:\Kelpie
 ├─ bin
 │  ├─ kelpie.exe
-│  ├─ kelpiemcp.exe
-│  └─ mcp
-│     └─ KelpieMCPServer.exe
+│  └─ kelpiemcp.exe
 ├─ config_samples
 ├─ docs
 ├─ README.md
 ├─ COMMANDS.md
 ├─ CONFIG.md
+├─ MCP_GUIDE.md
 └─ PROFILE_GUIDE.md
 ```
 
@@ -144,13 +144,12 @@ Execute this command in the terminal:
 D:\Kelpie\bin\kelpie.exe init
 ```
 
-With `D:\Kelpie\bin\kelpie.exe`, `kelpie init` creates files under `D:\Kelpie`:
+With `D:\Kelpie\bin\kelpie.exe`, `kelpie init` creates the CLI-related files under `D:\Kelpie`:
 
 ```text
 D:\Kelpie
 ├─ config
-│  ├─ kelpie.json
-│  └─ kelpiemcp.json
+│  └─ kelpie.json
 ├─ profiles
 │  └─ sample.json
 ├─ keys
@@ -205,7 +204,6 @@ Publish the command binaries into a local manual layout:
 ```powershell
 dotnet publish src\KelpieClientCommand\KelpieClientCommand.csproj -c Release -o D:\Kelpie\bin
 dotnet publish src\KelpieServerCommand\KelpieServerCommand.csproj -c Release -o D:\Kelpie\bin
-dotnet publish src\KelpieMCPServer\KelpieMCPServer.csproj -c Release -o D:\Kelpie\bin\mcp
 D:\Kelpie\bin\kelpie.exe init
 ```
 
@@ -224,6 +222,10 @@ D:\Kelpie\profiles\vps01.json
 For profile syntax and field details, see [PROFILE_GUIDE.md](PROFILE_GUIDE.md).
 
 Set the host, user, authentication method, and private key file name or password secret reference before running `kelpie open vps01`.
+
+### AI users
+
+When using Kelpie as an AI MCP server, configure and start the server by following [MCP_GUIDE.md](MCP_GUIDE.md).
 
 ## Kelpie command-line tools
 
@@ -265,47 +267,6 @@ kelpie logs vps01 nginx.service 200
 
 At this stage, `kelpie diag` and `kelpie logs` run SSH commands directly from the CLI process and are intended for private-key profiles. `kelpie status` can also report whether the local MCP server is running, but the server is not required for the command-line tools above.
 
-## MCP server
-
-The MCP server is the local bridge between Codex and KelpieSSH. Codex connects to this server over Streamable HTTP, and the server then runs the allowed KelpieSSH operations against the configured SSH profiles.
-
-Start the MCP server when you want Codex or another MCP client to use KelpieSSH tools. For normal terminal-only use, such as `kelpie open vps01` or `kelpie status vps01`, the MCP server is not required.
-
-Start the local MCP server before connecting from Codex:
-
-```powershell
-kelpiemcp start
-```
-
-Check that it is running:
-
-```powershell
-kelpiemcp status
-```
-
-By default, `KelpieMCPServer` listens on port `45432` and exposes the MCP endpoint at:
-
-```text
-http://127.0.0.1:45432/mcp
-```
-
-The port is configured in `config/kelpiemcp.json`. Add this URL to Codex after the server is running.
-
-Stop the MCP server when you no longer need MCP access:
-
-```powershell
-kelpiemcp stop
-```
-
-For password-based SSH profiles, store or clear the password in the running server session with:
-
-```powershell
-kelpiemcp password vps01
-kelpiemcp forget vps01
-```
-
-The password is sent to the running `KelpieMCPServer` over the local control pipe and kept only in memory for that server process.
-
 ## Security
 
 KelpieSSH is designed to start with read-oriented diagnostics and allow-list based SSH command execution.
@@ -329,40 +290,6 @@ KelpiePro is planned as a paid closed-source desktop product. KelpiePro may refe
 When KelpieSSH packages or binaries are redistributed with KelpiePro, include the KelpieSSH MIT license notice and the third-party notices listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) in the installer, application about box, bundled documentation, or an equivalent notices location.
 
 The current runtime dependency review did not identify GPL, AGPL, LGPL, SSPL, Commons Clause, or other non-permissive dependencies in KelpieSSH runtime packages. Review `THIRD_PARTY_NOTICES.md` again whenever package versions are added or updated.
-
-## Codex MCP configuration
-
-Add the Streamable HTTP MCP server URL to the Codex MCP configuration.
-
-```toml
-[mcp_servers.kelpie]
-url = "http://127.0.0.1:45432/mcp"
-```
-
-If `Server:Port` is changed, update the Codex URL to match.
-
-## MCP tools
-
-Current tools:
-
-- `kelpie_ping`
-- `get_system_info`
-- `get_disk_usage`
-- `get_memory_usage`
-- `get_listening_ports`
-- `ssh_run_allowed_command`
-- `get_target_inventory`
-- `ssh_get_system_info`
-- `ssh_get_disk_usage`
-- `ssh_get_memory_usage`
-- `ssh_get_listening_ports`
-- `ssh_get_failed_services`
-- `ssh_tail_log`
-
-SSH tool results keep the raw `StandardOutput` / `StandardError` strings and also expose line arrays:
-
-- `Stdout` / `Stderr`: output split by line, preserving ANSI escape sequences.
-- `StdoutPlain` / `StderrPlain`: output split by line after ANSI escape sequences are removed.
 
 ## SSH profiles
 
