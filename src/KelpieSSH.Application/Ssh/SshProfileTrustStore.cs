@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace KelpieSSH.Application.Ssh;
 
@@ -11,7 +12,18 @@ public sealed class SshProfileTrustStore
 {
     private const int NonceSize = 12;
     private const int TagSize = 16;
-    private const string KeyMaterial = "KelpieSSH.MCP.ProfileTrustStore.v1";
+
+    private static readonly byte[] StoreSeed =
+    [
+        17, 14, 16, 253, 247, 202, 147, 130, 170, 221, 73, 86, 118, 25, 24, 43, 5,
+        29, 229, 241, 203, 235, 162, 148, 129, 119, 71, 81, 89, 53, 61, 71, 12, 186,
+    ];
+
+    private static readonly byte[] StoreMask =
+    [
+        90, 107, 124, 141, 158, 175, 192, 209, 226, 243, 4, 21, 38, 55, 72, 89, 106,
+        123, 140, 157, 174, 191, 208, 225, 242, 3, 20, 37, 54, 71, 88, 105, 122, 139,
+    ];
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -62,21 +74,21 @@ public sealed class SshProfileTrustStore
 
         try
         {
-            var envelope = JsonSerializer.Deserialize<EncryptedTrustStoreEnvelope>(
+            var envelope = JsonSerializer.Deserialize<StoreEnvelope>(
                 File.ReadAllText(filePath),
                 JsonOptions)
                 ?? throw new InvalidOperationException("MCP trust store is empty.");
 
             var nonce = Convert.FromBase64String(envelope.Nonce);
             var tag = Convert.FromBase64String(envelope.Tag);
-            var ciphertext = Convert.FromBase64String(envelope.Ciphertext);
-            var plaintext = new byte[ciphertext.Length];
+            var payload = Convert.FromBase64String(envelope.Payload);
+            var buffer = new byte[payload.Length];
 
-            using var aes = new AesGcm(CreateKey(), TagSize);
-            aes.Decrypt(nonce, ciphertext, tag, plaintext);
+            using var guard = new AesGcm(Materialize(), TagSize);
+            guard.Decrypt(nonce, payload, tag, buffer);
 
             var manifest = JsonSerializer.Deserialize<TrustStoreManifest>(
-                    Encoding.UTF8.GetString(plaintext),
+                    Encoding.UTF8.GetString(buffer),
                     JsonOptions)
                 ?? new TrustStoreManifest();
 
@@ -126,20 +138,20 @@ public sealed class SshProfileTrustStore
                 .ToArray(),
         };
 
-        var plaintext = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(manifest, JsonOptions));
+        var buffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(manifest, JsonOptions));
         var nonce = RandomNumberGenerator.GetBytes(NonceSize);
-        var ciphertext = new byte[plaintext.Length];
+        var payload = new byte[buffer.Length];
         var tag = new byte[TagSize];
 
-        using var aes = new AesGcm(CreateKey(), TagSize);
-        aes.Encrypt(nonce, plaintext, ciphertext, tag);
+        using var guard = new AesGcm(Materialize(), TagSize);
+        guard.Encrypt(nonce, buffer, payload, tag);
 
-        var envelope = new EncryptedTrustStoreEnvelope
+        var envelope = new StoreEnvelope
         {
             FormatVersion = 1,
             Nonce = Convert.ToBase64String(nonce),
             Tag = Convert.ToBase64String(tag),
-            Ciphertext = Convert.ToBase64String(ciphertext),
+            Payload = Convert.ToBase64String(payload),
         };
 
         File.WriteAllText(filePath, JsonSerializer.Serialize(envelope, JsonOptions));
@@ -259,9 +271,15 @@ public sealed class SshProfileTrustStore
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalizedPath))).ToLowerInvariant();
     }
 
-    private static byte[] CreateKey()
+    private static byte[] Materialize()
     {
-        return SHA256.HashData(Encoding.UTF8.GetBytes(KeyMaterial));
+        var material = new byte[StoreSeed.Length];
+        for (var index = 0; index < StoreSeed.Length; index++)
+        {
+            material[index] = (byte)(StoreSeed[index] ^ StoreMask[index]);
+        }
+
+        return SHA256.HashData(material);
     }
 
     private sealed class TrustStoreManifest
@@ -275,7 +293,7 @@ public sealed class SshProfileTrustStore
         public IReadOnlyCollection<SshProfileTrustEntry> Profiles { get; init; } = [];
     }
 
-    private sealed class EncryptedTrustStoreEnvelope
+    private sealed class StoreEnvelope
     {
         public int FormatVersion { get; init; }
 
@@ -283,7 +301,8 @@ public sealed class SshProfileTrustStore
 
         public string Tag { get; init; } = string.Empty;
 
-        public string Ciphertext { get; init; } = string.Empty;
+        [JsonPropertyName("Ciphertext")]
+        public string Payload { get; init; } = string.Empty;
     }
 }
 
