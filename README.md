@@ -82,6 +82,8 @@ If Windows shows an unknown publisher or SmartScreen warning, confirm that the M
 
 ### Zip distribution users
 
+#### 1. Placing the zip binaries
+
 If you are using a zip-style binary distribution or temporary local layout, place the commands under a `bin` directory:
 
 ```text
@@ -92,6 +94,8 @@ D:\Kelpie
    └─ mcp
       └─ KelpieMCPServer.exe
 ```
+
+#### 2. Adding `PATH` and verifying commands
 
 Add `D:\Kelpie\bin` to the user `PATH`:
 
@@ -110,6 +114,10 @@ Open a new terminal after updating `PATH`, then run the same command check:
 kelpie version
 kelpiemcp status
 ```
+
+If you do not want to update `PATH`, keep using full paths such as `D:\Kelpie\bin\kelpie.exe`.
+
+#### 3. Initializing Kelpie home and creating a profile
 
 Execute this command in the terminal:
 
@@ -144,7 +152,19 @@ Edit the generated profile before connecting:
 D:\Kelpie\profiles\vps01.json
 ```
 
-If you do not want to update `PATH`, keep using full paths such as `D:\Kelpie\bin\kelpie.exe`.
+#### 4. Connecting to server
+
+After editing the profile, open the target server:
+
+```powershell
+kelpie open vps01
+```
+
+For password-based profiles, sign in after opening the target:
+
+```powershell
+kelpie login
+```
 
 ### Developers
 

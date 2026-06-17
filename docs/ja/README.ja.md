@@ -82,6 +82,8 @@ Windows が不明な発行元または SmartScreen 警告を表示する場合�
 
 ### Zip 配布版の利用者
 
+#### 1. Zip バイナリの配置
+
 zip 形式の配布物または一時的なローカル配置を使う場合は、コマンドを `bin` ディレクトリ配下に置きます。
 
 ```text
@@ -92,6 +94,8 @@ D:\Kelpie
    └─ mcp
       └─ KelpieMCPServer.exe
 ```
+
+#### 2. `PATH` の追加とコマンド確認
 
 `D:\Kelpie\bin` をユーザー `PATH` に追加します。
 
@@ -110,6 +114,10 @@ if (($userPath -split ";") -notcontains $kelpieBin) {
 kelpie version
 kelpiemcp status
 ```
+
+`PATH` を更新したくない場合は、`D:\Kelpie\bin\kelpie.exe` のようなフルパスを使い続けてください。
+
+#### 3. Kelpie home の初期化と profile 作成
 
 ターミナルで次を実行します。
 
@@ -144,7 +152,19 @@ D:\Kelpie\bin\kelpie.exe init vps01
 D:\Kelpie\profiles\vps01.json
 ```
 
-`PATH` を更新したくない場合は、`D:\Kelpie\bin\kelpie.exe` のようなフルパスを使い続けてください。
+#### 4. サーバーへの接続
+
+profile を編集した後、対象サーバーを開きます。
+
+```powershell
+kelpie open vps01
+```
+
+パスワード認証の profile では、対象を開いた後にログインします。
+
+```powershell
+kelpie login
+```
 
 ### 開発者
 
