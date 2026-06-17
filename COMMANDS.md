@@ -45,7 +45,334 @@ Result samples in this document are representative output shapes. Host names, pr
 
 ## Commands
 
-### `kelpie init [profile]`
+Commands are grouped by operational area. Each group section states the scope, and each command is documented in its own subsection.
+
+### MCP server control
+
+Start, stop, and inspect the local KelpieMCPServer process or service.
+
+#### `kelpiemcp start`
+
+Starts the local MCP server.
+On Windows, if `KelpieMCPServer` is registered as a Windows Service, this command starts the Windows Service. Run it from a terminal running as administrator in that case.
+Otherwise, it starts a normal local process.
+
+```powershell
+kelpiemcp start
+```
+
+Example when the Windows Service is registered:
+
+```text
+Windows Service start requested: KelpieMCPServer
+```
+
+Return value:
+
+- Exit code `0` when the start request is accepted.
+- Standard output reports whether a Windows Service start was requested or a local process was started.
+- Standard error contains startup failures, including service-control failures.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
+Execution result sample:
+
+The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+#### `kelpiemcp stop`
+
+Stops the local MCP server process.
+
+```powershell
+kelpiemcp stop
+```
+
+Return value:
+
+- Exit code `0` when the stop request is sent successfully.
+- Standard output contains a stop confirmation when available.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
+Execution result sample:
+
+The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+#### `kelpiemcp status`
+
+Shows whether the local MCP server is running. The output also shows whether `KelpieMCPServer` is registered as a Windows Service.
+
+```powershell
+kelpiemcp status
+```
+
+Example:
+
+```text
+KelpieMCPServer: running
+MCP URL: http://127.0.0.1:45432/mcp
+Health URL: http://127.0.0.1:45432/health
+Control pipe: KelpieMCPServer.Control
+Registered as Windows service: yes
+```
+
+Stopped example:
+
+```text
+KelpieMCPServer: stopped
+Registered as Windows service: yes
+```
+
+Return value:
+
+- Exit code `0` when status is printed.
+- Standard output contains MCP process status, endpoint URLs when running, control pipe name when available, and Windows Service registration state.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
+Execution result sample:
+
+The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+### MCP Windows Service
+
+Register, unregister, and inspect the Windows Service entry for KelpieMCPServer.
+
+#### `kelpiemcp service register`
+
+Registers `KelpieMCPServer` as an automatic-start Windows Service and sets its service description. Run from a terminal running as administrator.
+
+```powershell
+kelpiemcp service register
+```
+
+Return value:
+
+- Exit code `0` when Windows Service registration succeeds.
+- Standard output contains the service-control result.
+- Standard error contains Windows Service registration errors.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
+Execution result sample:
+
+The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+#### `kelpiemcp service unregister`
+
+Unregisters the `KelpieMCPServer` Windows Service. Stop the service before unregistering it. Run from a terminal running as administrator.
+
+```powershell
+kelpiemcp service unregister
+```
+
+Return value:
+
+- Exit code `0` when Windows Service unregistration succeeds.
+- Standard output contains the service-control result.
+- Standard error contains Windows Service unregistration errors.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
+Execution result sample:
+
+The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+#### `kelpiemcp service status`
+
+Shows whether the `KelpieMCPServer` Windows Service is registered.
+
+```powershell
+kelpiemcp service status
+```
+
+Return value:
+
+- Exit code `0` when service status is printed.
+- Standard output reports whether the Windows Service is registered.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
+Execution result sample:
+
+The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+### MCP password session
+
+Store or clear SSH password sessions in the running MCP server process memory.
+
+#### `kelpiemcp password <profile>`
+
+Prompts for a password and stores it only in the running `KelpieMCPServer` process memory.
+
+```powershell
+kelpiemcp password vps01
+```
+
+Passwords must not be stored in JSON files.
+
+Return value:
+
+- Exit code `0` when the password is accepted by the running MCP server session.
+- Standard output confirms that a password session was stored.
+- The password itself is never returned.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
+Execution result sample:
+
+The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+#### `kelpiemcp login <profile>`
+
+Compatibility alias for `kelpiemcp password <profile>`.
+It prompts for a password and stores it only in the running `KelpieMCPServer` process memory.
+
+```powershell
+kelpiemcp login vps01
+```
+
+Return value:
+
+- Exit code `0` when the password is accepted by the running MCP server session.
+- Standard output confirms that a password session was stored.
+- The password itself is never returned.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
+Execution result sample:
+
+The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+#### `kelpiemcp forget <profile>`
+
+Clears the in-memory password session for a profile.
+
+```powershell
+kelpiemcp forget vps01
+```
+
+Return value:
+
+- Exit code `0` when the running MCP server clears or accepts the clear request for the profile.
+- Standard output confirms the password session cleanup.
+- The previous password value is never returned.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
+Execution result sample:
+
+The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+#### `kelpiemcp logout <profile>`
+
+Compatibility alias for `kelpiemcp forget <profile>`.
+It clears the in-memory password session for a profile in the running `KelpieMCPServer` process.
+
+```powershell
+kelpiemcp logout vps01
+```
+
+Existing SSH terminal connections are not closed by this command.
+Use the relevant terminal/session close command for connection cleanup.
+
+Return value:
+
+- Exit code `0` when the running MCP server clears or accepts the clear request for the profile.
+- Standard output confirms the password session cleanup.
+- The previous password value is never returned.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
+Execution result sample:
+
+The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+### Initialization
+
+Create the local Kelpie home layout and sample configuration files.
+
+#### `kelpie init [profile]`
 
 Creates the local Kelpie home directory layout.
 
@@ -78,63 +405,11 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
-### `kelpie version`
+### Profile/session
 
-Shows the `kelpie` command version.
+Select SSH profiles and manage interactive or temporary sessions.
 
-```powershell
-kelpie version
-kelpie --version
-```
-
-Return value:
-
-- Exit code `0` when the version is printed.
-- Standard output contains the `kelpie` product version string.
-
-Return value sample:
-
-```json
-{
-  "exitCode": 0,
-  "stdout": "<command-specific terminal output>",
-  "stderr": ""
-}
-```
-
-Execution result sample:
-
-The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
-
-### `kelpie help`
-
-Shows command help.
-
-```powershell
-kelpie help
-kelpie --help
-```
-
-Return value:
-
-- Exit code `0` when help text is printed.
-- Standard output contains terminal help text for the available command set.
-
-Return value sample:
-
-```json
-{
-  "exitCode": 0,
-  "stdout": "<command-specific terminal output>",
-  "stderr": ""
-}
-```
-
-Execution result sample:
-
-The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
-
-### `kelpie profiles`
+#### `kelpie profiles`
 
 Lists configured SSH profiles.
 
@@ -161,7 +436,7 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
-### `kelpie profile show <profile>`
+#### `kelpie profile show <profile>`
 
 Shows a sanitized profile summary.
 Secret values are not printed.
@@ -189,7 +464,7 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
-### `kelpie open <profile>`
+#### `kelpie open <profile>`
 
 Stores the selected profile name in local runtime state for later commands that use the open profile.
 
@@ -216,7 +491,7 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
-### `kelpie login`
+#### `kelpie login`
 
 Starts an interactive SSH login for the currently open profile.
 
@@ -249,7 +524,99 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
-### `kelpie login --console`
+#### `kelpie logout`
+
+Attempts to leave an interactive SSH session.
+
+```powershell
+kelpie logout
+```
+
+The top-level command does not own a persistent interactive session after `kelpie login` exits, so this command currently reports that no interactive SSH session is active.
+Inside an active interactive SSH shell, use the remote shell's normal `exit` or `logout` command.
+
+Return value:
+
+- Non-zero exit code when no interactive SSH session is active.
+- Standard error contains the local status message.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 1,
+  "stdout": "",
+  "stderr": "No interactive SSH session is active."
+}
+```
+
+Execution result sample:
+
+The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+#### `kelpie sessions`
+
+Lists temporary SSH sessions held by the running MCP server process.
+
+```powershell
+kelpie sessions
+```
+
+The command talks to the configured MCP control pipe and prints in-memory sessions such as password sessions.
+
+Return value:
+
+- Exit code `0` when the running MCP server returns the session list.
+- Standard output contains either a table of session handles or `No SSH sessions.`.
+- Secret values are not returned.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "Handle      Profile  Kind      StartedAt\nssh-abc123  vps01    password  2026-06-05 01:02:03Z",
+  "stderr": ""
+}
+```
+
+Execution result sample:
+
+The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+#### `kelpie kill <handle>`
+
+Clears a temporary SSH session by handle in the running MCP server process.
+
+```powershell
+kelpie kill ssh-abc123
+```
+
+Return value:
+
+- Exit code `0` when the session handle is found and cleared.
+- Non-zero exit code when the handle is missing or not found by the server.
+- Standard output confirms the cleared handle on success.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "SSH session killed: ssh-abc123",
+  "stderr": ""
+}
+```
+
+Execution result sample:
+
+The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+### Mode/UI
+
+Switch between CLI and GUI behavior or choose a temporary launch mode.
+
+#### `kelpie login --console`
 
 Starts a separate Windows console login window for the currently open profile.
 
@@ -280,7 +647,7 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
-### `kelpie login --desktop`
+#### `kelpie login --desktop`
 
 Starts the desktop frontend for the currently open profile.
 
@@ -309,58 +676,25 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
-### `kelpie logout`
+#### `kelpie cli`
 
-Attempts to leave an interactive SSH session.
+Switches Kelpie to CLI mode.
 
 ```powershell
-kelpie logout
+kelpie cli
 ```
-
-The top-level command does not own a persistent interactive session after `kelpie login` exits, so this command currently reports that no interactive SSH session is active.
-Inside an active interactive SSH shell, use the remote shell's normal `exit` or `logout` command.
 
 Return value:
 
-- Non-zero exit code when no interactive SSH session is active.
-- Standard error contains the local status message.
-
-Return value sample:
-
-```json
-{
-  "exitCode": 1,
-  "stdout": "",
-  "stderr": "No interactive SSH session is active."
-}
-```
-
-Execution result sample:
-
-The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
-
-### `kelpie sessions`
-
-Lists temporary SSH sessions held by the running MCP server process.
-
-```powershell
-kelpie sessions
-```
-
-The command talks to the configured MCP control pipe and prints in-memory sessions such as password sessions.
-
-Return value:
-
-- Exit code `0` when the running MCP server returns the session list.
-- Standard output contains either a table of session handles or `No SSH sessions.`.
-- Secret values are not returned.
+- Exit code `0` when CLI mode is selected.
+- Standard output confirms the mode change.
 
 Return value sample:
 
 ```json
 {
   "exitCode": 0,
-  "stdout": "Handle      Profile  Kind      StartedAt\nssh-abc123  vps01    password  2026-06-05 01:02:03Z",
+  "stdout": "<command-specific terminal output>",
   "stderr": ""
 }
 ```
@@ -369,26 +703,25 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
-### `kelpie kill <handle>`
+#### `kelpie gui`
 
-Clears a temporary SSH session by handle in the running MCP server process.
+Starts or switches to GUI mode when a GUI frontend is available.
 
 ```powershell
-kelpie kill ssh-abc123
+kelpie gui
 ```
 
 Return value:
 
-- Exit code `0` when the session handle is found and cleared.
-- Non-zero exit code when the handle is missing or not found by the server.
-- Standard output confirms the cleared handle on success.
+- Exit code `0` when GUI mode is selected or the GUI frontend is started.
+- Standard output contains a user-facing status message.
 
 Return value sample:
 
 ```json
 {
   "exitCode": 0,
-  "stdout": "SSH session killed: ssh-abc123",
+  "stdout": "<command-specific terminal output>",
   "stderr": ""
 }
 ```
@@ -397,7 +730,11 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
-### `kelpie status <profile>`
+### Diagnostics
+
+Show MCP status, sanitized profile information, SSH diagnostics, and service logs.
+
+#### `kelpie status <profile>`
 
 Shows MCP server status and a sanitized profile summary.
 
@@ -424,7 +761,7 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
-### `kelpie diag <profile>`
+#### `kelpie diag <profile>`
 
 Runs high-level read-oriented diagnostics over SSH.
 
@@ -455,7 +792,7 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
-### `kelpie logs <profile> <service> [lines]`
+#### `kelpie logs <profile> <service> [lines]`
 
 Reads recent logs for a systemd service over SSH.
 
@@ -487,7 +824,11 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
-### `kelpie env keys <profile>`
+### Environment
+
+List, read, temporarily set, or persist remote environment variables under profile policy.
+
+#### `kelpie env keys <profile>`
 
 Lists remote environment variable names visible to the selected SSH user.
 
@@ -528,7 +869,7 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
-### `kelpie env peek <profile> <key>`
+#### `kelpie env peek <profile> <key>`
 
 Reads one remote environment variable value when the profile permits it.
 
@@ -567,7 +908,7 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
-### `kelpie env set <profile> <key> <value> -- <command>`
+#### `kelpie env set <profile> <key> <value> -- <command>`
 
 Runs one command with one environment variable value set for that execution only.
 Before running the command, Kelpie sources `~/.kelpie/.env` if it exists.
@@ -603,7 +944,7 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
-### `kelpie env list <profile>`
+#### `kelpie env list <profile>`
 
 Lists environment variable keys stored in the remote Kelpie env file.
 
@@ -641,7 +982,7 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
-### `kelpie env persist <profile> <key> <value>`
+#### `kelpie env persist <profile> <key> <value>`
 
 Writes one environment variable value to the remote Kelpie env file.
 
@@ -686,7 +1027,7 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
-### `kelpie env remove <profile> <key>`
+#### `kelpie env remove <profile> <key>`
 
 Removes one environment variable from the remote Kelpie env file.
 
@@ -717,18 +1058,23 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
-### `kelpie cli`
+### Help/version
 
-Switches Kelpie to CLI mode.
+Show command help and version information.
+
+#### `kelpie version`
+
+Shows the `kelpie` command version.
 
 ```powershell
-kelpie cli
+kelpie version
+kelpie --version
 ```
 
 Return value:
 
-- Exit code `0` when CLI mode is selected.
-- Standard output confirms the mode change.
+- Exit code `0` when the version is printed.
+- Standard output contains the `kelpie` product version string.
 
 Return value sample:
 
@@ -744,327 +1090,19 @@ Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
 
-### `kelpie gui`
+#### `kelpie help`
 
-Starts or switches to GUI mode when a GUI frontend is available.
+Shows command help.
 
 ```powershell
-kelpie gui
+kelpie help
+kelpie --help
 ```
 
 Return value:
 
-- Exit code `0` when GUI mode is selected or the GUI frontend is started.
-- Standard output contains a user-facing status message.
-
-Return value sample:
-
-```json
-{
-  "exitCode": 0,
-  "stdout": "<command-specific terminal output>",
-  "stderr": ""
-}
-```
-
-Execution result sample:
-
-The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
-
-### `kelpiemcp start`
-
-Starts the local MCP server.
-On Windows, if `KelpieMCPServer` is registered as a Windows Service, this command starts the Windows Service. Run it from a terminal running as administrator in that case.
-Otherwise, it starts a normal local process.
-
-```powershell
-kelpiemcp start
-```
-
-Example when the Windows Service is registered:
-
-```text
-Windows Service start requested: KelpieMCPServer
-```
-
-Return value:
-
-- Exit code `0` when the start request is accepted.
-- Standard output reports whether a Windows Service start was requested or a local process was started.
-- Standard error contains startup failures, including service-control failures.
-
-Return value sample:
-
-```json
-{
-  "exitCode": 0,
-  "stdout": "<command-specific terminal output>",
-  "stderr": ""
-}
-```
-
-Execution result sample:
-
-The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
-
-### `kelpiemcp stop`
-
-Stops the local MCP server process.
-
-```powershell
-kelpiemcp stop
-```
-
-Return value:
-
-- Exit code `0` when the stop request is sent successfully.
-- Standard output contains a stop confirmation when available.
-
-Return value sample:
-
-```json
-{
-  "exitCode": 0,
-  "stdout": "<command-specific terminal output>",
-  "stderr": ""
-}
-```
-
-Execution result sample:
-
-The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
-
-### `kelpiemcp status`
-
-Shows whether the local MCP server is running. The output also shows whether `KelpieMCPServer` is registered as a Windows Service.
-
-```powershell
-kelpiemcp status
-```
-
-Example:
-
-```text
-KelpieMCPServer: running
-MCP URL: http://127.0.0.1:45432/mcp
-Health URL: http://127.0.0.1:45432/health
-Control pipe: KelpieMCPServer.Control
-Registered as Windows service: yes
-```
-
-Stopped example:
-
-```text
-KelpieMCPServer: stopped
-Registered as Windows service: yes
-```
-
-Return value:
-
-- Exit code `0` when status is printed.
-- Standard output contains MCP process status, endpoint URLs when running, control pipe name when available, and Windows Service registration state.
-
-Return value sample:
-
-```json
-{
-  "exitCode": 0,
-  "stdout": "<command-specific terminal output>",
-  "stderr": ""
-}
-```
-
-Execution result sample:
-
-The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
-
-### `kelpiemcp service register`
-
-Registers `KelpieMCPServer` as an automatic-start Windows Service and sets its service description. Run from a terminal running as administrator.
-
-```powershell
-kelpiemcp service register
-```
-
-Return value:
-
-- Exit code `0` when Windows Service registration succeeds.
-- Standard output contains the service-control result.
-- Standard error contains Windows Service registration errors.
-
-Return value sample:
-
-```json
-{
-  "exitCode": 0,
-  "stdout": "<command-specific terminal output>",
-  "stderr": ""
-}
-```
-
-Execution result sample:
-
-The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
-
-### `kelpiemcp service unregister`
-
-Unregisters the `KelpieMCPServer` Windows Service. Stop the service before unregistering it. Run from a terminal running as administrator.
-
-```powershell
-kelpiemcp service unregister
-```
-
-Return value:
-
-- Exit code `0` when Windows Service unregistration succeeds.
-- Standard output contains the service-control result.
-- Standard error contains Windows Service unregistration errors.
-
-Return value sample:
-
-```json
-{
-  "exitCode": 0,
-  "stdout": "<command-specific terminal output>",
-  "stderr": ""
-}
-```
-
-Execution result sample:
-
-The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
-
-### `kelpiemcp service status`
-
-Shows whether the `KelpieMCPServer` Windows Service is registered.
-
-```powershell
-kelpiemcp service status
-```
-
-Return value:
-
-- Exit code `0` when service status is printed.
-- Standard output reports whether the Windows Service is registered.
-
-Return value sample:
-
-```json
-{
-  "exitCode": 0,
-  "stdout": "<command-specific terminal output>",
-  "stderr": ""
-}
-```
-
-Execution result sample:
-
-The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
-
-### `kelpiemcp password <profile>`
-
-Prompts for a password and stores it only in the running `KelpieMCPServer` process memory.
-
-```powershell
-kelpiemcp password vps01
-```
-
-Passwords must not be stored in JSON files.
-
-Return value:
-
-- Exit code `0` when the password is accepted by the running MCP server session.
-- Standard output confirms that a password session was stored.
-- The password itself is never returned.
-
-Return value sample:
-
-```json
-{
-  "exitCode": 0,
-  "stdout": "<command-specific terminal output>",
-  "stderr": ""
-}
-```
-
-Execution result sample:
-
-The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
-
-### `kelpiemcp login <profile>`
-
-Compatibility alias for `kelpiemcp password <profile>`.
-It prompts for a password and stores it only in the running `KelpieMCPServer` process memory.
-
-```powershell
-kelpiemcp login vps01
-```
-
-Return value:
-
-- Exit code `0` when the password is accepted by the running MCP server session.
-- Standard output confirms that a password session was stored.
-- The password itself is never returned.
-
-Return value sample:
-
-```json
-{
-  "exitCode": 0,
-  "stdout": "<command-specific terminal output>",
-  "stderr": ""
-}
-```
-
-Execution result sample:
-
-The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
-
-### `kelpiemcp forget <profile>`
-
-Clears the in-memory password session for a profile.
-
-```powershell
-kelpiemcp forget vps01
-```
-
-Return value:
-
-- Exit code `0` when the running MCP server clears or accepts the clear request for the profile.
-- Standard output confirms the password session cleanup.
-- The previous password value is never returned.
-
-Return value sample:
-
-```json
-{
-  "exitCode": 0,
-  "stdout": "<command-specific terminal output>",
-  "stderr": ""
-}
-```
-
-Execution result sample:
-
-The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
-
-### `kelpiemcp logout <profile>`
-
-Compatibility alias for `kelpiemcp forget <profile>`.
-It clears the in-memory password session for a profile in the running `KelpieMCPServer` process.
-
-```powershell
-kelpiemcp logout vps01
-```
-
-Existing SSH terminal connections are not closed by this command.
-Use the relevant terminal/session close command for connection cleanup.
-
-Return value:
-
-- Exit code `0` when the running MCP server clears or accepts the clear request for the profile.
-- Standard output confirms the password session cleanup.
-- The previous password value is never returned.
+- Exit code `0` when help text is printed.
+- Standard output contains terminal help text for the available command set.
 
 Return value sample:
 
@@ -1086,4 +1124,5 @@ The terminal execution result is represented by the return value sample above: p
 - Dangerous operations require dedicated commands, policy checks, and confirmation strings.
 - Passwords are session-only for the MCP server process.
 - Production profile files and private keys must stay outside the public repository.
+
 

@@ -6,7 +6,7 @@ This file is the English command reference for MCP callable tools exposed by `Ke
 For Japanese documentation, see [docs/ja/MCP_COMMANDS.ja.md](docs/ja/MCP_COMMANDS.ja.md).
 Terminal CLI commands are documented in [COMMANDS.md](COMMANDS.md).
 
-`MCP_COMMANDS.md` follows the same command-reference standard as `COMMANDS.md`: each MCP tool has its own section with purpose, input fields, input examples, execution behavior, return value specification and sample, execution result sample, and safety notes. Individual tool schemas are exposed by MCP `tools/list`; this document explains how those tools are intended to be used safely.
+`MCP_COMMANDS.md` follows the same command-reference standard as `COMMANDS.md`: MCP tools are grouped by operational area, and each MCP tool has its own subsection with purpose, input fields, input examples, execution behavior, return value specification and sample, execution result sample, and safety notes. Individual tool schemas are exposed by MCP `tools/list`; this document explains how those tools are intended to be used safely.
 
 ## How MCP Tools Are Called
 
@@ -43,7 +43,7 @@ The HTTP request body is JSON-RPC, not a REST-style resource request. For exampl
 }
 ```
 
-This document describes the `name` and `arguments` used inside `tools/call`. In each tool section, the call sample shows the `params` object that goes inside a JSON-RPC `tools/call` request. Return value samples show the `structuredContent` object or text content returned by the tool after execution. AI users normally only need the tool behavior and safety notes; MCP client implementers may also need the JSON-RPC flow above.
+This document describes the `name` and `arguments` used inside `tools/call`. In each tool subsection, the call sample shows the `params` object that goes inside a JSON-RPC `tools/call` request. Return value samples show the `structuredContent` object or text content returned by the tool after execution. AI users normally only need the tool behavior and safety notes; MCP client implementers may also need the JSON-RPC flow above.
 
 ## Tool Groups
 
@@ -151,9 +151,13 @@ Tools that can change a remote target require an exact `confirmation` string. If
 
 ## Commands
 
-Each MCP tool is documented in its own section. Do not merge multiple tools into one command explanation; the tool group table above is only an index.
+MCP tools are grouped by operational area. Each group section states the scope, and each tool is documented in its own subsection.
 
-### `kelpie_ping`
+### Server health
+
+Verify that the MCP server is reachable.
+
+#### `kelpie_ping`
 
 Purpose:
 
@@ -196,7 +200,11 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `profile_reload`
+### Profile management
+
+Reload saved SSH profiles from disk on demand.
+
+#### `profile_reload`
 
 Purpose:
 
@@ -248,7 +256,11 @@ Safety notes:
 
 - This tool does not contact SSH targets. It updates only the MCP server's in-memory profile catalog, and existing terminal sessions keep their current connections.
 
-### `get_system_info`
+### Local diagnostics
+
+Inspect the local host running KelpieMCPServer.
+
+#### `get_system_info`
 
 Purpose:
 
@@ -303,7 +315,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `get_disk_usage`
+#### `get_disk_usage`
 
 Purpose:
 
@@ -348,7 +360,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `get_memory_usage`
+#### `get_memory_usage`
 
 Purpose:
 
@@ -400,7 +412,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `get_listening_ports`
+#### `get_listening_ports`
 
 Purpose:
 
@@ -449,7 +461,11 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_get_capabilities`
+### Capabilities and inventory
+
+Inspect target command/tool support and installed helper/software inventory.
+
+#### `ssh_get_capabilities`
 
 Purpose:
 
@@ -505,7 +521,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `get_target_inventory`
+#### `get_target_inventory`
 
 Purpose:
 
@@ -555,7 +571,11 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_get_system_info`
+### SSH diagnostics
+
+Run allow-listed read-oriented diagnostics over SSH.
+
+#### `ssh_get_system_info`
 
 Purpose:
 
@@ -612,7 +632,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_get_os_release`
+#### `ssh_get_os_release`
 
 Purpose:
 
@@ -669,7 +689,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_get_uptime`
+#### `ssh_get_uptime`
 
 Purpose:
 
@@ -726,7 +746,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_get_disk_usage`
+#### `ssh_get_disk_usage`
 
 Purpose:
 
@@ -783,7 +803,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_get_memory_usage`
+#### `ssh_get_memory_usage`
 
 Purpose:
 
@@ -840,7 +860,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_get_process_summary`
+#### `ssh_get_process_summary`
 
 Purpose:
 
@@ -901,7 +921,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_get_inode_usage`
+#### `ssh_get_inode_usage`
 
 Purpose:
 
@@ -958,7 +978,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_get_mounts`
+#### `ssh_get_mounts`
 
 Purpose:
 
@@ -1015,7 +1035,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_get_network_addresses`
+#### `ssh_get_network_addresses`
 
 Purpose:
 
@@ -1072,7 +1092,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_get_routes`
+#### `ssh_get_routes`
 
 Purpose:
 
@@ -1129,7 +1149,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_get_dns_config`
+#### `ssh_get_dns_config`
 
 Purpose:
 
@@ -1186,7 +1206,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_check_http_local`
+#### `ssh_check_http_local`
 
 Purpose:
 
@@ -1245,7 +1265,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_check_tcp_connect_local`
+#### `ssh_check_tcp_connect_local`
 
 Purpose:
 
@@ -1304,7 +1324,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_get_listening_ports`
+#### `ssh_get_listening_ports`
 
 Purpose:
 
@@ -1361,7 +1381,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_get_failed_services`
+#### `ssh_get_failed_services`
 
 Purpose:
 
@@ -1418,7 +1438,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_get_journal_recent`
+#### `ssh_get_journal_recent`
 
 Purpose:
 
@@ -1477,7 +1497,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_tail_log`
+#### `ssh_tail_log`
 
 Purpose:
 
@@ -1538,7 +1558,11 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_cron_list`
+### Cron, certificate, user, firewall, backup, and audit checks
+
+Inspect or change sensitive server-maintenance state through bounded checks and confirmation-gated operations.
+
+#### `ssh_cron_list`
 
 Purpose:
 
@@ -1597,7 +1621,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_cron_validate`
+#### `ssh_cron_validate`
 
 Purpose:
 
@@ -1662,7 +1686,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_cron_check_write`
+#### `ssh_cron_check_write`
 
 Purpose:
 
@@ -1729,7 +1753,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_cron_write`
+#### `ssh_cron_write`
 
 Purpose:
 
@@ -1798,7 +1822,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_cron_rollback`
+#### `ssh_cron_rollback`
 
 Purpose:
 
@@ -1861,7 +1885,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_cert_inspect`
+#### `ssh_cert_inspect`
 
 Purpose:
 
@@ -1920,7 +1944,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_cert_expiry_check`
+#### `ssh_cert_expiry_check`
 
 Purpose:
 
@@ -1981,7 +2005,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_user_list`
+#### `ssh_user_list`
 
 Purpose:
 
@@ -2040,7 +2064,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_user_info`
+#### `ssh_user_info`
 
 Purpose:
 
@@ -2099,7 +2123,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_group_list`
+#### `ssh_group_list`
 
 Purpose:
 
@@ -2158,7 +2182,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_group_info`
+#### `ssh_group_info`
 
 Purpose:
 
@@ -2217,7 +2241,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_sudoers_check`
+#### `ssh_sudoers_check`
 
 Purpose:
 
@@ -2278,7 +2302,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_user_usage_check`
+#### `ssh_user_usage_check`
 
 Purpose:
 
@@ -2341,7 +2365,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_user_check_group_change`
+#### `ssh_user_check_group_change`
 
 Purpose:
 
@@ -2404,7 +2428,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_user_apply_group_change`
+#### `ssh_user_apply_group_change`
 
 Purpose:
 
@@ -2469,7 +2493,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_user_rollback_group_change`
+#### `ssh_user_rollback_group_change`
 
 Purpose:
 
@@ -2530,7 +2554,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_user_check_permission_change`
+#### `ssh_user_check_permission_change`
 
 Purpose:
 
@@ -2595,7 +2619,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_user_apply_permission_change`
+#### `ssh_user_apply_permission_change`
 
 Purpose:
 
@@ -2662,7 +2686,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_user_rollback_permission_change`
+#### `ssh_user_rollback_permission_change`
 
 Purpose:
 
@@ -2723,7 +2747,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_user_file_ownership_check`
+#### `ssh_user_file_ownership_check`
 
 Purpose:
 
@@ -2790,7 +2814,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_user_service_usage_check`
+#### `ssh_user_service_usage_check`
 
 Purpose:
 
@@ -2853,7 +2877,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_service_residual_config_check`
+#### `ssh_service_residual_config_check`
 
 Purpose:
 
@@ -2914,7 +2938,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_support_report_collect`
+#### `ssh_support_report_collect`
 
 Purpose:
 
@@ -2973,7 +2997,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_firewall_status`
+#### `ssh_firewall_status`
 
 Purpose:
 
@@ -3030,7 +3054,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_firewall_check_rule`
+#### `ssh_firewall_check_rule`
 
 Purpose:
 
@@ -3097,7 +3121,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_firewall_apply_rule`
+#### `ssh_firewall_apply_rule`
 
 Purpose:
 
@@ -3166,7 +3190,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_backup_plan_check`
+#### `ssh_backup_plan_check`
 
 Purpose:
 
@@ -3229,7 +3253,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_backup_run`
+#### `ssh_backup_run`
 
 Purpose:
 
@@ -3294,7 +3318,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_backup_verify`
+#### `ssh_backup_verify`
 
 Purpose:
 
@@ -3353,7 +3377,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_audit_verify`
+#### `ssh_audit_verify`
 
 Purpose:
 
@@ -3414,7 +3438,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_audit_export`
+#### `ssh_audit_export`
 
 Purpose:
 
@@ -3475,7 +3499,11 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `get_environment_keys`
+### Environment
+
+List, read, temporarily set, or persist remote environment variables under profile policy.
+
+#### `get_environment_keys`
 
 Purpose:
 
@@ -3532,7 +3560,7 @@ Safety notes:
 
 - Do not record secrets or raw sensitive values in public documents or logs.
 
-### `peek_environment_value`
+#### `peek_environment_value`
 
 Purpose:
 
@@ -3591,7 +3619,7 @@ Safety notes:
 
 - Do not record secrets or raw sensitive values in public documents or logs.
 
-### `set_environment_value`
+#### `set_environment_value`
 
 Purpose:
 
@@ -3654,7 +3682,7 @@ Safety notes:
 
 - Do not record secrets or raw sensitive values in public documents or logs.
 
-### `list_persistent_environment_keys`
+#### `list_persistent_environment_keys`
 
 Purpose:
 
@@ -3711,7 +3739,7 @@ Safety notes:
 
 - Do not record secrets or raw sensitive values in public documents or logs.
 
-### `persist_environment_value`
+#### `persist_environment_value`
 
 Purpose:
 
@@ -3772,7 +3800,7 @@ Safety notes:
 
 - Do not record secrets or raw sensitive values in public documents or logs.
 
-### `remove_persistent_environment_value`
+#### `remove_persistent_environment_value`
 
 Purpose:
 
@@ -3831,7 +3859,11 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_run_allowed_command`
+### Generic execution
+
+Run an allow-listed managed operation through policy checks.
+
+#### `ssh_run_allowed_command`
 
 Purpose:
 
@@ -3892,7 +3924,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_run_remote_operation`
+#### `ssh_run_remote_operation`
 
 Purpose:
 
@@ -3956,7 +3988,11 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_terminal_open`
+### Terminal and session cleanup
+
+Manage an interactive SSH terminal session and clear MCP password sessions.
+
+#### `ssh_terminal_open`
 
 Purpose:
 
@@ -4020,7 +4056,7 @@ Safety notes:
 
 - Persistent terminal sessions can carry remote state; close handles when they are no longer needed.
 
-### `ssh_terminal_send`
+#### `ssh_terminal_send`
 
 Purpose:
 
@@ -4078,7 +4114,7 @@ Safety notes:
 
 - Persistent terminal sessions can carry remote state; close handles when they are no longer needed.
 
-### `ssh_terminal_snapshot`
+#### `ssh_terminal_snapshot`
 
 Purpose:
 
@@ -4134,7 +4170,7 @@ Safety notes:
 
 - Persistent terminal sessions can carry remote state; close handles when they are no longer needed.
 
-### `ssh_terminal_close`
+#### `ssh_terminal_close`
 
 Purpose:
 
@@ -4184,7 +4220,7 @@ Safety notes:
 
 - Persistent terminal sessions can carry remote state; close handles when they are no longer needed.
 
-### `ssh_connection_close`
+#### `ssh_connection_close`
 
 Purpose:
 
@@ -4234,7 +4270,7 @@ Safety notes:
 
 - Persistent terminal sessions can carry remote state; close handles when they are no longer needed.
 
-### `ssh_logout`
+#### `ssh_logout`
 
 Purpose:
 
@@ -4283,7 +4319,11 @@ Safety notes:
 
 - Clears only the in-memory password session for the specified profile; it does not close existing terminal connections.
 
-### `ssh_pkg_check_updates`
+### Packages
+
+Inspect packages and run confirmation-gated package operations.
+
+#### `ssh_pkg_check_updates`
 
 Purpose:
 
@@ -4340,7 +4380,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_pkg_info`
+#### `ssh_pkg_info`
 
 Purpose:
 
@@ -4399,7 +4439,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_pkg_search`
+#### `ssh_pkg_search`
 
 Purpose:
 
@@ -4460,7 +4500,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_pkg_list_installed`
+#### `ssh_pkg_list_installed`
 
 Purpose:
 
@@ -4521,7 +4561,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_pkg_simulate_install`
+#### `ssh_pkg_simulate_install`
 
 Purpose:
 
@@ -4580,7 +4620,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_pkg_install`
+#### `ssh_pkg_install`
 
 Purpose:
 
@@ -4639,7 +4679,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_pkg_install_confirmed`
+#### `ssh_pkg_install_confirmed`
 
 Purpose:
 
@@ -4700,7 +4740,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_pkg_simulate_remove`
+#### `ssh_pkg_simulate_remove`
 
 Purpose:
 
@@ -4759,7 +4799,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_pkg_remove`
+#### `ssh_pkg_remove`
 
 Purpose:
 
@@ -4818,7 +4858,11 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_service_status`
+### Services
+
+Inspect and safely manage systemd services.
+
+#### `ssh_service_status`
 
 Purpose:
 
@@ -4877,7 +4921,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_service_is_active`
+#### `ssh_service_is_active`
 
 Purpose:
 
@@ -4936,7 +4980,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_service_is_enabled`
+#### `ssh_service_is_enabled`
 
 Purpose:
 
@@ -4995,7 +5039,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_list_services`
+#### `ssh_list_services`
 
 Purpose:
 
@@ -5056,7 +5100,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `ssh_service_enable_now`
+#### `ssh_service_enable_now`
 
 Purpose:
 
@@ -5117,7 +5161,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_service_reload`
+#### `ssh_service_reload`
 
 Purpose:
 
@@ -5178,7 +5222,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_service_restart`
+#### `ssh_service_restart`
 
 Purpose:
 
@@ -5239,7 +5283,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_service_stop`
+#### `ssh_service_stop`
 
 Purpose:
 
@@ -5300,7 +5344,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `ssh_service_disable`
+#### `ssh_service_disable`
 
 Purpose:
 
@@ -5361,7 +5405,11 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `service_config_paths`
+### Service config/logs
+
+Operate on provider-approved service configuration files and logs.
+
+#### `service_config_paths`
 
 Purpose:
 
@@ -5415,7 +5463,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `service_config_file_check_read`
+#### `service_config_file_check_read`
 
 Purpose:
 
@@ -5476,7 +5524,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `service_config_file_read`
+#### `service_config_file_read`
 
 Purpose:
 
@@ -5533,7 +5581,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `service_config_file_check_write`
+#### `service_config_file_check_write`
 
 Purpose:
 
@@ -5600,7 +5648,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `service_config_file_write`
+#### `service_config_file_write`
 
 Purpose:
 
@@ -5664,7 +5712,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `service_config_file_rollback`
+#### `service_config_file_rollback`
 
 Purpose:
 
@@ -5722,7 +5770,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `service_config_file_commit`
+#### `service_config_file_commit`
 
 Purpose:
 
@@ -5780,7 +5828,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `service_config_test`
+#### `service_config_test`
 
 Purpose:
 
@@ -5839,7 +5887,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `service_logfile_read`
+#### `service_logfile_read`
 
 Purpose:
 
@@ -5901,7 +5949,11 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `web_file_list`
+### Web files
+
+Operate on provider-approved web roots.
+
+#### `web_file_list`
 
 Purpose:
 
@@ -5963,7 +6015,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `web_file_search_name`
+#### `web_file_search_name`
 
 Purpose:
 
@@ -6027,7 +6079,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `web_file_search_text`
+#### `web_file_search_text`
 
 Purpose:
 
@@ -6094,7 +6146,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `web_file_stat`
+#### `web_file_stat`
 
 Purpose:
 
@@ -6157,7 +6209,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `web_file_check_write`
+#### `web_file_check_write`
 
 Purpose:
 
@@ -6220,7 +6272,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `web_file_check_permissions`
+#### `web_file_check_permissions`
 
 Purpose:
 
@@ -6293,7 +6345,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `web_file_read`
+#### `web_file_read`
 
 Purpose:
 
@@ -6354,7 +6406,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `web_file_head`
+#### `web_file_head`
 
 Purpose:
 
@@ -6419,7 +6471,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `web_file_tail`
+#### `web_file_tail`
 
 Purpose:
 
@@ -6484,7 +6536,7 @@ Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
-### `web_file_write`
+#### `web_file_write`
 
 Purpose:
 
@@ -6556,7 +6608,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `web_change_owner`
+#### `web_change_owner`
 
 Purpose:
 
@@ -6621,7 +6673,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `web_change_owner_recursive`
+#### `web_change_owner_recursive`
 
 Purpose:
 
@@ -6686,7 +6738,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `web_change_mode`
+#### `web_change_mode`
 
 Purpose:
 
@@ -6749,7 +6801,7 @@ Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 
-### `web_change_mode_recursive`
+#### `web_change_mode_recursive`
 
 Purpose:
 
@@ -6822,6 +6874,7 @@ Safety notes:
 - Confirmation-gated tools do not change the target unless the confirmation string matches exactly.
 - Service configuration and web file operations are limited to provider-approved paths.
 - Real host names, real user names, secrets, raw log bodies containing secrets, and unpublished settings must not be recorded in committed documents.
+
 
 
 
