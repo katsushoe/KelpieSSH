@@ -23,9 +23,10 @@ public static class KelpieHomeInitializer
     public static KelpieHomeInitializationResult Initialize(
         string homeDirectory,
         string? profileName = null,
-        KelpieProfileTemplateOptions? templateOptions = null)
+        KelpieProfileTemplateOptions? templateOptions = null,
+        KelpieMcpConfigTemplateOptions? mcpConfigOptions = null)
     {
-        return Initialize(homeDirectory, Path.Combine(Path.GetFullPath(homeDirectory), "bin"), profileName, templateOptions);
+        return Initialize(homeDirectory, Path.Combine(Path.GetFullPath(homeDirectory), "bin"), profileName, templateOptions, mcpConfigOptions);
     }
 
     /// <summary>
@@ -40,7 +41,8 @@ public static class KelpieHomeInitializer
         string homeDirectory,
         string commandDirectory,
         string? profileName = null,
-        KelpieProfileTemplateOptions? templateOptions = null)
+        KelpieProfileTemplateOptions? templateOptions = null,
+        KelpieMcpConfigTemplateOptions? mcpConfigOptions = null)
     {
         if (string.IsNullOrWhiteSpace(homeDirectory))
         {
@@ -59,8 +61,9 @@ public static class KelpieHomeInitializer
         var createdFiles = new List<string>();
         var existingFiles = new List<string>();
 
-        WriteConfigFile(paths.KelpieConfigFile, CreateKelpieConfigJson(paths), paths, includeServerCommand: false, createdFiles, existingFiles);
-        WriteConfigFile(paths.KelpieMcpConfigFile, CreateKelpieMcpConfigJson(paths), paths, includeServerCommand: true, createdFiles, existingFiles);
+        var normalizedMcpConfigOptions = NormalizeMcpConfigTemplateOptions(paths, mcpConfigOptions);
+        WriteConfigFile(paths.KelpieConfigFile, CreateKelpieConfigJson(paths), paths, includeServerCommand: false, normalizedMcpConfigOptions, createdFiles, existingFiles);
+        WriteConfigFile(paths.KelpieMcpConfigFile, CreateKelpieMcpConfigJson(paths, normalizedMcpConfigOptions), paths, includeServerCommand: true, normalizedMcpConfigOptions, createdFiles, existingFiles);
         WriteFileIfMissing(paths.ProfileFile, CreateProfileJson(normalizedProfileName, templateOptions), createdFiles, existingFiles);
 
         return new KelpieHomeInitializationResult(
@@ -217,6 +220,7 @@ public static class KelpieHomeInitializer
         string content,
         KelpieHomePaths paths,
         bool includeServerCommand,
+        KelpieMcpConfigTemplateOptions mcpConfigOptions,
         ICollection<string> createdFiles,
         ICollection<string> existingFiles)
     {
@@ -227,7 +231,7 @@ public static class KelpieHomeInitializer
             return;
         }
 
-        if (TryUpdateConfig(path, paths, includeServerCommand))
+        if (TryUpdateConfig(path, paths, includeServerCommand, mcpConfigOptions))
         {
             existingFiles.Add(path);
             return;
@@ -236,7 +240,11 @@ public static class KelpieHomeInitializer
         existingFiles.Add(path);
     }
 
-    private static bool TryUpdateConfig(string path, KelpieHomePaths paths, bool includeServerCommand)
+    private static bool TryUpdateConfig(
+        string path,
+        KelpieHomePaths paths,
+        bool includeServerCommand,
+        KelpieMcpConfigTemplateOptions mcpConfigOptions)
     {
         try
         {
@@ -247,10 +255,14 @@ public static class KelpieHomeInitializer
             }
 
             var updated = RemovePropertyIfExists(node, "KelpieHome");
-            updated |= SetStringIfMissingOrWhiteSpace(node, "LogDirectory", paths.LogsDirectory);
+            updated |= SetStringIfMissingOrWhiteSpace(node, "LogDirectory", includeServerCommand ? mcpConfigOptions.LogDirectory : paths.LogsDirectory);
 
             if (includeServerCommand)
             {
+                var server = GetOrCreateObject(node, "Server", ref updated);
+                updated |= SetIntIfMissingOrInvalid(server, "Port", mcpConfigOptions.Port);
+                updated |= SetStringIfMissingOrWhiteSpace(server, "ControlPipeName", mcpConfigOptions.ControlPipeName);
+
                 var commands = GetOrCreateObject(node, "Commands", ref updated);
                 updated |= SetStringIfMissingOrWhiteSpace(commands, "ExecutablePath", Path.Combine(paths.McpDirectory, GetMcpExecutableName()));
                 updated |= SetWorkingDirectoryIfMissingOrLegacy(commands, paths);
@@ -312,6 +324,19 @@ public static class KelpieHomeInitializer
         return true;
     }
 
+    private static bool SetIntIfMissingOrInvalid(JsonObject node, string propertyName, int value)
+    {
+        if (node[propertyName] is JsonValue jsonValue
+            && jsonValue.TryGetValue<int>(out var currentValue)
+            && currentValue > 0)
+        {
+            return false;
+        }
+
+        node[propertyName] = value;
+        return true;
+    }
+
     private static bool SetWorkingDirectoryIfMissingOrLegacy(JsonObject node, KelpieHomePaths paths)
     {
         if (node["WorkingDirectory"] is JsonValue jsonValue
@@ -337,16 +362,18 @@ public static class KelpieHomeInitializer
         });
     }
 
-    private static string CreateKelpieMcpConfigJson(KelpieHomePaths paths)
+    private static string CreateKelpieMcpConfigJson(
+        KelpieHomePaths paths,
+        KelpieMcpConfigTemplateOptions mcpConfigOptions)
     {
         return Serialize(new
         {
             AllowedHosts = "localhost;127.0.0.1;[::1]",
-            LogDirectory = paths.LogsDirectory,
+            LogDirectory = mcpConfigOptions.LogDirectory,
             Server = new
             {
-                Port = 45432,
-                ControlPipeName = "KelpieMCPServer.Control",
+                Port = mcpConfigOptions.Port,
+                ControlPipeName = mcpConfigOptions.ControlPipeName,
             },
             Commands = new
             {
@@ -458,6 +485,22 @@ public static class KelpieHomeInitializer
             ReadOnlyRoot: templateOptions.ReadOnlyRoot?.Trim() ?? string.Empty,
             ReadWriteRoot: templateOptions.ReadWriteRoot?.Trim() ?? string.Empty,
             DenyPattern: templateOptions.DenyPattern?.Trim() ?? string.Empty);
+    }
+
+    private static KelpieMcpConfigTemplateOptions NormalizeMcpConfigTemplateOptions(
+        KelpieHomePaths paths,
+        KelpieMcpConfigTemplateOptions? templateOptions)
+    {
+        var defaults = KelpieMcpConfigTemplateOptions.CreateDefault(paths.LogsDirectory);
+        if (templateOptions is null)
+        {
+            return defaults;
+        }
+
+        return new KelpieMcpConfigTemplateOptions(
+            LogDirectory: string.IsNullOrWhiteSpace(templateOptions.LogDirectory) ? defaults.LogDirectory : templateOptions.LogDirectory.Trim(),
+            Port: templateOptions.Port is >= 1 and <= 65535 ? templateOptions.Port : defaults.Port,
+            ControlPipeName: string.IsNullOrWhiteSpace(templateOptions.ControlPipeName) ? defaults.ControlPipeName : templateOptions.ControlPipeName.Trim());
     }
 
     private static string Serialize<T>(T value)
@@ -579,5 +622,27 @@ public sealed record KelpieProfileTemplateOptions(
             ReadOnlyRoot: "/var/log",
             ReadWriteRoot: "/var/www",
             DenyPattern: "**/.env");
+    }
+}
+
+/// <summary>
+/// Defines values used to generate an MCP server configuration template.
+/// </summary>
+public sealed record KelpieMcpConfigTemplateOptions(
+    string LogDirectory,
+    int Port,
+    string ControlPipeName)
+{
+    /// <summary>
+    /// Creates the default MCP server configuration template values.
+    /// </summary>
+    /// <param name="logDirectory">The default log directory.</param>
+    /// <returns>The default template values.</returns>
+    public static KelpieMcpConfigTemplateOptions CreateDefault(string logDirectory)
+    {
+        return new KelpieMcpConfigTemplateOptions(
+            LogDirectory: logDirectory,
+            Port: 45432,
+            ControlPipeName: "KelpieMCPServer.Control");
     }
 }

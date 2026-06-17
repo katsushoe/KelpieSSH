@@ -673,8 +673,9 @@ kelpie init --silent vps01
 
 When a profile name is supplied, a named sample profile is created under `profiles/<profile>.json`.
 Existing configuration files are not overwritten.
-By default, the command prompts for SSH profile template values before creating a new profile file. Press Enter to use the displayed default value.
-Use `--silent` for non-interactive setup with the default template values.
+By default, the command prompts for MCP server configuration values and SSH profile template values before creating new files. Press Enter to use the displayed default value.
+The MCP configuration prompts cover `LogDirectory`, `Server.Port`, and `Server.ControlPipeName` in `config/kelpiemcp.json`.
+Use `--silent` for non-interactive setup with the default configuration and profile template values.
 Use `kelpie profile create <profile>` when the Kelpie home is already initialized and only a new profile template should be created.
 
 Return value:

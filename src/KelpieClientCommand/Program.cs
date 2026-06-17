@@ -342,11 +342,20 @@ static void InitializeKelpieHome(string[] args)
     {
         var profileName = profileArgs.Count > 0 ? profileArgs[0] : KelpieHomeInitializer.DefaultProfileName;
         var homeDirectory = KelpieRuntimePaths.GetHomeDirectory(AppContext.BaseDirectory);
+        var mcpConfigPath = Path.Combine(homeDirectory, "config", KelpieRuntimePaths.KelpieMcpConfigFileName);
         var profilePath = KelpieHomeInitializer.GetProfilePath(homeDirectory, profileName);
+        var mcpConfigOptions = !silent && !File.Exists(mcpConfigPath)
+            ? ReadMcpConfigTemplateOptions(Path.Combine(homeDirectory, "logs"))
+            : null;
         var templateOptions = !silent && !File.Exists(profilePath)
             ? ReadProfileTemplateOptions(profileName)
             : null;
-        var result = KelpieHomeInitializer.Initialize(homeDirectory, AppContext.BaseDirectory, profileName, templateOptions);
+        var result = KelpieHomeInitializer.Initialize(
+            homeDirectory,
+            AppContext.BaseDirectory,
+            profileName,
+            templateOptions,
+            mcpConfigOptions);
         Console.WriteLine($"Kelpie home: {result.HomeDirectory}");
         Console.WriteLine($"Profile: {result.ProfileName}");
         WriteInitializedPaths("Created directories", result.CreatedDirectories);
@@ -428,6 +437,23 @@ static void CreateProfile(string profileName)
         Console.Error.WriteLine(ex.Message);
         Environment.ExitCode = 1;
     }
+}
+
+static KelpieMcpConfigTemplateOptions ReadMcpConfigTemplateOptions(string defaultLogDirectory)
+{
+    var defaults = KelpieMcpConfigTemplateOptions.CreateDefault(defaultLogDirectory);
+
+    Console.WriteLine("Create MCP server configuration.");
+    Console.WriteLine("Press Enter to use the default value.");
+
+    var logDirectory = ReadPrompt("MCP log directory", defaults.LogDirectory);
+    var port = ReadPortPrompt("MCP server port", defaults.Port);
+    var controlPipeName = ReadPrompt("MCP control pipe name", defaults.ControlPipeName);
+
+    return new KelpieMcpConfigTemplateOptions(
+        LogDirectory: logDirectory,
+        Port: port,
+        ControlPipeName: controlPipeName);
 }
 
 static KelpieProfileTemplateOptions ReadProfileTemplateOptions(string profileName)
