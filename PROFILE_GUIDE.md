@@ -111,7 +111,7 @@ Store only a secret reference name.
 }
 ```
 
-After opening the profile, enter the password into the running session:
+After opening the profile, `kelpie login` asks for the password and keeps it only for the current CLI login process:
 
 ```powershell
 kelpie open vps01
@@ -540,7 +540,7 @@ Place relative key files under `KelpieHome\keys`.
 ### `SSH password secret name is required`
 
 For `password` authentication, set `Auth.PasswordSecretName`.
-Then provide the actual password with `kelpie login` or `kelpiemcp password <profile>`.
+Then provide the actual password with `kelpie login` for a CLI interactive session, or `kelpiemcp password <profile>` for the running MCP server session.
 
 ### `SSH package manager is required`
 

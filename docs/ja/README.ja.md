@@ -284,7 +284,7 @@ KelpieSSH は、読み取り中心の診断と許可リスト方式の SSH コ�
 
 実ホスト名、実ユーザー名、パスワード、passphrase、秘密鍵、本番 profile ファイルをコミットしないでください。実際の `profiles/*.json`、`keys/`、`dat/`、`logs/` は公開リポジトリの外に置いてください。
 
-パスワード認証は、実行中の `KelpieMCPServer` プロセスに対するセッション ベースです。平文パスワードを JSON 設定ファイルに保存してはいけません。
+パスワード認証は runtime のみで扱います。`kelpie login` は現在の CLI login プロセス用にパスワードを尋ね、`kelpiemcp password <profile>` は実行中の `KelpieMCPServer` プロセス内にのみパスワードを保持します。平文パスワードを JSON 設定ファイルに保存してはいけません。
 
 脆弱性報告と対応対象 version の方針は [SECURITY.ja.md](SECURITY.ja.md) を参照してください。
 

@@ -1,10 +1,12 @@
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using KelpieServerCommand;
 using Kelpie.Core;
 using KelpieSSH.Application.Ssh;
 using KelpieSSH.Infrastructure.Ssh;
 using Microsoft.Extensions.Configuration;
+using Renci.SshNet.Common;
 
 KpLogSetup.Configure(
     AppContext.BaseDirectory,
@@ -103,7 +105,17 @@ if (string.Equals(command, "login", StringComparison.OrdinalIgnoreCase))
         return;
     }
 
-    await RunInteractiveLoginAsync(profile);
+    try
+    {
+        await RunInteractiveLoginAsync(profile);
+    }
+    catch (Exception ex) when (ex is InvalidOperationException or SshException)
+    {
+        KpLog.Warn(ex.Message);
+        Console.Error.WriteLine(ex.Message);
+        Environment.ExitCode = 1;
+    }
+
     return;
 }
 
@@ -555,11 +567,13 @@ static async Task RunLogsAsync(
 
 static async Task RunInteractiveLoginAsync(SshConnectionProfile profile)
 {
+    var passwordProvider = CreateCliPasswordProvider(profile);
+
+    await using var session = new SshNetInteractiveShellSession(profile, passwordProvider);
+    var initialOutput = await session.ConnectAsync();
+
     Console.WriteLine($"Connected profile: {profile.Name}");
     Console.WriteLine("Type `exit` to close the remote shell.");
-
-    await using var session = new SshNetInteractiveShellSession(profile);
-    var initialOutput = await session.ConnectAsync();
     if (!string.IsNullOrEmpty(initialOutput))
     {
         Console.Write(initialOutput);
@@ -588,6 +602,59 @@ static async Task RunInteractiveLoginAsync(SshConnectionProfile profile)
         {
             Console.WriteLine($"Session closed: {profile.Name}");
             return;
+        }
+    }
+}
+
+static ISshPasswordProvider? CreateCliPasswordProvider(SshConnectionProfile profile)
+{
+    if (!string.Equals(profile.AuthenticationMethod, "password", StringComparison.OrdinalIgnoreCase))
+    {
+        return null;
+    }
+
+    if (string.IsNullOrWhiteSpace(profile.PasswordSecretName))
+    {
+        throw new InvalidOperationException("SSH password secret name is required.");
+    }
+
+    var password = ReadPasswordFromConsole(profile.Name);
+    var store = new InMemorySshPasswordSessionStore();
+    store.SetPasswordSession(profile.Name, profile.PasswordSecretName, password);
+    return store;
+}
+
+static string ReadPasswordFromConsole(string profileName)
+{
+    Console.Error.Write($"Password for {profileName}: ");
+    if (Console.IsInputRedirected)
+    {
+        return Console.ReadLine() ?? string.Empty;
+    }
+
+    var builder = new StringBuilder();
+    while (true)
+    {
+        var key = Console.ReadKey(intercept: true);
+        if (key.Key == ConsoleKey.Enter)
+        {
+            Console.Error.WriteLine();
+            return builder.ToString();
+        }
+
+        if (key.Key == ConsoleKey.Backspace)
+        {
+            if (builder.Length > 0)
+            {
+                builder.Length--;
+            }
+
+            continue;
+        }
+
+        if (!char.IsControl(key.KeyChar))
+        {
+            builder.Append(key.KeyChar);
         }
     }
 }

@@ -539,7 +539,7 @@ Profile file name を解決できません。
 ### `SSH password secret name is required`
 
 `password` authentication では `Auth.PasswordSecretName` が必要です。
-実 password は `kelpie login` または `kelpiemcp password <profile>` で入力します。
+実 password は、CLI の対話 session では `kelpie login` で入力し、MCP server session では `kelpiemcp password <profile>` で入力します。
 
 ### `SSH package manager is required`
 

@@ -284,7 +284,7 @@ KelpieSSH is designed to start with read-oriented diagnostics and allow-list bas
 
 Do not commit real host names, user names, passwords, passphrases, private keys, or production profile files. Keep real `profiles/*.json`, `keys/`, `dat/`, and `logs/` files outside the public repository.
 
-Password authentication is session-based for the running `KelpieMCPServer` process. Plain text passwords must not be stored in JSON configuration files.
+Password authentication is runtime-only. `kelpie login` asks for the password for the current CLI login process, and `kelpiemcp password <profile>` stores it only in the running `KelpieMCPServer` process. Plain text passwords must not be stored in JSON configuration files.
 
 For vulnerability reporting and supported-version guidance, see [SECURITY.md](SECURITY.md).
 
