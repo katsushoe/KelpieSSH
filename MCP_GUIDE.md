@@ -164,6 +164,8 @@ kelpiemcp forget vps01
 
 The password is sent to the running `KelpieMCPServer` over the local control pipe and kept only in memory for that server process.
 
+From an MCP client, use `ssh_logout` to clear the password session for a profile. To close an interactive SSH terminal connection opened through MCP, use `ssh_connection_close` with the terminal handle.
+
 ## MCP command-line tools
 
 The MCP command-line tool list is documented in [MCP_COMMANDS.md](MCP_COMMANDS.md).

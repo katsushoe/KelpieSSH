@@ -57,7 +57,7 @@ This document describes the `name` and `arguments` used inside `tools/call`. In 
 | Cron, certificate, user, firewall, backup, and audit checks | `ssh_cron_list`, `ssh_cron_validate`, `ssh_cron_check_write`, `ssh_cron_write`, `ssh_cron_rollback`, `ssh_cert_inspect`, `ssh_cert_expiry_check`, `ssh_user_list`, `ssh_user_info`, `ssh_group_list`, `ssh_group_info`, `ssh_sudoers_check`, `ssh_user_usage_check`, `ssh_user_check_group_change`, `ssh_user_apply_group_change`, `ssh_user_rollback_group_change`, `ssh_user_check_permission_change`, `ssh_user_apply_permission_change`, `ssh_user_rollback_permission_change`, `ssh_user_file_ownership_check`, `ssh_user_service_usage_check`, `ssh_service_residual_config_check`, `ssh_support_report_collect`, `ssh_firewall_status`, `ssh_firewall_check_rule`, `ssh_firewall_apply_rule`, `ssh_backup_plan_check`, `ssh_backup_run`, `ssh_backup_verify`, `ssh_audit_verify`, `ssh_audit_export` | Inspect or change sensitive server-maintenance state through bounded checks and confirmation-gated operations. |
 | Environment | `get_environment_keys`, `peek_environment_value`, `set_environment_value`, `list_persistent_environment_keys`, `persist_environment_value`, `remove_persistent_environment_value` | List, read, temporarily set, or persist remote environment variables under profile policy. |
 | Generic execution | `ssh_run_allowed_command`, `ssh_run_remote_operation` | Run an allow-listed managed operation through policy checks. |
-| Terminal | `ssh_terminal_open`, `ssh_terminal_send`, `ssh_terminal_snapshot`, `ssh_terminal_close` | Manage an interactive SSH terminal session. |
+| Terminal and session cleanup | `ssh_terminal_open`, `ssh_terminal_send`, `ssh_terminal_snapshot`, `ssh_terminal_close`, `ssh_connection_close`, `ssh_logout` | Manage an interactive SSH terminal session and clear MCP password sessions. |
 | Packages | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove` | Inspect packages and run confirmation-gated package operations. |
 | Services | `ssh_service_status`, `ssh_service_is_active`, `ssh_service_is_enabled`, `ssh_list_services`, `ssh_service_enable_now`, `ssh_service_reload`, `ssh_service_restart`, `ssh_service_stop`, `ssh_service_disable` | Inspect and safely manage systemd services. |
 | Service config/logs | `service_config_paths`, `service_config_file_check_read`, `service_config_file_read`, `service_config_file_check_write`, `service_config_file_write`, `service_config_file_rollback`, `service_config_file_commit`, `service_config_test`, `service_logfile_read` | Operate on provider-approved service configuration files and logs. |
@@ -646,6 +646,8 @@ Tools:
 - `ssh_terminal_send`
 - `ssh_terminal_snapshot`
 - `ssh_terminal_close`
+- `ssh_connection_close`
+- `ssh_logout`
 
 Purpose:
 
@@ -674,7 +676,7 @@ Input arguments:
 
 Execution:
 
-`ssh_terminal_open` creates a session and returns a rendered screen snapshot. `ssh_terminal_send` writes input to the session. `ssh_terminal_snapshot` returns the current rendered screen. `ssh_terminal_close` closes the session.
+`ssh_terminal_open` creates a session and returns a rendered screen snapshot. `ssh_terminal_send` writes input to the session. `ssh_terminal_snapshot` returns the current rendered screen. `ssh_terminal_close` closes the session. `ssh_connection_close` is the connection-oriented alias for closing the same persistent terminal connection by handle. `ssh_logout` clears the in-memory password session for one profile.
 
 Result sample:
 
@@ -695,6 +697,30 @@ Safety notes:
 - Terminal input is interactive and may have side effects on the remote host.
 - Raw shell policy still applies.
 - Close unused sessions with `ssh_terminal_close`.
+- Use `ssh_connection_close` when the user intent is "close the SSH connection" for a terminal handle.
+- Use `ssh_logout` to forget the password session for a password-based profile. Existing terminal connections remain connected until they are closed.
+
+`ssh_connection_close` params sample:
+
+```json
+{
+  "name": "ssh_connection_close",
+  "arguments": {
+    "handle": "term-123"
+  }
+}
+```
+
+`ssh_logout` params sample:
+
+```json
+{
+  "name": "ssh_logout",
+  "arguments": {
+    "profileName": "vps01"
+  }
+}
+```
 
 ### Package tools
 

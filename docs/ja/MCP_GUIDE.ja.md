@@ -164,6 +164,8 @@ kelpiemcp forget vps01
 
 パスワードはローカル control pipe を通して実行中の `KelpieMCPServer` へ送られ、そのサーバープロセスのメモリ内にのみ保持されます。
 
+MCP client からは、`ssh_logout` で profile の password session を削除できます。MCP で開いた対話 SSH terminal connection を閉じる場合は、terminal handle を指定して `ssh_connection_close` を呼び出します。
+
 ## MCP コマンドラインツール
 
 MCP コマンドラインツールの一覧は [MCP_COMMANDS.ja.md](MCP_COMMANDS.ja.md) にありますので、そちらを参照してください。

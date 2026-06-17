@@ -52,7 +52,7 @@ HTTP request body は REST 形式ではなく JSON-RPC です。たとえば診�
 | 機能可否確認 | `ssh_get_capabilities`, `get_target_inventory` | SSH 接続先 profile ごとの OS / command / tool 可否、helper / software inventory を確認する。 |
 | SSH 診断 | `ssh_get_system_info`, `ssh_get_os_release`, `ssh_get_uptime`, `ssh_get_disk_usage`, `ssh_get_memory_usage`, `ssh_get_process_summary`, `ssh_get_inode_usage`, `ssh_get_mounts`, `ssh_get_network_addresses`, `ssh_get_routes`, `ssh_get_dns_config`, `ssh_cron_list`, `ssh_cron_validate`, `ssh_cron_check_write`, `ssh_cron_write`, `ssh_cron_rollback`, `ssh_cert_inspect`, `ssh_cert_expiry_check`, `ssh_user_list`, `ssh_user_info`, `ssh_group_list`, `ssh_group_info`, `ssh_sudoers_check`, `ssh_user_usage_check`, `ssh_user_check_group_change`, `ssh_user_apply_group_change`, `ssh_user_rollback_group_change`, `ssh_user_check_permission_change`, `ssh_user_apply_permission_change`, `ssh_user_rollback_permission_change`, `ssh_user_file_ownership_check`, `ssh_user_service_usage_check`, `ssh_service_residual_config_check`, `ssh_support_report_collect`, `ssh_firewall_status`, `ssh_firewall_check_rule`, `ssh_firewall_apply_rule`, `ssh_backup_plan_check`, `ssh_backup_run`, `ssh_backup_verify`, `ssh_audit_verify`, `ssh_audit_export`, `ssh_check_http_local`, `ssh_check_tcp_connect_local`, `ssh_get_listening_ports`, `ssh_get_failed_services`, `ssh_get_journal_recent`, `ssh_tail_log`, `ssh_run_allowed_command`, `ssh_run_remote_operation` | 許可済み SSH 診断コマンドの実行。 |
 | 環境変数 | `get_environment_keys`, `peek_environment_value`, `set_environment_value`, `list_persistent_environment_keys`, `persist_environment_value`, `remove_persistent_environment_value` | profile policy に従って remote 環境変数の key 表示、値参照、一時設定、永続化を行う。 |
-| SSH ターミナル | `ssh_terminal_open`, `ssh_terminal_send`, `ssh_terminal_snapshot`, `ssh_terminal_close` | PTY 付き対話ターミナルの操作。 |
+| SSH ターミナル / session cleanup | `ssh_terminal_open`, `ssh_terminal_send`, `ssh_terminal_snapshot`, `ssh_terminal_close`, `ssh_connection_close`, `ssh_logout` | PTY 付き対話ターミナルの操作と MCP password session の破棄。 |
 | パッケージ操作 | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove` | package の確認、検索、dry-run、確認付き変更。 |
 | サービス操作 | `ssh_service_status`, `ssh_service_is_active`, `ssh_service_is_enabled`, `ssh_list_services`, `ssh_service_enable_now`, `ssh_service_reload`, `ssh_service_restart`, `ssh_service_stop`, `ssh_service_disable` | systemd service の状態確認と確認付き変更。 |
 | サービス設定 / ログ | `service_config_paths`, `service_config_file_check_read`, `service_config_file_read`, `service_config_file_check_write`, `service_config_file_write`, `service_config_file_rollback`, `service_config_file_commit`, `service_config_test`, `service_logfile_read` | provider が許可したサービス設定ファイルとログの操作。 |
@@ -2884,6 +2884,104 @@ systemd service unit 一覧を取得します。
 安全上の注意:
 
 - 対話セッションを終了します。
+
+### `ssh_connection_close`
+
+目的:
+
+`ssh_terminal_open` で開いた永続 SSH terminal connection を handle 指定で閉じます。`ssh_terminal_close` と同じ接続を閉じますが、利用者の「コネクションを閉じる」という意図に対応する名前です。
+
+入力引数:
+
+- `handle`: `ssh_terminal_open` が返した handle。
+
+呼び出しサンプル:
+
+```json
+{
+  "name": "ssh_connection_close",
+  "arguments": {
+    "handle": "term-a1b2c3d4e5f6"
+  }
+}
+```
+
+確認文字列:
+
+- なし。
+
+処理内容:
+
+指定された terminal connection を閉じ、サーバー内の terminal session 管理から削除します。通常の診断 MCP tool は呼び出しごとに SSH 接続を閉じるため、この tool の対象は主に `ssh_terminal_open` で作成した永続 terminal connection です。
+
+戻り値:
+
+- close result。
+
+実行結果サンプル:
+
+```json
+{
+  "Handle": "term-a1b2c3d4e5f6",
+  "ProfileName": "vps01",
+  "Closed": true,
+  "Error": ""
+}
+```
+
+安全上の注意:
+
+- SSH 接続先の file、process、settings は変更しません。
+- password session は削除しません。password session を削除する場合は `ssh_logout` を使います。
+
+### `ssh_logout`
+
+目的:
+
+指定 profile の MCP server process 内 password session を削除します。`kelpiemcp forget <profile>` / `kelpiemcp logout <profile>` に相当します。
+
+入力引数:
+
+- `profileName`: SSH プロファイル名。
+
+呼び出しサンプル:
+
+```json
+{
+  "name": "ssh_logout",
+  "arguments": {
+    "profileName": "vps01"
+  }
+}
+```
+
+確認文字列:
+
+- なし。
+
+処理内容:
+
+Profile の `PasswordSecretName` に対応する in-memory password session を削除します。秘密鍵認証 profile や password secret が未設定の profile では password session cleanup 対象がないため、失敗結果を返します。
+
+戻り値:
+
+- logout result。
+
+実行結果サンプル:
+
+```json
+{
+  "ProfileName": "vps01",
+  "LoggedOut": true,
+  "Error": ""
+}
+```
+
+安全上の注意:
+
+- SSH 接続先には接続しません。
+- SSH 接続先の file、process、settings は変更しません。
+- 既存の terminal connection は自動では閉じません。接続も閉じたい場合は `ssh_connection_close` を併用してください。
 
 ### `ssh_pkg_check_updates`
 

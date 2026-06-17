@@ -19,10 +19,10 @@
     <Company>Akatsukisoft</Company>
     <Copyright>Copyright (c) 2026 Akatsukisoft</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <Version>0.1.32.0</Version>
-    <AssemblyVersion>0.1.32.0</AssemblyVersion>
-    <FileVersion>0.1.32.0</FileVersion>
-    <InformationalVersion>0.1.32.0</InformationalVersion>
+    <Version>0.1.33.0</Version>
+    <AssemblyVersion>0.1.33.0</AssemblyVersion>
+    <FileVersion>0.1.33.0</FileVersion>
+    <InformationalVersion>0.1.33.0</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <OutputType>Exe</OutputType>
     <RootNamespace>KelpieMCPServer</RootNamespace>

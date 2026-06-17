@@ -24,6 +24,51 @@ public sealed class KelpieToolsSshTests
     }
 
     [Fact]
+    public async Task CloseSshConnectionAsync_ShouldReturnNotFoundForMissingHandle()
+    {
+        var manager = new SshTerminalSessionManager(
+            new SshConnectionProfileCatalog([]),
+            new InMemorySshPasswordSessionStore());
+
+        var result = await KelpieTools.CloseSshConnectionAsync(manager, "term-missing");
+
+        result.Handle.Should().Be("term-missing");
+        result.Closed.Should().BeFalse();
+        result.Error.Should().Be("session-not-found");
+    }
+
+    [Fact]
+    public async Task LogoutSshProfile_ShouldClearPasswordSession()
+    {
+        var profile = CreatePasswordProfile("vps01", "kelpie:vps01");
+        var profiles = new SshConnectionProfileCatalog([profile]);
+        var store = new InMemorySshPasswordSessionStore();
+        store.SetPasswordSession("vps01", "kelpie:vps01", "secret");
+
+        var result = KelpieTools.LogoutSshProfile(profiles, store, "vps01");
+
+        result.ProfileName.Should().Be("vps01");
+        result.LoggedOut.Should().BeTrue();
+        result.Error.Should().BeEmpty();
+        var password = await store.GetPasswordAsync("kelpie:vps01");
+        password.Should().BeNull();
+    }
+
+    [Fact]
+    public void LogoutSshProfile_ShouldReportMissingPasswordSecret()
+    {
+        var profile = CreateProfile("vps01");
+        var profiles = new SshConnectionProfileCatalog([profile]);
+        var store = new InMemorySshPasswordSessionStore();
+
+        var result = KelpieTools.LogoutSshProfile(profiles, store, "vps01");
+
+        result.ProfileName.Should().Be("vps01");
+        result.LoggedOut.Should().BeFalse();
+        result.Error.Should().Be("SSH password secret name is not configured.");
+    }
+
+    [Fact]
     public async Task GetSshSystemInfoAsync_ShouldUseNamedProfile()
     {
         var profile = CreateProfile("vps01");
@@ -2911,6 +2956,23 @@ public sealed class KelpieToolsSshTests
     private static SshCommandService CreateProviderBackedService(ISshCommandRunner runner)
     {
         return new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+    }
+
+    private static SshConnectionProfile CreatePasswordProfile(string name, string passwordSecretName)
+    {
+        return new SshConnectionProfile
+        {
+            Name = name,
+            Host = "example.invalid",
+            UserName = "deploy",
+            AuthenticationMethod = "password",
+            PasswordSecretName = passwordSecretName,
+            OsFamily = "debian",
+            PackageManager = "apt",
+            Mode = KelpiePolicyMode.Safe,
+            Capabilities = PolicySet.Empty,
+            EnvironmentValues = [],
+        };
     }
 
     private static string CreateTempDirectory()
