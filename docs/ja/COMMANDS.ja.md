@@ -1,6 +1,6 @@
 # KelpieSSH Commands
 
-最終更新: 2026-06-14
+最終更新: 2026-06-17
 
 このファイルは、利用者が通常のターミナルから直接実行する `kelpie` / `kelpiemcp` CLI コマンドの正本です。
 MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とします。
@@ -132,7 +132,7 @@ KelpieMCPServer is not running.
 
 目的:
 
-NamedPipe 経由で `KelpieMCPServer` の起動状態を確認します。起動中の場合は MCP URL、Health URL、Control pipe を表示します。
+NamedPipe 経由で `KelpieMCPServer` の起動状態を確認します。起動中の場合は MCP URL、Health URL、Control pipe、Windows Service として動作しているかを表示します。
 
 構文:
 
@@ -150,7 +150,7 @@ kelpiemcp status
 
 処理内容:
 
-NamedPipe 経由で `KelpieMCPServer` の起動状態を確認し、起動中の場合は MCP URL、Health URL、Control pipe を表示します。
+NamedPipe 経由で `KelpieMCPServer` の起動状態を確認し、起動中の場合は MCP URL、Health URL、Control pipe、Windows Service として動作しているかを表示します。
 
 実行結果サンプル:
 
@@ -159,6 +159,7 @@ KelpieMCPServer: running
 MCP URL: http://127.0.0.1:45432/mcp
 Health URL: http://127.0.0.1:45432/health
 Control pipe: KelpieMCPServer.Control
+Working as Windows service: no
 ```
 
 停止中の場合:
@@ -854,6 +855,7 @@ KelpieMCPServer: running
 MCP URL: http://127.0.0.1:45432/mcp
 Health URL: http://127.0.0.1:45432/health
 Control pipe: KelpieMCPServer.Control
+Working as Windows service: no
 ```
 
 ### `kelpie diag <profile>`

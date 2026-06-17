@@ -31,9 +31,32 @@ public sealed class NamedPipeShutdownServiceTests
 
         await service.StopAsync(CancellationToken.None);
 
-        pingResponse.Should().Be("pong");
+        pingResponse.Should().Be("pong;windowsService=false");
         stopResponse.Should().Be("stopping");
         lifetime.StopRequested.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldReportWindowsServiceModeInPingResponse()
+    {
+        var lifetime = new FakeHostApplicationLifetime();
+        var pipeName = "KelpieTest." + Guid.NewGuid().ToString("N");
+        using var service = new NamedPipeShutdownService(
+            lifetime,
+            NullLogger<NamedPipeShutdownService>.Instance,
+            new KelpieServerControlOptions(pipeName),
+            CreateProfileCatalog(),
+            new InMemorySshPasswordSessionStore(),
+            CreateSshCommandService(),
+            () => true);
+
+        await service.StartAsync(CancellationToken.None);
+
+        var pingResponse = await SendControlCommandAsync(pipeName, "ping");
+
+        await service.StopAsync(CancellationToken.None);
+
+        pingResponse.Should().Be("pong;windowsService=true");
     }
 
     [Fact]

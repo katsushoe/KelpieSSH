@@ -33,7 +33,7 @@ public sealed class KelpieServerCommandRunnerTests
         var options = CreateOptions();
         using var output = new StringWriter();
         var previousOutput = Console.Out;
-        var serverTask = RunSingleResponsePipeAsync(options.ControlPipeName, "ping", "pong");
+        var serverTask = RunSingleResponsePipeAsync(options.ControlPipeName, "ping", "pong;windowsService=false");
         Console.SetOut(output);
 
         try
@@ -49,6 +49,7 @@ public sealed class KelpieServerCommandRunnerTests
         output.ToString().Should().Contain("KelpieMCPServer: running");
         output.ToString().Should().Contain("MCP URL: http://127.0.0.1:45432/mcp");
         output.ToString().Should().Contain($"Control pipe: {options.ControlPipeName}");
+        output.ToString().Should().Contain("Working as Windows service: no");
     }
 
     [Fact]

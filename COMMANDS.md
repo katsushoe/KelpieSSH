@@ -152,10 +152,20 @@ kelpiemcp stop
 
 ### `kelpiemcp status`
 
-Shows whether the local MCP server is running.
+Shows whether the local MCP server is running. When it is running, the output also shows whether the running server process is working as a Windows Service.
 
 ```powershell
 kelpiemcp status
+```
+
+Example:
+
+```text
+KelpieMCPServer: running
+MCP URL: http://127.0.0.1:45432/mcp
+Health URL: http://127.0.0.1:45432/health
+Control pipe: KelpieMCPServer.Control
+Working as Windows service: no
 ```
 
 ### `kelpiemcp service register`

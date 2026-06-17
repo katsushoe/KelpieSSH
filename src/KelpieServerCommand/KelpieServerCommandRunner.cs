@@ -63,7 +63,8 @@ public static class KelpieServerCommandRunner
             "ping",
             PipeConnectionTimeout);
 
-        if (string.Equals(response, "pong", StringComparison.OrdinalIgnoreCase))
+        var status = ParsePingResponse(response);
+        if (status.IsRunning)
         {
             var mcpUrl = $"http://127.0.0.1:{options.ServerPort}/mcp";
             var healthUrl = $"http://127.0.0.1:{options.ServerPort}/health";
@@ -72,6 +73,7 @@ public static class KelpieServerCommandRunner
             Console.WriteLine($"MCP URL: {mcpUrl}");
             Console.WriteLine($"Health URL: {healthUrl}");
             Console.WriteLine($"Control pipe: {options.ControlPipeName}");
+            Console.WriteLine($"Working as Windows service: {FormatYesNo(status.WorkingAsWindowsService)}");
             return;
         }
 
@@ -502,6 +504,43 @@ public static class KelpieServerCommandRunner
         Console.Error.WriteLine(message);
     }
 
+    private static PingStatus ParsePingResponse(string? response)
+    {
+        if (string.IsNullOrWhiteSpace(response))
+        {
+            return new PingStatus(false, null);
+        }
+
+        var parts = response.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 0 || !string.Equals(parts[0], "pong", StringComparison.OrdinalIgnoreCase))
+        {
+            return new PingStatus(false, null);
+        }
+
+        bool? workingAsWindowsService = null;
+        foreach (var part in parts.Skip(1))
+        {
+            const string prefix = "windowsService=";
+            if (part.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                && bool.TryParse(part[prefix.Length..], out var value))
+            {
+                workingAsWindowsService = value;
+            }
+        }
+
+        return new PingStatus(true, workingAsWindowsService);
+    }
+
+    private static string FormatYesNo(bool? value)
+    {
+        return value switch
+        {
+            true => "yes",
+            false => "no",
+            null => "unknown",
+        };
+    }
+
     private static IReadOnlyCollection<KelpieSessionEntry> DeserializeSessions(string response)
     {
         try
@@ -706,6 +745,8 @@ public static class KelpieServerCommandRunner
     private sealed record ServerCommand(string FileName, string Arguments, string WorkingDirectory);
 
     private sealed record ScCommandResult(int ExitCode, string StandardOutput, string StandardError);
+
+    private sealed record PingStatus(bool IsRunning, bool? WorkingAsWindowsService);
 
     private sealed record KelpieSessionEntry(
         string Handle,

@@ -5,6 +5,7 @@ using System.Text.Json;
 using Kelpie.Core;
 using KelpieSSH.Application.Ssh;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Hosting.WindowsServices;
 using Microsoft.Extensions.Logging;
 
 namespace KelpieMCPServer;
@@ -20,6 +21,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
     private readonly SshCommandService _sshCommandService;
     private readonly ILogger<NamedPipeShutdownService> _logger;
     private readonly KelpieServerControlOptions _options;
+    private readonly Func<bool> _isWindowsService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="NamedPipeShutdownService"/> class.
@@ -30,13 +32,15 @@ public sealed class NamedPipeShutdownService : BackgroundService
     /// <param name="profileCatalog">The SSH profile catalog.</param>
     /// <param name="passwordSessionStore">The SSH password session store.</param>
     /// <param name="sshCommandService">The SSH command service.</param>
+    /// <param name="isWindowsService">The optional Windows Service execution detector.</param>
     public NamedPipeShutdownService(
         IHostApplicationLifetime applicationLifetime,
         ILogger<NamedPipeShutdownService> logger,
         KelpieServerControlOptions options,
         ISshConnectionProfileCatalog profileCatalog,
         ISshPasswordSessionStore passwordSessionStore,
-        SshCommandService sshCommandService)
+        SshCommandService sshCommandService,
+        Func<bool>? isWindowsService = null)
     {
         _applicationLifetime = applicationLifetime;
         _logger = logger;
@@ -44,6 +48,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
         _profileCatalog = profileCatalog;
         _passwordSessionStore = passwordSessionStore;
         _sshCommandService = sshCommandService;
+        _isWindowsService = isWindowsService ?? WindowsServiceHelpers.IsWindowsService;
     }
 
     /// <inheritdoc />
@@ -77,7 +82,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
                 if (string.Equals(message, "ping", StringComparison.OrdinalIgnoreCase))
                 {
                     KpLog.Debug("Ping command received.");
-                    await writer.WriteLineAsync("pong");
+                    await writer.WriteLineAsync(CreatePingResponse());
                     await writer.FlushAsync(stoppingToken);
                     continue;
                 }
@@ -421,6 +426,12 @@ public sealed class NamedPipeShutdownService : BackgroundService
 
         argument = message[prefix.Length..].Trim();
         return !string.IsNullOrWhiteSpace(argument);
+    }
+
+    private string CreatePingResponse()
+    {
+        var windowsService = _isWindowsService() ? "true" : "false";
+        return "pong;windowsService=" + windowsService;
     }
 
     private static bool IsClientDisconnected(IOException ex)
