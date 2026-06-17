@@ -80,7 +80,7 @@ kelpie login
 
 If Windows shows an unknown publisher or SmartScreen warning, confirm that the MSI was downloaded from the official GitHub Release and compare the published checksum if one is provided.
 
-### Manual binary layout
+### Zip distribution users
 
 If you are using a zip-style binary distribution or temporary local layout, place the commands under a `bin` directory:
 
