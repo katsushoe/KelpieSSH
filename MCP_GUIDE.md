@@ -71,7 +71,7 @@ kelpiemcp stop
 
 On Windows, you can register `KelpieMCPServer` as a Windows Service when you want the MCP server body to be managed by Windows Service Control Manager.
 
-Open an elevated terminal and register the service:
+Open a terminal running as administrator and register the service:
 
 ```powershell
 kelpiemcp service register
@@ -95,7 +95,7 @@ Stop the running service before unregistering it:
 Stop-Service KelpieMCPServer
 ```
 
-Unregister the service from an elevated terminal:
+Unregister the service from a terminal running as administrator:
 
 ```powershell
 kelpiemcp service unregister

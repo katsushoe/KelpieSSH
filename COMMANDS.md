@@ -137,7 +137,7 @@ kelpie gui
 ### `kelpiemcp start`
 
 Starts the local MCP server.
-On Windows, if `KelpieMCPServer` is registered as a Windows Service, this command starts the Windows Service. Run it from an elevated terminal in that case.
+On Windows, if `KelpieMCPServer` is registered as a Windows Service, this command starts the Windows Service. Run it from a terminal running as administrator in that case.
 Otherwise, it starts a normal local process.
 
 ```powershell
@@ -185,7 +185,7 @@ Registered as Windows service: yes
 
 ### `kelpiemcp service register`
 
-Registers `KelpieMCPServer` as an automatic-start Windows Service and sets its service description. Run from an elevated terminal.
+Registers `KelpieMCPServer` as an automatic-start Windows Service and sets its service description. Run from a terminal running as administrator.
 
 ```powershell
 kelpiemcp service register
@@ -193,7 +193,7 @@ kelpiemcp service register
 
 ### `kelpiemcp service unregister`
 
-Unregisters the `KelpieMCPServer` Windows Service. Stop the service before unregistering it. Run from an elevated terminal.
+Unregisters the `KelpieMCPServer` Windows Service. Stop the service before unregistering it. Run from a terminal running as administrator.
 
 ```powershell
 kelpiemcp service unregister

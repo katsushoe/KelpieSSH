@@ -789,7 +789,7 @@ public static class KelpieServerCommandRunner
     {
         KpLog.Warn($"{message} scExitCode={result.ExitCode}");
         Console.Error.WriteLine(message);
-        Console.Error.WriteLine("Run this command from an elevated terminal.");
+        Console.Error.WriteLine("Run this command from a terminal running as administrator.");
         if (result.ExitCode == 5)
         {
             Console.Error.WriteLine("Access denied.");
