@@ -1,6 +1,6 @@
 # KelpieSSH Commands
 
-Last updated: 2026-06-17
+Last updated: 2026-06-18
 
 This file is the English command reference for commands run directly from a terminal, such as `kelpie` and `kelpiemcp`.
 For Japanese documentation, see [docs/ja/COMMANDS.ja.md](docs/ja/COMMANDS.ja.md).
@@ -10,7 +10,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 
 | Group | Commands | Purpose |
 | :--- | :--- | :--- |
-| [MCP server control](#mcp-server-control) | `kelpiemcp start`, `kelpiemcp stop`, `kelpiemcp status` | Start, stop, and inspect `KelpieMCPServer`. |
+| [MCP server control](#mcp-server-control) | `kelpiemcp start [--reload:<profile>]`, `kelpiemcp stop`, `kelpiemcp status` | Start, stop, and inspect `KelpieMCPServer`. |
 | [MCP Windows Service](#mcp-windows-service) | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Register, unregister, and inspect the Windows Service entry. |
 | [MCP password session](#mcp-password-session) | `kelpiemcp password`, `kelpiemcp forget`, `kelpiemcp login`, `kelpiemcp logout` | Store or clear an SSH password in the running MCP server session. |
 | [Initialization](#initialization) | `kelpie init [profile]` | Create the local Kelpie home directory layout and sample configuration files. |
@@ -62,9 +62,22 @@ Commands in this group:
 Starts the local MCP server.
 On Windows, if `KelpieMCPServer` is registered as a Windows Service, this command starts the Windows Service. Run it from a terminal running as administrator in that case.
 Otherwise, it starts a normal local process.
+During startup, `KelpieMCPServer` verifies SSH profile file hashes against the protected profile trust store.
 
 ```powershell
-kelpiemcp start
+kelpiemcp start [--reload:<profile>]
+```
+
+Arguments:
+
+| Argument | Required | Description |
+| :--- | :---: | :--- |
+| `--reload:<profile>` | no | Explicitly accepts the current JSON content of the named edited SSH profile. When the profile JSON is valid, the server loads it and updates the profile trust-store baseline hash for future starts. Repeat the option to accept multiple profiles. |
+
+Example after intentionally editing one profile:
+
+```powershell
+kelpiemcp start --reload:vps01
 ```
 
 Example when the Windows Service is registered:
@@ -76,26 +89,32 @@ Windows Service start requested: KelpieMCPServer
 Return value:
 
 - Exit code `0` when the start request is accepted.
-- Standard output reports whether a Windows Service start was requested or a local process was started.
+- Standard output reports whether a Windows Service start was requested, a local process was started, or the MCP server was already running.
 - Standard error contains startup failures, including service-control failures.
+- If the protected profile trust store cannot be decrypted or authenticated, the MCP server startup fails. The user must inspect all profile files, move or delete the trust store, and start again. Deleting the trust store makes every existing profile a new trusted baseline on the next successful start.
+- If one profile hash differs from the trust store during normal startup, that profile is not loaded. Other profiles may continue to load.
+- `--reload:<profile>` updates the trust store only when the target profile JSON is valid.
 
 Return value sample:
 
 ```json
 {
   "exitCode": 0,
-  "stdout": "<command-specific terminal output>",
+  "stdout": "KelpieMCPServer start requested.",
   "stderr": ""
 }
 ```
 
 Execution result sample:
 
-The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+```text
+KelpieMCPServer start requested.
+```
 
 Safety notes:
 
 - Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+- Use `--reload:<profile>` only after verifying that the edited profile file is intentional and safe.
 
 #### `kelpiemcp stop`
 

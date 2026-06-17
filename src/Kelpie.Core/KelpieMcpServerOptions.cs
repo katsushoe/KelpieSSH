@@ -28,6 +28,11 @@ public sealed class KelpieMcpServerOptions
     public string? ServerWorkingDirectory { get; init; }
 
     /// <summary>
+    /// Gets the profile names explicitly accepted for this server start.
+    /// </summary>
+    public IReadOnlyCollection<string> ReloadProfileNames { get; init; } = [];
+
+    /// <summary>
     /// Creates server control options from configuration.
     /// </summary>
     /// <param name="configuration">The application configuration.</param>

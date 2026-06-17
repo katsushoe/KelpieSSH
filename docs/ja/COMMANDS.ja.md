@@ -1,6 +1,6 @@
 # KelpieSSH Commands
 
-最終更新: 2026-06-17
+最終更新: 2026-06-18
 
 このファイルは、利用者が通常のターミナルから直接実行する `kelpie` / `kelpiemcp` CLI コマンドの正本です。
 MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とします。
@@ -9,7 +9,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 
 | Group | Command | 内容 |
 | :--- | :--- | :--- |
-| MCP server control | `kelpiemcp start`, `kelpiemcp stop`, `kelpiemcp status` | `KelpieMCPServer` の起動、停止、状態確認を行う。 |
+| MCP server control | `kelpiemcp start [--reload:<profile>]`, `kelpiemcp stop`, `kelpiemcp status` | `KelpieMCPServer` の起動、停止、状態確認を行う。 |
 | MCP Windows Service | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Windows Service 登録、登録解除、登録状態確認を行う。 |
 | MCP password session | `kelpiemcp password`, `kelpiemcp forget` | 起動中の MCP server に SSH パスワードを一時保存、削除する。 |
 | Compatibility | `kelpiemcp login`, `kelpiemcp logout` | 旧名互換。新規利用では `password` / `forget` を使う。 |
@@ -66,20 +66,43 @@ SSHプロファイルの認証設定は、同じ `profiles/<profile>.json` の�
 構文:
 
 ```powershell
-kelpiemcp start
+kelpiemcp start [--reload:<profile>]
 ```
 
 引数詳細:
 
-- なし。
+| 引数 | 必須 | 説明 |
+| :--- | :---: | :--- |
+| `--reload:<profile>` | no | 管理者が編集済み SSH profile を明示的に再読み込み対象として指定する。対象 profile の JSON が正常な場合、その内容を今回の起動で採用し、次回起動時の trust store 基準 hash として更新する。複数 profile を指定する場合は、このオプションを繰り返す。 |
 
 引数サンプル:
 
-- なし。
+```powershell
+kelpiemcp start --reload:vps01
+```
 
 処理内容:
 
 起動中でなければ `KelpieMCPServer` の起動を要求します。Windows で `KelpieMCPServer` が Windows Service として登録済みの場合は Windows Service を開始します。この場合は管理者権限のターミナルから実行してください。未登録の場合は通常のローカルプロセスとして起動します。すでに起動中の場合は二重起動せず、起動中であることを返します。
+
+MCPサーバー起動時は、SSH profile ファイルの hash を protected trust store と照合します。通常起動で hash が一致しない profile は load エラーになり、他の profile はロード継続します。正規に profile を編集した場合は、`--reload:<profile>` を指定して起動します。対象 profile の JSON が正常な場合だけ trust store を更新します。trust store の復号または認証に失敗した場合、MCPサーバーは起動失敗します。起動ユーザーは全 profile に不正がないことを確認し、trust store を退避または削除して再起動します。削除した場合、次回起動時に全 profile が新規 baseline として登録されます。
+
+戻り値:
+
+- exit code `0`: 起動要求を受け付けた。
+- exit code non-zero: 起動要求、Windows Service 操作、または MCPサーバー起動時検証に失敗した。
+- standard output: 起動要求、Windows Service 起動要求、または起動済み状態を表示する。
+- standard error: 起動失敗、Service制御失敗、trust store 検証失敗などを表示する。
+
+戻り値サンプル:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "KelpieMCPServer start requested.",
+  "stderr": ""
+}
+```
 
 実行結果サンプル:
 
@@ -98,6 +121,11 @@ Windows Service start requested: KelpieMCPServer
 ```text
 KelpieMCPServer is already running.
 ```
+
+安全メモ:
+
+- `--reload:<profile>` は、編集した profile が意図した内容であり、不正変更がないことを確認してから使う。
+- trust store を削除すると、次回起動時に全 profile が信頼済み baseline として再登録される。
 
 ### `kelpiemcp stop`
 

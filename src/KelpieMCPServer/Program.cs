@@ -55,6 +55,8 @@ if (string.IsNullOrWhiteSpace(controlPipeName))
 
 var serverUrl = $"http://127.0.0.1:{configuredPort.Value}";
 var profilesDirectory = KelpieRuntimePaths.GetProfilesDirectory(runtimeBaseDirectory);
+var trustStorePath = Path.Combine(KelpieRuntimePaths.GetDataDirectory(runtimeBaseDirectory), "mcp_profile_trust.dat");
+var reloadProfileNames = ResolveReloadProfileNames(args);
 
 builder.WebHost.UseUrls(serverUrl);
 
@@ -64,7 +66,16 @@ builder.Logging.AddConsole(options =>
 });
 
 builder.Services.AddSingleton(new KelpieServerControlOptions(controlPipeName));
-builder.Services.AddSingleton(new ReloadingSshConnectionProfileCatalog(profilesDirectory));
+var profileCatalog = new ReloadingSshConnectionProfileCatalog(
+    profilesDirectory,
+    trustStorePath,
+    reloadProfileNames);
+foreach (var error in profileCatalog.ProfileLoadErrors)
+{
+    KpLog.Warn($"SSH profile load error. profile={error.ProfileName}, reason={error.Reason}, message={error.Message}");
+}
+
+builder.Services.AddSingleton(profileCatalog);
 builder.Services.AddSingleton<ISshConnectionProfileCatalog>(serviceProvider =>
     serviceProvider.GetRequiredService<ReloadingSshConnectionProfileCatalog>());
 builder.Services.AddSingleton(CommandProcessingProviderCatalog.CreateDefault());
@@ -86,7 +97,7 @@ builder.Services
         options.ServerInfo = new()
         {
             Name = "KelpieSSH",
-            Version = "0.1.33.0",
+            Version = "0.1.34.0",
         };
     })
     .WithHttpTransport(options =>
@@ -157,4 +168,27 @@ static string ResolveRuntimeBaseDirectory(string[] args)
     }
 
     return Environment.CurrentDirectory;
+}
+
+static IReadOnlyCollection<string> ResolveReloadProfileNames(string[] args)
+{
+    var reloadProfileNames = new List<string>();
+    const string prefix = "--reload:";
+    foreach (var arg in args)
+    {
+        if (!arg.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            continue;
+        }
+
+        var profileName = arg[prefix.Length..].Trim();
+        if (!string.IsNullOrWhiteSpace(profileName))
+        {
+            reloadProfileNames.Add(profileName);
+        }
+    }
+
+    return reloadProfileNames
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
 }

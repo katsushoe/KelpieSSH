@@ -96,6 +96,89 @@ public sealed class SshConnectionProfileCatalogTests
     }
 
     [Fact]
+    public void ReloadingCatalog_WithTrustStore_ShouldCreateBaseline()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        File.WriteAllText(Path.Combine(directory, "vps01.json"), CreateProfileJson("deploy"));
+
+        var catalog = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
+
+        catalog.TryGet("vps01", out var profile).Should().BeTrue();
+        profile.UserName.Should().Be("deploy");
+        catalog.ProfileLoadErrors.Should().BeEmpty();
+        File.Exists(trustStorePath).Should().BeTrue();
+    }
+
+    [Fact]
+    public void ReloadingCatalog_WithTrustStore_ShouldRejectModifiedProfileWithoutReload()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        var profilePath = Path.Combine(directory, "vps01.json");
+        File.WriteAllText(profilePath, CreateProfileJson("deploy"));
+        _ = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
+
+        File.WriteAllText(profilePath, CreateProfileJson("ops"));
+        var catalog = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
+
+        catalog.TryGet("vps01", out _).Should().BeFalse();
+        catalog.ProfileLoadErrors.Should().ContainSingle(error =>
+            error.ProfileName == "vps01" && error.Reason == "profile-hash-mismatch");
+    }
+
+    [Fact]
+    public void ReloadingCatalog_WithTrustStore_ShouldAcceptModifiedProfileWithReload()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        var profilePath = Path.Combine(directory, "vps01.json");
+        File.WriteAllText(profilePath, CreateProfileJson("deploy"));
+        _ = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
+
+        File.WriteAllText(profilePath, CreateProfileJson("ops"));
+        var reloadedCatalog = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, ["vps01"]);
+        var nextCatalog = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
+
+        reloadedCatalog.TryGet("vps01", out var reloadedProfile).Should().BeTrue();
+        reloadedProfile.UserName.Should().Be("ops");
+        reloadedCatalog.ProfileLoadErrors.Should().BeEmpty();
+        nextCatalog.TryGet("vps01", out var nextProfile).Should().BeTrue();
+        nextProfile.UserName.Should().Be("ops");
+        nextCatalog.ProfileLoadErrors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ReloadingCatalog_WithTrustStore_ShouldFailWhenTrustStoreIsCorrupted()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        File.WriteAllText(Path.Combine(directory, "vps01.json"), CreateProfileJson("deploy"));
+        _ = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
+
+        File.WriteAllText(trustStorePath, "{ invalid trust store");
+        var action = () => new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
+
+        action.Should().Throw<InvalidOperationException>()
+            .WithMessage("SSH profile trust store could not be read or verified.");
+    }
+
+    [Fact]
+    public void ReloadingCatalog_WithTrustStore_ShouldNotCreateTrustStoreWhenOnlyProfileIsInvalid()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        File.WriteAllText(Path.Combine(directory, "vps01.json"), "{ invalid json");
+
+        var catalog = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
+
+        catalog.TryGet("vps01", out _).Should().BeFalse();
+        catalog.ProfileLoadErrors.Should().ContainSingle(error =>
+            error.ProfileName == "vps01" && error.Reason == "profile-load-failed");
+        File.Exists(trustStorePath).Should().BeFalse();
+    }
+
+    [Fact]
     public void ToProfile_ShouldResolveRelativePrivateKeyPath()
     {
         var options = new SshConnectionProfileOptions

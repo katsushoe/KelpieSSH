@@ -36,7 +36,9 @@ public static class KelpieServerCommandRunner
             && await (windowsServiceExistsAsync ?? WindowsServiceExistsAsync)();
         if (registeredAsWindowsService)
         {
-            var started = await (startWindowsServiceAsync ?? StartWindowsServiceAndWriteFailureAsync)();
+            var started = startWindowsServiceAsync is not null
+                ? await startWindowsServiceAsync()
+                : await StartWindowsServiceAndWriteFailureAsync(options.ReloadProfileNames);
             if (!started)
             {
                 return;
@@ -47,7 +49,9 @@ public static class KelpieServerCommandRunner
             return;
         }
 
-        var serverCommand = ResolveServerCommand(options);
+        var serverCommand = AddServerArguments(
+            ResolveServerCommand(options),
+            options.ReloadProfileNames.Select(profileName => "--reload:" + profileName));
         StartServerProcess(serverCommand);
         KpLog.Info("KelpieMCPServer start requested.");
         Console.WriteLine("KelpieMCPServer start requested.");
@@ -648,6 +652,24 @@ public static class KelpieServerCommandRunner
         return new ServerCommand(serverPath, string.Empty, workingDirectory);
     }
 
+    private static ServerCommand AddServerArguments(ServerCommand serverCommand, IEnumerable<string> arguments)
+    {
+        var additionalArguments = arguments
+            .Where(argument => !string.IsNullOrWhiteSpace(argument))
+            .Select(QuoteWindowsCommandLineArgument)
+            .ToArray();
+        if (additionalArguments.Length == 0)
+        {
+            return serverCommand;
+        }
+
+        var argumentsText = string.IsNullOrWhiteSpace(serverCommand.Arguments)
+            ? string.Join(" ", additionalArguments)
+            : serverCommand.Arguments + " " + string.Join(" ", additionalArguments);
+
+        return serverCommand with { Arguments = argumentsText };
+    }
+
     private static string Quote(string value)
     {
         return "\"" + value.Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
@@ -719,9 +741,21 @@ public static class KelpieServerCommandRunner
         return result.ExitCode == 0;
     }
 
-    private static async Task<bool> StartWindowsServiceAndWriteFailureAsync()
+    private static Task<bool> StartWindowsServiceAndWriteFailureAsync()
     {
-        var result = await RunScAsync("start", WindowsServiceName);
+        return StartWindowsServiceAndWriteFailureAsync([]);
+    }
+
+    private static async Task<bool> StartWindowsServiceAndWriteFailureAsync(IReadOnlyCollection<string> reloadProfileNames)
+    {
+        var arguments = new List<string>
+        {
+            "start",
+            WindowsServiceName,
+        };
+        arguments.AddRange(reloadProfileNames.Select(profileName => "--reload:" + profileName));
+
+        var result = await RunScAsync(arguments.ToArray());
         if (result.ExitCode == 0)
         {
             return true;
