@@ -40,7 +40,7 @@ HTTP request body は REST 形式ではなく JSON-RPC です。たとえば診�
 }
 ```
 
-この文書では、`tools/call` の中で指定する `name` と `arguments` を説明します。AI 利用者は通常、内部の JSON-RPC 呼び出し方式までは意識せず、各 tool の動作と安全上の注意を確認すれば十分です。
+この文書では、`tools/call` の中で指定する `name` と `arguments` を説明します。各 tool の引数サンプルは、JSON-RPC `tools/call` request の `params.arguments` に入る値です。AI 利用者は通常、内部の JSON-RPC 呼び出し方式までは意識せず、各 tool の動作と安全上の注意を確認すれば十分です。
 
 ## コマンド分類
 

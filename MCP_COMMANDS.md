@@ -43,7 +43,7 @@ The HTTP request body is JSON-RPC, not a REST-style resource request. For exampl
 }
 ```
 
-This document describes the `name` and `arguments` used inside `tools/call`. AI users normally only need the tool behavior and safety notes; MCP client implementers may also need the JSON-RPC flow above.
+This document describes the `name` and `arguments` used inside `tools/call`. In each tool section, the call sample shows the `params` object that goes inside a JSON-RPC `tools/call` request. AI users normally only need the tool behavior and safety notes; MCP client implementers may also need the JSON-RPC flow above.
 
 ## Tool Groups
 
@@ -113,10 +113,13 @@ Input arguments:
 
 - None.
 
-Argument sample:
+`tools/call` params sample:
 
 ```json
-{}
+{
+  "name": "kelpie_ping",
+  "arguments": {}
+}
 ```
 
 Execution:
@@ -150,10 +153,13 @@ Input arguments:
 
 - None.
 
-Argument sample:
+`tools/call` params sample:
 
 ```json
-{}
+{
+  "name": "get_system_info",
+  "arguments": {}
+}
 ```
 
 Execution:
@@ -186,11 +192,14 @@ Input arguments:
 
 - `profileName`: SSH profile name.
 
-Argument sample:
+`tools/call` params sample:
 
 ```json
 {
-  "profileName": "vps01"
+  "name": "ssh_get_capabilities",
+  "arguments": {
+    "profileName": "vps01"
+  }
 }
 ```
 
@@ -238,11 +247,14 @@ Input arguments:
 
 - `profileName`: SSH profile name.
 
-Argument sample:
+`tools/call` params sample:
 
 ```json
 {
-  "profileName": "vps02"
+  "name": "get_target_inventory",
+  "arguments": {
+    "profileName": "vps02"
+  }
 }
 ```
 
@@ -318,13 +330,16 @@ Common input arguments:
 - `service`: systemd service name for service/log tools.
 - `port`: Local port for `ssh_check_http_local` and `ssh_check_tcp_connect_local`.
 
-Argument sample:
+`tools/call` params sample:
 
 ```json
 {
-  "profileName": "vps01",
-  "service": "nginx.service",
-  "lines": "100"
+  "name": "ssh_tail_log",
+  "arguments": {
+    "profileName": "vps01",
+    "service": "nginx.service",
+    "lines": "100"
+  }
 }
 ```
 
@@ -368,60 +383,66 @@ Input arguments:
 - `arguments`: command-specific key/value arguments.
 - `operation`: complete `SshRemoteOperation` for `ssh_run_remote_operation`.
 
-Argument sample:
+`tools/call` params sample:
 
 ```json
 {
-  "profileName": "vps01",
-  "commandName": "get_system_info",
-  "arguments": {}
+  "name": "ssh_run_allowed_command",
+  "arguments": {
+    "profileName": "vps01",
+    "commandName": "get_system_info",
+    "arguments": {}
+  }
 }
 ```
 
-`SshRemoteOperation` sample:
+`ssh_run_remote_operation` params sample:
 
 ```json
 {
-  "operation": {
-    "endpoint": {
-      "host": "203.0.113.10",
-      "port": 22
-    },
-    "credential": {
-      "user_name": "deploy",
-      "kind": "private_key",
-      "private_key_path": "id_ed25519"
-    },
-    "policy": {
-      "mode": "maintenance",
-      "roles": ["web_admin"],
-      "allowed_roots": [
-        {
-          "path": "/var/www/example",
-          "access": ["read", "list", "write", "cd"]
-        }
-      ],
-      "special_paths": [
-        {
-          "pattern": "**/.env",
-          "action": "deny"
-        }
-      ]
-    },
+  "name": "ssh_run_remote_operation",
+  "arguments": {
     "operation": {
-      "kind": "managed",
-      "name": "service_status",
-      "arguments": {
-        "service": "nginx"
+      "endpoint": {
+        "host": "203.0.113.10",
+        "port": 22
+      },
+      "credential": {
+        "user_name": "deploy",
+        "kind": "private_key",
+        "private_key_path": "id_ed25519"
+      },
+      "policy": {
+        "mode": "maintenance",
+        "roles": ["web_admin"],
+        "allowed_roots": [
+          {
+            "path": "/var/www/example",
+            "access": ["read", "list", "write", "cd"]
+          }
+        ],
+        "special_paths": [
+          {
+            "pattern": "**/.env",
+            "action": "deny"
+          }
+        ]
+      },
+      "operation": {
+        "kind": "managed",
+        "name": "service_status",
+        "arguments": {
+          "service": "nginx"
+        }
+      },
+      "options": {
+        "timeout_seconds": 30,
+        "correlation_id": "op-example"
+      },
+      "target": {
+        "os_family": "debian",
+        "package_manager": "apt"
       }
-    },
-    "options": {
-      "timeout_seconds": 30,
-      "correlation_id": "op-example"
-    },
-    "target": {
-      "os_family": "debian",
-      "package_manager": "apt"
     }
   }
 }
@@ -469,13 +490,16 @@ Input arguments:
 - `columns`: terminal width, optional.
 - `rows`: terminal height, optional.
 
-Argument sample:
+`tools/call` params sample:
 
 ```json
 {
-  "profileName": "vps01",
-  "columns": 120,
-  "rows": 40
+  "name": "ssh_terminal_open",
+  "arguments": {
+    "profileName": "vps01",
+    "columns": 120,
+    "rows": 40
+  }
 }
 ```
 
@@ -529,12 +553,15 @@ Input arguments:
 - `limit`: maximum row count for list/search tools.
 - `confirmation`: required for confirmed install/remove execution.
 
-Argument sample:
+`tools/call` params sample:
 
 ```json
 {
-  "profileName": "vps01",
-  "packageName": "nginx"
+  "name": "ssh_pkg_info",
+  "arguments": {
+    "profileName": "vps01",
+    "packageName": "nginx"
+  }
 }
 ```
 
@@ -580,12 +607,15 @@ Input arguments:
 - `limit`: maximum row count.
 - `confirmation`: required for service state changes.
 
-Argument sample:
+`tools/call` params sample:
 
 ```json
 {
-  "profileName": "vps01",
-  "service": "nginx.service"
+  "name": "ssh_service_status",
+  "arguments": {
+    "profileName": "vps01",
+    "service": "nginx.service"
+  }
 }
 ```
 
@@ -631,13 +661,16 @@ Input arguments:
 - `contentBase64`: replacement file content for writes.
 - `confirmation`: required for write, rollback, commit, and test actions.
 
-Argument sample:
+`tools/call` params sample:
 
 ```json
 {
-  "profileName": "vps01",
-  "service": "nginx",
-  "path": "/etc/nginx/nginx.conf"
+  "name": "service_config_file_read",
+  "arguments": {
+    "profileName": "vps01",
+    "service": "nginx",
+    "path": "/etc/nginx/nginx.conf"
+  }
 }
 ```
 
@@ -686,27 +719,33 @@ Input arguments:
 - `owner`, `group`, `mode`: optional owner/group/mode changes.
 - `confirmation`: required for write and permission changes.
 
-Argument sample:
+`tools/call` params sample:
 
 ```json
 {
-  "profileName": "vps01",
-  "siteKey": "default",
-  "path": "/index.html"
+  "name": "web_file_stat",
+  "arguments": {
+    "profileName": "vps01",
+    "siteKey": "default",
+    "path": "/index.html"
+  }
 }
 ```
 
-Write sample:
+Write `tools/call` params sample:
 
 ```json
 {
-  "profileName": "vps01",
-  "siteKey": "default",
-  "path": "/index.html",
-  "contentBase64": "PGgxPkhlbGxvIEtlbHBpZTwvaDE+Cg==",
-  "contentType": "text/html",
-  "encoding": "utf-8",
-  "confirmation": "web_file_write:default:/index.html"
+  "name": "web_file_write",
+  "arguments": {
+    "profileName": "vps01",
+    "siteKey": "default",
+    "path": "/index.html",
+    "contentBase64": "PGgxPkhlbGxvIEtlbHBpZTwvaDE+Cg==",
+    "contentType": "text/html",
+    "encoding": "utf-8",
+    "confirmation": "web_file_write:default:/index.html"
+  }
 }
 ```
 
@@ -754,13 +793,16 @@ Input arguments:
 - Tool-specific names such as `user`, `group`, `service`, `path`, `zone`, `port`, `protocol`, or `scope`.
 - `confirmation`: required for write/apply/run/rollback operations.
 
-Argument sample:
+`tools/call` params sample:
 
 ```json
 {
-  "profileName": "vps01",
-  "user": "deploy",
-  "group": "web-admin"
+  "name": "ssh_user_check_group_change",
+  "arguments": {
+    "profileName": "vps01",
+    "user": "deploy",
+    "group": "web-admin"
+  }
 }
 ```
 
