@@ -225,6 +225,46 @@ For profile syntax and field details, see [PROFILE_GUIDE.md](PROFILE_GUIDE.md).
 
 Set the host, user, authentication method, and private key file name or password secret reference before running `kelpie open vps01`.
 
+## Kelpie command-line tools
+
+The `kelpie` command-line tools do not require the MCP server for normal terminal use. Use them directly from a terminal to initialize local settings, inspect profiles, open a target profile, start an interactive SSH session, run diagnostics, or tail service logs.
+
+Show Kelpie CLI help or version information with:
+
+```powershell
+kelpie init
+kelpie init vps01
+kelpie help
+kelpie --help
+kelpie version
+kelpie --version
+```
+
+Inspect configured SSH profiles with:
+
+```powershell
+kelpie profiles
+kelpie profile show vps01
+kelpie status vps01
+```
+
+Run an interactive SSH session with:
+
+```powershell
+kelpie open vps01
+kelpie login
+```
+
+Run high-level VPS diagnostics or tail service logs with:
+
+```powershell
+kelpie diag vps01
+kelpie logs vps01 nginx.service
+kelpie logs vps01 nginx.service 200
+```
+
+At this stage, `kelpie diag` and `kelpie logs` run SSH commands directly from the CLI process and are intended for private-key profiles. `kelpie status` can also report whether the local MCP server is running, but the server is not required for the command-line tools above.
+
 ## MCP server
 
 The MCP server is the local bridge between Codex and KelpieSSH. Codex connects to this server over Streamable HTTP, and the server then runs the allowed KelpieSSH operations against the configured SSH profiles.
@@ -263,35 +303,6 @@ For password-based SSH profiles, store or clear the password in the running serv
 kelpiemcp password vps01
 kelpiemcp forget vps01
 ```
-
-Show Kelpie CLI help or version information with:
-
-```powershell
-kelpie init
-kelpie init vps01
-kelpie help
-kelpie --help
-kelpie version
-kelpie --version
-```
-
-Inspect configured SSH profiles with:
-
-```powershell
-kelpie profiles
-kelpie profile show vps01
-kelpie status vps01
-```
-
-Run high-level VPS diagnostics or tail service logs with:
-
-```powershell
-kelpie diag vps01
-kelpie logs vps01 nginx.service
-kelpie logs vps01 nginx.service 200
-```
-
-At this stage, `kelpie diag` and `kelpie logs` run SSH commands directly from the CLI process and are intended for private-key profiles. `kelpiemcp password` stores password authentication only in the running `KelpieMCPServer` session.
 
 The password is sent to the running `KelpieMCPServer` over the local control pipe and kept only in memory for that server process.
 

@@ -225,6 +225,46 @@ Profile の記述方法の詳細は [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) �
 
 `kelpie open vps01` を実行する前に、host、user、認証方式、秘密鍵ファイル名またはパスワード secret 参照を設定します。
 
+## Kelpie command-line tools
+
+通常のターミナル利用では、`kelpie` command-line tools に MCP サーバーは不要です。ローカル設定の初期化、profile 確認、対象 profile の open、対話 SSH session、診断、service log の tail は、ターミナルから直接実行できます。
+
+Kelpie CLI のヘルプやバージョン情報は次のコマンドで確認できます。
+
+```powershell
+kelpie init
+kelpie init vps01
+kelpie help
+kelpie --help
+kelpie version
+kelpie --version
+```
+
+設定済み SSH profile を確認します。
+
+```powershell
+kelpie profiles
+kelpie profile show vps01
+kelpie status vps01
+```
+
+対話 SSH session を実行します。
+
+```powershell
+kelpie open vps01
+kelpie login
+```
+
+VPS 診断や service log の tail を実行します。
+
+```powershell
+kelpie diag vps01
+kelpie logs vps01 nginx.service
+kelpie logs vps01 nginx.service 200
+```
+
+現時点では、`kelpie diag` と `kelpie logs` は CLI プロセスから SSH コマンドを直接実行し、秘密鍵 profile を主な対象とします。`kelpie status` はローカル MCP サーバーの状態も表示できますが、上記 command-line tools の利用に MCP サーバーは不要です。
+
 ## MCP サーバー
 
 MCP サーバーは、Codex と KelpieSSH をつなぐローカルの橋渡しです。Codex は Streamable HTTP でこのサーバーに接続し、サーバーは設定済み SSH profile に対して許可された KelpieSSH 操作を実行します。
@@ -263,35 +303,6 @@ kelpiemcp stop
 kelpiemcp password vps01
 kelpiemcp forget vps01
 ```
-
-Kelpie CLI のヘルプやバージョン情報は次のコマンドで確認できます。
-
-```powershell
-kelpie init
-kelpie init vps01
-kelpie help
-kelpie --help
-kelpie version
-kelpie --version
-```
-
-設定済み SSH profile を確認します。
-
-```powershell
-kelpie profiles
-kelpie profile show vps01
-kelpie status vps01
-```
-
-VPS 診断や service log の tail を実行します。
-
-```powershell
-kelpie diag vps01
-kelpie logs vps01 nginx.service
-kelpie logs vps01 nginx.service 200
-```
-
-現時点では、`kelpie diag` と `kelpie logs` は CLI プロセスから SSH コマンドを直接実行し、秘密鍵 profile を主な対象とします。`kelpiemcp password` は実行中の `KelpieMCPServer` セッションにのみパスワード認証情報を保存します。
 
 パスワードはローカル control pipe を通して実行中の `KelpieMCPServer` へ送られ、そのサーバー プロセスのメモリ内にのみ保持されます。
 
