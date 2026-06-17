@@ -63,6 +63,40 @@ To create a named SSH profile at initialization time:
 kelpie init vps01
 ```
 
+Example interactive output:
+
+```text
+Create MCP server configuration.
+Press Enter to use the default value.
+MCP log directory [D:\Kelpie\logs]: D:\Kelpie\logs
+MCP server port [45432]: 45432
+MCP control pipe name [KelpieMCPServer.Control]: KelpieMCPServer.Control
+Create SSH profile template.
+Press Enter to use the default value.
+Host address [example.invalid]: example.org
+Port [22]: 2222
+SSH user [deploy]: ops
+Authentication method (privateKey/password) [privateKey]: password
+Password secret name [kelpie:vps01]: kelpie:vps01
+OS family [debian]: ubuntu
+Mode (ReadOnly/Safe/Maintenance/Expert) [Safe]: ReadOnly
+Read-only root, '-' to omit [/var/log]: /var/log/nginx
+Read-write root, '-' to omit [/var/www]: -
+Deny pattern, '-' to omit [**/.env]: **/.secret
+Kelpie home: D:\Kelpie
+Profile: vps01
+Created directories:
+  D:\Kelpie\config
+  D:\Kelpie\profiles
+  D:\Kelpie\keys
+  D:\Kelpie\dat
+  D:\Kelpie\bin\mcp
+Created files:
+  D:\Kelpie\config\kelpie.json
+  D:\Kelpie\config\kelpiemcp.json
+  D:\Kelpie\profiles\vps01.json
+```
+
 Edit the generated profile before connecting. The profile file is created under:
 
 ```text
@@ -277,6 +311,35 @@ kelpie logs vps01 nginx.service 200
 ```
 
 `kelpie login`, `kelpie diag`, and `kelpie logs` run SSH operations directly from the CLI process. For password profiles, the CLI asks for the password at runtime and keeps it only in the current command process. `kelpie status` can also report whether the local MCP server is running, but the server is not required for the command-line tools above.
+
+## How to create new profile in initialized directory
+
+After `KelpieHome` has already been initialized, use `kelpie profile create <profile>` to add one new profile template without recreating configuration files or directories.
+
+```powershell
+kelpie profile create vps02
+```
+
+Example interactive output:
+
+```text
+Create SSH profile template.
+Press Enter to use the default value.
+Host address [example.invalid]: example.org
+Port [22]: 2222
+SSH user [deploy]: ops
+Authentication method (privateKey/password) [privateKey]: password
+Password secret name [kelpie:vps02]: kelpie:vps02
+OS family [debian]: ubuntu
+Mode (ReadOnly/Safe/Maintenance/Expert) [Safe]: ReadOnly
+Read-only root, '-' to omit [/var/log]: /var/log/nginx
+Read-write root, '-' to omit [/var/www]: -
+Deny pattern, '-' to omit [**/.env]: **/.secret
+Created profile: vps02
+Profile file: D:\Kelpie\profiles\vps02.json
+```
+
+If `profiles\vps02.json` already exists, the command fails and does not overwrite it.
 
 ## Contributing
 
