@@ -29,23 +29,15 @@ This file is the public source of truth for KelpieSSH Git-managed public documen
 
 | Document | Canonical Path | Git Managed | Purpose |
 | :--- | :--- | :--- | :--- |
-| `README.md` | `README.md` | Yes | Public English entry point, setup, usage, security, and license overview. |
-| `README.ja.md` | `docs/ja/README.ja.md` | Yes | Public Japanese entry point. |
+| `README.md` | `README.md` | Yes | Public entry point, setup, usage, security, and license overview. Japanese version is under `docs/ja/`. |
 | `DOCUMENTS.md` | `DOCUMENTS.md` | Yes | Directory and document canonical-location index. |
-| `COMMANDS.md` | `COMMANDS.md` | Yes | Public terminal CLI command reference. |
-| `COMMANDS.ja.md` | `docs/ja/COMMANDS.ja.md` | Yes | Public Japanese terminal CLI command reference. |
-| `MCP_COMMANDS.md` | `MCP_COMMANDS.md` | Yes | Public MCP callable tool reference. |
-| `MCP_COMMANDS.ja.md` | `docs/ja/MCP_COMMANDS.ja.md` | Yes | Public Japanese MCP callable tool reference. |
-| `CONFIG.md` | `CONFIG.md` | Yes | Public configuration reference. |
-| `CONFIG.ja.md` | `docs/ja/CONFIG.ja.md` | Yes | Public Japanese configuration reference. |
-| `PACKAGES.md` | `PACKAGES.md` | Yes | Public package, dependency, package-source, and update-policy reference. |
-| `PACKAGES.ja.md` | `docs/ja/PACKAGES.ja.md` | Yes | Public Japanese package reference. |
-| `SECURITY.md` | `SECURITY.md` | Yes | Public security policy and vulnerability reporting guidance. |
-| `SECURITY.ja.md` | `docs/ja/SECURITY.ja.md` | Yes | Public Japanese security policy. |
-| `THIRD_PARTY_NOTICES.md` | `THIRD_PARTY_NOTICES.md` | Yes | Public third-party dependency and license notices. |
-| `THIRD_PARTY_NOTICES.ja.md` | `docs/ja/THIRD_PARTY_NOTICES.ja.md` | Yes | Public Japanese third-party notices. |
-| `installer/README.md` | `installer/README.md` | Yes | Public MSI installer build and layout notes. |
-| `installer/README.ja.md` | `docs/ja/installer/README.ja.md` | Yes | Public Japanese MSI installer notes. |
+| `COMMANDS.md` | `COMMANDS.md` | Yes | Public terminal CLI command reference. Japanese version is under `docs/ja/`. |
+| `MCP_COMMANDS.md` | `MCP_COMMANDS.md` | Yes | Public MCP callable tool reference. Japanese version is under `docs/ja/`. |
+| `CONFIG.md` | `CONFIG.md` | Yes | Public configuration reference. Japanese version is under `docs/ja/`. |
+| `PACKAGES.md` | `PACKAGES.md` | Yes | Public package, dependency, package-source, and update-policy reference. Japanese version is under `docs/ja/`. |
+| `SECURITY.md` | `SECURITY.md` | Yes | Public security policy and vulnerability reporting guidance. Japanese version is under `docs/ja/`. |
+| `THIRD_PARTY_NOTICES.md` | `THIRD_PARTY_NOTICES.md` | Yes | Public third-party dependency and license notices. Japanese version is under `docs/ja/`. |
+| `installer/README.md` | `installer/README.md` | Yes | Public MSI installer build and layout notes. Japanese version is under `docs/ja/installer/`. |
 | `LICENSE` | `LICENSE` | Yes | MIT license text. |
 
 ## Private Document Handling
