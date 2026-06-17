@@ -10,8 +10,17 @@
     "WorkingDirectory": "/path/to/bin"
   },
   "ProfileOperations": {
+    "Add": {
+      "CLI": "Allowed",
+      "MCP": "Deny"
+    },
     "Reload": {
-      "MCP": false
+      "CLI": "Allowed",
+      "MCP": "Deny"
+    },
+    "Revoke": {
+      "CLI": "Allowed",
+      "MCP": "Deny"
     }
   }
 }

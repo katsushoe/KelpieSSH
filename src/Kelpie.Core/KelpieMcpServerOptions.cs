@@ -38,6 +38,11 @@ public sealed class KelpieMcpServerOptions
     public IReadOnlyCollection<string> ReloadProfileNames { get; init; } = [];
 
     /// <summary>
+    /// Gets profile management operation permissions.
+    /// </summary>
+    public KelpieProfileOperationsOptions ProfileOperations { get; init; } = KelpieProfileOperationsOptions.Default;
+
+    /// <summary>
     /// Creates server control options from configuration.
     /// </summary>
     /// <param name="configuration">The application configuration.</param>
@@ -60,6 +65,7 @@ public sealed class KelpieMcpServerOptions
             ServerPort = configuredPort,
             ServerExecutablePath = configuration["Commands:ExecutablePath"],
             ServerWorkingDirectory = configuration["Commands:WorkingDirectory"],
+            ProfileOperations = KelpieProfileOperationsOptions.FromConfiguration(configuration),
         };
     }
 }

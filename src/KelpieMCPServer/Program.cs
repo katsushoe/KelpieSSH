@@ -68,6 +68,7 @@ builder.Logging.AddConsole(options =>
 });
 
 builder.Services.AddSingleton(new KelpieServerControlOptions(controlPipeName));
+builder.Services.AddSingleton(KelpieProfileOperationsOptions.FromConfiguration(builder.Configuration));
 var profileCatalog = new ReloadingSshConnectionProfileCatalog(
     profilesDirectory,
     trustStorePath,

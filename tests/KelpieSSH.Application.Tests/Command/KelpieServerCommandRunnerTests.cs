@@ -1,6 +1,8 @@
 using System.IO.Pipes;
+using System.Text.Json;
 using FluentAssertions;
 using Kelpie.Core;
+using KelpieSSH.Application.Ssh;
 using KelpieServerCommand;
 
 namespace KelpieSSH.Application.Tests.Command;
@@ -242,12 +244,102 @@ public sealed class KelpieServerCommandRunnerTests
         error.ToString().Should().Contain("SSH session was not found: ssh-missing");
     }
 
+    [Fact]
+    public async Task ProfileCapabilitiesAsync_ShouldApplyCliProfileOperationPolicy()
+    {
+        var options = WithProfileOperations(
+            CreateOptions(),
+            new KelpieProfileOperationsOptions(
+                addCliAllowed: true,
+                addMcpAllowed: false,
+                reloadCliAllowed: false,
+                reloadMcpAllowed: false,
+                revokeCliAllowed: false,
+                revokeMcpAllowed: false));
+        using var output = new StringWriter();
+        var previousOutput = Console.Out;
+        var response = JsonSerializer.Serialize(new SshProfileTrustCapabilities(
+            "vps01",
+            AddAllowed: true,
+            ReloadAllowed: true,
+            RevokeAllowed: true,
+            Reason: string.Empty));
+        var serverTask = RunSingleResponsePipeAsync(options.ControlPipeName, "profile-capabilities vps01", response);
+        Console.SetOut(output);
+
+        try
+        {
+            await KelpieServerCommandRunner.ProfileCapabilitiesAsync(options, "vps01");
+        }
+        finally
+        {
+            Console.SetOut(previousOutput);
+        }
+
+        await serverTask;
+        var capabilities = JsonSerializer.Deserialize<SshProfileTrustCapabilities>(output.ToString());
+        capabilities.Should().NotBeNull();
+        capabilities!.AddAllowed.Should().BeTrue();
+        capabilities.ReloadAllowed.Should().BeFalse();
+        capabilities.RevokeAllowed.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ProfileReloadAsync_ShouldRejectWhenCliReloadIsDenied()
+    {
+        var options = WithProfileOperations(
+            CreateOptions(),
+            new KelpieProfileOperationsOptions(
+                addCliAllowed: true,
+                addMcpAllowed: false,
+                reloadCliAllowed: false,
+                reloadMcpAllowed: false,
+                revokeCliAllowed: true,
+                revokeMcpAllowed: false));
+        using var output = new StringWriter();
+        var previousOutput = Console.Out;
+        var previousExitCode = Environment.ExitCode;
+        Console.SetOut(output);
+        Environment.ExitCode = 0;
+
+        try
+        {
+            await KelpieServerCommandRunner.ProfileReloadAsync(options, "vps01");
+        }
+        finally
+        {
+            Console.SetOut(previousOutput);
+            Environment.ExitCode = previousExitCode;
+        }
+
+        var result = JsonSerializer.Deserialize<SshProfileTrustOperationResult>(output.ToString());
+        result.Should().NotBeNull();
+        result!.Success.Should().BeFalse();
+        result.Status.Should().Be("disabled-by-config");
+    }
+
     private static KelpieMcpServerOptions CreateOptions()
     {
         return new KelpieMcpServerOptions
         {
             ControlPipeName = "KelpieTest." + Guid.NewGuid().ToString("N"),
             ServerPort = 45432,
+        };
+    }
+
+    private static KelpieMcpServerOptions WithProfileOperations(
+        KelpieMcpServerOptions options,
+        KelpieProfileOperationsOptions profileOperations)
+    {
+        return new KelpieMcpServerOptions
+        {
+            ControlPipeName = options.ControlPipeName,
+            ServerPort = options.ServerPort,
+            ServerExecutablePath = options.ServerExecutablePath,
+            ServerWorkingDirectory = options.ServerWorkingDirectory,
+            ReloadConfig = options.ReloadConfig,
+            ReloadProfileNames = options.ReloadProfileNames,
+            ProfileOperations = profileOperations,
         };
     }
 

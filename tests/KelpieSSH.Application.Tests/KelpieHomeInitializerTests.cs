@@ -109,6 +109,72 @@ public sealed class KelpieHomeInitializerTests
     }
 
     [Fact]
+    public void Initialize_creates_profile_operations_with_cli_and_mcp_policy()
+    {
+        var homeDirectory = CreateTempDirectory();
+
+        try
+        {
+            KelpieHomeInitializer.Initialize(homeDirectory);
+            var kelpieMcpConfigPath = Path.Combine(homeDirectory, "config", "kelpiemcp.json");
+
+            using var document = JsonDocument.Parse(File.ReadAllText(kelpieMcpConfigPath));
+            var profileOperations = document.RootElement.GetProperty("ProfileOperations");
+
+            profileOperations.GetProperty("Add").GetProperty("CLI").GetString().Should().Be("Allowed");
+            profileOperations.GetProperty("Add").GetProperty("MCP").GetString().Should().Be("Deny");
+            profileOperations.GetProperty("Reload").GetProperty("CLI").GetString().Should().Be("Allowed");
+            profileOperations.GetProperty("Reload").GetProperty("MCP").GetString().Should().Be("Deny");
+            profileOperations.GetProperty("Revoke").GetProperty("CLI").GetString().Should().Be("Allowed");
+            profileOperations.GetProperty("Revoke").GetProperty("MCP").GetString().Should().Be("Deny");
+        }
+        finally
+        {
+            Directory.Delete(homeDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Initialize_migrates_legacy_profile_operations_boolean_values()
+    {
+        var homeDirectory = CreateTempDirectory();
+
+        try
+        {
+            var configDirectory = Path.Combine(homeDirectory, "config");
+            Directory.CreateDirectory(configDirectory);
+            var kelpieMcpConfigPath = Path.Combine(configDirectory, "kelpiemcp.json");
+            File.WriteAllText(
+                kelpieMcpConfigPath,
+                """
+                {
+                  "Server": {
+                    "ControlPipeName": "KelpieMCPServer.Control"
+                  },
+                  "ProfileOperations": {
+                    "Reload": {
+                      "MCP": false
+                    }
+                  }
+                }
+                """);
+
+            KelpieHomeInitializer.Initialize(homeDirectory);
+
+            using var document = JsonDocument.Parse(File.ReadAllText(kelpieMcpConfigPath));
+            var profileOperations = document.RootElement.GetProperty("ProfileOperations");
+            profileOperations.GetProperty("Reload").GetProperty("MCP").GetString().Should().Be("Deny");
+            profileOperations.GetProperty("Reload").GetProperty("CLI").GetString().Should().Be("Allowed");
+            profileOperations.GetProperty("Add").GetProperty("CLI").GetString().Should().Be("Allowed");
+            profileOperations.GetProperty("Revoke").GetProperty("CLI").GetString().Should().Be("Allowed");
+        }
+        finally
+        {
+            Directory.Delete(homeDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Initialize_writes_valid_json_files()
     {
         var homeDirectory = CreateTempDirectory();

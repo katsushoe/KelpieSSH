@@ -186,14 +186,14 @@ MCP server が `KelpieHome/profiles/*.json` を読み直し、reload が成功�
 
 処理内容:
 
-MCP server は terminal handle から接続中 profile を解決します。`kelpiemcp.json` の `ProfileOperations:Reload:MCP` を読み、MCP経由の reload が許可されているか返します。SSH target には接続せず、profile file 本文も返しません。
+MCP server は terminal handle から接続中 profile を解決します。`kelpiemcp.json` の `ProfileOperations:Reload:MCP` を読み、MCP経由の reload capability が許可されているか返します。SSH target には接続せず、profile file 本文も返しません。
 
 戻り値:
 
 - `SshProfileCapabilitiesToolResult`
 - `Handle`: 要求された terminal handle。
 - `ProfileName`: handle に紐づく profile 名。handle が見つからない場合は空文字。
-- `ReloadAllowed`: `ProfileOperations:Reload:MCP` が有効なら `true`、それ以外は `false`。
+- `ReloadAllowed`: `ProfileOperations:Reload:MCP` が `Allowed` なら `true`、それ以外は `false`。互換のため旧 boolean `true` も許可として扱います。
 - `Reason`: `allowed-by-config`、`disabled-by-config`、`session-not-found` などの理由。
 
 実行結果サンプル:

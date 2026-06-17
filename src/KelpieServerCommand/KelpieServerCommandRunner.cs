@@ -291,7 +291,7 @@ public static class KelpieServerCommandRunner
     /// <param name="profileName">The profile name.</param>
     public static Task ProfileAddAsync(KelpieMcpServerOptions options, string profileName)
     {
-        return RunProfileTrustOperationAsync(options, "profile-add", profileName, profile => CreateOfflineCatalog().AddTrustedProfile(profile));
+        return RunProfileTrustOperationAsync(options, "add", "profile-add", profileName, profile => CreateOfflineCatalog().AddTrustedProfile(profile));
     }
 
     /// <summary>
@@ -301,7 +301,7 @@ public static class KelpieServerCommandRunner
     /// <param name="profileName">The profile name.</param>
     public static Task ProfileReloadAsync(KelpieMcpServerOptions options, string profileName)
     {
-        return RunProfileTrustOperationAsync(options, "profile-reload", profileName, profile => CreateOfflineCatalog().ReloadTrustedProfile(profile));
+        return RunProfileTrustOperationAsync(options, "reload", "profile-reload", profileName, profile => CreateOfflineCatalog().ReloadTrustedProfile(profile));
     }
 
     /// <summary>
@@ -311,7 +311,7 @@ public static class KelpieServerCommandRunner
     /// <param name="profileName">The profile name.</param>
     public static Task ProfileRevokeAsync(KelpieMcpServerOptions options, string profileName)
     {
-        return RunProfileTrustOperationAsync(options, "profile-revoke", profileName, profile => CreateOfflineCatalog().RevokeTrustedProfile(profile));
+        return RunProfileTrustOperationAsync(options, "revoke", "profile-revoke", profileName, profile => CreateOfflineCatalog().RevokeTrustedProfile(profile));
     }
 
     /// <summary>
@@ -335,9 +335,11 @@ public static class KelpieServerCommandRunner
             options.ControlPipeName,
             "profile-capabilities " + resolvedProfileName,
             TimeSpan.FromSeconds(3));
-        Console.WriteLine(!string.IsNullOrWhiteSpace(response)
-            ? response
-            : JsonSerializer.Serialize(CreateOfflineCatalog().GetTrustCapabilities(resolvedProfileName)));
+        var capabilities = !string.IsNullOrWhiteSpace(response)
+            ? JsonSerializer.Deserialize<SshProfileTrustCapabilities>(response)
+                ?? new SshProfileTrustCapabilities(resolvedProfileName, false, false, false, "invalid-response")
+            : CreateOfflineCatalog().GetTrustCapabilities(resolvedProfileName);
+        Console.WriteLine(JsonSerializer.Serialize(ApplyCliProfileOperationPolicy(options, capabilities)));
     }
 
     /// <summary>
@@ -590,6 +592,7 @@ public static class KelpieServerCommandRunner
 
     private static async Task RunProfileTrustOperationAsync(
         KelpieMcpServerOptions options,
+        string operation,
         string pipeCommand,
         string profileName,
         Func<string, SshProfileTrustOperationResult> offlineOperation)
@@ -602,6 +605,17 @@ public static class KelpieServerCommandRunner
         }
 
         var normalizedProfileName = profileName.Trim();
+        if (!options.ProfileOperations.IsAllowed(operation, "CLI"))
+        {
+            Console.WriteLine(JsonSerializer.Serialize(new SshProfileTrustOperationResult(
+                false,
+                normalizedProfileName,
+                "disabled-by-config",
+                "Profile operation is disabled by kelpiemcp.json.")));
+            Environment.ExitCode = 1;
+            return;
+        }
+
         var response = await SendControlCommandWithResponseAsync(
             options.ControlPipeName,
             pipeCommand + " " + normalizedProfileName,
@@ -616,6 +630,30 @@ public static class KelpieServerCommandRunner
         {
             Environment.ExitCode = 1;
         }
+    }
+
+    private static SshProfileTrustCapabilities ApplyCliProfileOperationPolicy(
+        KelpieMcpServerOptions options,
+        SshProfileTrustCapabilities capabilities)
+    {
+        var addAllowed = capabilities.AddAllowed && options.ProfileOperations.IsAllowed("add", "CLI");
+        var reloadAllowed = capabilities.ReloadAllowed && options.ProfileOperations.IsAllowed("reload", "CLI");
+        var revokeAllowed = capabilities.RevokeAllowed && options.ProfileOperations.IsAllowed("revoke", "CLI");
+        var reason = addAllowed || reloadAllowed || revokeAllowed
+            ? capabilities.Reason
+            : !options.ProfileOperations.IsAllowed("add", "CLI")
+                || !options.ProfileOperations.IsAllowed("reload", "CLI")
+                || !options.ProfileOperations.IsAllowed("revoke", "CLI")
+                    ? "disabled-by-config"
+                    : capabilities.Reason;
+
+        return capabilities with
+        {
+            AddAllowed = addAllowed,
+            ReloadAllowed = reloadAllowed,
+            RevokeAllowed = revokeAllowed,
+            Reason = reason,
+        };
     }
 
     private static ReloadingSshConnectionProfileCatalog CreateOfflineCatalog()

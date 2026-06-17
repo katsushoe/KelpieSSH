@@ -288,14 +288,14 @@ Input arguments:
 
 Processing:
 
-KelpieMCPServer resolves the terminal handle to the connected profile. It reads the MCP server configuration and returns whether MCP-side profile reload is enabled for that connection. The tool does not contact the SSH target and does not read or print profile file contents.
+KelpieMCPServer resolves the terminal handle to the connected profile. It reads `ProfileOperations:Reload:MCP` from `kelpiemcp.json` and returns whether MCP-side profile reload capability is allowed for that connection. The tool does not contact the SSH target and does not read or print profile file contents.
 
 Return value:
 
 - Return type: `SshProfileCapabilitiesToolResult`.
 - `Handle`: requested terminal handle.
 - `ProfileName`: profile name associated with the terminal handle, or an empty string when the handle is not found.
-- `ReloadAllowed`: `true` when `ProfileOperations:Reload:MCP` is enabled in `kelpiemcp.json`; otherwise `false`.
+- `ReloadAllowed`: `true` when `ProfileOperations:Reload:MCP` is `Allowed`; otherwise `false`. Legacy boolean `true` is also treated as allowed.
 - `Reason`: stable reason string such as `allowed-by-config`, `disabled-by-config`, or `session-not-found`.
 
 Return value sample:

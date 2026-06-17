@@ -227,12 +227,12 @@ kelpiemcp profile add vps02
 
 処理内容:
 
-`KelpieMCPServer` 起動中は、NamedPipe 経由で起動中サーバーへ要求し、profile hash を追加して in-memory catalog も再読み込みします。停止中は、`kelpiemcp` が profile を検証し、`dat/mcp_trusted_store.dat` の profile hash だけを更新します。
+`KelpieMCPServer` 起動中は、NamedPipe 経由で起動中サーバーへ要求し、profile hash を追加して in-memory catalog も再読み込みします。停止中は、`kelpiemcp` が profile を検証し、`dat/mcp_trusted_store.dat` の profile hash だけを更新します。`ProfileOperations:Add:CLI` が `Deny` の場合、この操作は拒否されます。
 
 戻り値:
 
 - exit code `0`: profile を信頼済みとして追加した。
-- exit code non-zero: profile 名不足、profile file 不在、JSON不正、trust store 無効、すでに信頼済み。
+- exit code non-zero: profile 名不足、profile file 不在、JSON不正、trust store 無効、`ProfileOperations:Add:CLI` が `Deny`、すでに信頼済み。
 - standard output: `SshProfileTrustOperationResult` JSON。
 
 戻り値サンプル:
@@ -274,12 +274,12 @@ kelpiemcp profile reload vps01
 
 処理内容:
 
-`KelpieMCPServer` 起動中は、起動中サーバーが profile を検証し、trusted hash を更新して in-memory catalog も再読み込みします。停止中は、`kelpiemcp` が profile を検証し、`dat/mcp_trusted_store.dat` を更新します。
+`KelpieMCPServer` 起動中は、起動中サーバーが profile を検証し、trusted hash を更新して in-memory catalog も再読み込みします。停止中は、`kelpiemcp` が profile を検証し、`dat/mcp_trusted_store.dat` を更新します。`ProfileOperations:Reload:CLI` が `Deny` の場合、この操作は拒否されます。
 
 戻り値:
 
 - exit code `0`: 編集済み profile を信頼済み baseline として受け入れた。
-- exit code non-zero: profile 不在、未信頼、JSON不正、trust store 更新失敗。
+- exit code non-zero: profile 不在、未信頼、JSON不正、`ProfileOperations:Reload:CLI` が `Deny`、trust store 更新失敗。
 - standard output: `SshProfileTrustOperationResult` JSON。
 
 戻り値サンプル:
@@ -321,12 +321,12 @@ kelpiemcp profile revoke vps01
 
 処理内容:
 
-`KelpieMCPServer` 起動中は、起動中サーバーが trusted hash を削除し、in-memory catalog を再読み込みします。停止中は、`kelpiemcp` が `dat/mcp_trusted_store.dat` から対象 profile entry を削除します。
+`KelpieMCPServer` 起動中は、起動中サーバーが trusted hash を削除し、in-memory catalog を再読み込みします。停止中は、`kelpiemcp` が `dat/mcp_trusted_store.dat` から対象 profile entry を削除します。`ProfileOperations:Revoke:CLI` が `Deny` の場合、この操作は拒否されます。
 
 戻り値:
 
 - exit code `0`: 信頼済み entry を削除した。
-- exit code non-zero: profile 名不足、trust store 無効、対象 profile が未信頼。
+- exit code non-zero: profile 名不足、trust store 無効、`ProfileOperations:Revoke:CLI` が `Deny`、対象 profile が未信頼。
 - standard output: `SshProfileTrustOperationResult` JSON。
 
 戻り値サンプル:
@@ -369,13 +369,14 @@ kelpiemcp profile-capabilities
 
 処理内容:
 
-profile file と trust store を確認します。SSH target には接続しません。
+profile file、trust store、`ProfileOperations:*:CLI` 設定を確認します。SSH target には接続しません。
 
 戻り値:
 
 - exit code `0`: capabilities を表示した。
 - exit code non-zero: profile が指定されず、open profile もない。
 - standard output: `SshProfileTrustCapabilities` JSON。
+- `AddAllowed`、`ReloadAllowed`、`RevokeAllowed` は、trust store の状態と対応する `ProfileOperations:*:CLI` 設定の両方が許可する場合だけ `true` になります。
 
 戻り値サンプル:
 

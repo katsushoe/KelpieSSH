@@ -173,6 +173,7 @@ static KelpieMcpServerOptions CreateStartOptions(
         ServerWorkingDirectory = options.ServerWorkingDirectory,
         ReloadConfig = reloadConfig,
         ReloadProfileNames = reloadProfileNames,
+        ProfileOperations = options.ProfileOperations,
     };
 }
 

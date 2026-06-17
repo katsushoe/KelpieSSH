@@ -228,11 +228,12 @@ Processing:
 
 - When `KelpieMCPServer` is running, the request is sent to the running server. The server validates the profile, stores the profile hash, and reloads the in-memory catalog.
 - When `KelpieMCPServer` is not running, `kelpiemcp` validates the profile and updates `dat/mcp_trusted_store.dat`. The profile is loaded the next time the MCP server starts.
+- The operation is denied when `ProfileOperations:Add:CLI` is `Deny`.
 
 Return value:
 
 - Exit code `0` when the profile is trusted.
-- Non-zero exit code when the profile name is missing, the profile file is missing, the JSON is invalid, trust is disabled, or the profile is already trusted.
+- Non-zero exit code when the profile name is missing, the profile file is missing, the JSON is invalid, trust is disabled, `ProfileOperations:Add:CLI` is `Deny`, or the profile is already trusted.
 - Standard output is a JSON `SshProfileTrustOperationResult` with `Success`, `ProfileName`, `Status`, and `Message`.
 
 Return value sample:
@@ -274,11 +275,12 @@ Processing:
 
 - When `KelpieMCPServer` is running, the server validates the profile, updates the trusted hash, and reloads the in-memory catalog.
 - When `KelpieMCPServer` is not running, `kelpiemcp` validates the profile and updates `dat/mcp_trusted_store.dat`. The edited profile is loaded the next time the MCP server starts.
+- The operation is denied when `ProfileOperations:Reload:CLI` is `Deny`.
 
 Return value:
 
 - Exit code `0` when the edited profile is accepted.
-- Non-zero exit code when the profile is missing, not trusted, invalid, or cannot be written to the trust store.
+- Non-zero exit code when the profile is missing, not trusted, invalid, `ProfileOperations:Reload:CLI` is `Deny`, or cannot be written to the trust store.
 - Standard output is a JSON `SshProfileTrustOperationResult`.
 
 Return value sample:
@@ -320,11 +322,12 @@ Processing:
 
 - When `KelpieMCPServer` is running, the server removes the trusted hash and reloads the in-memory catalog.
 - When `KelpieMCPServer` is not running, `kelpiemcp` removes the profile entry from `dat/mcp_trusted_store.dat`.
+- The operation is denied when `ProfileOperations:Revoke:CLI` is `Deny`.
 
 Return value:
 
 - Exit code `0` when the trusted entry is removed.
-- Non-zero exit code when the profile name is missing, trust is disabled, or the profile is not trusted.
+- Non-zero exit code when the profile name is missing, trust is disabled, `ProfileOperations:Revoke:CLI` is `Deny`, or the profile is not trusted.
 - Standard output is a JSON `SshProfileTrustOperationResult`.
 
 Return value sample:
@@ -365,13 +368,14 @@ Arguments:
 
 Processing:
 
-The command checks the profile file and trust store. It does not contact the SSH target.
+The command checks the profile file, trust store, and `ProfileOperations:*:CLI` settings. It does not contact the SSH target.
 
 Return value:
 
 - Exit code `0` when capabilities are printed.
 - Non-zero exit code when no profile is supplied and no open profile is available.
 - Standard output is a JSON `SshProfileTrustCapabilities` with `ProfileName`, `AddAllowed`, `ReloadAllowed`, `RevokeAllowed`, and `Reason`.
+- `AddAllowed`, `ReloadAllowed`, and `RevokeAllowed` are `true` only when both the trust-store state and the corresponding `ProfileOperations:*:CLI` setting allow the operation.
 
 Return value sample:
 

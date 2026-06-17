@@ -60,7 +60,9 @@ public sealed partial class KelpieTools
                 Reason: "session-not-found");
         }
 
-        var reloadAllowed = configuration.GetValue<bool?>("ProfileOperations:Reload:MCP") == true;
+        var reloadAllowed = KelpieProfileOperationsOptions
+            .FromConfiguration(configuration)
+            .IsAllowed("reload", "MCP");
         return new SshProfileCapabilitiesToolResult(
             handle,
             profileName,

@@ -180,8 +180,7 @@ public static class KelpieHomeInitializer
                 updated |= SetWorkingDirectoryIfMissingOrLegacy(commands, paths);
 
                 var profileOperations = GetOrCreateObject(node, "ProfileOperations", ref updated);
-                var reload = GetOrCreateObject(profileOperations, "Reload", ref updated);
-                updated |= SetBoolIfMissing(reload, "MCP", false);
+                updated |= SetProfileOperationDefaults(profileOperations);
             }
 
             if (!updated)
@@ -237,17 +236,6 @@ public static class KelpieHomeInitializer
         return true;
     }
 
-    private static bool SetBoolIfMissing(JsonObject node, string propertyName, bool value)
-    {
-        if (node[propertyName] is not null)
-        {
-            return false;
-        }
-
-        node[propertyName] = value;
-        return true;
-    }
-
     private static bool SetWorkingDirectoryIfMissingOrLegacy(JsonObject node, KelpieHomePaths paths)
     {
         if (node["WorkingDirectory"] is JsonValue jsonValue
@@ -291,9 +279,20 @@ public static class KelpieHomeInitializer
             },
             ProfileOperations = new
             {
+                Add = new
+                {
+                    CLI = "Allowed",
+                    MCP = "Deny",
+                },
                 Reload = new
                 {
-                    MCP = false,
+                    CLI = "Allowed",
+                    MCP = "Deny",
+                },
+                Revoke = new
+                {
+                    CLI = "Allowed",
+                    MCP = "Deny",
                 },
             },
         });
@@ -348,6 +347,43 @@ public static class KelpieHomeInitializer
         {
             WriteIndented = true,
         };
+    }
+
+    private static bool SetProfileOperationDefaults(JsonObject profileOperations)
+    {
+        var updated = false;
+        SetOperationDefault(profileOperations, "Add", ref updated);
+        SetOperationDefault(profileOperations, "Reload", ref updated);
+        SetOperationDefault(profileOperations, "Revoke", ref updated);
+        return updated;
+    }
+
+    private static void SetOperationDefault(JsonObject profileOperations, string operation, ref bool updated)
+    {
+        var operationNode = GetOrCreateObject(profileOperations, operation, ref updated);
+        updated |= SetPermissionIfMissingOrLegacy(operationNode, "CLI", "Allowed");
+        updated |= SetPermissionIfMissingOrLegacy(operationNode, "MCP", "Deny");
+    }
+
+    private static bool SetPermissionIfMissingOrLegacy(JsonObject node, string propertyName, string defaultValue)
+    {
+        if (node[propertyName] is JsonValue value)
+        {
+            if (value.TryGetValue<bool>(out var boolValue))
+            {
+                node[propertyName] = boolValue ? "Allowed" : "Deny";
+                return true;
+            }
+
+            if (value.TryGetValue<string>(out var stringValue)
+                && !string.IsNullOrWhiteSpace(stringValue))
+            {
+                return false;
+            }
+        }
+
+        node[propertyName] = defaultValue;
+        return true;
     }
 
     private static string GetMcpExecutableName()

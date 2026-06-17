@@ -21,6 +21,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
     private readonly SshCommandService _sshCommandService;
     private readonly ILogger<NamedPipeShutdownService> _logger;
     private readonly KelpieServerControlOptions _options;
+    private readonly KelpieProfileOperationsOptions _profileOperations;
     private readonly Func<bool> _isWindowsService;
 
     /// <summary>
@@ -40,7 +41,8 @@ public sealed class NamedPipeShutdownService : BackgroundService
         ISshConnectionProfileCatalog profileCatalog,
         ISshPasswordSessionStore passwordSessionStore,
         SshCommandService sshCommandService,
-        Func<bool>? isWindowsService = null)
+        Func<bool>? isWindowsService = null,
+        KelpieProfileOperationsOptions? profileOperations = null)
     {
         _applicationLifetime = applicationLifetime;
         _logger = logger;
@@ -48,6 +50,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
         _profileCatalog = profileCatalog;
         _passwordSessionStore = passwordSessionStore;
         _sshCommandService = sshCommandService;
+        _profileOperations = profileOperations ?? KelpieProfileOperationsOptions.Default;
         _isWindowsService = isWindowsService ?? WindowsServiceHelpers.IsWindowsService;
     }
 
@@ -280,6 +283,17 @@ public sealed class NamedPipeShutdownService : BackgroundService
         TextWriter writer,
         CancellationToken cancellationToken)
     {
+        if (!_profileOperations.IsAllowed(operation, "CLI"))
+        {
+            await writer.WriteLineAsync(JsonSerializer.Serialize(new SshProfileTrustOperationResult(
+                false,
+                profileName,
+                "disabled-by-config",
+                "Profile operation is disabled by kelpiemcp.json.")));
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
         if (_profileCatalog is not ReloadingSshConnectionProfileCatalog reloadingCatalog)
         {
             await writer.WriteLineAsync(JsonSerializer.Serialize(new SshProfileTrustOperationResult(
@@ -320,8 +334,31 @@ public sealed class NamedPipeShutdownService : BackgroundService
             return;
         }
 
-        await writer.WriteLineAsync(JsonSerializer.Serialize(reloadingCatalog.GetTrustCapabilities(profileName)));
+        var capabilities = reloadingCatalog.GetTrustCapabilities(profileName);
+        await writer.WriteLineAsync(JsonSerializer.Serialize(ApplyCliProfileOperationPolicy(capabilities)));
         await writer.FlushAsync(cancellationToken);
+    }
+
+    private SshProfileTrustCapabilities ApplyCliProfileOperationPolicy(SshProfileTrustCapabilities capabilities)
+    {
+        var addAllowed = capabilities.AddAllowed && _profileOperations.IsAllowed("add", "CLI");
+        var reloadAllowed = capabilities.ReloadAllowed && _profileOperations.IsAllowed("reload", "CLI");
+        var revokeAllowed = capabilities.RevokeAllowed && _profileOperations.IsAllowed("revoke", "CLI");
+        var reason = addAllowed || reloadAllowed || revokeAllowed
+            ? capabilities.Reason
+            : !_profileOperations.IsAllowed("add", "CLI")
+                || !_profileOperations.IsAllowed("reload", "CLI")
+                || !_profileOperations.IsAllowed("revoke", "CLI")
+                    ? "disabled-by-config"
+                    : capabilities.Reason;
+
+        return capabilities with
+        {
+            AddAllowed = addAllowed,
+            ReloadAllowed = reloadAllowed,
+            RevokeAllowed = revokeAllowed,
+            Reason = reason,
+        };
     }
 
     private async Task HandleSendCommandAsync(

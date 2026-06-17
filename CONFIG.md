@@ -86,7 +86,7 @@ Important values:
 | `LogDirectory` | Directory for MCP server logs. |
 | `Commands:ExecutablePath` | Optional explicit `KelpieMCPServer` executable path. |
 | `Commands:WorkingDirectory` | Optional server working directory. |
-| `ProfileOperations:Reload:MCP` | Whether MCP clients may use MCP-side profile reload capability. Default is `false`; intentional profile file edits are accepted with `kelpiemcp profile reload <profile>`. |
+| `ProfileOperations` | Allows or denies profile trust operations by caller channel. Defaults allow CLI operations and deny MCP operations. |
 
 By default, the MCP endpoint is:
 
@@ -110,8 +110,17 @@ Minimal example:
     "ControlPipeName": "KelpieMCPServer.Control"
   },
   "ProfileOperations": {
+    "Add": {
+      "CLI": "Allowed",
+      "MCP": "Deny"
+    },
     "Reload": {
-      "MCP": false
+      "CLI": "Allowed",
+      "MCP": "Deny"
+    },
+    "Revoke": {
+      "CLI": "Allowed",
+      "MCP": "Deny"
     }
   }
 }
@@ -119,21 +128,42 @@ Minimal example:
 
 ### `ProfileOperations`
 
-`ProfileOperations` controls profile-management capabilities that are visible to MCP clients.
-It does not replace the CLI trust commands.
+`ProfileOperations` controls profile trust operations by caller channel.
+Each operation has a `CLI` setting and an `MCP` setting.
+
+Allowed values:
+
+| Value | Meaning |
+| :--- | :--- |
+| `Allowed` | The operation is allowed for the channel. |
+| `Deny` | The operation is denied for the channel. |
+
+The current implementation also accepts legacy boolean values for compatibility: `true` is treated as `Allowed`, and `false` is treated as `Deny`.
+
+Default policy:
 
 | Setting | Default | Purpose |
 | :--- | :--- | :--- |
-| `ProfileOperations:Reload:MCP` | `false` | Allows MCP clients to see MCP-side reload capability for the currently connected profile. |
+| `ProfileOperations:Add:CLI` | `Allowed` | Allows `kelpiemcp profile add <profile>`. |
+| `ProfileOperations:Reload:CLI` | `Allowed` | Allows `kelpiemcp profile reload <profile>`. |
+| `ProfileOperations:Revoke:CLI` | `Allowed` | Allows `kelpiemcp profile revoke <profile>`. |
+| `ProfileOperations:Add:MCP` | `Deny` | MCP profile add is not exposed. |
+| `ProfileOperations:Reload:MCP` | `Deny` | Controls the `ReloadAllowed` value returned by `ssh_profile_capabilities`. |
+| `ProfileOperations:Revoke:MCP` | `Deny` | MCP profile revoke is not exposed. |
 
-When `ProfileOperations:Reload:MCP` is `false`, `ssh_profile_capabilities` returns `ReloadAllowed: false` with `Reason: disabled-by-config`.
-This is the recommended default because profile file changes should be accepted by an explicit user-side command:
+When a CLI operation is denied, the corresponding command returns a JSON result with `Success: false` and `Status: disabled-by-config`.
+`kelpiemcp profile-capabilities [profile]` returns `AddAllowed`, `ReloadAllowed`, and `RevokeAllowed` after applying both the trust-store state and the `ProfileOperations:*:CLI` settings.
+
+When `ProfileOperations:Reload:MCP` is `Deny`, `ssh_profile_capabilities` returns `ReloadAllowed: false` with `Reason: disabled-by-config`.
+This is the recommended default because profile file changes should be accepted by explicit user-side commands:
 
 ```powershell
+kelpiemcp profile add <profile>
 kelpiemcp profile reload <profile>
+kelpiemcp profile revoke <profile>
 ```
 
-Set `ProfileOperations:Reload:MCP` to `true` only when the operator intentionally allows MCP clients to request profile reload behavior.
+Set `ProfileOperations:Reload:MCP` to `Allowed` only when the operator intentionally allows MCP clients to see reload capability for the connected profile.
 Even then, trusted profile hash validation still applies; editing a profile file is not accepted just because this flag is enabled.
 
 ## Runtime State
