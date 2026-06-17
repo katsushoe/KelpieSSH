@@ -39,6 +39,8 @@ dotnet publish src\KelpieMCPServer\KelpieMCPServer.csproj -c Release -o D:\Kelpi
 
 ## Configuration
 
+For general Kelpie configuration files and field details, see [CONFIG.md](CONFIG.md).
+
 The default MCP endpoint is:
 
 ```text
@@ -92,6 +94,8 @@ kelpiemcp forget vps01
 The password is sent to the running `KelpieMCPServer` over the local control pipe and kept only in memory for that server process.
 
 ## MCP Tools
+
+For MCP tool request and response details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 
 Current tools:
 

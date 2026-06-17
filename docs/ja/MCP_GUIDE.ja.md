@@ -39,6 +39,8 @@ dotnet publish src\KelpieMCPServer\KelpieMCPServer.csproj -c Release -o D:\Kelpi
 
 ## 設定
 
+Kelpie の設定ファイル全般と各項目の詳細は [CONFIG.ja.md](CONFIG.ja.md) を参照してください。
+
 既定の MCP endpoint は次のとおりです。
 
 ```text
@@ -92,6 +94,8 @@ kelpiemcp forget vps01
 パスワードはローカル control pipe を通して実行中の `KelpieMCPServer` へ送られ、そのサーバープロセスのメモリ内にのみ保持されます。
 
 ## MCP tools
+
+MCP tool の request / response の詳細は [MCP_COMMANDS.ja.md](MCP_COMMANDS.ja.md) を参照してください。
 
 現在の tools は次のとおりです。
 
