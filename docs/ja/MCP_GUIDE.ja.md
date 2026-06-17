@@ -4,8 +4,6 @@
 
 English documentation is available in [../../MCP_GUIDE.md](../../MCP_GUIDE.md).
 
-呼び出し可能な MCP tools と schema の一覧は [MCP_COMMANDS.ja.md](MCP_COMMANDS.ja.md) を参照してください。
-
 ## MCP サーバーの役割
 
 MCP サーバーは、AI client と KelpieSSH をつなぐローカルの橋渡しです。AI client は Streamable HTTP でローカルの KelpieSSH MCP サーバーに接続し、サーバーは設定済み SSH profile に対して許可された KelpieSSH 操作を実行します。
@@ -128,27 +126,3 @@ kelpiemcp forget vps01
 
 パスワードはローカル control pipe を通して実行中の `KelpieMCPServer` へ送られ、そのサーバープロセスのメモリ内にのみ保持されます。
 
-## MCP tools
-
-MCP tool の request / response の詳細は [MCP_COMMANDS.ja.md](MCP_COMMANDS.ja.md) を参照してください。
-
-現在の tools は次のとおりです。
-
-- `kelpie_ping`
-- `get_system_info`
-- `get_disk_usage`
-- `get_memory_usage`
-- `get_listening_ports`
-- `ssh_run_allowed_command`
-- `get_target_inventory`
-- `ssh_get_system_info`
-- `ssh_get_disk_usage`
-- `ssh_get_memory_usage`
-- `ssh_get_listening_ports`
-- `ssh_get_failed_services`
-- `ssh_tail_log`
-
-SSH tool results は raw `StandardOutput` / `StandardError` strings を保持し、行配列も公開します。
-
-- `Stdout` / `Stderr`: ANSI escape sequences を保持したまま行分割した出力。
-- `StdoutPlain` / `StderrPlain`: ANSI escape sequences を除去した後に行分割した出力。

@@ -6,6 +6,8 @@ Japanese documentation is available in [docs/ja/README.ja.md](docs/ja/README.ja.
 
 Command details are documented in [COMMANDS.md](COMMANDS.md).
 
+MCP command details are documented in [MCP_COMMANDS.md](MCP_COMMANDS.md).
+
 Configuration details are documented in [CONFIG.md](CONFIG.md).
 
 SSH profile setup is documented in [PROFILE_GUIDE.md](PROFILE_GUIDE.md).

@@ -4,8 +4,6 @@ This guide explains how to use KelpieSSH as an MCP server for Codex or another M
 
 Japanese documentation is available in [docs/ja/MCP_GUIDE.ja.md](docs/ja/MCP_GUIDE.ja.md).
 
-For the list of callable MCP tools and schemas, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
-
 ## What the MCP Server Does
 
 The MCP server is the local bridge between an AI client and KelpieSSH. The AI client connects to the local KelpieSSH MCP server over Streamable HTTP, and the server runs allowed KelpieSSH operations against configured SSH profiles.
@@ -128,27 +126,3 @@ kelpiemcp forget vps01
 
 The password is sent to the running `KelpieMCPServer` over the local control pipe and kept only in memory for that server process.
 
-## MCP Tools
-
-For MCP tool request and response details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
-
-Current tools:
-
-- `kelpie_ping`
-- `get_system_info`
-- `get_disk_usage`
-- `get_memory_usage`
-- `get_listening_ports`
-- `ssh_run_allowed_command`
-- `get_target_inventory`
-- `ssh_get_system_info`
-- `ssh_get_disk_usage`
-- `ssh_get_memory_usage`
-- `ssh_get_listening_ports`
-- `ssh_get_failed_services`
-- `ssh_tail_log`
-
-SSH tool results keep the raw `StandardOutput` / `StandardError` strings and also expose line arrays:
-
-- `Stdout` / `Stderr`: output split by line, preserving ANSI escape sequences.
-- `StdoutPlain` / `StderrPlain`: output split by line after ANSI escape sequences are removed.

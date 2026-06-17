@@ -6,6 +6,8 @@ English documentation is available in [README.md](../../README.md).
 
 コマンドの詳細は [COMMANDS.ja.md](COMMANDS.ja.md) を参照してください。
 
+MCP command の詳細は [MCP_COMMANDS.ja.md](MCP_COMMANDS.ja.md) を参照してください。
+
 設定の詳細は [CONFIG.ja.md](CONFIG.ja.md) を参照してください。
 
 SSH profile 設定は [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) を参照してください。
