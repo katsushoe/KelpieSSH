@@ -78,21 +78,67 @@ Saved profiles are host-side persistence adapters. They are converted into `SshR
 
 SSH command tools usually return `SshToolResult`:
 
-- `ProfileName`
-- `Host`
-- `Port`
-- `UserName`
-- `CommandName`
-- `CommandText`
-- `ExitCode`
-- `StandardOutput`
-- `StandardError`
-- `Stdout` / `Stderr`
-- `StdoutPlain` / `StderrPlain`
-- `StartedAt`
-- `CompletedAt`
-- `TimedOut`
-- `Error`
+- `ProfileName`: resolved SSH profile name.
+- `Host`: target host from the resolved profile or operation.
+- `Port`: target SSH port.
+- `UserName`: target SSH user.
+- `CommandName`: allowed Kelpie command name, such as `get_disk_usage`.
+- `CommandText`: exact command text sent over SSH. Sensitive values are masked where the tool is designed to handle secrets.
+- `ExitCode`: remote command exit code. `0` means the remote command completed successfully; non-zero values are command-specific failures from the remote tool or shell.
+- `StandardOutput`: remote command stdout returned by the allowed Kelpie command.
+- `StandardError`: remote command stderr returned by the allowed Kelpie command.
+- `Stdout` / `Stderr`: structured or segmented stdout/stderr when the tool exposes AI-oriented segments.
+- `StdoutPlain` / `StderrPlain`: plain-text stdout/stderr projection when segmented output is available.
+- `StartedAt`: UTC command start timestamp.
+- `CompletedAt`: UTC command completion timestamp.
+- `TimedOut`: `true` when Kelpie stopped waiting because the command timeout elapsed.
+- `Error`: Kelpie-side validation, policy, connection, or execution error message when the tool could not produce a normal SSH command result.
+
+`SshToolResult` sample:
+
+```json
+{
+  "ProfileName": "vps01",
+  "Host": "example.invalid",
+  "Port": 22,
+  "UserName": "deploy",
+  "CommandName": "get_disk_usage",
+  "CommandText": "df -h",
+  "ExitCode": 0,
+  "StandardOutput": "Filesystem      Size  Used Avail Use% Mounted on\n/dev/sda1        40G   12G   26G  32% /\n",
+  "StandardError": "",
+  "StartedAt": "2026-06-17T12:00:00Z",
+  "CompletedAt": "2026-06-17T12:00:01Z",
+  "TimedOut": false,
+  "Error": ""
+}
+```
+
+Terminal snapshot tools return `SshTerminalSnapshotResult`:
+
+- `Handle`: terminal session handle used by follow-up terminal tools.
+- `ProfileName`: SSH profile name.
+- `Columns` / `Rows`: rendered terminal size.
+- `CursorRow` / `CursorColumn`: cursor location in the rendered screen buffer.
+- `Lines`: rendered screen lines.
+- `Text`: rendered screen as plain text.
+- `RawOutput`: raw output read during the current operation.
+- `Connected`: whether the terminal session is still connected.
+- `StartedAtUtc`: UTC timestamp when the terminal session was opened.
+- `CapturedAtUtc`: UTC timestamp when the snapshot was captured.
+
+Terminal close tools return `SshTerminalCloseResult`:
+
+- `Handle`: terminal session handle requested for close.
+- `ProfileName`: profile name for the closed session, or an empty string when the handle was not found.
+- `Closed`: `true` when a session was found and closed.
+- `Error`: empty on success; `session-not-found` when the handle was not registered.
+
+`ssh_logout` returns `SshLogoutResult`:
+
+- `ProfileName`: SSH profile name.
+- `LoggedOut`: `true` when a password session was removed.
+- `Error`: empty on success; otherwise the reason logout could not be performed, such as a missing password secret name.
 
 Tools that perform preflight checks usually return a result containing:
 
@@ -682,13 +728,18 @@ Result sample:
 
 ```json
 {
-  "Handle": "term-123",
+  "Handle": "term-123456789abc",
   "ProfileName": "vps01",
-  "Screen": {
-    "Columns": 120,
-    "Rows": 40,
-    "Text": "..."
-  }
+  "Columns": 120,
+  "Rows": 40,
+  "CursorRow": 0,
+  "CursorColumn": 0,
+  "Lines": ["$ "],
+  "Text": "$ ",
+  "RawOutput": "$ ",
+  "Connected": true,
+  "StartedAtUtc": "2026-06-17T12:00:00Z",
+  "CapturedAtUtc": "2026-06-17T12:00:01Z"
 }
 ```
 
@@ -711,6 +762,17 @@ Safety notes:
 }
 ```
 
+`ssh_connection_close` result sample:
+
+```json
+{
+  "Handle": "term-123456789abc",
+  "ProfileName": "vps01",
+  "Closed": true,
+  "Error": ""
+}
+```
+
 `ssh_logout` params sample:
 
 ```json
@@ -719,6 +781,16 @@ Safety notes:
   "arguments": {
     "profileName": "vps01"
   }
+}
+```
+
+`ssh_logout` result sample:
+
+```json
+{
+  "ProfileName": "vps01",
+  "LoggedOut": true,
+  "Error": ""
 }
 ```
 

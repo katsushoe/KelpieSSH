@@ -29,6 +29,20 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 - Secrets, private keys, real host names, real user names, and production profiles must not be committed.
 - Direct `root` SSH login is not allowed.
 
+## Return Value Specification
+
+Terminal commands return information through the process exit code, standard output, and standard error.
+
+Unless a command section states a more specific contract:
+
+- exit code `0` means the requested command completed successfully;
+- a non-zero exit code means validation failed, a required local service was unavailable, an SSH operation failed, a Windows Service operation failed, or the command was rejected by policy;
+- standard output contains the user-facing result shown in the command section's result sample;
+- standard error contains error messages intended for an interactive terminal user;
+- secrets, private keys, passphrases, and raw password values are not valid return values and must not be printed.
+
+Result samples in this document are representative output shapes. Host names, profile names, URLs, service names, paths, handles, and timestamps are examples unless they are fixed product strings.
+
 ## Commands
 
 ### `kelpie init [profile]`
@@ -45,6 +59,11 @@ kelpie init vps01
 When a profile name is supplied, a named sample profile is created under `profiles/<profile>.json`.
 Existing configuration files are not overwritten.
 
+Return value:
+
+- Exit code `0` when initialization completes.
+- Standard output describes created and existing directories/files. The structured internal result is `KelpieHomeInitializationResult` with `HomeDirectory`, `ProfileName`, `CreatedDirectories`, `CreatedFiles`, and `ExistingFiles`.
+
 ### `kelpie version`
 
 Shows the `kelpie` command version.
@@ -53,6 +72,11 @@ Shows the `kelpie` command version.
 kelpie version
 kelpie --version
 ```
+
+Return value:
+
+- Exit code `0` when the version is printed.
+- Standard output contains the `kelpie` product version string.
 
 ### `kelpie help`
 
@@ -63,6 +87,11 @@ kelpie help
 kelpie --help
 ```
 
+Return value:
+
+- Exit code `0` when help text is printed.
+- Standard output contains terminal help text for the available command set.
+
 ### `kelpie profiles`
 
 Lists configured SSH profiles.
@@ -70,6 +99,11 @@ Lists configured SSH profiles.
 ```powershell
 kelpie profiles
 ```
+
+Return value:
+
+- Exit code `0` when the profile list is read.
+- Standard output contains configured profile names and sanitized summary information only.
 
 ### `kelpie profile show <profile>`
 
@@ -80,6 +114,11 @@ Secret values are not printed.
 kelpie profile show vps01
 ```
 
+Return value:
+
+- Exit code `0` when the profile exists and the sanitized summary is printed.
+- Standard output contains profile metadata safe for terminal display. Secret values are not returned.
+
 ### `kelpie open <profile>`
 
 Stores the selected profile name in local runtime state for later commands that use the open profile.
@@ -88,6 +127,11 @@ Stores the selected profile name in local runtime state for later commands that 
 kelpie open vps01
 ```
 
+Return value:
+
+- Exit code `0` when the profile selection is saved.
+- Standard output confirms the selected profile.
+
 ### `kelpie status <profile>`
 
 Shows MCP server status and a sanitized profile summary.
@@ -95,6 +139,11 @@ Shows MCP server status and a sanitized profile summary.
 ```powershell
 kelpie status vps01
 ```
+
+Return value:
+
+- Exit code `0` when status information is collected.
+- Standard output contains MCP server status and sanitized profile information.
 
 ### `kelpie diag <profile>`
 
@@ -106,6 +155,12 @@ kelpie diag vps01
 
 This command requires a reachable SSH target and valid authentication.
 For password profiles, the CLI prompts for the password once and reuses it for all diagnostic commands in the current `kelpie diag` process.
+
+Return value:
+
+- Exit code `0` when all required diagnostic steps complete successfully.
+- Standard output contains read-only diagnostic summaries returned by allowed SSH commands.
+- Standard error contains SSH or policy errors if the diagnostic run fails.
 
 ### `kelpie logs <profile> <service> [lines]`
 
@@ -119,6 +174,12 @@ kelpie logs vps01 nginx.service 200
 The service name and line count are validated before command execution.
 For password profiles, the CLI prompts for the password for the current `kelpie logs` process.
 
+Return value:
+
+- Exit code `0` when the log command completes successfully.
+- Standard output contains the bounded log output returned by the allowed SSH command.
+- Standard error contains validation, SSH, policy, or remote command errors.
+
 ### `kelpie env keys <profile>`
 
 Lists remote environment variable names visible to the selected SSH user.
@@ -130,6 +191,12 @@ kelpie env keys vps01
 This command requires `AllowPeekEnvironmentKeys` in the profile `Capabilities`.
 Keys marked `Hidden` in `EnvironmentValues` are filtered from the output.
 Values are never printed by this command.
+
+Return value:
+
+- Exit code `0` when visible keys are listed.
+- Standard output contains key names only, one per line.
+- Hidden keys and values are not returned.
 
 Example:
 
@@ -153,6 +220,12 @@ The requested key must be listed in `EnvironmentValues` with `PeekCommon`, `Peek
 `Masked` returns a masked value and length only.
 `Hidden` and unlisted keys cannot be read.
 
+Return value:
+
+- Exit code `0` when the key is readable under profile policy.
+- Standard output contains either the value allowed by policy or a masked value with length.
+- Hidden keys, unlisted keys, and policy-denied reads fail without returning the raw value.
+
 Masked example:
 
 ```text
@@ -175,6 +248,12 @@ The requested key must be listed in `EnvironmentValues` with `SetCommon` or `Set
 The command after `--` is checked by the same CLI raw-command policy used by `kelpie login`.
 Environment variable values must not be pasted into public logs or issues.
 
+Return value:
+
+- Exit code `0` when the allowed command runs with the temporary environment value.
+- Standard output and standard error are the bounded output streams from the allowed remote command.
+- The provided environment value is not a persisted return value.
+
 ### `kelpie env list <profile>`
 
 Lists environment variable keys stored in the remote Kelpie env file.
@@ -192,6 +271,12 @@ The remote file is:
 This command requires `AllowPeekEnvironmentKeys` in `Capabilities`.
 Keys marked `Hidden` in `EnvironmentValues` are filtered from the output.
 Values are never printed by this command.
+
+Return value:
+
+- Exit code `0` when the remote Kelpie env file is read or treated as empty.
+- Standard output contains persisted key names only.
+- Values and hidden keys are not returned.
 
 ### `kelpie env persist <profile> <key> <value>`
 
@@ -218,6 +303,12 @@ The requested key must be listed in `EnvironmentValues` with `SetCommon` or `Set
 The generated file is intended to be sourced by shells, cron jobs, or Kelpie-managed executions.
 Existing processes are not updated automatically.
 
+Return value:
+
+- Exit code `0` when the value is written to the remote Kelpie env file.
+- Standard output confirms the persisted key and backup/write operation without printing secret values.
+- Standard error contains validation, policy, SSH, or remote write errors.
+
 ### `kelpie env remove <profile> <key>`
 
 Removes one environment variable from the remote Kelpie env file.
@@ -230,6 +321,11 @@ Before writing, Kelpie creates a timestamped `.kelpie` backup.
 This command requires `AllowSetEnvironmentValues` in `Capabilities`.
 The requested key must be listed in `EnvironmentValues` with `SetCommon` or `SetSecret`.
 
+Return value:
+
+- Exit code `0` when the key is removed or the remote env file is updated successfully.
+- Standard output confirms the removed key and backup/write operation without printing secret values.
+
 ### `kelpie cli`
 
 Switches Kelpie to CLI mode.
@@ -238,6 +334,11 @@ Switches Kelpie to CLI mode.
 kelpie cli
 ```
 
+Return value:
+
+- Exit code `0` when CLI mode is selected.
+- Standard output confirms the mode change.
+
 ### `kelpie gui`
 
 Starts or switches to GUI mode when a GUI frontend is available.
@@ -245,6 +346,11 @@ Starts or switches to GUI mode when a GUI frontend is available.
 ```powershell
 kelpie gui
 ```
+
+Return value:
+
+- Exit code `0` when GUI mode is selected or the GUI frontend is started.
+- Standard output contains a user-facing status message.
 
 ### `kelpiemcp start`
 
@@ -262,6 +368,12 @@ Example when the Windows Service is registered:
 Windows Service start requested: KelpieMCPServer
 ```
 
+Return value:
+
+- Exit code `0` when the start request is accepted.
+- Standard output reports whether a Windows Service start was requested or a local process was started.
+- Standard error contains startup failures, including service-control failures.
+
 ### `kelpiemcp stop`
 
 Stops the local MCP server process.
@@ -269,6 +381,11 @@ Stops the local MCP server process.
 ```powershell
 kelpiemcp stop
 ```
+
+Return value:
+
+- Exit code `0` when the stop request is sent successfully.
+- Standard output contains a stop confirmation when available.
 
 ### `kelpiemcp status`
 
@@ -295,6 +412,11 @@ KelpieMCPServer: stopped
 Registered as Windows service: yes
 ```
 
+Return value:
+
+- Exit code `0` when status is printed.
+- Standard output contains MCP process status, endpoint URLs when running, control pipe name when available, and Windows Service registration state.
+
 ### `kelpiemcp service register`
 
 Registers `KelpieMCPServer` as an automatic-start Windows Service and sets its service description. Run from a terminal running as administrator.
@@ -302,6 +424,12 @@ Registers `KelpieMCPServer` as an automatic-start Windows Service and sets its s
 ```powershell
 kelpiemcp service register
 ```
+
+Return value:
+
+- Exit code `0` when Windows Service registration succeeds.
+- Standard output contains the service-control result.
+- Standard error contains Windows Service registration errors.
 
 ### `kelpiemcp service unregister`
 
@@ -311,6 +439,12 @@ Unregisters the `KelpieMCPServer` Windows Service. Stop the service before unreg
 kelpiemcp service unregister
 ```
 
+Return value:
+
+- Exit code `0` when Windows Service unregistration succeeds.
+- Standard output contains the service-control result.
+- Standard error contains Windows Service unregistration errors.
+
 ### `kelpiemcp service status`
 
 Shows whether the `KelpieMCPServer` Windows Service is registered.
@@ -318,6 +452,11 @@ Shows whether the `KelpieMCPServer` Windows Service is registered.
 ```powershell
 kelpiemcp service status
 ```
+
+Return value:
+
+- Exit code `0` when service status is printed.
+- Standard output reports whether the Windows Service is registered.
 
 ### `kelpiemcp password <profile>`
 
@@ -329,6 +468,12 @@ kelpiemcp password vps01
 
 Passwords must not be stored in JSON files.
 
+Return value:
+
+- Exit code `0` when the password is accepted by the running MCP server session.
+- Standard output confirms that a password session was stored.
+- The password itself is never returned.
+
 ### `kelpiemcp forget <profile>`
 
 Clears the in-memory password session for a profile.
@@ -336,6 +481,12 @@ Clears the in-memory password session for a profile.
 ```powershell
 kelpiemcp forget vps01
 ```
+
+Return value:
+
+- Exit code `0` when the running MCP server clears or accepts the clear request for the profile.
+- Standard output confirms the password session cleanup.
+- The previous password value is never returned.
 
 ## Safety Notes
 
