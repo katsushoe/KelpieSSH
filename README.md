@@ -278,6 +278,20 @@ kelpie logs vps01 nginx.service 200
 
 `kelpie login`, `kelpie diag`, and `kelpie logs` run SSH operations directly from the CLI process. For password profiles, the CLI asks for the password at runtime and keeps it only in the current command process. `kelpie status` can also report whether the local MCP server is running, but the server is not required for the command-line tools above.
 
+## Contributing
+
+Contributions are welcome. For small fixes such as documentation updates, typo fixes, tests, and narrow bug fixes, feel free to open a pull request.
+
+For larger changes, new commands, security-related behavior, SSH policy changes, MCP tool changes, or changes that affect compatibility, please open an issue first so the scope and safety requirements can be discussed before implementation.
+
+When reporting issues, do not include real host names, user names, passwords, passphrases, private keys, production profile files, or raw logs that may contain secrets.
+
+## Contact
+
+For project questions, contribution discussions, and non-sensitive support inquiries, use GitHub Issues when possible.
+
+For direct contact, email [shoe0604@akatsukisoft.com](mailto:shoe0604@akatsukisoft.com).
+
 ## Security
 
 KelpieSSH is designed to start with read-oriented diagnostics and allow-list based SSH command execution.
@@ -286,7 +300,7 @@ Do not commit real host names, user names, passwords, passphrases, private keys,
 
 Password authentication is runtime-only. CLI SSH commands ask for the password for the current command process, and `kelpiemcp password <profile>` stores it only in the running `KelpieMCPServer` process. Plain text passwords must not be stored in JSON configuration files.
 
-For vulnerability reporting and supported-version guidance, see [SECURITY.md](SECURITY.md).
+Do not report vulnerabilities or secret-bearing details in public issues. For vulnerability reporting and supported-version guidance, see [SECURITY.md](SECURITY.md).
 
 ## License
 
