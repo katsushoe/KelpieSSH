@@ -1492,7 +1492,7 @@ kelpie -v
 実行結果サンプル:
 
 ```text
-kelpie 0.1.3.3
+kelpie 0.2.0.0
 ```
 
 ### `kelpie help`
