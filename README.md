@@ -2,7 +2,7 @@
 
 KelpieSSH is a local MCP server for safely assisting VPS diagnostics and maintenance over SSH.
 
-Japanese documentation is available in [docs/ja/README.ja.md](docs/ja/README.ja.md).
+Japanese documentation is available in [README.ja.md](README.ja.md).
 
 Command details are documented in [COMMANDS.md](COMMANDS.md).
 
@@ -48,7 +48,7 @@ kelpie version
 Expected output:
 
 ```text
-kelpie 0.3.1.0
+kelpie 0.3.1.1
 ```
 
 #### 2. Initializing Kelpie home and creating a profile
@@ -139,6 +139,7 @@ D:\Kelpie
 ├─ config_samples
 ├─ docs
 ├─ README.md
+├─ README.ja.md
 ├─ COMMANDS.md
 ├─ CONFIG.md
 ├─ MCP_GUIDE.md
@@ -169,7 +170,7 @@ kelpie version
 Expected output:
 
 ```text
-kelpie 0.3.1.0
+kelpie 0.3.1.1
 ```
 
 If you do not want to update `PATH`, keep using full paths such as `D:\Kelpie\bin\kelpie.exe`.

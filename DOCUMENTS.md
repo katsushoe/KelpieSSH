@@ -1,12 +1,12 @@
 # DOCUMENTS.md Version
-2026.06.17
+2026.06.18
 
 This file is the public source of truth for KelpieSSH Git-managed public document locations.
 
 ## Placement Policy
 
 - Public, Git-managed documentation is placed at the repository root, `docs/`, or the relevant feature directory.
-- Japanese public documentation is placed under `docs/ja/`.
+- Japanese public documentation is placed under `docs/ja/`, except `README.ja.md`, which is kept at the repository root next to `README.md`.
 - Private or Git-ignored internal documents are intentionally not listed in this public file.
 - Public documentation must not link to private or Git-ignored internal documents.
 - Generated artifacts are not documented here unless they are Git-managed public deliverables.
@@ -29,7 +29,8 @@ This file is the public source of truth for KelpieSSH Git-managed public documen
 
 | Document | Canonical Path | Git Managed | Purpose |
 | :--- | :--- | :--- | :--- |
-| `README.md` | `README.md` | Yes | Public entry point, setup, usage, security, and license overview. Japanese version is under `docs/ja/`. |
+| `README.md` | `README.md` | Yes | Public entry point, setup, usage, security, and license overview. |
+| `README.ja.md` | `README.ja.md` | Yes | Japanese public entry point kept next to `README.md` so both documents are updated together. |
 | `DOCUMENTS.md` | `DOCUMENTS.md` | Yes | Directory and document canonical-location index. |
 | `COMMANDS.md` | `COMMANDS.md` | Yes | Public terminal CLI command reference. Japanese version is under `docs/ja/`. |
 | `MCP_COMMANDS.md` | `MCP_COMMANDS.md` | Yes | Public MCP callable tool reference. Japanese version is under `docs/ja/`. |
@@ -51,3 +52,4 @@ Do not add private document names, private document paths, real-environment note
 ## Update Rule
 
 When adding, removing, renaming, or moving any Git-managed public document, update this file in the same change.
+When updating `README.md`, update `README.ja.md` in the same change, and keep both entry documents aligned in section coverage and release-facing setup information.

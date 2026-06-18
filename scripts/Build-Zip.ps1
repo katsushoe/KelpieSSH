@@ -80,6 +80,7 @@ Copy-Directory (Join-Path $repoRoot "docs") (Join-Path $filesRoot "docs")
 
 $documentFiles = @(
     "README.md",
+    "README.ja.md",
     "COMMANDS.md",
     "CONFIG.md",
     "PROFILE_GUIDE.md",
