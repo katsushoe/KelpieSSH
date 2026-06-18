@@ -241,7 +241,7 @@ kelpiemcp forget vps01
 | `WebPublicSites.<siteKey>.SiteKey` | object form では no | string | dictionary key | Array item では必須。空不可。 |
 | `WebPublicSites.<siteKey>.DisplayName` | no | string | `siteKey` | 表示用 site label。 |
 | `WebPublicSites.<siteKey>.Root` / `RootPath` | yes | string | none | 安全な absolute Unix web root path。`RootPath` は別名で、サンプルでは `Root` を推奨します。 |
-| `WebPublicSites.<siteKey>.AllowedExtensions` | no | string array | built-in safe static extensions | `.html` のような先頭ドット付き明示拡張子。実行可能 Web 拡張子向けではありません。 |
+| `WebPublicSites.<siteKey>.AllowedExtensions` | no | string array | built-in safe static extensions | 有効な値は `.html` や `.png` のような、先頭ドット付きの単一ファイル拡張子です。大文字小文字は区別しません。通常の Web 公開ファイル向けだけに使い、path、glob、MIME type、実行可能拡張子は指定しません。 |
 | `WebPublicSites.<siteKey>.WritableExecutableExtensions` | no | string array | empty | `.php` のような先頭ドット付き実行可能拡張子。ワイルドカードと path separator は拒否されます。 |
 | `WebPublicSites.<siteKey>.AllowedContentTypes` | no | string array or dictionary object | built-in safe content types | Array は read/write を許可。Object は MIME type から access expression への map。 |
 | `WebPublicSites.<siteKey>.AllowedFiles` | no | dictionary object | empty | Key は file glob、`file:<glob>`、または `mime:<content-type>`。値は access expression。 |
@@ -704,12 +704,14 @@ Service-specific defaults です。
 | Field | Required | Description |
 | :--- | :---: | :--- |
 | `WebPublicSites.<siteKey>.Root` / `RootPath` | yes | そのサイトの Web 公開ルート。 |
-| `WebPublicSites.<siteKey>.AllowedExtensions` | no | このサイトで許可する通常ファイルの拡張子。`.html` や `.png` のように先頭ドット付きで列挙します。未設定または空の場合は、Kelpie 組み込みの安全な静的ファイル拡張子リストを使います。 |
+| `WebPublicSites.<siteKey>.AllowedExtensions` | no | このサイトで許可する通常ファイルの拡張子。有効な値は `.html` や `.png` のような、先頭ドット付きの単一ファイル拡張子です。大文字小文字は区別しません。path、glob、MIME type、実行可能拡張子は指定しません。未設定または空の場合は、Kelpie 組み込みの安全な静的ファイル拡張子リストを使います。 |
 | `WebPublicSites.<siteKey>.WritableExecutableExtensions` | no | このサイトだけで書き込みを許可する実行可能拡張子。`.php` のように先頭ドット付きで列挙します。ワイルドカードは拒否されます。 |
 
 注意:
 
 - `AllowedExtensions` は HTML、CSS、JavaScript、画像、テキスト、JSON、XML、アーカイブなど通常の Web 公開ファイル向けです。`.php` のような実行可能な Web 拡張子は許可しません。
+- 組み込みの安全な静的ファイル拡張子は `.html`, `.htm`, `.css`, `.js`, `.mjs`, `.txt`, `.json`, `.xml`, `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.svg`, `.ico`, `.zip`, `.gz`, `.tgz`, `.tar`, `.bz2`, `.xz`, `.br` です。
+- 実行可能またはバイナリコードとして拒否される拡張子は `.php`, `.cgi`, `.pl`, `.py`, `.rb`, `.sh`, `.bash`, `.exe`, `.dll`, `.so`, `.jar`, `.war` です。明示的に許可する実行可能 Web 拡張子だけを `WritableExecutableExtensions` に指定します。
 - `WritableExecutableExtensions` が未設定または空の場合、実行可能ファイルの書き込みは従来どおり拒否されます。
 - `WritableExecutableExtensions` に列挙した拡張子は、書き込み時に限り `AllowedExtensions` へ重複して書かなくても許可対象になります。
 - この設定は書き込み判定だけに効きます。読み取り判定、パストラバーサル拒否、ドットファイル拒否、秘密ファイル拒否、サイズ上限、MIME type 判定は従来どおり適用されます。

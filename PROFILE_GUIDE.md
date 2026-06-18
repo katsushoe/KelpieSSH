@@ -240,7 +240,7 @@ kelpiemcp forget vps01
 | `WebPublicSites.<siteKey>.SiteKey` | no in object form | string | dictionary key | Required for array items. Must not be empty. |
 | `WebPublicSites.<siteKey>.DisplayName` | no | string | `siteKey` | Human-readable site label. |
 | `WebPublicSites.<siteKey>.Root` / `RootPath` | yes | string | none | Safe absolute Unix web root path. `RootPath` is the alias; prefer `Root` in samples. |
-| `WebPublicSites.<siteKey>.AllowedExtensions` | no | string array | built-in safe static extensions | Dot-prefixed explicit extensions such as `.html`; not for executable web extensions. |
+| `WebPublicSites.<siteKey>.AllowedExtensions` | no | string array | built-in safe static extensions | Effective values are explicit single file extensions with a leading dot, matched case-insensitively, such as `.html` or `.png`. Use normal web asset extensions only. Do not use paths, globs, MIME types, or executable extensions. |
 | `WebPublicSites.<siteKey>.WritableExecutableExtensions` | no | string array | empty | Dot-prefixed explicit executable extensions such as `.php`. Wildcards and path separators are rejected. |
 | `WebPublicSites.<siteKey>.AllowedContentTypes` | no | string array or dictionary object | built-in safe content types | Array grants read/write. Object maps MIME type to access expression. |
 | `WebPublicSites.<siteKey>.AllowedFiles` | no | dictionary object | empty | Keys are file globs, `file:<glob>`, or `mime:<content-type>`. Values are access expressions. |
@@ -704,12 +704,14 @@ Example:
 | Field | Required | Description |
 | :--- | :---: | :--- |
 | `WebPublicSites.<siteKey>.Root` / `RootPath` | yes | Web public root for the site. |
-| `WebPublicSites.<siteKey>.AllowedExtensions` | no | Regular file extensions allowed for this site. Values are explicit dot-prefixed extensions such as `.html` or `.png`. If omitted or empty, Kelpie uses its built-in safe static-file extension list. |
+| `WebPublicSites.<siteKey>.AllowedExtensions` | no | Regular file extensions allowed for this site. Effective values are explicit single file extensions with a leading dot, such as `.html` or `.png`. Matching is case-insensitive. Do not specify paths, globs, MIME types, or executable extensions here. If omitted or empty, Kelpie uses its built-in safe static-file extension list. |
 | `WebPublicSites.<siteKey>.WritableExecutableExtensions` | no | Executable extensions allowed for writes on this site only. Values must be explicit dot-prefixed extensions such as `.php`; wildcards are rejected. |
 
 Notes:
 
 - `AllowedExtensions` is for normal web assets such as HTML, CSS, JavaScript, images, text, JSON, XML, and archives. It does not allow executable web extensions such as `.php`.
+- Built-in safe static extensions are `.html`, `.htm`, `.css`, `.js`, `.mjs`, `.txt`, `.json`, `.xml`, `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.svg`, `.ico`, `.zip`, `.gz`, `.tgz`, `.tar`, `.bz2`, `.xz`, and `.br`.
+- Extensions denied as executable or binary code are `.php`, `.cgi`, `.pl`, `.py`, `.rb`, `.sh`, `.bash`, `.exe`, `.dll`, `.so`, `.jar`, and `.war`. Put only explicitly approved executable web extensions in `WritableExecutableExtensions`.
 - Unset or empty `WritableExecutableExtensions` keeps the default executable-file write denial.
 - If an extension is listed in `WritableExecutableExtensions`, write checks do not require the same extension to be listed in `AllowedExtensions`.
 - The setting applies only to write checks. Read checks, traversal denial, dotfile denial, secret file denial, size limits, and content type checks still apply.
