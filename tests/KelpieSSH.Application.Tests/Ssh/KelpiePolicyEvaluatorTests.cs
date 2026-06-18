@@ -46,11 +46,29 @@ public sealed class KelpiePolicyEvaluatorTests
             .WithMessage("KelpiePolicyError: AllowInstallPackage is required for command: pkg_install");
     }
 
-    [Fact]
-    public void EnsureAllowed_ShouldRejectSudoCommandThroughMcpInMaintenanceMode()
+    [Theory]
+    [InlineData("pkg_install", "sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y nginx")]
+    [InlineData("pkg_remove", "sudo -n env DEBIAN_FRONTEND=noninteractive apt-get remove -y nginx")]
+    public void EnsureAllowed_ShouldAllowSudoPackageMaintenanceThroughMcpInMaintenanceMode(
+        string commandName,
+        string commandText)
     {
         var evaluator = KelpiePolicyEvaluator.Default;
         var profile = CreateProfile(KelpiePolicyMode.Maintenance, PolicySet.Empty);
+        var command = CreateCommand(commandName, commandText, SshCommandRiskLevel.ConfirmRequired);
+
+        var action = () => evaluator.EnsureAllowed(profile, command, command.CommandTemplate, KelpieExecutionChannel.Mcp);
+
+        action.Should().NotThrow();
+    }
+
+    [Theory]
+    [InlineData(KelpiePolicyMode.ReadOnly)]
+    [InlineData(KelpiePolicyMode.Safe)]
+    public void EnsureAllowed_ShouldRejectSudoPackageInstallThroughMcpWithoutMaintenanceOrExpertMode(KelpiePolicyMode mode)
+    {
+        var evaluator = KelpiePolicyEvaluator.Default;
+        var profile = CreateProfile(mode, PolicySet.Empty);
         var command = CreateCommand("pkg_install", "sudo -n dnf install -y nginx", SshCommandRiskLevel.ConfirmRequired);
 
         var action = () => evaluator.EnsureAllowed(profile, command, command.CommandTemplate, KelpieExecutionChannel.Mcp);

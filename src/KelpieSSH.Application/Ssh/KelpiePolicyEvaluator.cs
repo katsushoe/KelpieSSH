@@ -93,6 +93,7 @@ public sealed class KelpiePolicyEvaluator
                 KelpiePolicyNames.AllowUpdatePackageIndex,
                 KelpiePolicyNames.AllowInstallPackage,
                 KelpiePolicyNames.AllowRemovePackage,
+                KelpiePolicyNames.AllowSudo,
             ],
             KelpiePolicyMode.Expert => GetExpertPolicyNames(channel),
             _ => [],
