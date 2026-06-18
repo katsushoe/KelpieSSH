@@ -7,6 +7,14 @@
 
 `kelpie.json` や `kelpiemcp.json` などの全体設定は [CONFIG.ja.md](CONFIG.ja.md) を参照してください。
 
+## Profile の安全責任
+
+Profile は、KelpieSSH がどのサーバーへ接続し、どの remote path、user、policy、service、Web root を操作できるかを定義します。Profile の編集は security-sensitive な変更として扱ってください。
+
+Profile は、自分が所有している、または管理権限を持つシステムに対してのみ使用してください。Profile を trust または reload する前に、接続先 host、SSH user、認証設定、mode、allowed roots、special path rules、web public sites、writable executable extensions を確認してください。
+
+本番環境で profile を使う前に、同じ profile 構成を安全な環境で検証し、重要なサーバーとデータには復元可能な backup を用意してください。KelpieSSH の policy check はリスクを下げますが、運用者による確認、backup、復旧計画の代替にはなりません。
+
 ## Profile とは
 
 SSH profile は、保存済み SSH 接続設定です。
@@ -1354,6 +1362,10 @@ Object form のサンプル:
 - `Platform.OsFamily` が target OS に合っている。
 - `AllowedRoots` が意図した path だけを含んでいる。
 - sensitive paths は `SpecialPaths` で deny している。
+- `WebPublicSites` と `WritableExecutableExtensions` は、KelpieSSH に管理させる意図がある Web root と実行可能 file type だけを指定している。
+- 対象システムは自分が所有している、または明示的な管理権限を持っている。
+- write、package、service、permission、configuration 操作を使う前に、重要なサーバーとデータの復元可能な backup がある。
+- 本番環境へ反映する前に、安全な環境で変更を検証している。
 
 ## Troubleshooting
 

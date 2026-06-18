@@ -29,6 +29,12 @@ KelpieSSH is intended to assist VPS diagnostics and maintenance over SSH while k
 ## User Responsibilities
 
 - Review generated profile files before connecting to a server.
+- Use KelpieSSH only on systems you own or are authorized to manage.
 - Keep private keys and real profile files outside the public repository.
 - Use the least-privileged SSH user that can perform the required diagnostics.
+- Review profiles, permissions, confirmation strings, command scopes, target hosts, and expected changes before allowing operations that may modify remote state.
+- Test maintenance, package, service, web file, permission, and configuration changes in a safe environment before applying them to production systems.
+- Keep restorable backups for important servers and data. KelpieSSH safety checks reduce risk, but they do not replace backups, change review, or operational recovery planning.
 - Keep `config/`, `profiles/`, `keys/`, `dat/`, and `logs/` in a local Kelpie home directory, not in the source repository.
+
+KelpieSSH is provided as-is, without warranties of any kind. The authors and contributors are not responsible for data loss, service outage, security incidents, configuration damage, business interruption, or any other damage caused by use or misuse of the software.

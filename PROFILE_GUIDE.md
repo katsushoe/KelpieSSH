@@ -7,6 +7,14 @@ For Japanese documentation, see [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GU
 
 General configuration files such as `kelpie.json` and `kelpiemcp.json` are documented in [CONFIG.md](CONFIG.md).
 
+## Profile Safety Responsibilities
+
+Profiles define what KelpieSSH may connect to and what remote paths, users, policies, services, and web roots it may operate on. Treat profile edits as security-sensitive changes.
+
+Use profiles only for systems you own or are authorized to manage. Review the target host, SSH user, authentication settings, mode, allowed roots, special path rules, web public sites, and writable executable extensions before trusting or reloading a profile.
+
+Before using a profile against production systems, test the same profile shape in a safe environment and keep restorable backups for important servers and data. KelpieSSH policy checks reduce risk, but they do not replace operator review, backups, or recovery planning.
+
 ## What Is a Profile?
 
 An SSH profile is one saved SSH connection setting.
@@ -1354,6 +1362,10 @@ Before connecting:
 - `Platform.OsFamily` matches the target OS.
 - `AllowedRoots` includes only paths you intend KelpieSSH to operate on.
 - Sensitive paths are denied with `SpecialPaths`.
+- `WebPublicSites` and `WritableExecutableExtensions` are set only for web roots and executable file types you intentionally allow KelpieSSH to manage.
+- The target system is owned by you or you have explicit authorization to manage it.
+- Important servers and data have restorable backups before using write, package, service, permission, or configuration operations.
+- Production changes have been tested in a safe environment first.
 
 ## Troubleshooting
 
