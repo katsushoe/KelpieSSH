@@ -370,6 +370,16 @@ Password authentication is runtime-only. CLI SSH commands ask for the password f
 
 Do not report vulnerabilities or secret-bearing details in public issues. For vulnerability reporting and supported-version guidance, see [SECURITY.md](SECURITY.md).
 
+## Disclaimer
+
+KelpieSSH is provided as-is, without warranties of any kind.
+
+KelpieSSH can execute operations that may change server configuration, packages, services, files, permissions, and other system state. You are responsible for reviewing profiles, permissions, confirmations, commands, target hosts, and backups before using the software.
+
+The authors and contributors are not responsible for data loss, service outage, security incidents, configuration damage, business interruption, or any other damage caused by use or misuse of KelpieSSH.
+
+Use KelpieSSH only on systems you own or are authorized to manage. Test changes in a safe environment before applying them to production systems, and keep restorable backups for important servers and data.
+
 ## License
 
 KelpieSSH is released under the Apache License 2.0. See [LICENSE](LICENSE).
