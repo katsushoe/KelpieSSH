@@ -15,7 +15,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | [MCP Windows Service](#mcp-windows-service) | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Register, unregister, and inspect the Windows Service entry. |
 | [MCP password session](#mcp-password-session) | `kelpiemcp password`, `kelpiemcp forget`, `kelpiemcp login`, `kelpiemcp logout` | Store or clear an SSH password in the running MCP server session. |
 | [Initialization](#initialization) | `kelpie init [--silent] [profile]` | Create the local Kelpie home directory layout and sample configuration files. |
-| [Profile/session](#profilesession) | `kelpie profile create`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | Create profile templates, select profiles, and manage interactive SSH sessions. |
+| [Profile/session](#profilesession) | `kelpie profile create`, `kelpie profile edit`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | Create and edit profile templates, select profiles, and manage interactive SSH sessions. |
 | [Mode/UI](#modeui) | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | Switch CLI/GUI mode or choose a temporary launch mode. |
 | [Diagnostics](#diagnostics) | `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | Show profile information, MCP server status, SSH diagnostics, and service logs. |
 | [Environment](#environment) | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | List, read, temporarily set, or persist remote environment variables under profile policy. |
@@ -710,6 +710,7 @@ Commands in this group:
 
 - [`kelpie profiles`](#kelpie-profiles)
 - [`kelpie profile create <profile>`](#kelpie-profile-create-profile)
+- [`kelpie profile edit <profile>`](#kelpie-profile-edit-profile)
 - [`kelpie profile show <profile>`](#kelpie-profile-show-profile)
 - [`kelpie open <profile>`](#kelpie-open-profile)
 - [`kelpie login`](#kelpie-login)
@@ -804,6 +805,65 @@ Existing profile sample:
 
 ```text
 SSH profile already exists: vps02
+```
+
+#### `kelpie profile edit <profile>`
+
+Edits an existing SSH profile JSON file.
+Without an edit operation, the command opens the configured editor and validates the profile after the editor exits.
+
+```powershell
+kelpie profile edit vps02
+kelpie profile edit vps02 set Host.Port 2224
+kelpie profile edit vps02 set Users.kelpie.Mode "Maintenance|WebUser|WebAdmin"
+kelpie profile edit vps02 add-root /etc/nginx ReadWrite
+kelpie profile edit vps02 rm-root /etc/nginx
+kelpie profile edit vps02 add-deny "**/.htpasswd"
+kelpie profile edit vps02 rm-deny "**/.htpasswd"
+```
+
+Arguments:
+
+| Argument | Required | Description |
+| :--- | :---: | :--- |
+| `<profile>` | yes | SSH profile name. The file is resolved from the configured Kelpie home `profiles/` directory. |
+| `<dotPath>` | for `set` | Scalar path to update. Supported values are `Host.Address`, `Host.Port`, `Auth.Method`, `Auth.PrivateKeyFile`, `Auth.PasswordSecretName`, `DefaultUser`, `Users.<user>.Mode`, `Platform.OsFamily`, and `Platform.PackageManager`. |
+| `<value>` | for `set` | New scalar value. `Host.Port` must be an integer from `1` to `65535`. |
+| `<path>` | for `add-root` / `rm-root` | Allowed root path or glob. |
+| `<access>` | for `add-root` | `ReadOnly`, `ReadWrite`, `$ReadOnly`, or `$ReadWrite`. The value is normalized to the `$...` form. |
+| `<pattern>` | for `add-deny` / `rm-deny` | Special path glob pattern. Patterns may contain dots, such as `**/.htpasswd`. |
+
+Processing:
+
+- `set` only accepts scalar paths. Object, dictionary, and array paths are rejected; use `add-root`, `rm-root`, `add-deny`, or `rm-deny` for dictionary settings.
+- `add-root`, `rm-root`, `add-deny`, and `rm-deny` edit the default user's rule object when `Users.<DefaultUser>` is an object; otherwise they edit the profile-level object.
+- The full profile is reloaded and validated before any non-editor update is written.
+- Non-editor updates are written with a temporary file followed by replace, using UTF-8 without BOM and LF line endings.
+- Editor mode resolves the editor from `config/kelpie.json` `editor`, `KELPIE_EDITOR`, `VISUAL`, `EDITOR`, then OS default (`notepad` on Windows, `vi` on Unix).
+- Editor mode waits for the editor process to exit. Editors that return immediately should be configured with a wait option, for example `"editor": "code --wait"`.
+- If editor validation fails, the user can re-edit or abort. Abort restores the original file content.
+- Editor mode requires an interactive console and fails when input is redirected.
+
+Return value:
+
+- Exit code `0` when the profile is updated and validated.
+- Non-zero exit code when the profile is missing, the path or value is invalid, profile validation fails, editor launch fails, or editor mode is used non-interactively.
+- Standard output contains the updated profile name and resolved profile file path.
+- Standard error contains validation and editor errors.
+- Secrets, private keys, passphrases, and raw password values are not printed.
+
+Execution result sample:
+
+```text
+Updated profile: vps02
+Profile file: D:\Kelpie\profiles\vps02.json
+```
+
+Missing profile sample:
+
+```text
+SSH profile was not found: vps02
+Use `kelpie profile create vps02` to create it.
 ```
 
 #### `kelpie profile show <profile>`

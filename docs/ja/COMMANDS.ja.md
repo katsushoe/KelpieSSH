@@ -15,7 +15,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | MCP password session | `kelpiemcp password`, `kelpiemcp forget` | 起動中の MCP server に SSH パスワードを一時保存、削除する。 |
 | Compatibility | `kelpiemcp login`, `kelpiemcp logout` | 旧名互換。新規利用では `password` / `forget` を使う。 |
 | Initialization | `kelpie init [--silent] [profile]` | `KelpieHome` 配下の初期ディレクトリとサンプル設定を作成する。 |
-| Profile/session | `kelpie profile create`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイルひな形作成、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
+| Profile/session | `kelpie profile create`, `kelpie profile edit`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイルひな形作成・編集、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
 | Mode/UI | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | CLI/GUI モードや一時的な起動方式を切り替える。 |
 | Diagnostics | `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | プロファイル情報、MCP server 状態、SSH 診断、サービスログを表示する。 |
 | Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | profile policy に従って remote 環境変数の key 表示、値参照、一時設定、永続化を行う。 |
@@ -1058,6 +1058,66 @@ Profile file: D:\Kelpie\profiles\vps02.json
 SSH profile already exists: vps02
 ```
 
+### `kelpie profile edit <profile>`
+
+目的:
+
+既存の SSH profile JSON を編集します。操作を指定しない場合は設定済みエディタで profile を開き、エディタ終了後に再パースと検証を行います。
+
+構文:
+
+```powershell
+kelpie profile edit vps02
+kelpie profile edit vps02 set Host.Port 2224
+kelpie profile edit vps02 set Users.kelpie.Mode "Maintenance|WebUser|WebAdmin"
+kelpie profile edit vps02 add-root /etc/nginx ReadWrite
+kelpie profile edit vps02 rm-root /etc/nginx
+kelpie profile edit vps02 add-deny "**/.htpasswd"
+kelpie profile edit vps02 rm-deny "**/.htpasswd"
+```
+
+引数詳細:
+
+- `profile`: 編集する profile 名。現在の `KelpieHome/profiles` から解決します。
+- `dotPath`: `set` で更新する scalar path。許可値は `Host.Address`、`Host.Port`、`Auth.Method`、`Auth.PrivateKeyFile`、`Auth.PasswordSecretName`、`DefaultUser`、`Users.<user>.Mode`、`Platform.OsFamily`、`Platform.PackageManager` です。
+- `value`: `set` の新しい値。`Host.Port` は `1` から `65535` の整数です。
+- `path`: `add-root` / `rm-root` の allowed root path または glob です。
+- `access`: `add-root` の権限。`ReadOnly`、`ReadWrite`、`$ReadOnly`、`$ReadWrite` を受け付け、`$...` 形式へ正規化します。
+- `pattern`: `add-deny` / `rm-deny` の special path glob です。`**/.htpasswd` のように dot を含む pattern も扱えます。
+
+処理内容:
+
+- `set` は scalar path のみを更新します。object、dictionary、array に相当する path は拒否し、`add-root` / `rm-root` / `add-deny` / `rm-deny` の利用を案内します。
+- `add-root`、`rm-root`、`add-deny`、`rm-deny` は `Users.<DefaultUser>` が object の場合はその user-level 設定を編集し、それ以外は profile 直下の設定を編集します。
+- 非エディタ操作では、書き込み前に profile 全体を既存 loader/parser で再検証します。検証に失敗した場合は書き込みません。
+- 非エディタ操作の書き込みは temp file からの置換で行い、UTF-8 BOMなし、LF 改行で保存します。
+- エディタは `config/kelpie.json` の `editor`、`KELPIE_EDITOR`、`VISUAL`、`EDITOR`、OS既定（Windows は `notepad`、Unix は `vi`）の順に解決します。
+- エディタ起動は終了待ちします。`code` など即時終了するエディタは `"editor": "code --wait"` のように待機オプション付きで設定します。
+- エディタ終了後の検証に失敗した場合は、再編集または中止を選べます。中止すると元内容へ戻します。
+- エディタモードは対話コンソール専用です。標準入力リダイレクト中はエラーにします。
+
+戻り値:
+
+- exit code `0`: profile を更新し、検証に成功した。
+- exit code non-zero: profile 不存在、path または値の不正、profile 検証失敗、エディタ起動失敗、または非対話でのエディタモード実行。
+- standard output: 更新した profile 名と解決済み profile file path。
+- standard error: 検証エラーまたはエディタエラー。
+- 秘密鍵、パスフレーズ、パスワード実値は表示しません。
+
+実行結果サンプル:
+
+```text
+Updated profile: vps02
+Profile file: D:\Kelpie\profiles\vps02.json
+```
+
+profile が存在しない場合:
+
+```text
+SSH profile was not found: vps02
+Use `kelpie profile create vps02` to create it.
+```
+
 ### `kelpie profile show <profile>`
 
 目的:
@@ -1492,7 +1552,7 @@ kelpie -v
 実行結果サンプル:
 
 ```text
-kelpie 0.2.0.1
+kelpie 0.3.0.0
 ```
 
 ### `kelpie help`
@@ -1537,6 +1597,12 @@ Usage:
   kelpie sessions
   kelpie kill <handle>
   kelpie profile create <profile>
+  kelpie profile edit <profile>
+  kelpie profile edit <profile> set <dotPath> <value>
+  kelpie profile edit <profile> add-root <path> <access>
+  kelpie profile edit <profile> rm-root <path>
+  kelpie profile edit <profile> add-deny <pattern>
+  kelpie profile edit <profile> rm-deny <pattern>
   kelpie profile show <profile>
   kelpie status <profile>
   kelpie diag <profile>

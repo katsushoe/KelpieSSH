@@ -63,12 +63,31 @@ Important values:
 | `Server:ControlPipeName` | Local named pipe used by `kelpie` / `kelpiemcp` to control the server. |
 | `Commands:ExecutablePath` | Optional explicit `kelpie` command path. |
 | `Commands:WorkingDirectory` | Optional command working directory. |
+| `editor` | Optional editor command used by `kelpie profile edit <profile>` editor mode. Arguments are allowed. |
 
 Minimal example:
 
 ```json
 {
-  "LogDirectory": "D:\\Kelpie\\logs"
+  "LogDirectory": "D:\\Kelpie\\logs",
+  "editor": ""
+}
+```
+
+`kelpie profile edit <profile>` resolves the editor in this order:
+
+1. `config/kelpie.json` `editor`
+2. `KELPIE_EDITOR`
+3. `VISUAL`
+4. `EDITOR`
+5. OS default: `notepad` on Windows, `vi` on Unix
+
+The editor process is started in blocking mode and Kelpie waits for it to exit before validating the profile.
+Editors that normally return immediately must be configured with a wait option, for example:
+
+```json
+{
+  "editor": "code --wait"
 }
 ```
 

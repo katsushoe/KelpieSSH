@@ -270,6 +270,10 @@ public static class KelpieHomeInitializer
                 var profileOperations = GetOrCreateObject(node, "ProfileOperations", ref updated);
                 updated |= SetProfileOperationDefaults(profileOperations);
             }
+            else
+            {
+                updated |= SetStringIfMissing(node, "editor", string.Empty);
+            }
 
             if (!updated)
             {
@@ -324,6 +328,17 @@ public static class KelpieHomeInitializer
         return true;
     }
 
+    private static bool SetStringIfMissing(JsonObject node, string propertyName, string value)
+    {
+        if (node.ContainsKey(propertyName))
+        {
+            return false;
+        }
+
+        node[propertyName] = value;
+        return true;
+    }
+
     private static bool SetIntIfMissingOrInvalid(JsonObject node, string propertyName, int value)
     {
         if (node[propertyName] is JsonValue jsonValue
@@ -359,6 +374,7 @@ public static class KelpieHomeInitializer
         return Serialize(new
         {
             LogDirectory = paths.LogsDirectory,
+            editor = string.Empty,
         });
     }
 

@@ -1,3 +1,4 @@
 {
-  "LogDirectory": "/path/to/kelpieHome/logs"
+  "LogDirectory": "/path/to/kelpieHome/logs",
+  "editor": ""
 }

@@ -176,10 +176,22 @@ if (string.Equals(command, "profile", StringComparison.OrdinalIgnoreCase))
         return;
     }
 
+    if (string.Equals(subcommand, "edit", StringComparison.OrdinalIgnoreCase))
+    {
+        RunProfileEdit(args);
+        return;
+    }
+
     if (!string.Equals(subcommand, "show", StringComparison.OrdinalIgnoreCase))
     {
         Console.Error.WriteLine("Usage:");
         Console.Error.WriteLine("  kelpie profile create <profile>");
+        Console.Error.WriteLine("  kelpie profile edit <profile>");
+        Console.Error.WriteLine("  kelpie profile edit <profile> set <dotPath> <value>");
+        Console.Error.WriteLine("  kelpie profile edit <profile> add-root <path> <access>");
+        Console.Error.WriteLine("  kelpie profile edit <profile> rm-root <path>");
+        Console.Error.WriteLine("  kelpie profile edit <profile> add-deny <pattern>");
+        Console.Error.WriteLine("  kelpie profile edit <profile> rm-deny <pattern>");
         Console.Error.WriteLine("  kelpie profile show <profile>");
         Environment.ExitCode = 1;
         return;
@@ -290,6 +302,12 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpie sessions");
     writer.WriteLine("  kelpie kill <handle>");
     writer.WriteLine("  kelpie profile create <profile>");
+    writer.WriteLine("  kelpie profile edit <profile>");
+    writer.WriteLine("  kelpie profile edit <profile> set <dotPath> <value>");
+    writer.WriteLine("  kelpie profile edit <profile> add-root <path> <access>");
+    writer.WriteLine("  kelpie profile edit <profile> rm-root <path>");
+    writer.WriteLine("  kelpie profile edit <profile> add-deny <pattern>");
+    writer.WriteLine("  kelpie profile edit <profile> rm-deny <pattern>");
     writer.WriteLine("  kelpie profile show <profile>");
     writer.WriteLine("  kelpie status <profile>");
     writer.WriteLine("  kelpie diag <profile>");
@@ -437,6 +455,197 @@ static void CreateProfile(string profileName)
         Console.Error.WriteLine(ex.Message);
         Environment.ExitCode = 1;
     }
+}
+
+static void RunProfileEdit(string[] args)
+{
+    if (args.Length < 3)
+    {
+        WriteProfileEditUsage();
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    var profileName = args[2];
+    var profilePath = GetExistingProfilePath(profileName);
+    if (profilePath is null)
+    {
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    var editService = new SshProfileEditService(new ProcessEditorLauncher());
+    ProfileEditResult result;
+
+    if (args.Length == 3)
+    {
+        if (Console.IsInputRedirected)
+        {
+            Console.Error.WriteLine("Editor mode requires an interactive console.");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var editorCommand = ProfileEditorCommandResolver.Resolve(
+            LoadConfiguration()["editor"],
+            Environment.GetEnvironmentVariable,
+            OperatingSystem.IsWindows());
+        result = editService.EditWithEditor(profilePath, editorCommand, ReadProfileEditRecoveryAction);
+        WriteProfileEditResult(profileName, result);
+        return;
+    }
+
+    var operation = args[3];
+    if (string.Equals(operation, "set", StringComparison.OrdinalIgnoreCase))
+    {
+        if (args.Length != 6)
+        {
+            WriteProfileEditUsage();
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        result = editService.SetScalar(profilePath, args[4], args[5]);
+        WriteProfileEditResult(profileName, result);
+        return;
+    }
+
+    if (string.Equals(operation, "add-root", StringComparison.OrdinalIgnoreCase))
+    {
+        if (args.Length != 6)
+        {
+            WriteProfileEditUsage();
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        result = editService.AddRoot(profilePath, args[4], args[5]);
+        WriteProfileEditResult(profileName, result);
+        return;
+    }
+
+    if (string.Equals(operation, "rm-root", StringComparison.OrdinalIgnoreCase))
+    {
+        if (args.Length != 5)
+        {
+            WriteProfileEditUsage();
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        result = editService.RemoveRoot(profilePath, args[4]);
+        WriteProfileEditResult(profileName, result);
+        return;
+    }
+
+    if (string.Equals(operation, "add-deny", StringComparison.OrdinalIgnoreCase))
+    {
+        if (args.Length != 5)
+        {
+            WriteProfileEditUsage();
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        result = editService.AddDeny(profilePath, args[4]);
+        WriteProfileEditResult(profileName, result);
+        return;
+    }
+
+    if (string.Equals(operation, "rm-deny", StringComparison.OrdinalIgnoreCase))
+    {
+        if (args.Length != 5)
+        {
+            WriteProfileEditUsage();
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        result = editService.RemoveDeny(profilePath, args[4]);
+        WriteProfileEditResult(profileName, result);
+        return;
+    }
+
+    WriteProfileEditUsage();
+    Environment.ExitCode = 1;
+}
+
+static string? GetExistingProfilePath(string profileName)
+{
+    try
+    {
+        var homeDirectory = KelpieRuntimePaths.GetHomeDirectory(AppContext.BaseDirectory);
+        var profilePath = KelpieHomeInitializer.GetProfilePath(homeDirectory, profileName);
+        if (File.Exists(profilePath))
+        {
+            return profilePath;
+        }
+
+        Console.Error.WriteLine($"SSH profile was not found: {profileName}");
+        Console.Error.WriteLine($"Use `kelpie profile create {profileName}` to create it.");
+        return null;
+    }
+    catch (ArgumentException ex)
+    {
+        Console.Error.WriteLine(ex.Message);
+        return null;
+    }
+}
+
+static void WriteProfileEditResult(string profileName, ProfileEditResult result)
+{
+    if (!result.Success)
+    {
+        Console.Error.WriteLine(result.ErrorMessage);
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    Console.WriteLine($"Updated profile: {profileName}");
+    Console.WriteLine($"Profile file: {Path.GetFullPath(result.ProfilePath)}");
+}
+
+static ProfileEditRecoveryAction ReadProfileEditRecoveryAction(string validationError)
+{
+    Console.Error.WriteLine("Profile validation failed:");
+    Console.Error.WriteLine(validationError);
+
+    while (true)
+    {
+        Console.Error.Write("Re-edit profile? [Y/n]: ");
+        var value = Console.ReadLine();
+        if (value is null)
+        {
+            return ProfileEditRecoveryAction.Abort;
+        }
+
+        var normalized = value.Trim();
+        if (string.IsNullOrWhiteSpace(normalized)
+            || string.Equals(normalized, "y", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "yes", StringComparison.OrdinalIgnoreCase))
+        {
+            return ProfileEditRecoveryAction.Retry;
+        }
+
+        if (string.Equals(normalized, "n", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "no", StringComparison.OrdinalIgnoreCase))
+        {
+            return ProfileEditRecoveryAction.Abort;
+        }
+
+        Console.Error.WriteLine("Enter Y to re-edit or N to abort.");
+    }
+}
+
+static void WriteProfileEditUsage()
+{
+    Console.Error.WriteLine("Usage:");
+    Console.Error.WriteLine("  kelpie profile edit <profile>");
+    Console.Error.WriteLine("  kelpie profile edit <profile> set <dotPath> <value>");
+    Console.Error.WriteLine("  kelpie profile edit <profile> add-root <path> <access>");
+    Console.Error.WriteLine("  kelpie profile edit <profile> rm-root <path>");
+    Console.Error.WriteLine("  kelpie profile edit <profile> add-deny <pattern>");
+    Console.Error.WriteLine("  kelpie profile edit <profile> rm-deny <pattern>");
 }
 
 static KelpieMcpConfigTemplateOptions ReadMcpConfigTemplateOptions(string defaultLogDirectory)

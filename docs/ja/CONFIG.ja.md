@@ -60,12 +60,31 @@ config_samples/
 | `Server:ControlPipeName` | `kelpie` / `kelpiemcp` が server control に使う local named pipe。 |
 | `Commands:ExecutablePath` | 任意の `kelpie` command 明示 path。 |
 | `Commands:WorkingDirectory` | 任意の command working directory。 |
+| `editor` | `kelpie profile edit <profile>` のエディタモードで使う任意の editor command。引数も指定できます。 |
 
 最小例:
 
 ```json
 {
-  "LogDirectory": "D:\\Kelpie\\logs"
+  "LogDirectory": "D:\\Kelpie\\logs",
+  "editor": ""
+}
+```
+
+`kelpie profile edit <profile>` は editor を次の順に解決します。
+
+1. `config/kelpie.json` の `editor`
+2. `KELPIE_EDITOR`
+3. `VISUAL`
+4. `EDITOR`
+5. OS 既定: Windows は `notepad`、Unix は `vi`
+
+エディタプロセスはブロッキング起動し、Kelpie はエディタ終了後に profile を検証します。
+通常は即時終了するエディタを使う場合は、次のように待機オプション付きで設定します。
+
+```json
+{
+  "editor": "code --wait"
 }
 ```
 
