@@ -1,3 +1,0 @@
-servers/demo-vps/Dockerfile text eol=lf
-servers/demo-vps/*.sh text eol=lf
-servers/demo-vps/*.yml text eol=lf
