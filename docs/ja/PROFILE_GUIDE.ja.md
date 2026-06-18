@@ -1,6 +1,6 @@
 # KelpieSSH Profile Guide
 
-最終更新: 2026-06-17
+最終更新: 2026-06-18
 
 この文書は、KelpieSSH の SSH profile 設定方法を説明します。
 英語版は [../../PROFILE_GUIDE.md](../../PROFILE_GUIDE.md) です。
@@ -187,6 +187,83 @@ kelpiemcp forget vps01
 ```
 
 ## 項目リファレンス
+
+### プロファイルスキーマ概要
+
+| 項目 | 必須 | 型 | 既定値 | 値 / 制約 |
+| :--- | :---: | :--- | :--- | :--- |
+| `Host` | yes | object | none | SSH 接続先設定。 |
+| `Host.Address` | yes | string | none | Host name または IP address。空不可。 |
+| `Host.Port` | no | integer | `22` | SSH port。通常は `1` から `65535`。 |
+| `Auth` | `Authentication` がない場合 yes | object | none | `Authentication` の短縮別名。サンプルではこちらを使います。 |
+| `Authentication` | `Auth` がない場合 yes | object | none | 正式な認証設定。`Auth` と両方ある場合はこちらを優先します。 |
+| `Auth.UserName` / `Authentication.UserName` | single-user profile では yes | string | none | SSH login user。`root` 直接ログインは禁止です。 |
+| `Auth.UsrName` / `Authentication.UsrName` | no | string | none | `UserName` の互換 typo alias。新規設定では `UserName` を使います。 |
+| `Auth.Method` / `Authentication.Method` | yes | string enum | `privateKey` | `privateKey`: 秘密鍵認証。`password`: `PasswordSecretName` と runtime password session を使う認証。 |
+| `Auth.PrivateKeyFile` / `Authentication.PrivateKeyFile` | `privateKey` では yes | string | none | `KelpieHome\keys` 配下のファイル名、または absolute path。 |
+| `Auth.PrivateKeyPath` / `Authentication.PrivateKeyPath` | no | string | none | 互換用 path。新規設定では `PrivateKeyFile` を推奨します。 |
+| `Auth.PrivateKeyPassphrase` / `Authentication.PrivateKeyPassphrase` | no | string or null | `null` | 秘密鍵 passphrase。公開サンプルに実値を書いてはいけません。 |
+| `Auth.PasswordSecretName` / `Authentication.PasswordSecretName` | `password` では yes | string or null | `null` | Secret reference name。profile に平文 password は保存しません。 |
+| `Connection` | no | object | `{ "TimeoutSeconds": 10 }` | SSH 接続動作。 |
+| `Connection.TimeoutSeconds` | no | integer | `10` | 正の整数。 |
+| `Platform` | yes | object | none | provider 選択に使う target OS metadata。 |
+| `Platform.OsFamily` | yes | string enum/alias | none | `debian`, `ubuntu`, `rhel`, `alma`, `almalinux`, `rocky`, `centos`, `oraclelinux`。alias は effective family に解決されます。 |
+| `Platform.PackageManager` | no | string | `OsFamily` から推定 | effective `debian` は `apt`、effective `rhel` は `dnf`。必要なら明示指定できます。 |
+| `Mode` | no | string role expression | `Safe` | `ReadOnly`, `Safe`, `Maintenance`, `Expert`, `WebUser`, `WebAdmin`。`|` で組み合わせ可能。互換 key として role expression として読み取ります。 |
+| `Roles` | no | string or string array | `Mode` から解決 | `Mode` と同じ role 名。設定時は role 解決に使います。 |
+| `Capabilities` | no | string, string array, or object | empty | CLI 専用 policy flags。MCP では無視します。詳細は [`Capabilities`](#capabilities)。 |
+| `Rights` | no | dictionary object | built-ins only | `$` 始まりの名前を key にし、値は preset または `@` flags の access expression。 |
+| `AllowedRoots` | no | dictionary object or string array | empty | Object form は path/glob から access expression への map。Array form は互換 read-only/list/cd。 |
+| `SpecialPaths` | no | dictionary object | empty | Key は path glob。値は `Deny`, `Confirm`, `Allow`。 |
+| `EnvironmentValues` | no | dictionary object | empty | Key は environment variable name。値は environment access expression。 |
+| `DefaultUser` | no | string | `Auth.UserName` | `Users` が複数あり、command 側で user 未指定の場合に選ばれる user。 |
+| `Users` | no | dictionary object or array | single legacy user | 推奨 object form は SSH user name から role expression または詳細 user object への map。 |
+| `Users.<user>` | no | string or object | profile settings を継承 | String value は role expression。Object value は auth, roles, roots, special paths, environment values, web public sites を上書きできます。 |
+| `Users.<user>.Method` | no | string enum | profile auth method | `privateKey` または `password`。 |
+| `Users.<user>.PrivateKeyFile` | no | string | profile auth value | User-level private key file override。 |
+| `Users.<user>.PrivateKeyPath` | no | string | profile auth value | 互換用 user-level private key path。新規設定では `PrivateKeyFile` を推奨します。 |
+| `Users.<user>.PrivateKeyPassphrase` | no | string or null | profile auth value | User-level private key passphrase override。 |
+| `Users.<user>.PasswordSecretName` | no | string or null | profile auth value | User-level password secret reference override。 |
+| `Users.<user>.Mode` | no | string role expression | profile roles | Profile `Mode` と同じ値。 |
+| `Users.<user>.Roles` | no | string or string array | profile roles | Profile `Roles` と同じ値。 |
+| `Users.<user>.Capabilities` | no | string, string array, or object | profile capabilities | CLI 専用 user-level policy flags。 |
+| `Users.<user>.AllowedRoots` | no | dictionary object or string array | profile allowed roots | Profile `AllowedRoots` と同じ形式。 |
+| `Users.<user>.SpecialPaths` | no | dictionary object | profile special paths | Profile `SpecialPaths` と同じ形式。 |
+| `Users.<user>.EnvironmentValues` | no | dictionary object | profile environment rules | Profile `EnvironmentValues` と同じ形式。 |
+| `Users.<user>.WebPublicSites` | no | dictionary object or array | profile web public sites | Profile `WebPublicSites` と同じ形式。 |
+| `Services` | no | object | empty object | Service-specific defaults。 |
+| `Services.Nginx` | no | object | empty object | Nginx と web helpers が使う Nginx defaults。 |
+| `Services.Nginx.User` | no | string | none | Nginx worker user。 |
+| `Services.Nginx.Group` | no | string | none | Nginx worker group。 |
+| `Services.Nginx.Port` | no | integer | none | 設定時は `1` から `65535`。 |
+| `Services.Nginx.Root` | no | string | none | Web public root。`WebPublicSites` 未設定時に `WebUser` role でも使います。 |
+| `WebPublicSites` | no | dictionary object or array | provider default site | Provider default site は `/var/www/html` の `default` site。安全な静的拡張子を既定許可します。 |
+| `WebPublicSites.<siteKey>.SiteKey` | object form では no | string | dictionary key | Array item では必須。空不可。 |
+| `WebPublicSites.<siteKey>.DisplayName` | no | string | `siteKey` | 表示用 site label。 |
+| `WebPublicSites.<siteKey>.Root` / `RootPath` | yes | string | none | 安全な absolute Unix web root path。`RootPath` は別名で、サンプルでは `Root` を推奨します。 |
+| `WebPublicSites.<siteKey>.AllowedExtensions` | no | string array | built-in safe static extensions | `.html` のような先頭ドット付き明示拡張子。実行可能 Web 拡張子向けではありません。 |
+| `WebPublicSites.<siteKey>.WritableExecutableExtensions` | no | string array | empty | `.php` のような先頭ドット付き実行可能拡張子。ワイルドカードと path separator は拒否されます。 |
+| `WebPublicSites.<siteKey>.AllowedContentTypes` | no | string array or dictionary object | built-in safe content types | Array は read/write を許可。Object は MIME type から access expression への map。 |
+| `WebPublicSites.<siteKey>.AllowedFiles` | no | dictionary object | empty | Key は file glob、`file:<glob>`、または `mime:<content-type>`。値は access expression。 |
+| `WebPublicSites.<siteKey>.CreateDirectories` | no | boolean | `true` | Web write operation で missing parent directories の作成を許可します。 |
+| `WebPublicSites.<siteKey>.MaxReadBytes` | no | integer | `5242880` | Web file read operation の最大読み取り bytes。 |
+| `WebPublicSites.<siteKey>.MaxWriteBytes` | no | integer | `5242880` | Web file write operation の最大受け入れ bytes。 |
+| `Ssh` | no | object | empty object | Legacy endpoint/auth section。新規設定では `Host` と `Auth` / `Authentication` を使います。 |
+| `Ssh.Host` | no | string | none | Legacy host address。`Host.Address` が未設定の場合だけ使います。 |
+| `Ssh.Port` | no | integer | `22` | Legacy SSH port。`Host.Address` が未設定の場合だけ使います。 |
+| `Ssh.UserName` | no | string | none | Legacy SSH user。Auth user name が未設定の場合だけ使います。 |
+| `Ssh.Authentication` | no | object | empty object | Legacy authentication section。優先順位は最も低いです。 |
+| `Policy` | no | object | empty object | Legacy CLI policy section。新規設定では `Capabilities` と `AllowedRoots` を使います。 |
+| `Policy.Level` | no | string | empty | Legacy capability expression。 |
+| `Policy.AllowedRoots` | no | string array | empty | Legacy read-only/list/cd allowed roots。 |
+
+互換性と優先順位:
+
+- `Authentication` は `Auth` より優先し、`Auth` は legacy `Ssh.Authentication` より優先します。
+- `Host.Address` / `Host.Port` は legacy `Ssh.Host` / `Ssh.Port` より優先します。
+- `Auth.UserName` は `Auth.UsrName` より優先し、どちらも legacy `Ssh.UserName` より優先します。
+- `Users.<user>` の user-level settings は、選択された user について profile-level settings を上書きします。
+- `Root` と `RootPath` は別名です。サンプルでは `Root` を推奨します。
 
 ### `Host`
 

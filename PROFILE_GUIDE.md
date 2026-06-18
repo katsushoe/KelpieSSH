@@ -1,6 +1,6 @@
 # KelpieSSH Profile Guide
 
-Last updated: 2026-06-17
+Last updated: 2026-06-18
 
 This guide explains how to configure SSH profiles for KelpieSSH.
 For Japanese documentation, see [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md).
@@ -186,6 +186,83 @@ kelpiemcp forget vps01
 ```
 
 ## Field Reference
+
+### Profile schema summary
+
+| Field | Required | Type | Default | Values / constraints |
+| :--- | :---: | :--- | :--- | :--- |
+| `Host` | yes | object | none | SSH endpoint settings. |
+| `Host.Address` | yes | string | none | Host name or IP address. Must not be empty. |
+| `Host.Port` | no | integer | `22` | SSH port, normally `1` to `65535`. |
+| `Auth` | yes unless `Authentication` is used | object | none | Short alias for `Authentication`. Used by samples. |
+| `Authentication` | yes unless `Auth` is used | object | none | Formal authentication section. Takes priority over `Auth` when both are present. |
+| `Auth.UserName` / `Authentication.UserName` | yes for single-user profiles | string | none | SSH login user. Direct `root` login is rejected. |
+| `Auth.UsrName` / `Authentication.UsrName` | no | string | none | Compatibility typo alias for `UserName`. Prefer `UserName`. |
+| `Auth.Method` / `Authentication.Method` | yes | string enum | `privateKey` | `privateKey`: use a private key. `password`: use runtime password session by `PasswordSecretName`. |
+| `Auth.PrivateKeyFile` / `Authentication.PrivateKeyFile` | yes for `privateKey` | string | none | File name under `KelpieHome\keys`, or an absolute path. |
+| `Auth.PrivateKeyPath` / `Authentication.PrivateKeyPath` | no | string | none | Compatibility path. Prefer `PrivateKeyFile`. |
+| `Auth.PrivateKeyPassphrase` / `Authentication.PrivateKeyPassphrase` | no | string or null | `null` | Optional private key passphrase. Do not write real secrets into public samples. |
+| `Auth.PasswordSecretName` / `Authentication.PasswordSecretName` | yes for `password` | string or null | `null` | Secret reference name. Plain text passwords are not allowed in profiles. |
+| `Connection` | no | object | `{ "TimeoutSeconds": 10 }` | SSH connection behavior. |
+| `Connection.TimeoutSeconds` | no | integer | `10` | Must be positive. |
+| `Platform` | yes | object | none | Target OS metadata used to select providers. |
+| `Platform.OsFamily` | yes | string enum/alias | none | `debian`, `ubuntu`, `rhel`, `alma`, `almalinux`, `rocky`, `centos`, `oraclelinux`. Aliases resolve to an effective family. |
+| `Platform.PackageManager` | no | string | inferred from `OsFamily` | `apt` for effective `debian`, `dnf` for effective `rhel`, or an explicit package manager name. |
+| `Mode` | no | string role expression | `Safe` | `ReadOnly`, `Safe`, `Maintenance`, `Expert`, `WebUser`, `WebAdmin`, combined with `|`. Compatibility key read as roles. |
+| `Roles` | no | string or string array | derived from `Mode` | Same role names as `Mode`. If set, it participates in role resolution. |
+| `Capabilities` | no | string, string array, or object | empty | CLI-only policy flags. MCP ignores this section. See [`Capabilities`](#capabilities). |
+| `Rights` | no | dictionary object | built-ins only | Keys are `$`-prefixed names. Values are access expressions using presets or `@` flags. |
+| `AllowedRoots` | no | dictionary object or string array | empty | Object form maps path/glob to access expression. Array form is compatibility read-only/list/cd. |
+| `SpecialPaths` | no | dictionary object | empty | Keys are path globs. Values are `Deny`, `Confirm`, or `Allow`. |
+| `EnvironmentValues` | no | dictionary object | empty | Keys are environment variable names. Values are environment access expressions. |
+| `DefaultUser` | no | string | `Auth.UserName` | User selected when `Users` has multiple entries and no command-level user is specified. |
+| `Users` | no | dictionary object or array | single legacy user | Recommended object form maps SSH user name to role expression or detailed user object. |
+| `Users.<user>` | no | string or object | inherits profile settings | String value is a role expression. Object value can override auth, roles, roots, special paths, environment values, and web public sites. |
+| `Users.<user>.Method` | no | string enum | profile auth method | `privateKey` or `password`. |
+| `Users.<user>.PrivateKeyFile` | no | string | profile auth value | User-level private key file override. |
+| `Users.<user>.PrivateKeyPath` | no | string | profile auth value | Compatibility user-level private key path. Prefer `PrivateKeyFile`. |
+| `Users.<user>.PrivateKeyPassphrase` | no | string or null | profile auth value | User-level private key passphrase override. |
+| `Users.<user>.PasswordSecretName` | no | string or null | profile auth value | User-level password secret reference override. |
+| `Users.<user>.Mode` | no | string role expression | profile roles | Same values as profile `Mode`. |
+| `Users.<user>.Roles` | no | string or string array | profile roles | Same values as profile `Roles`. |
+| `Users.<user>.Capabilities` | no | string, string array, or object | profile capabilities | CLI-only user-level policy flags. |
+| `Users.<user>.AllowedRoots` | no | dictionary object or string array | profile allowed roots | Same format as profile `AllowedRoots`. |
+| `Users.<user>.SpecialPaths` | no | dictionary object | profile special paths | Same format as profile `SpecialPaths`. |
+| `Users.<user>.EnvironmentValues` | no | dictionary object | profile environment rules | Same format as profile `EnvironmentValues`. |
+| `Users.<user>.WebPublicSites` | no | dictionary object or array | profile web public sites | Same format as profile `WebPublicSites`. |
+| `Services` | no | object | empty object | Service-specific defaults. |
+| `Services.Nginx` | no | object | empty object | Nginx defaults used by Nginx and web helpers. |
+| `Services.Nginx.User` | no | string | none | Nginx worker user. |
+| `Services.Nginx.Group` | no | string | none | Nginx worker group. |
+| `Services.Nginx.Port` | no | integer | none | Must be `1` to `65535` when set. |
+| `Services.Nginx.Root` | no | string | none | Web public root. Also used by the `WebUser` role when `WebPublicSites` is not configured. |
+| `WebPublicSites` | no | dictionary object or array | provider default site | Provider default site is `default` at `/var/www/html` with safe static extensions. |
+| `WebPublicSites.<siteKey>.SiteKey` | no in object form | string | dictionary key | Required for array items. Must not be empty. |
+| `WebPublicSites.<siteKey>.DisplayName` | no | string | `siteKey` | Human-readable site label. |
+| `WebPublicSites.<siteKey>.Root` / `RootPath` | yes | string | none | Safe absolute Unix web root path. `RootPath` is the alias; prefer `Root` in samples. |
+| `WebPublicSites.<siteKey>.AllowedExtensions` | no | string array | built-in safe static extensions | Dot-prefixed explicit extensions such as `.html`; not for executable web extensions. |
+| `WebPublicSites.<siteKey>.WritableExecutableExtensions` | no | string array | empty | Dot-prefixed explicit executable extensions such as `.php`. Wildcards and path separators are rejected. |
+| `WebPublicSites.<siteKey>.AllowedContentTypes` | no | string array or dictionary object | built-in safe content types | Array grants read/write. Object maps MIME type to access expression. |
+| `WebPublicSites.<siteKey>.AllowedFiles` | no | dictionary object | empty | Keys are file globs, `file:<glob>`, or `mime:<content-type>`. Values are access expressions. |
+| `WebPublicSites.<siteKey>.CreateDirectories` | no | boolean | `true` | Allows missing parent directories to be created by web write operations. |
+| `WebPublicSites.<siteKey>.MaxReadBytes` | no | integer | `5242880` | Maximum bytes read by web file read operations. |
+| `WebPublicSites.<siteKey>.MaxWriteBytes` | no | integer | `5242880` | Maximum bytes accepted by web file write operations. |
+| `Ssh` | no | object | empty object | Legacy endpoint/auth section. Prefer `Host` and `Auth` / `Authentication`. |
+| `Ssh.Host` | no | string | none | Legacy host address. Used only when `Host.Address` is not set. |
+| `Ssh.Port` | no | integer | `22` | Legacy SSH port. Used only when `Host.Address` is not set. |
+| `Ssh.UserName` | no | string | none | Legacy SSH user. Used only when auth user name is not set. |
+| `Ssh.Authentication` | no | object | empty object | Legacy authentication section. Lowest priority. |
+| `Policy` | no | object | empty object | Legacy CLI policy section. Prefer `Capabilities` and `AllowedRoots`. |
+| `Policy.Level` | no | string | empty | Legacy capability expression. |
+| `Policy.AllowedRoots` | no | string array | empty | Legacy read-only/list/cd allowed roots. |
+
+Compatibility and priority:
+
+- `Authentication` overrides `Auth`; `Auth` overrides legacy `Ssh.Authentication`.
+- `Host.Address` / `Host.Port` override legacy `Ssh.Host` / `Ssh.Port`.
+- `Auth.UserName` overrides `Auth.UsrName`; both override legacy `Ssh.UserName`.
+- User-level settings under `Users.<user>` override profile-level settings for that selected user.
+- `Root` and `RootPath` are aliases; samples prefer `Root`.
 
 ### `Host`
 
