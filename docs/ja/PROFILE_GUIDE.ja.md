@@ -615,6 +615,7 @@ Service-specific defaults です。
       "WebPublicSites": {
         "default": {
           "Root": "/var/www/html",
+          "AllowedExtensions": [".html", ".css", ".js", ".png", ".jpg", ".txt"],
           "WritableExecutableExtensions": [".php"]
         }
       }
@@ -626,12 +627,14 @@ Service-specific defaults です。
 | Field | Required | Description |
 | :--- | :---: | :--- |
 | `WebPublicSites.<siteKey>.Root` / `RootPath` | yes | そのサイトの Web 公開ルート。 |
-| `WebPublicSites.<siteKey>.AllowedExtensions` | no | サイトで許可する通常拡張子。 |
+| `WebPublicSites.<siteKey>.AllowedExtensions` | no | このサイトで許可する通常ファイルの拡張子。`.html` や `.png` のように先頭ドット付きで列挙します。未設定または空の場合は、Kelpie 組み込みの安全な静的ファイル拡張子リストを使います。 |
 | `WebPublicSites.<siteKey>.WritableExecutableExtensions` | no | このサイトだけで書き込みを許可する実行可能拡張子。`.php` のように先頭ドット付きで列挙します。ワイルドカードは拒否されます。 |
 
 注意:
 
+- `AllowedExtensions` は HTML、CSS、JavaScript、画像、テキスト、JSON、XML、アーカイブなど通常の Web 公開ファイル向けです。`.php` のような実行可能な Web 拡張子は許可しません。
 - `WritableExecutableExtensions` が未設定または空の場合、実行可能ファイルの書き込みは従来どおり拒否されます。
+- `WritableExecutableExtensions` に列挙した拡張子は、書き込み時に限り `AllowedExtensions` へ重複して書かなくても許可対象になります。
 - この設定は書き込み判定だけに効きます。読み取り判定、パストラバーサル拒否、ドットファイル拒否、秘密ファイル拒否、サイズ上限、MIME type 判定は従来どおり適用されます。
 - 許可はサイト単位です。ほかのサイトやほかのプロファイルでは、同じ拡張子でも明示許可がなければ拒否されます。
 

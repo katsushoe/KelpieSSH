@@ -615,6 +615,7 @@ Example:
       "WebPublicSites": {
         "default": {
           "Root": "/var/www/html",
+          "AllowedExtensions": [".html", ".css", ".js", ".png", ".jpg", ".txt"],
           "WritableExecutableExtensions": [".php"]
         }
       }
@@ -626,12 +627,14 @@ Example:
 | Field | Required | Description |
 | :--- | :---: | :--- |
 | `WebPublicSites.<siteKey>.Root` / `RootPath` | yes | Web public root for the site. |
-| `WebPublicSites.<siteKey>.AllowedExtensions` | no | Non-executable extensions allowed by the site. |
+| `WebPublicSites.<siteKey>.AllowedExtensions` | no | Regular file extensions allowed for this site. Values are explicit dot-prefixed extensions such as `.html` or `.png`. If omitted or empty, Kelpie uses its built-in safe static-file extension list. |
 | `WebPublicSites.<siteKey>.WritableExecutableExtensions` | no | Executable extensions allowed for writes on this site only. Values must be explicit dot-prefixed extensions such as `.php`; wildcards are rejected. |
 
 Notes:
 
+- `AllowedExtensions` is for normal web assets such as HTML, CSS, JavaScript, images, text, JSON, XML, and archives. It does not allow executable web extensions such as `.php`.
 - Unset or empty `WritableExecutableExtensions` keeps the default executable-file write denial.
+- If an extension is listed in `WritableExecutableExtensions`, write checks do not require the same extension to be listed in `AllowedExtensions`.
 - The setting applies only to write checks. Read checks, traversal denial, dotfile denial, secret file denial, size limits, and content type checks still apply.
 - The setting is site-local. Other sites and other profiles keep the default denial unless they also opt in.
 
