@@ -901,6 +901,20 @@ Executable extensions such as `.php`, `.cgi`, `.py`, `.sh`, and `.exe` are denie
 
 Use `WritableExecutableExtensions` only when the profile owner explicitly allows deployment of executable web files for that site.
 
+Child settings:
+
+- [`WebPublicSites.<siteKey>`](#webpublicsitessitekey)
+- [`WebPublicSites.<siteKey>.SiteKey`](#webpublicsitessitekeysitekey)
+- [`WebPublicSites.<siteKey>.DisplayName`](#webpublicsitessitekeydisplayname)
+- [`WebPublicSites.<siteKey>.Root` / `RootPath`](#webpublicsitessitekeyroot--rootpath)
+- [`WebPublicSites.<siteKey>.AllowedExtensions`](#webpublicsitessitekeyallowedextensions)
+- [`WebPublicSites.<siteKey>.WritableExecutableExtensions`](#webpublicsitessitekeywritableexecutableextensions)
+- [`WebPublicSites.<siteKey>.AllowedContentTypes`](#webpublicsitessitekeyallowedcontenttypes)
+- [`WebPublicSites.<siteKey>.AllowedFiles`](#webpublicsitessitekeyallowedfiles)
+- [`WebPublicSites.<siteKey>.CreateDirectories`](#webpublicsitessitekeycreatedirectories)
+- [`WebPublicSites.<siteKey>.MaxReadBytes`](#webpublicsitessitekeymaxreadbytes)
+- [`WebPublicSites.<siteKey>.MaxWriteBytes`](#webpublicsitessitekeymaxwritebytes)
+
 Example:
 
 ```json
@@ -925,8 +939,166 @@ Example:
 | `WebPublicSites.<siteKey>.Root` / `RootPath` | yes | Web public root for the site. |
 | `WebPublicSites.<siteKey>.AllowedExtensions` | no | Regular file extensions allowed for this site. Effective values are explicit single file extensions with a leading dot, such as `.html` or `.png`. Matching is case-insensitive. Do not specify paths, globs, MIME types, or executable extensions here. If omitted or empty, Kelpie uses its built-in safe static-file extension list. |
 | `WebPublicSites.<siteKey>.WritableExecutableExtensions` | no | Executable extensions allowed for writes on this site only. Values must be explicit dot-prefixed extensions such as `.php`; wildcards are rejected. |
+| `WebPublicSites.<siteKey>.AllowedContentTypes` | no | MIME content types allowed for this site. Array form grants read/write; object form maps MIME type to an access expression. |
+| `WebPublicSites.<siteKey>.AllowedFiles` | no | File-specific allow rules. Keys are file globs, `file:<glob>`, or `mime:<content-type>`; values are access expressions. |
+| `WebPublicSites.<siteKey>.CreateDirectories` | no | Allows missing parent directories to be created during write operations. |
+| `WebPublicSites.<siteKey>.MaxReadBytes` | no | Maximum bytes returned by web file read operations. |
+| `WebPublicSites.<siteKey>.MaxWriteBytes` | no | Maximum bytes accepted by web file write operations. |
 
-`AllowedExtensions` sample:
+#### `WebPublicSites.<siteKey>`
+
+Description:
+
+Site entry under `WebPublicSites`.
+
+Type:
+
+- dictionary object value
+- array item object
+- compatibility string value for a root path
+
+Default and omitted behavior:
+
+If `WebPublicSites` is omitted, Kelpie uses the provider default site when available. The built-in web public default is site key `default` with root `/var/www/html`.
+
+Allowed values and constraints:
+
+- Object-form keys are site keys.
+- Array-form items must set `SiteKey`.
+- String-form values are treated as root paths and should be used only for compatibility.
+
+Sample:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html"
+    }
+  }
+}
+```
+
+#### `WebPublicSites.<siteKey>.SiteKey`
+
+Description:
+
+Site identifier used when `WebPublicSites` is written as an array.
+
+Type:
+
+- string
+
+Default and omitted behavior:
+
+In object form, the dictionary key is used as the site key. In array form, `SiteKey` is required.
+
+Allowed values and constraints:
+
+- Must not be empty.
+- Use a stable identifier such as `default`, `public`, or `admin`.
+- Do not put path separators or secrets in the key.
+
+Sample:
+
+```json
+{
+  "WebPublicSites": [
+    {
+      "SiteKey": "default",
+      "Root": "/var/www/html"
+    }
+  ]
+}
+```
+
+#### `WebPublicSites.<siteKey>.DisplayName`
+
+Description:
+
+Human-readable label for a site.
+
+Type:
+
+- string
+
+Default and omitted behavior:
+
+If omitted, the site key is used as the display label.
+
+Allowed values and constraints:
+
+- Any non-secret display text.
+- Do not include real credentials, private host names that should not be public, or secrets.
+
+Sample:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "DisplayName": "Default site",
+      "Root": "/var/www/html"
+    }
+  }
+}
+```
+
+#### `WebPublicSites.<siteKey>.Root` / `RootPath`
+
+Description:
+
+Absolute Unix path to the public web root for the site. `RootPath` is a compatibility alias; use `Root` for new profiles.
+
+Type:
+
+- string
+
+Default and omitted behavior:
+
+The field is required for explicit site entries. The provider default site uses `/var/www/html`.
+
+Allowed values and constraints:
+
+- Must be a safe absolute Unix path.
+- Must not use traversal segments.
+- Must point to the web root intended for MCP web file operations.
+
+Sample:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html"
+    }
+  }
+}
+```
+
+#### `WebPublicSites.<siteKey>.AllowedExtensions`
+
+Description:
+
+Regular file extensions allowed for the site.
+
+Type:
+
+- string array
+
+Default and omitted behavior:
+
+If omitted or empty, Kelpie uses the built-in safe static-file extension list.
+
+Allowed values and constraints:
+
+- Values must be explicit single file extensions with a leading dot, such as `.html` or `.png`.
+- Matching is case-insensitive.
+- Do not specify paths, globs, MIME types, or executable extensions.
+- This setting is for normal web assets such as HTML, CSS, JavaScript, images, text, JSON, XML, and archives.
+- Built-in safe static extensions are `.html`, `.htm`, `.css`, `.js`, `.mjs`, `.txt`, `.json`, `.xml`, `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.svg`, `.ico`, `.zip`, `.gz`, `.tgz`, `.tar`, `.bz2`, `.xz`, and `.br`.
+
+Sample:
 
 ```json
 {
@@ -934,6 +1106,226 @@ Example:
     "default": {
       "Root": "/var/www/html",
       "AllowedExtensions": [".html", ".css", ".js", ".png", ".jpg", ".txt"]
+    }
+  }
+}
+```
+
+#### `WebPublicSites.<siteKey>.WritableExecutableExtensions`
+
+Description:
+
+Executable web file extensions allowed for writes on this site only.
+
+Type:
+
+- string array
+
+Default and omitted behavior:
+
+Unset or empty `WritableExecutableExtensions` keeps the default executable-file write denial.
+
+Allowed values and constraints:
+
+- Values must be explicit dot-prefixed extensions such as `.php`.
+- Wildcards and path separators are rejected.
+- Extensions denied by default as executable or binary code are `.php`, `.cgi`, `.pl`, `.py`, `.rb`, `.sh`, `.bash`, `.exe`, `.dll`, `.so`, `.jar`, and `.war`.
+- If an extension is listed here, write checks do not require the same extension to be listed in `AllowedExtensions`.
+- The setting applies only to write checks. Read checks, traversal denial, dotfile denial, secret file denial, size limits, and content type checks still apply.
+- The setting is site-local. Other sites and other profiles keep the default denial unless they also opt in.
+
+Sample:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html",
+      "WritableExecutableExtensions": [".php"]
+    }
+  }
+}
+```
+
+#### `WebPublicSites.<siteKey>.AllowedContentTypes`
+
+Description:
+
+MIME content types allowed for the site.
+
+Type:
+
+- string array
+- dictionary object
+
+Default and omitted behavior:
+
+If omitted or empty, Kelpie uses its built-in safe content type rules.
+
+Allowed values and constraints:
+
+- Array form grants read/write for each MIME type.
+- Object form maps MIME type keys to access expressions.
+- MIME type keys must be explicit content types such as `text/html` or `image/png`.
+- Do not use file extensions, paths, or globs as MIME type keys.
+
+Array sample:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html",
+      "AllowedContentTypes": ["text/html", "text/css"]
+    }
+  }
+}
+```
+
+Object sample:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html",
+      "AllowedContentTypes": {
+        "text/html": "$ReadWrite",
+        "image/png": "$ReadOnly"
+      }
+    }
+  }
+}
+```
+
+#### `WebPublicSites.<siteKey>.AllowedFiles`
+
+Description:
+
+File-specific allow rules for the site.
+
+Type:
+
+- dictionary object
+
+Default and omitted behavior:
+
+If omitted or empty, no file-specific allowlist is applied and extension/content-type rules decide access.
+
+Allowed values and constraints:
+
+- Keys are file globs, `file:<glob>`, or `mime:<content-type>`.
+- Values are access expressions such as `$ReadOnly`, `$ReadWrite`, or `@Read|@List`.
+- File glob rules are evaluated relative to the site root.
+- Use this when a site needs tighter file-level control than extension rules.
+
+Sample:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html",
+      "AllowedFiles": {
+        "file:assets/**": "$ReadWrite",
+        "mime:image/png": "$ReadOnly"
+      }
+    }
+  }
+}
+```
+
+#### `WebPublicSites.<siteKey>.CreateDirectories`
+
+Description:
+
+Controls whether write operations may create missing parent directories.
+
+Type:
+
+- boolean
+
+Default and omitted behavior:
+
+If omitted, the value is `true`.
+
+Allowed values and constraints:
+
+- `true`: web write operations may create missing parent directories.
+- `false`: parent directories must already exist.
+
+Sample:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html",
+      "CreateDirectories": true
+    }
+  }
+}
+```
+
+#### `WebPublicSites.<siteKey>.MaxReadBytes`
+
+Description:
+
+Maximum number of bytes returned by web file read operations for this site.
+
+Type:
+
+- integer
+
+Default and omitted behavior:
+
+If omitted, the value is `5242880`.
+
+Allowed values and constraints:
+
+- Must be a positive integer.
+- Use a smaller value for tighter read limits.
+
+Sample:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html",
+      "MaxReadBytes": 1048576
+    }
+  }
+}
+```
+
+#### `WebPublicSites.<siteKey>.MaxWriteBytes`
+
+Description:
+
+Maximum number of bytes accepted by web file write operations for this site.
+
+Type:
+
+- integer
+
+Default and omitted behavior:
+
+If omitted, the value is `5242880`.
+
+Allowed values and constraints:
+
+- Must be a positive integer.
+- Content larger than this value is rejected before writing.
+
+Sample:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html",
+      "MaxWriteBytes": 1048576
     }
   }
 }

@@ -901,6 +901,20 @@ Service-specific defaults です。
 
 そのサイトで実行可能な Web ファイルの配置を人間が明示的に許可する場合だけ、`WritableExecutableExtensions` を設定します。
 
+所属要素:
+
+- [`WebPublicSites.<siteKey>`](#webpublicsitessitekey)
+- [`WebPublicSites.<siteKey>.SiteKey`](#webpublicsitessitekeysitekey)
+- [`WebPublicSites.<siteKey>.DisplayName`](#webpublicsitessitekeydisplayname)
+- [`WebPublicSites.<siteKey>.Root` / `RootPath`](#webpublicsitessitekeyroot--rootpath)
+- [`WebPublicSites.<siteKey>.AllowedExtensions`](#webpublicsitessitekeyallowedextensions)
+- [`WebPublicSites.<siteKey>.WritableExecutableExtensions`](#webpublicsitessitekeywritableexecutableextensions)
+- [`WebPublicSites.<siteKey>.AllowedContentTypes`](#webpublicsitessitekeyallowedcontenttypes)
+- [`WebPublicSites.<siteKey>.AllowedFiles`](#webpublicsitessitekeyallowedfiles)
+- [`WebPublicSites.<siteKey>.CreateDirectories`](#webpublicsitessitekeycreatedirectories)
+- [`WebPublicSites.<siteKey>.MaxReadBytes`](#webpublicsitessitekeymaxreadbytes)
+- [`WebPublicSites.<siteKey>.MaxWriteBytes`](#webpublicsitessitekeymaxwritebytes)
+
 例:
 
 ```json
@@ -925,8 +939,166 @@ Service-specific defaults です。
 | `WebPublicSites.<siteKey>.Root` / `RootPath` | yes | そのサイトの Web 公開ルート。 |
 | `WebPublicSites.<siteKey>.AllowedExtensions` | no | このサイトで許可する通常ファイルの拡張子。有効な値は `.html` や `.png` のような、先頭ドット付きの単一ファイル拡張子です。大文字小文字は区別しません。path、glob、MIME type、実行可能拡張子は指定しません。未設定または空の場合は、Kelpie 組み込みの安全な静的ファイル拡張子リストを使います。 |
 | `WebPublicSites.<siteKey>.WritableExecutableExtensions` | no | このサイトだけで書き込みを許可する実行可能拡張子。`.php` のように先頭ドット付きで列挙します。ワイルドカードは拒否されます。 |
+| `WebPublicSites.<siteKey>.AllowedContentTypes` | no | このサイトで許可する MIME type。Array form は read/write を許可し、object form は MIME type から access expression へ対応付けます。 |
+| `WebPublicSites.<siteKey>.AllowedFiles` | no | ファイル単位の許可 rules。Key は file glob、`file:<glob>`、または `mime:<content-type>`。値は access expression。 |
+| `WebPublicSites.<siteKey>.CreateDirectories` | no | 書き込み時に missing parent directories を作成できるかを制御します。 |
+| `WebPublicSites.<siteKey>.MaxReadBytes` | no | Web file read operation で返せる最大 bytes。 |
+| `WebPublicSites.<siteKey>.MaxWriteBytes` | no | Web file write operation で受け入れる最大 bytes。 |
 
-`AllowedExtensions` のサンプル:
+#### `WebPublicSites.<siteKey>`
+
+説明:
+
+`WebPublicSites` 配下の site entry です。
+
+型:
+
+- dictionary object value
+- array item object
+- root path を表す互換 string value
+
+既定値と省略時の挙動:
+
+`WebPublicSites` を省略した場合、利用可能であれば provider default site を使います。組み込みの Web public default は site key `default`、root `/var/www/html` です。
+
+取りうる値の範囲と制約:
+
+- Object form の key が site key になります。
+- Array form の item では `SiteKey` が必須です。
+- String form の値は root path として扱います。互換目的以外では object form を推奨します。
+
+サンプル:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html"
+    }
+  }
+}
+```
+
+#### `WebPublicSites.<siteKey>.SiteKey`
+
+説明:
+
+`WebPublicSites` を array で書く場合の site 識別子です。
+
+型:
+
+- string
+
+既定値と省略時の挙動:
+
+Object form では dictionary key を site key として使います。Array form では `SiteKey` が必須です。
+
+取りうる値の範囲と制約:
+
+- 空文字は不可です。
+- `default`、`public`、`admin` のような安定した識別子を使います。
+- path separator や secret を含めないでください。
+
+サンプル:
+
+```json
+{
+  "WebPublicSites": [
+    {
+      "SiteKey": "default",
+      "Root": "/var/www/html"
+    }
+  ]
+}
+```
+
+#### `WebPublicSites.<siteKey>.DisplayName`
+
+説明:
+
+Site の表示名です。
+
+型:
+
+- string
+
+既定値と省略時の挙動:
+
+省略時は site key を表示名として使います。
+
+取りうる値の範囲と制約:
+
+- 秘密情報を含まない表示用文字列です。
+- 公開すべきでない実ホスト名、認証情報、secret は含めないでください。
+
+サンプル:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "DisplayName": "Default site",
+      "Root": "/var/www/html"
+    }
+  }
+}
+```
+
+#### `WebPublicSites.<siteKey>.Root` / `RootPath`
+
+説明:
+
+その site の Web 公開ルートを示す absolute Unix path です。`RootPath` は互換 alias です。新規 profile では `Root` を使います。
+
+型:
+
+- string
+
+既定値と省略時の挙動:
+
+明示 site entry では必須です。Provider default site は `/var/www/html` を使います。
+
+取りうる値の範囲と制約:
+
+- 安全な absolute Unix path である必要があります。
+- path traversal segment は使えません。
+- MCP Web file operations に許可する Web root を指定します。
+
+サンプル:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html"
+    }
+  }
+}
+```
+
+#### `WebPublicSites.<siteKey>.AllowedExtensions`
+
+説明:
+
+その site で許可する通常ファイルの拡張子です。
+
+型:
+
+- string array
+
+既定値と省略時の挙動:
+
+未設定または空の場合は、Kelpie 組み込みの安全な静的ファイル拡張子リストを使います。
+
+取りうる値の範囲と制約:
+
+- `.html` や `.png` のような、先頭ドット付きの単一ファイル拡張子を指定します。
+- 大文字小文字は区別しません。
+- path、glob、MIME type、実行可能拡張子は指定しません。
+- HTML、CSS、JavaScript、画像、テキスト、JSON、XML、アーカイブなど通常の Web 公開ファイル向けです。
+- 組み込みの安全な静的ファイル拡張子は `.html`, `.htm`, `.css`, `.js`, `.mjs`, `.txt`, `.json`, `.xml`, `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.svg`, `.ico`, `.zip`, `.gz`, `.tgz`, `.tar`, `.bz2`, `.xz`, `.br` です。
+
+サンプル:
 
 ```json
 {
@@ -934,6 +1106,226 @@ Service-specific defaults です。
     "default": {
       "Root": "/var/www/html",
       "AllowedExtensions": [".html", ".css", ".js", ".png", ".jpg", ".txt"]
+    }
+  }
+}
+```
+
+#### `WebPublicSites.<siteKey>.WritableExecutableExtensions`
+
+説明:
+
+この site だけで書き込みを許可する実行可能 Web ファイル拡張子です。
+
+型:
+
+- string array
+
+既定値と省略時の挙動:
+
+未設定または空の場合、実行可能ファイルの書き込みは従来どおり拒否されます。
+
+取りうる値の範囲と制約:
+
+- `.php` のように先頭ドット付きの明示的な拡張子を指定します。
+- wildcard と path separator は拒否されます。
+- 実行可能またはバイナリコードとして既定拒否される拡張子は `.php`, `.cgi`, `.pl`, `.py`, `.rb`, `.sh`, `.bash`, `.exe`, `.dll`, `.so`, `.jar`, `.war` です。
+- ここに列挙した拡張子は、書き込み時に限り `AllowedExtensions` へ重複して書かなくても許可対象になります。
+- この設定は書き込み判定だけに効きます。読み取り判定、パストラバーサル拒否、ドットファイル拒否、秘密ファイル拒否、サイズ上限、MIME type 判定は従来どおり適用されます。
+- 許可は site 単位です。ほかの site やほかの profile では、同じ拡張子でも明示許可がなければ拒否されます。
+
+サンプル:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html",
+      "WritableExecutableExtensions": [".php"]
+    }
+  }
+}
+```
+
+#### `WebPublicSites.<siteKey>.AllowedContentTypes`
+
+説明:
+
+その site で許可する MIME type です。
+
+型:
+
+- string array
+- dictionary object
+
+既定値と省略時の挙動:
+
+未設定または空の場合は、Kelpie 組み込みの安全な content type rules を使います。
+
+取りうる値の範囲と制約:
+
+- Array form は各 MIME type に read/write を許可します。
+- Object form は MIME type key から access expression へ対応付けます。
+- MIME type key は `text/html` や `image/png` のような明示的な content type です。
+- file extension、path、glob は MIME type key として使いません。
+
+Array form のサンプル:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html",
+      "AllowedContentTypes": ["text/html", "text/css"]
+    }
+  }
+}
+```
+
+Object form のサンプル:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html",
+      "AllowedContentTypes": {
+        "text/html": "$ReadWrite",
+        "image/png": "$ReadOnly"
+      }
+    }
+  }
+}
+```
+
+#### `WebPublicSites.<siteKey>.AllowedFiles`
+
+説明:
+
+その site に対するファイル単位の許可 rules です。
+
+型:
+
+- dictionary object
+
+既定値と省略時の挙動:
+
+未設定または空の場合、ファイル単位の allowlist は適用せず、extension / content-type rules で判定します。
+
+取りうる値の範囲と制約:
+
+- Key は file glob、`file:<glob>`、または `mime:<content-type>` です。
+- 値は `$ReadOnly`、`$ReadWrite`、`@Read|@List` などの access expression です。
+- File glob rules は site root からの相対評価です。
+- 拡張子 rules より細かく制御したい場合に使います。
+
+サンプル:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html",
+      "AllowedFiles": {
+        "file:assets/**": "$ReadWrite",
+        "mime:image/png": "$ReadOnly"
+      }
+    }
+  }
+}
+```
+
+#### `WebPublicSites.<siteKey>.CreateDirectories`
+
+説明:
+
+書き込み操作で missing parent directories を作成できるかを制御します。
+
+型:
+
+- boolean
+
+既定値と省略時の挙動:
+
+省略時は `true` です。
+
+取りうる値の範囲と制約:
+
+- `true`: Web write operations が missing parent directories を作成できます。
+- `false`: parent directories が事前に存在している必要があります。
+
+サンプル:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html",
+      "CreateDirectories": true
+    }
+  }
+}
+```
+
+#### `WebPublicSites.<siteKey>.MaxReadBytes`
+
+説明:
+
+この site の Web file read operation で返せる最大 bytes です。
+
+型:
+
+- integer
+
+既定値と省略時の挙動:
+
+省略時は `5242880` です。
+
+取りうる値の範囲と制約:
+
+- 正の整数である必要があります。
+- 読み取り上限を厳しくしたい場合は小さい値を設定します。
+
+サンプル:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html",
+      "MaxReadBytes": 1048576
+    }
+  }
+}
+```
+
+#### `WebPublicSites.<siteKey>.MaxWriteBytes`
+
+説明:
+
+この site の Web file write operation で受け入れる最大 bytes です。
+
+型:
+
+- integer
+
+既定値と省略時の挙動:
+
+省略時は `5242880` です。
+
+取りうる値の範囲と制約:
+
+- 正の整数である必要があります。
+- この値を超える content は書き込み前に拒否されます。
+
+サンプル:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html",
+      "MaxWriteBytes": 1048576
     }
   }
 }
