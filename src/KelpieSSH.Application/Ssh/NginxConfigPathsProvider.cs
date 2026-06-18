@@ -7,7 +7,7 @@ namespace KelpieSSH.Application.Ssh;
 /// <summary>
 /// Discovers Nginx configuration file paths.
 /// </summary>
-public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvider, IServiceConfigFileReader, IServiceConfigFileWriter, IServiceConfigFileBackupManager, IServiceConfigFileTester, IServiceLogfileReader, IServiceConfigFileAccessChecker
+public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvider, IServiceConfigFileReader, IServiceConfigFileWriter, IServiceConfigFileBackupManager, IServiceConfigFileTester, IServiceLogfileReader, IServiceConfigFileAccessChecker, INginxPhpConfigurator
 {
     private const int MaxReadBytes = 65536;
     private const int MaxWriteBytes = 65536;
@@ -474,6 +474,177 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
             cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<NginxPhpEnableResult> EnablePhpAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string socketPath,
+        string extension,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sshCommandService);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var normalizedSiteKey = string.IsNullOrWhiteSpace(siteKey) ? "default" : siteKey.Trim();
+        var normalizedSocketPath = string.IsNullOrWhiteSpace(socketPath) ? string.Empty : socketPath.Trim();
+        var normalizedExtension = string.IsNullOrWhiteSpace(extension) ? ".php" : extension.Trim();
+        if (!IsSafeSiteKey(normalizedSiteKey))
+        {
+            return CreatePhpEnableError(normalizedSiteKey, null, normalizedSocketPath, normalizedExtension, "Nginx site key is invalid.", []);
+        }
+
+        if (!IsSafePhpSocketPath(normalizedSocketPath))
+        {
+            return CreatePhpEnableError(normalizedSiteKey, null, normalizedSocketPath, normalizedExtension, "PHP-FPM socketPath is invalid.", []);
+        }
+
+        if (!IsSafePhpExtension(normalizedExtension))
+        {
+            return CreatePhpEnableError(normalizedSiteKey, null, normalizedSocketPath, normalizedExtension, "PHP extension is invalid.", []);
+        }
+
+        var paths = await GetConfigPathsAsync(sshCommandService, profile, cancellationToken);
+        var requestedPath = ResolveSiteConfigPath(normalizedSiteKey, paths);
+        if (string.IsNullOrWhiteSpace(requestedPath))
+        {
+            return CreatePhpEnableError(normalizedSiteKey, null, normalizedSocketPath, normalizedExtension, "Nginx site configuration path could not be resolved.", paths.Warnings);
+        }
+
+        var access = CreateConfigFileAccess(requestedPath, paths);
+        if (access.Error is not null)
+        {
+            return CreatePhpEnableError(normalizedSiteKey, requestedPath, normalizedSocketPath, normalizedExtension, access.Error, paths.Warnings);
+        }
+
+        var readResult = await sshCommandService.ExecuteAsync(
+            profile,
+            NginxReadConfigCommandName,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["pathBase64"] = EncodeArgument(requestedPath),
+                ["allowedPathsBase64"] = EncodeLines(access.ExactPaths),
+                ["allowedDirsBase64"] = EncodeLines(access.AllowedDirectories),
+                ["maxBytes"] = MaxReadBytes.ToString(CultureInfo.InvariantCulture),
+            },
+            channel: KelpieExecutionChannel.Mcp,
+            cancellationToken: cancellationToken);
+
+        if (readResult.ExitCode != 0)
+        {
+            return CreatePhpEnableError(
+                normalizedSiteKey,
+                requestedPath,
+                normalizedSocketPath,
+                normalizedExtension,
+                $"Nginx config file read failed through provider {DisplayName}. ExitCode={readResult.ExitCode}. {CreateSafeErrorDetail(readResult.StandardError)}",
+                paths.Warnings);
+        }
+
+        if (!TryApplyPhpTemplate(
+            readResult.StandardOutput,
+            normalizedSocketPath,
+            normalizedExtension,
+            out var updatedContent,
+            out var changed,
+            out var editError))
+        {
+            return CreatePhpEnableError(normalizedSiteKey, requestedPath, normalizedSocketPath, normalizedExtension, editError, paths.Warnings);
+        }
+
+        if (!changed)
+        {
+            return new NginxPhpEnableResult(
+                ServiceKey,
+                DisplayName,
+                normalizedSiteKey,
+                requestedPath,
+                normalizedSocketPath,
+                normalizedExtension,
+                Changed: false,
+                Tested: false,
+                RolledBack: false,
+                Committed: false,
+                BytesWritten: 0,
+                paths.Warnings);
+        }
+
+        var updatedBytes = Encoding.UTF8.GetBytes(updatedContent);
+        if (updatedBytes.Length > MaxWriteBytes)
+        {
+            return CreatePhpEnableError(
+                normalizedSiteKey,
+                requestedPath,
+                normalizedSocketPath,
+                normalizedExtension,
+                $"Edited content exceeds the maximum write size of {MaxWriteBytes} bytes.",
+                paths.Warnings);
+        }
+
+        var writeResult = await sshCommandService.ExecuteAsync(
+            profile,
+            NginxWriteConfigCommandName,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["pathBase64"] = EncodeArgument(requestedPath),
+                ["allowedPathsBase64"] = EncodeLines(access.ExactPaths),
+                ["allowedDirsBase64"] = EncodeLines(access.AllowedDirectories),
+                ["contentBase64"] = Convert.ToBase64String(updatedBytes),
+            },
+            channel: KelpieExecutionChannel.Mcp,
+            cancellationToken: cancellationToken);
+
+        if (writeResult.ExitCode != 0)
+        {
+            return CreatePhpEnableError(
+                normalizedSiteKey,
+                requestedPath,
+                normalizedSocketPath,
+                normalizedExtension,
+                $"Nginx config file write failed through provider {DisplayName}. ExitCode={writeResult.ExitCode}. {CreateSafeErrorDetail(writeResult.StandardError)}",
+                paths.Warnings);
+        }
+
+        var testResult = await TestConfigFileAsync(sshCommandService, profile, cancellationToken);
+        if (testResult.Error is not null)
+        {
+            var rollbackResult = await RollbackConfigFileAsync(sshCommandService, profile, requestedPath, cancellationToken);
+            var rollbackError = rollbackResult.Error is null
+                ? string.Empty
+                : $" Rollback failed: {rollbackResult.Error}";
+            return new NginxPhpEnableResult(
+                ServiceKey,
+                DisplayName,
+                normalizedSiteKey,
+                requestedPath,
+                normalizedSocketPath,
+                normalizedExtension,
+                Changed: true,
+                Tested: true,
+                RolledBack: rollbackResult.Error is null,
+                Committed: false,
+                updatedBytes.Length,
+                paths.Warnings.Concat(testResult.Warnings).Concat(rollbackResult.Warnings).ToArray(),
+                testResult.Error + rollbackError);
+        }
+
+        var commitResult = await CommitConfigFileAsync(sshCommandService, profile, requestedPath, cancellationToken);
+        return new NginxPhpEnableResult(
+            ServiceKey,
+            DisplayName,
+            normalizedSiteKey,
+            requestedPath,
+            normalizedSocketPath,
+            normalizedExtension,
+            Changed: true,
+            Tested: true,
+            RolledBack: false,
+            Committed: commitResult.Error is null,
+            updatedBytes.Length,
+            paths.Warnings.Concat(testResult.Warnings).Concat(commitResult.Warnings).ToArray(),
+            commitResult.Error);
+    }
+
     private async Task<ServiceConfigFileBackupActionResult> ExecuteBackupActionAsync(
         SshCommandService sshCommandService,
         SshConnectionProfile profile,
@@ -760,6 +931,193 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
             : directory;
     }
 
+    private static string? ResolveSiteConfigPath(string siteKey, ServiceConfigPathsResult paths)
+    {
+        var candidates = new List<string>();
+        foreach (var pattern in paths.IncludePatterns.Where(IsSafeAbsoluteUnixPathPattern))
+        {
+            if (!pattern.Contains('*', StringComparison.Ordinal))
+            {
+                if (string.Equals(PathFileName(pattern), siteKey, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(PathFileNameWithoutConfExtension(pattern), siteKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    candidates.Add(pattern);
+                }
+
+                continue;
+            }
+
+            var directory = GetDirectoryFromIncludePattern(pattern);
+            if (directory is null)
+            {
+                continue;
+            }
+
+            if (pattern.EndsWith("*.conf", StringComparison.Ordinal))
+            {
+                candidates.Add($"{directory}/{siteKey}.conf");
+            }
+
+            candidates.Add($"{directory}/{siteKey}");
+        }
+
+        if (candidates.Count == 0
+            && string.Equals(siteKey, "default", StringComparison.OrdinalIgnoreCase)
+            && paths.MainConfig is not null)
+        {
+            candidates.Add(paths.MainConfig);
+        }
+
+        return candidates
+            .Distinct(StringComparer.Ordinal)
+            .FirstOrDefault(candidate => IsPathAllowedByIncludePatterns(candidate, paths.IncludePatterns)
+                || paths.ConfigFiles.Contains(candidate, StringComparer.Ordinal));
+    }
+
+    private static string PathFileName(string path)
+    {
+        var slashIndex = path.LastIndexOf('/');
+        return slashIndex < 0 ? path : path[(slashIndex + 1)..];
+    }
+
+    private static string PathFileNameWithoutConfExtension(string path)
+    {
+        var fileName = PathFileName(path);
+        return fileName.EndsWith(".conf", StringComparison.OrdinalIgnoreCase)
+            ? fileName[..^5]
+            : fileName;
+    }
+
+    private static bool TryApplyPhpTemplate(
+        string content,
+        string socketPath,
+        string extension,
+        out string updatedContent,
+        out bool changed,
+        out string error)
+    {
+        updatedContent = content.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
+        changed = false;
+        error = string.Empty;
+
+        var serverStart = ServerBlockStartRegex().Match(updatedContent);
+        if (!serverStart.Success)
+        {
+            error = "Nginx site configuration does not contain a server block.";
+            return false;
+        }
+
+        var openBrace = updatedContent.IndexOf('{', serverStart.Index);
+        var closeBrace = FindMatchingBrace(updatedContent, openBrace);
+        if (openBrace < 0 || closeBrace < 0)
+        {
+            error = "Nginx server block could not be parsed.";
+            return false;
+        }
+
+        var serverBlock = updatedContent.Substring(openBrace + 1, closeBrace - openBrace - 1);
+        var updatedBlock = EnsureIndexPhp(serverBlock, out var indexChanged);
+        updatedBlock = EnsurePhpLocation(updatedBlock, socketPath, extension, out var locationChanged);
+        changed = indexChanged || locationChanged;
+        if (!changed)
+        {
+            return true;
+        }
+
+        updatedContent = updatedContent[..(openBrace + 1)] + updatedBlock + updatedContent[closeBrace..];
+        return true;
+    }
+
+    private static string EnsureIndexPhp(string serverBlock, out bool changed)
+    {
+        var match = IndexDirectiveRegex().Match(serverBlock);
+        if (!match.Success)
+        {
+            changed = true;
+            return "\n    index index.php index.html index.htm;" + serverBlock;
+        }
+
+        var directive = match.Value;
+        if (Regex.IsMatch(directive, @"(?i)(^|\s)index\.php(\s|;)", RegexOptions.CultureInvariant))
+        {
+            changed = false;
+            return serverBlock;
+        }
+
+        changed = true;
+        var replacement = Regex.Replace(
+            directive,
+            @"(?i)^\s*index\s+",
+            match.Value[..(match.Value.Length - match.Value.TrimStart().Length)] + "index index.php ",
+            RegexOptions.CultureInvariant);
+        return serverBlock[..match.Index] + replacement + serverBlock[(match.Index + match.Length)..];
+    }
+
+    private static string EnsurePhpLocation(string serverBlock, string socketPath, string extension, out bool changed)
+    {
+        var escapedExtension = Regex.Escape(extension);
+        if (Regex.IsMatch(
+            serverBlock,
+            @"location\s+~\s+\\" + escapedExtension + @"\$\s*\{[^{}]*fastcgi_pass\s+unix:" + Regex.Escape(socketPath) + @"\s*;",
+            RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.Singleline))
+        {
+            changed = false;
+            return serverBlock;
+        }
+
+        changed = true;
+        var block = "\n"
+            + $"    location ~ \\{extension}$ {{\n"
+            + "        include snippets/fastcgi-php.conf;\n"
+            + $"        fastcgi_pass unix:{socketPath};\n"
+            + "    }\n";
+        return serverBlock.TrimEnd('\n') + block + "\n";
+    }
+
+    private static int FindMatchingBrace(string text, int openBrace)
+    {
+        if (openBrace < 0 || openBrace >= text.Length || text[openBrace] != '{')
+        {
+            return -1;
+        }
+
+        var depth = 0;
+        for (var index = openBrace; index < text.Length; index++)
+        {
+            if (text[index] == '{')
+            {
+                depth++;
+            }
+            else if (text[index] == '}')
+            {
+                depth--;
+                if (depth == 0)
+                {
+                    return index;
+                }
+            }
+        }
+
+        return -1;
+    }
+
+    private static bool IsSafeSiteKey(string siteKey)
+    {
+        return SafeSiteKeyRegex().IsMatch(siteKey);
+    }
+
+    private static bool IsSafePhpSocketPath(string socketPath)
+    {
+        return SafePhpSocketPathRegex().IsMatch(socketPath)
+            && IsSafeAbsoluteUnixPath(socketPath)
+            && !socketPath.Contains("//", StringComparison.Ordinal);
+    }
+
+    private static bool IsSafePhpExtension(string extension)
+    {
+        return SafePhpExtensionRegex().IsMatch(extension);
+    }
+
     private static string EncodeArgument(string value)
     {
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
@@ -867,6 +1225,30 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
             Error: error);
     }
 
+    private NginxPhpEnableResult CreatePhpEnableError(
+        string siteKey,
+        string? path,
+        string socketPath,
+        string extension,
+        string error,
+        IReadOnlyList<string> warnings)
+    {
+        return new NginxPhpEnableResult(
+            ServiceKey,
+            DisplayName,
+            siteKey,
+            path,
+            socketPath,
+            extension,
+            Changed: false,
+            Tested: false,
+            RolledBack: false,
+            Committed: false,
+            BytesWritten: 0,
+            warnings,
+            error);
+    }
+
     private static string GetBackupPath(string path)
     {
         return string.IsNullOrWhiteSpace(path) ? string.Empty : path + ".kelpiebakup";
@@ -951,6 +1333,21 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
 
     [GeneratedRegex(@"(?i)\b(password|secret|token|api[_-]?key|private[_-]?key)\b\s*[:=]", RegexOptions.CultureInvariant)]
     private static partial Regex SensitiveValueRegex();
+
+    [GeneratedRegex(@"\bserver\s*\{", RegexOptions.CultureInvariant)]
+    private static partial Regex ServerBlockStartRegex();
+
+    [GeneratedRegex(@"(?im)^[ \t]*index\s+[^;]+;")]
+    private static partial Regex IndexDirectiveRegex();
+
+    [GeneratedRegex(@"^[A-Za-z0-9._-]{1,64}$", RegexOptions.CultureInvariant)]
+    private static partial Regex SafeSiteKeyRegex();
+
+    [GeneratedRegex(@"^/(run|var/run)/[A-Za-z0-9._/-]+\.sock$", RegexOptions.CultureInvariant)]
+    private static partial Regex SafePhpSocketPathRegex();
+
+    [GeneratedRegex(@"^\.[A-Za-z0-9]{1,16}$", RegexOptions.CultureInvariant)]
+    private static partial Regex SafePhpExtensionRegex();
 
     private static Regex GlobToRegex(string pattern)
     {

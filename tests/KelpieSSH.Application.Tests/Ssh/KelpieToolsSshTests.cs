@@ -1297,6 +1297,91 @@ public sealed class KelpieToolsSshTests
     }
 
     [Fact]
+    public async Task EnableNginxPhpAsync_ShouldRequireConfirmation()
+    {
+        var profile = CreateProfile("vps01", KelpiePolicyMode.Expert);
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+        var appProviders = ServiceConfigPathsProviderCatalog.CreateDefault();
+
+        var result = await KelpieTools.EnableNginxPhpAsync(
+            service,
+            profiles,
+            appProviders,
+            "vps01",
+            "/run/php/php8.3-fpm.sock",
+            "wrong");
+
+        result.Error.Should().Be("Confirmation is required: ssh_service_config_nginx_enable_php:default:/run/php/php8.3-fpm.sock:.php");
+        result.Changed.Should().BeFalse();
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task EnableNginxPhpAsync_ShouldUseRegisteredProvider()
+    {
+        var profile = CreateProfile("vps01", KelpiePolicyMode.Expert);
+        const string originalContent = """
+            server {
+                listen 80;
+                root /var/www/html;
+                index index.html index.htm;
+            }
+
+            """;
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: "configure arguments: --conf-path=/etc/nginx/nginx.conf"),
+            new FakeSshCommandOutput(
+                StandardOutput: "include /etc/nginx/conf.d/*.conf;\n",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: originalContent,
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: "256",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: "nginx: configuration file /etc/nginx/nginx.conf test is successful\n"),
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: "configure arguments: --conf-path=/etc/nginx/nginx.conf"),
+            new FakeSshCommandOutput(
+                StandardOutput: "include /etc/nginx/conf.d/*.conf;\n",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: "1",
+                StandardError: string.Empty),
+        ]);
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+        var appProviders = ServiceConfigPathsProviderCatalog.CreateDefault();
+
+        var result = await KelpieTools.EnableNginxPhpAsync(
+            service,
+            profiles,
+            appProviders,
+            "vps01",
+            "/run/php/php8.3-fpm.sock",
+            "ssh_service_config_nginx_enable_php:default:/run/php/php8.3-fpm.sock:.php");
+
+        result.Error.Should().BeNull();
+        result.ServiceKey.Should().Be("nginx");
+        result.SiteKey.Should().Be("default");
+        result.Path.Should().Be("/etc/nginx/conf.d/default.conf");
+        result.Changed.Should().BeTrue();
+        result.Tested.Should().BeTrue();
+        result.Committed.Should().BeTrue();
+        runner.Requests.Select(request => request.CommandName).Should().ContainInOrder(
+            "service_config_nginx_write_config",
+            "service_config_nginx_test_config",
+            "service_config_nginx_commit_config");
+    }
+
+    [Fact]
     public async Task ReadServiceConfigFileAsync_ShouldReturnErrorForUnsupportedServiceKey()
     {
         var runner = new FakeSshCommandRunner();
@@ -3024,11 +3109,16 @@ public sealed class KelpieToolsSshTests
 
         public SshCommandRequest? LastRequest { get; private set; }
 
+        public IReadOnlyList<SshCommandRequest> Requests => _requests;
+
+        private readonly List<SshCommandRequest> _requests = [];
+
         public Task<SshCommandResult> ExecuteAsync(
             SshCommandRequest request,
             CancellationToken cancellationToken = default)
         {
             LastRequest = request;
+            _requests.Add(request);
             var output = _outputs.Count > 0
                 ? _outputs.Dequeue()
                 : new FakeSshCommandOutput("ok\n\u001b[31mERROR\u001b[0m", "warning");

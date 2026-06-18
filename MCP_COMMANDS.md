@@ -60,7 +60,7 @@ This document describes the `name` and `arguments` used inside `tools/call`. In 
 | [Terminal and session cleanup](#terminal-and-session-cleanup) | `ssh_terminal_open`, `ssh_terminal_send`, `ssh_terminal_snapshot`, `ssh_terminal_close`, `ssh_connection_close`, `ssh_logout` | Manage an interactive SSH terminal session and clear MCP password sessions. |
 | [Packages](#packages) | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove` | Inspect packages and run confirmation-gated package operations. |
 | [Services](#services) | `ssh_service_status`, `ssh_service_is_active`, `ssh_service_is_enabled`, `ssh_list_services`, `ssh_service_enable_now`, `ssh_service_reload`, `ssh_service_restart`, `ssh_service_stop`, `ssh_service_disable` | Inspect and safely manage systemd services. |
-| [Service config/logs](#service-configlogs) | `service_config_paths`, `service_config_file_check_read`, `service_config_file_read`, `service_config_file_check_write`, `service_config_file_write`, `service_config_file_rollback`, `service_config_file_commit`, `service_config_test`, `service_logfile_read` | Operate on provider-approved service configuration files and logs. |
+| [Service config/logs](#service-configlogs) | `service_config_paths`, `service_config_file_check_read`, `service_config_file_read`, `service_config_file_check_write`, `service_config_file_write`, `service_config_file_rollback`, `service_config_file_commit`, `service_config_test`, `ssh_service_config_nginx_enable_php`, `service_logfile_read` | Operate on provider-approved service configuration files and logs. |
 | [Web files](#web-files) | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | Operate on provider-approved web roots. |
 
 ## Common Inputs
@@ -5593,6 +5593,7 @@ Tools in this group:
 - [`service_config_file_rollback`](#service_config_file_rollback)
 - [`service_config_file_commit`](#service_config_file_commit)
 - [`service_config_test`](#service_config_test)
+- [`ssh_service_config_nginx_enable_php`](#ssh_service_config_nginx_enable_php)
 - [`service_logfile_read`](#service_logfile_read)
 
 #### `service_config_paths`
@@ -6072,6 +6073,90 @@ The MCP execution result body is the return value sample above, wrapped by the c
 Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+#### `ssh_service_config_nginx_enable_php`
+
+Purpose:
+
+Enables fixed-template Nginx PHP-FPM routing for one provider-approved site configuration.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `socketPath`: PHP-FPM Unix socket path. Allowed pattern is a safe absolute socket path under `/run` or `/var/run`, such as `/run/php/php8.3-fpm.sock`.
+- `confirmation`: `ssh_service_config_nginx_enable_php:<siteKey>:<socketPath>:<extension>`.
+- `siteKey`: Provider-resolved site key. Default is `default`.
+- `extension`: Dot-prefixed extension to route. Default is `.php`.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_service_config_nginx_enable_php",
+  "arguments": {
+    "profileName": "vps01",
+    "siteKey": "default",
+    "socketPath": "/run/php/php8.3-fpm.sock",
+    "extension": ".php",
+    "confirmation": "ssh_service_config_nginx_enable_php:default:/run/php/php8.3-fpm.sock:.php"
+  }
+}
+```
+
+Processing:
+
+Kelpie resolves the Nginx site key to a provider-approved include file, reads that file, and applies only the fixed PHP-FPM template:
+
+```nginx
+index index.php ...
+
+location ~ \.php$ {
+    include snippets/fastcgi-php.conf;
+    fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+}
+```
+
+The tool does not accept arbitrary Nginx blocks, `proxy_pass`, `root`, or `alias` values. After writing, it runs `nginx -t`. If the test fails, Kelpie rolls the file back from the generated backup. Reloading Nginx is intentionally separate; use `ssh_service_reload` after this tool succeeds.
+
+Return value:
+
+- Return type: `NginxPhpEnableResult`.
+- `Changed` is `false` when the same fixed template already exists.
+- `Tested` is `true` only after `nginx -t` was executed.
+- `RolledBack` is `true` when the tool wrote a change and then restored it after `nginx -t` failed.
+- `Committed` is `true` when `nginx -t` passed and the generated backup was removed.
+- Error fields are empty on success and contain validation, policy, connection, test, rollback, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "ServiceKey": "nginx",
+  "DisplayName": "Nginx",
+  "SiteKey": "default",
+  "Path": "/etc/nginx/conf.d/default.conf",
+  "SocketPath": "/run/php/php8.3-fpm.sock",
+  "Extension": ".php",
+  "Changed": true,
+  "Tested": true,
+  "RolledBack": false,
+  "Committed": true,
+  "BytesWritten": 512,
+  "Warnings": []
+}
+```
+
+Execution result sample:
+
+The MCP execution result body is the return value sample above, wrapped by the client as the result of `tools/call`.
+
+Safety notes:
+
+- This tool can change remote service configuration files.
+- It uses a fixed template and rejects arbitrary configuration blocks.
+- It edits only provider-approved Nginx configuration files.
+- `nginx -t` must pass. On failure, Kelpie attempts rollback before returning.
+- This tool does not reload Nginx. Call `ssh_service_reload` separately after reviewing the result.
 
 #### `service_logfile_read`
 

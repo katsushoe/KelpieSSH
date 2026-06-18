@@ -445,6 +445,100 @@ public sealed partial class KelpieTools
     }
 
     /// <summary>
+    /// Enables fixed-template PHP-FPM routing in one provider-approved Nginx site configuration.
+    /// </summary>
+    /// <param name="sshCommandService">The SSH command service.</param>
+    /// <param name="profileCatalog">The SSH profile catalog.</param>
+    /// <param name="serviceConfigPathsProviders">The service configuration paths providers.</param>
+    /// <param name="profileName">The SSH profile name.</param>
+    /// <param name="socketPath">The PHP-FPM Unix socket path.</param>
+    /// <param name="confirmation">The required confirmation token: ssh_service_config_nginx_enable_php:&lt;siteKey&gt;:&lt;socketPath&gt;:&lt;extension&gt;.</param>
+    /// <param name="siteKey">The provider-resolved site key. Defaults to default.</param>
+    /// <param name="extension">The executable extension to route. Defaults to .php.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The PHP routing configuration result.</returns>
+    [McpServerTool(Name = "ssh_service_config_nginx_enable_php")]
+    [Description("Enables fixed-template Nginx PHP-FPM routing for one provider-approved site after explicit confirmation.")]
+    public static async Task<NginxPhpEnableResult> EnableNginxPhpAsync(
+        SshCommandService sshCommandService,
+        ISshConnectionProfileCatalog profileCatalog,
+        ServiceConfigPathsProviderCatalog serviceConfigPathsProviders,
+        string profileName,
+        string socketPath,
+        string confirmation,
+        string siteKey = "default",
+        string extension = ".php",
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedSiteKey = string.IsNullOrWhiteSpace(siteKey) ? "default" : siteKey.Trim();
+        var normalizedExtension = string.IsNullOrWhiteSpace(extension) ? ".php" : extension.Trim();
+        var normalizedSocketPath = string.IsNullOrWhiteSpace(socketPath) ? string.Empty : socketPath.Trim();
+        KpLog.Info($"MCP SSH tool called: ssh_service_config_nginx_enable_php siteKey={normalizedSiteKey}, extension={normalizedExtension}, profile={profileName}");
+        if (!TryGetConfirmationError("ssh_service_config_nginx_enable_php", $"{normalizedSiteKey}:{normalizedSocketPath}:{normalizedExtension}", confirmation, out var confirmationError))
+        {
+            return new NginxPhpEnableResult(
+                "nginx",
+                string.Empty,
+                normalizedSiteKey,
+                Path: null,
+                normalizedSocketPath,
+                normalizedExtension,
+                Changed: false,
+                Tested: false,
+                RolledBack: false,
+                Committed: false,
+                BytesWritten: 0,
+                Warnings: [],
+                Error: confirmationError);
+        }
+
+        if (!serviceConfigPathsProviders.TryGet("nginx", out var provider))
+        {
+            return new NginxPhpEnableResult(
+                "nginx",
+                string.Empty,
+                normalizedSiteKey,
+                Path: null,
+                normalizedSocketPath,
+                normalizedExtension,
+                Changed: false,
+                Tested: false,
+                RolledBack: false,
+                Committed: false,
+                BytesWritten: 0,
+                Warnings: [],
+                Error: "Unsupported serviceKey: nginx");
+        }
+
+        if (provider is not INginxPhpConfigurator configurator)
+        {
+            return new NginxPhpEnableResult(
+                "nginx",
+                provider.DisplayName,
+                normalizedSiteKey,
+                Path: null,
+                normalizedSocketPath,
+                normalizedExtension,
+                Changed: false,
+                Tested: false,
+                RolledBack: false,
+                Committed: false,
+                BytesWritten: 0,
+                Warnings: [],
+                Error: "Nginx PHP-FPM configuration is not supported by the registered provider.");
+        }
+
+        var profile = ResolveSshProfile(profileCatalog, profileName);
+        return await configurator.EnablePhpAsync(
+            sshCommandService,
+            profile,
+            normalizedSiteKey,
+            normalizedSocketPath,
+            normalizedExtension,
+            cancellationToken);
+    }
+
+    /// <summary>
     /// Reads a provider-approved log file for a supported service on a configured SSH profile.
     /// </summary>
     /// <param name="sshCommandService">The SSH command service.</param>

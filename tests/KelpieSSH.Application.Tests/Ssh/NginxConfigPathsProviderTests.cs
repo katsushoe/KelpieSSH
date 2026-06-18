@@ -529,6 +529,201 @@ public sealed class NginxConfigPathsProviderTests
     }
 
     [Fact]
+    public async Task EnablePhpAsync_ShouldInsertIndexAndPhpLocationThenTestAndCommit()
+    {
+        var profile = CreateProfile(KelpiePolicyMode.Expert);
+        const string originalContent = """
+            server {
+                listen 80;
+                root /var/www/html;
+                index index.html index.htm;
+
+                location / {
+                    try_files $uri $uri/ =404;
+                }
+            }
+
+            """;
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: "configure arguments: --conf-path=/etc/nginx/nginx.conf"),
+            new FakeSshCommandOutput(
+                StandardOutput: "include /etc/nginx/conf.d/*.conf;\n",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: originalContent,
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: "256",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: "nginx: configuration file /etc/nginx/nginx.conf test is successful\n"),
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: "configure arguments: --conf-path=/etc/nginx/nginx.conf"),
+            new FakeSshCommandOutput(
+                StandardOutput: "include /etc/nginx/conf.d/*.conf;\n",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: "1",
+                StandardError: string.Empty),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new NginxConfigPathsProvider();
+
+        var result = await provider.EnablePhpAsync(
+            service,
+            profile,
+            "default",
+            "/run/php/php8.3-fpm.sock",
+            ".php");
+
+        result.Error.Should().BeNull();
+        result.Path.Should().Be("/etc/nginx/conf.d/default.conf");
+        result.Changed.Should().BeTrue();
+        result.Tested.Should().BeTrue();
+        result.Committed.Should().BeTrue();
+        result.RolledBack.Should().BeFalse();
+        runner.Requests.Select(request => request.CommandName).Should().ContainInOrder(
+            "service_config_nginx_write_config",
+            "service_config_nginx_test_config",
+            "service_config_nginx_commit_config");
+        var writtenContent = DecodeArgument(
+            runner.Requests.Single(request => request.CommandName == "service_config_nginx_write_config"),
+            "contentBase64");
+        writtenContent.Should().Contain("index index.php index.html index.htm;");
+        writtenContent.Should().Contain("location ~ \\.php$");
+        writtenContent.Should().Contain("include snippets/fastcgi-php.conf;");
+        writtenContent.Should().Contain("fastcgi_pass unix:/run/php/php8.3-fpm.sock;");
+        writtenContent.Should().Contain("try_files $uri $uri/ =404;");
+    }
+
+    [Fact]
+    public async Task EnablePhpAsync_ShouldBeIdempotentWhenTemplateAlreadyExists()
+    {
+        var profile = CreateProfile(KelpiePolicyMode.Expert);
+        const string existingContent = """
+            server {
+                listen 80;
+                root /var/www/html;
+                index index.php index.html index.htm;
+
+                location ~ \.php$ {
+                    include snippets/fastcgi-php.conf;
+                    fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+                }
+            }
+
+            """;
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: "configure arguments: --conf-path=/etc/nginx/nginx.conf"),
+            new FakeSshCommandOutput(
+                StandardOutput: "include /etc/nginx/conf.d/*.conf;\n",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: existingContent,
+                StandardError: string.Empty),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new NginxConfigPathsProvider();
+
+        var result = await provider.EnablePhpAsync(
+            service,
+            profile,
+            "default",
+            "/run/php/php8.3-fpm.sock",
+            ".php");
+
+        result.Error.Should().BeNull();
+        result.Changed.Should().BeFalse();
+        result.Tested.Should().BeFalse();
+        runner.Requests.Select(request => request.CommandName)
+            .Should().NotContain("service_config_nginx_write_config");
+    }
+
+    [Fact]
+    public async Task EnablePhpAsync_ShouldRejectUnsafeSocketPathBeforeRemoteCommands()
+    {
+        var profile = CreateProfile(KelpiePolicyMode.Expert);
+        var runner = new FakeSshCommandRunner([]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new NginxConfigPathsProvider();
+
+        var result = await provider.EnablePhpAsync(
+            service,
+            profile,
+            "default",
+            "/tmp/php-fpm.sock",
+            ".php");
+
+        result.Error.Should().Be("PHP-FPM socketPath is invalid.");
+        runner.Requests.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task EnablePhpAsync_ShouldRollbackWhenNginxTestFails()
+    {
+        var profile = CreateProfile(KelpiePolicyMode.Expert);
+        const string originalContent = """
+            server {
+                listen 80;
+                root /var/www/html;
+            }
+
+            """;
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: "configure arguments: --conf-path=/etc/nginx/nginx.conf"),
+            new FakeSshCommandOutput(
+                StandardOutput: "include /etc/nginx/conf.d/*.conf;\n",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: originalContent,
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: "256",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: "nginx: [emerg] invalid test config\n",
+                ExitCode: 1),
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: "configure arguments: --conf-path=/etc/nginx/nginx.conf"),
+            new FakeSshCommandOutput(
+                StandardOutput: "include /etc/nginx/conf.d/*.conf;\n",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: "128",
+                StandardError: string.Empty),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new NginxConfigPathsProvider();
+
+        var result = await provider.EnablePhpAsync(
+            service,
+            profile,
+            "default",
+            "/run/php/php8.3-fpm.sock",
+            ".php");
+
+        result.Error.Should().Contain("Nginx config test failed");
+        result.Changed.Should().BeTrue();
+        result.Tested.Should().BeTrue();
+        result.RolledBack.Should().BeTrue();
+        result.Committed.Should().BeFalse();
+        runner.Requests.Select(request => request.CommandName).Should().ContainInOrder(
+            "service_config_nginx_write_config",
+            "service_config_nginx_test_config",
+            "service_config_nginx_rollback_config");
+    }
+
+    [Fact]
     public async Task ReadLogfileAsync_ShouldReadProviderApprovedAccessLog()
     {
         var profile = CreateProfile();

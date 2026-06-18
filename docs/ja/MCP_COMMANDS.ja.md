@@ -55,7 +55,7 @@ HTTP request body は REST 形式ではなく JSON-RPC です。たとえば診�
 | SSH ターミナル / session cleanup | `ssh_terminal_open`, `ssh_terminal_send`, `ssh_terminal_snapshot`, `ssh_terminal_close`, `ssh_connection_close`, `ssh_logout` | PTY 付き対話ターミナルの操作と MCP password session の破棄。 |
 | パッケージ操作 | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove` | package の確認、検索、dry-run、確認付き変更。 |
 | サービス操作 | `ssh_service_status`, `ssh_service_is_active`, `ssh_service_is_enabled`, `ssh_list_services`, `ssh_service_enable_now`, `ssh_service_reload`, `ssh_service_restart`, `ssh_service_stop`, `ssh_service_disable` | systemd service の状態確認と確認付き変更。 |
-| サービス設定 / ログ | `service_config_paths`, `service_config_file_check_read`, `service_config_file_read`, `service_config_file_check_write`, `service_config_file_write`, `service_config_file_rollback`, `service_config_file_commit`, `service_config_test`, `service_logfile_read` | provider が許可したサービス設定ファイルとログの操作。 |
+| サービス設定 / ログ | `service_config_paths`, `service_config_file_check_read`, `service_config_file_read`, `service_config_file_check_write`, `service_config_file_write`, `service_config_file_rollback`, `service_config_file_commit`, `service_config_test`, `ssh_service_config_nginx_enable_php`, `service_logfile_read` | provider が許可したサービス設定ファイルとログの操作。 |
 | Web ファイル | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | provider が許可した Web ルート配下のファイル操作と権限変更。 |
 
 ## 共通オプション
@@ -4194,6 +4194,106 @@ provider 管理の設定テストコマンドを実行します。
 安全上の注意:
 
 - provider 管理のテストコマンドだけを実行します。
+
+### `ssh_service_config_nginx_enable_php`
+
+目的:
+
+provider が許可した nginx site 設定に、PHP-FPM 連携用の固定テンプレートを適用します。
+
+入力引数:
+
+- `profileName`: SSH プロファイル名。
+- `socketPath`: PHP-FPM Unix socket path。`/run/php/php8.3-fpm.sock` のような `/run` または `/var/run` 配下の安全な absolute socket path だけを許可します。
+- `confirmation`: `ssh_service_config_nginx_enable_php:<siteKey>:<socketPath>:<extension>`。
+- `siteKey`: provider が解決する site key。既定値は `default`。
+- `extension`: PHP-FPM へ渡す拡張子。既定値は `.php`。
+
+引数サンプル:
+
+```json
+{
+  "profileName": "vps01",
+  "siteKey": "default",
+  "socketPath": "/run/php/php8.3-fpm.sock",
+  "extension": ".php",
+  "confirmation": "ssh_service_config_nginx_enable_php:default:/run/php/php8.3-fpm.sock:.php"
+}
+```
+
+確認文字列:
+
+- `ssh_service_config_nginx_enable_php:<siteKey>:<socketPath>:<extension>`
+
+処理内容:
+
+Kelpie は nginx site key を provider が許可した include file に解決し、そのファイルだけを読み取って、次の固定テンプレートだけを適用します。
+
+```nginx
+index index.php ...
+
+location ~ \.php$ {
+    include snippets/fastcgi-php.conf;
+    fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+}
+```
+
+任意の nginx block、`proxy_pass`、`root`、`alias` は受け取りません。書き込み後に `nginx -t` を実行し、失敗した場合は作成済み backup から rollback します。nginx の reload はこの tool では行いません。成功後に `ssh_service_reload` を別途実行します。
+
+戻り値:
+
+- `NginxPhpEnableResult`。
+- `changed`: 既に同じ固定テンプレートがある場合は `false`。
+- `tested`: `nginx -t` を実行した場合は `true`。
+- `rolledBack`: 書き込み後の `nginx -t` 失敗により rollback した場合は `true`。
+- `committed`: `nginx -t` 成功後に backup commit まで完了した場合は `true`。
+
+実行結果サンプル:
+
+```json
+{
+  "serviceKey": "nginx",
+  "displayName": "Nginx",
+  "siteKey": "default",
+  "path": "/etc/nginx/conf.d/default.conf",
+  "socketPath": "/run/php/php8.3-fpm.sock",
+  "extension": ".php",
+  "changed": true,
+  "tested": true,
+  "rolledBack": false,
+  "committed": true,
+  "bytesWritten": 512,
+  "warnings": []
+}
+```
+
+確認文字列がない場合:
+
+```json
+{
+  "serviceKey": "nginx",
+  "displayName": "",
+  "siteKey": "default",
+  "path": null,
+  "socketPath": "/run/php/php8.3-fpm.sock",
+  "extension": ".php",
+  "changed": false,
+  "tested": false,
+  "rolledBack": false,
+  "committed": false,
+  "bytesWritten": 0,
+  "warnings": [],
+  "error": "Confirmation is required: ssh_service_config_nginx_enable_php:default:/run/php/php8.3-fpm.sock:.php"
+}
+```
+
+安全上の注意:
+
+- SSH 先の nginx 設定ファイルを変更します。
+- 固定テンプレートだけを適用し、任意設定 block は受け取りません。
+- provider が許可した nginx 設定ファイルだけを編集します。
+- `nginx -t` 成功を必須とし、失敗時は rollback を試行します。
+- nginx の reload は別操作です。結果確認後に `ssh_service_reload` を実行してください。
 
 ### `service_logfile_read`
 
