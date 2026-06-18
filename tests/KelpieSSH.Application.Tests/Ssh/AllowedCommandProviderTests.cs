@@ -134,6 +134,36 @@ public sealed class AllowedCommandProviderTests
         script.Should().NotContain("tz = m.group(8)");
     }
 
+    [Fact]
+    public void NginxServiceConfigCommandProvider_ShouldAllowCreateAndRollbackCreatedConfigFiles()
+    {
+        var provider = new NginxServiceConfigCommandProvider();
+        var profile = CreateProfile("debian", "apt");
+        var commands = provider.GetCommands(profile);
+        var baseArguments = new Dictionary<string, string>
+        {
+            ["pathBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("/etc/nginx/conf.d/default.conf")),
+            ["allowedPathsBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("\n")),
+            ["allowedDirsBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("/etc/nginx/conf.d\n")),
+        };
+        var writeArguments = new Dictionary<string, string>(baseArguments, StringComparer.OrdinalIgnoreCase)
+        {
+            ["contentBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("server {}\n")),
+        };
+
+        var writeCommand = commands.Single(command => command.Name == "service_config_nginx_write_config").BuildCommandText(writeArguments);
+        var checkCommand = commands.Single(command => command.Name == "service_config_nginx_check_write_config").BuildCommandText(baseArguments);
+        var rollbackCommand = commands.Single(command => command.Name == "service_config_nginx_rollback_config").BuildCommandText(baseArguments);
+
+        writeCommand.Should().Contain("KELPIE_CREATED_CONFIG_FILE_BACKUP_V1");
+        writeCommand.Should().Contain("exists=os.path.exists(rp)");
+        writeCommand.Should().Contain("exists and not os.path.isfile(rp)");
+        checkCommand.Should().Contain("exists=os.path.exists(rp)");
+        checkCommand.Should().Contain("exists and not os.path.isfile(rp)");
+        rollbackCommand.Should().Contain("KELPIE_CREATED_CONFIG_FILE_BACKUP_V1");
+        rollbackCommand.Should().Contain("os.remove(p)");
+    }
+
     [Theory]
     [InlineData("check_http_local")]
     [InlineData("check_tcp_connect_local")]

@@ -4227,7 +4227,9 @@ provider が許可した nginx site 設定に、PHP-FPM 連携用の固定テン
 
 処理内容:
 
-Kelpie は nginx site key を provider が許可した include file に解決し、そのファイルだけを読み取って、次の固定テンプレートだけを適用します。
+Kelpie は nginx site key を `/etc/nginx/conf.d/<site>.conf` や `/etc/nginx/sites-enabled/<site>` のような provider 許可済み site include file に解決します。`/etc/nginx/modules-enabled/*.conf` のような module include file は PHP site 設定の対象にしません。
+
+Kelpie は対象ファイルを読み取り、次の固定テンプレートだけを適用します。対象 site file が存在しない場合は、最小限の固定 server block を新規作成してから同じテンプレートを適用します。
 
 ```nginx
 index index.php ...
@@ -4291,7 +4293,7 @@ location ~ \.php$ {
 
 - SSH 先の nginx 設定ファイルを変更します。
 - 固定テンプレートだけを適用し、任意設定 block は受け取りません。
-- provider が許可した nginx 設定ファイルだけを編集します。
+- provider が許可した nginx site 設定ファイルだけを編集します。解決済み site file が存在しない場合は新規作成できます。
 - `nginx -t` 成功を必須とし、失敗時は rollback を試行します。
 - nginx の reload は別操作です。結果確認後に `ssh_service_reload` を実行してください。
 

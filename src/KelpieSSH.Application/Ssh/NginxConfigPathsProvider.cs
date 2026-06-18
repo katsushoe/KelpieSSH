@@ -530,19 +530,29 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
             channel: KelpieExecutionChannel.Mcp,
             cancellationToken: cancellationToken);
 
+        var warnings = paths.Warnings;
+        var contentToEdit = readResult.StandardOutput;
         if (readResult.ExitCode != 0)
         {
-            return CreatePhpEnableError(
-                normalizedSiteKey,
-                requestedPath,
-                normalizedSocketPath,
-                normalizedExtension,
-                $"Nginx config file read failed through provider {DisplayName}. ExitCode={readResult.ExitCode}. {CreateSafeErrorDetail(readResult.StandardError)}",
-                paths.Warnings);
+            if (!IsMissingConfigFileError(readResult.StandardError))
+            {
+                return CreatePhpEnableError(
+                    normalizedSiteKey,
+                    requestedPath,
+                    normalizedSocketPath,
+                    normalizedExtension,
+                    $"Nginx config file read failed through provider {DisplayName}. ExitCode={readResult.ExitCode}. {CreateSafeErrorDetail(readResult.StandardError)}",
+                    paths.Warnings);
+            }
+
+            contentToEdit = CreateDefaultPhpSiteConfig();
+            warnings = paths.Warnings
+                .Concat(["Nginx site configuration file did not exist; generated a fixed default server block."])
+                .ToArray();
         }
 
         if (!TryApplyPhpTemplate(
-            readResult.StandardOutput,
+            contentToEdit,
             normalizedSocketPath,
             normalizedExtension,
             out var updatedContent,
@@ -566,7 +576,7 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
                 RolledBack: false,
                 Committed: false,
                 BytesWritten: 0,
-                paths.Warnings);
+                warnings);
         }
 
         var updatedBytes = Encoding.UTF8.GetBytes(updatedContent);
@@ -578,7 +588,7 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
                 normalizedSocketPath,
                 normalizedExtension,
                 $"Edited content exceeds the maximum write size of {MaxWriteBytes} bytes.",
-                paths.Warnings);
+                warnings);
         }
 
         var writeResult = await sshCommandService.ExecuteAsync(
@@ -602,7 +612,7 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
                 normalizedSocketPath,
                 normalizedExtension,
                 $"Nginx config file write failed through provider {DisplayName}. ExitCode={writeResult.ExitCode}. {CreateSafeErrorDetail(writeResult.StandardError)}",
-                paths.Warnings);
+                warnings);
         }
 
         var testResult = await TestConfigFileAsync(sshCommandService, profile, cancellationToken);
@@ -624,7 +634,7 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
                 RolledBack: rollbackResult.Error is null,
                 Committed: false,
                 updatedBytes.Length,
-                paths.Warnings.Concat(testResult.Warnings).Concat(rollbackResult.Warnings).ToArray(),
+                warnings.Concat(testResult.Warnings).Concat(rollbackResult.Warnings).ToArray(),
                 testResult.Error + rollbackError);
         }
 
@@ -641,7 +651,7 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
             RolledBack: false,
             Committed: commitResult.Error is null,
             updatedBytes.Length,
-            paths.Warnings.Concat(testResult.Warnings).Concat(commitResult.Warnings).ToArray(),
+            warnings.Concat(testResult.Warnings).Concat(commitResult.Warnings).ToArray(),
             commitResult.Error);
     }
 
@@ -934,7 +944,10 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
     private static string? ResolveSiteConfigPath(string siteKey, ServiceConfigPathsResult paths)
     {
         var candidates = new List<string>();
-        foreach (var pattern in paths.IncludePatterns.Where(IsSafeAbsoluteUnixPathPattern))
+        foreach (var pattern in paths.IncludePatterns
+            .Where(IsSafeAbsoluteUnixPathPattern)
+            .Where(IsSiteConfigIncludePattern)
+            .OrderBy(GetSiteConfigIncludePatternPriority))
         {
             if (!pattern.Contains('*', StringComparison.Ordinal))
             {
@@ -972,6 +985,33 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
             .Distinct(StringComparer.Ordinal)
             .FirstOrDefault(candidate => IsPathAllowedByIncludePatterns(candidate, paths.IncludePatterns)
                 || paths.ConfigFiles.Contains(candidate, StringComparer.Ordinal));
+    }
+
+    private static bool IsSiteConfigIncludePattern(string pattern)
+    {
+        return pattern.Contains("/conf.d/", StringComparison.Ordinal)
+            || pattern.Contains("/sites-enabled/", StringComparison.Ordinal)
+            || pattern.Contains("/sites-available/", StringComparison.Ordinal);
+    }
+
+    private static int GetSiteConfigIncludePatternPriority(string pattern)
+    {
+        if (pattern.Contains("/conf.d/", StringComparison.Ordinal))
+        {
+            return 0;
+        }
+
+        if (pattern.Contains("/sites-enabled/", StringComparison.Ordinal))
+        {
+            return 1;
+        }
+
+        if (pattern.Contains("/sites-available/", StringComparison.Ordinal))
+        {
+            return 2;
+        }
+
+        return 3;
     }
 
     private static string PathFileName(string path)
@@ -1026,6 +1066,29 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
 
         updatedContent = updatedContent[..(openBrace + 1)] + updatedBlock + updatedContent[closeBrace..];
         return true;
+    }
+
+    private static string CreateDefaultPhpSiteConfig()
+    {
+        return """
+            server {
+                listen 80;
+                server_name _;
+                root /var/www/html;
+
+                location / {
+                    try_files $uri $uri/ =404;
+                }
+            }
+
+            """;
+    }
+
+    private static bool IsMissingConfigFileError(string standardError)
+    {
+        return standardError.Contains("not a regular file", StringComparison.OrdinalIgnoreCase)
+            || standardError.Contains("No such file", StringComparison.OrdinalIgnoreCase)
+            || standardError.Contains("not found", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string EnsureIndexPhp(string serverBlock, out bool changed)

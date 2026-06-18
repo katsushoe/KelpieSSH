@@ -601,6 +601,124 @@ public sealed class NginxConfigPathsProviderTests
     }
 
     [Fact]
+    public async Task EnablePhpAsync_ShouldPreferHttpSiteIncludeOverModulesInclude()
+    {
+        var profile = CreateProfile(KelpiePolicyMode.Expert);
+        const string originalContent = """
+            server {
+                listen 80;
+                root /var/www/html;
+            }
+
+            """;
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: "configure arguments: --conf-path=/etc/nginx/nginx.conf"),
+            new FakeSshCommandOutput(
+                StandardOutput: """
+                    include /etc/nginx/modules-enabled/*.conf;
+                    events {}
+                    http {
+                        include /etc/nginx/mime.types;
+                        include /etc/nginx/conf.d/*.conf;
+                        include /etc/nginx/sites-enabled/*;
+                    }
+
+                    """,
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: originalContent,
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: "256",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: "nginx: configuration file /etc/nginx/nginx.conf test is successful\n"),
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: "configure arguments: --conf-path=/etc/nginx/nginx.conf"),
+            new FakeSshCommandOutput(
+                StandardOutput: "include /etc/nginx/conf.d/*.conf;\ninclude /etc/nginx/sites-enabled/*;\n",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: "1",
+                StandardError: string.Empty),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new NginxConfigPathsProvider();
+
+        var result = await provider.EnablePhpAsync(
+            service,
+            profile,
+            "default",
+            "/run/php/php8.3-fpm.sock",
+            ".php");
+
+        result.Error.Should().BeNull();
+        result.Path.Should().Be("/etc/nginx/conf.d/default.conf");
+        DecodeArgument(
+            runner.Requests.Single(request => request.CommandName == "service_config_nginx_read_config" && DecodeArgument(request, "pathBase64").EndsWith("default.conf", StringComparison.Ordinal)),
+            "pathBase64").Should().Be("/etc/nginx/conf.d/default.conf");
+    }
+
+    [Fact]
+    public async Task EnablePhpAsync_ShouldCreateFixedSiteConfigWhenTargetFileDoesNotExist()
+    {
+        var profile = CreateProfile(KelpiePolicyMode.Expert);
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: "configure arguments: --conf-path=/etc/nginx/nginx.conf"),
+            new FakeSshCommandOutput(
+                StandardOutput: "include /etc/nginx/conf.d/*.conf;\n",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: "ERROR: config path is not a regular file",
+                ExitCode: 1),
+            new FakeSshCommandOutput(
+                StandardOutput: "256",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: "nginx: configuration file /etc/nginx/nginx.conf test is successful\n"),
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: "configure arguments: --conf-path=/etc/nginx/nginx.conf"),
+            new FakeSshCommandOutput(
+                StandardOutput: "include /etc/nginx/conf.d/*.conf;\n",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: "1",
+                StandardError: string.Empty),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new NginxConfigPathsProvider();
+
+        var result = await provider.EnablePhpAsync(
+            service,
+            profile,
+            "default",
+            "/run/php/php8.3-fpm.sock",
+            ".php");
+
+        result.Error.Should().BeNull();
+        result.Changed.Should().BeTrue();
+        result.Committed.Should().BeTrue();
+        result.Warnings.Should().Contain("Nginx site configuration file did not exist; generated a fixed default server block.");
+        var writtenContent = DecodeArgument(
+            runner.Requests.Single(request => request.CommandName == "service_config_nginx_write_config"),
+            "contentBase64");
+        writtenContent.Should().Contain("server_name _;");
+        writtenContent.Should().Contain("root /var/www/html;");
+        writtenContent.Should().Contain("index index.php index.html index.htm;");
+        writtenContent.Should().Contain("location ~ \\.php$");
+        writtenContent.Should().Contain("fastcgi_pass unix:/run/php/php8.3-fpm.sock;");
+    }
+
+    [Fact]
     public async Task EnablePhpAsync_ShouldBeIdempotentWhenTemplateAlreadyExists()
     {
         var profile = CreateProfile(KelpiePolicyMode.Expert);

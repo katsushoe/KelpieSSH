@@ -6105,7 +6105,9 @@ Input arguments:
 
 Processing:
 
-Kelpie resolves the Nginx site key to a provider-approved include file, reads that file, and applies only the fixed PHP-FPM template:
+Kelpie resolves the Nginx site key to a provider-approved site include file such as `/etc/nginx/conf.d/<site>.conf` or `/etc/nginx/sites-enabled/<site>`. It does not choose module include files such as `/etc/nginx/modules-enabled/*.conf` as PHP site targets.
+
+Kelpie reads the target file and applies only the fixed PHP-FPM template. If the target site file does not exist, Kelpie creates a minimal fixed server block and then applies the same template:
 
 ```nginx
 index index.php ...
@@ -6154,7 +6156,7 @@ Safety notes:
 
 - This tool can change remote service configuration files.
 - It uses a fixed template and rejects arbitrary configuration blocks.
-- It edits only provider-approved Nginx configuration files.
+- It edits only provider-approved Nginx site configuration files and can create the resolved site file when it is absent.
 - `nginx -t` must pass. On failure, Kelpie attempts rollback before returning.
 - This tool does not reload Nginx. Call `ssh_service_reload` separately after reviewing the result.
 
