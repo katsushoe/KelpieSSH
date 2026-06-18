@@ -222,10 +222,27 @@ public sealed class SshConnectionProfileFileLoaderTests
             && site.MaxReadBytes == 1048576
             && site.MaxWriteBytes == 2097152
             && site.AllowedExtensions.Contains(".html")
+            && site.WritableExecutableExtensions.Contains(".php")
             && site.AllowedContentTypes.Any(rule => rule.ContentType == "text/html" && rule.Access.HasFlag(AllowedRootAccess.Write))
             && site.AllowedContentTypes.Any(rule => rule.ContentType == "application/zip" && rule.Access.HasFlag(AllowedRootAccess.Write))
             && site.AllowedFiles.Any(rule => rule.Pattern == ".zip" && rule.Access.HasFlag(AllowedRootAccess.Write))
             && site.AllowedFiles.Any(rule => rule.Pattern == "/downloads/*.exe" && rule.Access == (AllowedRootAccess.Read | AllowedRootAccess.List | AllowedRootAccess.CD)));
+    }
+
+    [Fact]
+    public void LoadFile_ShouldReadUserWebPublicSites()
+    {
+        var directory = CreateTempDirectory();
+        var filePath = Path.Combine(directory, "vps01.json");
+        File.WriteAllText(filePath, CreateProfileJsonWithUserWebPublicSites("keys/id_ed25519"));
+
+        var profile = SshConnectionProfileFileLoader.LoadFile(filePath);
+
+        profile.UserName.Should().Be("deploy");
+        profile.WebPublicSites.Should().ContainSingle(site =>
+            site.SiteKey == "default"
+            && site.RootPath == "/var/www/html"
+            && site.WritableExecutableExtensions.Contains(".php"));
     }
 
     [Fact]
@@ -260,6 +277,22 @@ public sealed class SshConnectionProfileFileLoaderTests
 
         action.Should().Throw<InvalidOperationException>()
             .WithMessage("SSH web public site file rules must use AllowedFiles.");
+    }
+
+    [Fact]
+    public void LoadFile_ShouldRejectInvalidWritableExecutableExtension()
+    {
+        var directory = CreateTempDirectory();
+        var filePath = Path.Combine(directory, "vps01.json");
+        File.WriteAllText(
+            filePath,
+            CreateProfileJsonWithWebPublicSites("keys/id_ed25519")
+                .Replace("\"WritableExecutableExtensions\": [\".php\"]", "\"WritableExecutableExtensions\": [\"*.php\"]", StringComparison.Ordinal));
+
+        var action = () => SshConnectionProfileFileLoader.LoadFile(filePath);
+
+        action.Should().Throw<InvalidOperationException>()
+            .WithMessage("SSH web public writable executable extensions must start with a dot.");
     }
 
     private static string CreateTempDirectory()
@@ -610,6 +643,7 @@ public sealed class SshConnectionProfileFileLoaderTests
               "DisplayName": "Default Web Site",
               "Root": "/var/www/html",
               "AllowedExtensions": [".html", ".png"],
+              "WritableExecutableExtensions": [".php"],
               "AllowedContentTypes": {
                 "text/html": "$ReadWrite",
                 "image/png": "$ReadOnly"
@@ -623,6 +657,38 @@ public sealed class SshConnectionProfileFileLoaderTests
               "MaxReadBytes": 1048576,
               "MaxWriteBytes": 2097152
             }
+          }
+        }
+        """;
+    }
+
+    private static string CreateProfileJsonWithUserWebPublicSites(string privateKeyPath)
+    {
+        return $$"""
+        {
+          "Host": {
+            "Address": "example.invalid",
+            "Port": 22
+          },
+          "Auth": {
+            "Method": "privateKey",
+            "PrivateKeyFile": "{{privateKeyPath}}"
+          },
+          "DefaultUser": "deploy",
+          "Users": {
+            "deploy": {
+              "Mode": "Maintenance|WebUser|WebAdmin",
+              "WebPublicSites": {
+                "default": {
+                  "Root": "/var/www/html",
+                  "WritableExecutableExtensions": [".php"]
+                }
+              }
+            }
+          },
+          "Platform": {
+            "OsFamily": "debian",
+            "PackageManager": "apt"
           }
         }
         """;

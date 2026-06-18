@@ -26,6 +26,11 @@ public sealed class WebPublicSite
     public IReadOnlyCollection<string> AllowedExtensions { get; init; } = [];
 
     /// <summary>
+    /// Gets executable extensions that may be written only when explicitly allowed by the profile.
+    /// </summary>
+    public IReadOnlyCollection<string> WritableExecutableExtensions { get; init; } = [];
+
+    /// <summary>
     /// Gets content type access rules.
     /// </summary>
     public IReadOnlyCollection<WebPublicContentTypeRule> AllowedContentTypes { get; init; } = [];

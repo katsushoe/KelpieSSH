@@ -1,6 +1,7 @@
 using System.Text;
 using FluentAssertions;
 using KelpieSSH.Application.Ssh;
+using Microsoft.Extensions.Logging;
 
 namespace KelpieSSH.Application.Tests.Ssh;
 
@@ -697,6 +698,163 @@ public sealed class WebPublicFileProviderTests
     }
 
     [Fact]
+    public async Task WriteFileAsync_ShouldAllowConfiguredWritableExecutableExtension()
+    {
+        var profile = CreateProfile(
+            KelpiePolicyMode.Expert,
+            [
+                CreateSite(
+                    allowedFiles: [],
+                    writableExecutableExtensions: [".php"]),
+            ]);
+        var logger = new TestLogger<WebPublicFileProvider>();
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: """{"resolvedPath":"/var/www/html/index.php","written":true,"created":true,"overwritten":false,"size":13}""",
+                StandardError: string.Empty),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider(logger);
+
+        var result = await provider.WriteFileAsync(
+            service,
+            profile,
+            "default",
+            "/index.php",
+            Convert.ToBase64String(Encoding.UTF8.GetBytes("<?php echo 1;")),
+            encoding: "utf-8",
+            contentType: "text/html");
+
+        result.Written.Should().BeTrue();
+        result.Error.Should().BeNull();
+        runner.LastRequest.Should().NotBeNull();
+        logger.Entries.Should().Contain(entry =>
+            entry.Level == LogLevel.Warning
+            && entry.Message.Contains("executable web file written under explicit profile permission", StringComparison.Ordinal)
+            && entry.Message.Contains("vps01", StringComparison.Ordinal)
+            && entry.Message.Contains("default", StringComparison.Ordinal)
+            && entry.Message.Contains("/index.php", StringComparison.Ordinal)
+            && entry.Message.Contains(".php", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task WriteFileAsync_ShouldKeepRejectingUnlistedExecutableExtension()
+    {
+        var profile = CreateProfile(
+            KelpiePolicyMode.Expert,
+            [
+                CreateSite(
+                    allowedFiles: [],
+                    writableExecutableExtensions: [".php"]),
+            ]);
+        var runner = new FakeSshCommandRunner([]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.WriteFileAsync(
+            service,
+            profile,
+            "default",
+            "/run.sh",
+            Convert.ToBase64String(Encoding.UTF8.GetBytes("#!/bin/sh")),
+            encoding: "utf-8",
+            contentType: "text/plain");
+
+        result.Error.Should().Be("Requested file extension is denied.");
+        result.Written.Should().BeFalse();
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task WriteFileAsync_ShouldKeepRejectingPhpForOtherSiteAndProfile()
+    {
+        var profile = CreateProfile(
+            KelpiePolicyMode.Expert,
+            [
+                CreateSite(
+                    allowedFiles: [],
+                    writableExecutableExtensions: [".php"]),
+                CreateSite(
+                    allowedFiles: [],
+                    siteKey: "admin",
+                    rootPath: "/var/www/admin"),
+            ]);
+        var otherProfile = CreateProfile(KelpiePolicyMode.Expert);
+        var runner = new FakeSshCommandRunner([]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var siteResult = await provider.WriteFileAsync(
+            service,
+            profile,
+            "admin",
+            "/index.php",
+            Convert.ToBase64String(Encoding.UTF8.GetBytes("<?php echo 1;")),
+            encoding: "utf-8",
+            contentType: "text/html");
+        var profileResult = await provider.WriteFileAsync(
+            service,
+            otherProfile,
+            "default",
+            "/index.php",
+            Convert.ToBase64String(Encoding.UTF8.GetBytes("<?php echo 1;")),
+            encoding: "utf-8",
+            contentType: "text/html");
+
+        siteResult.Error.Should().Be("Requested file extension is denied.");
+        profileResult.Error.Should().Be("Requested file extension is denied.");
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ReadFileAsync_ShouldKeepRejectingWritableExecutableExtension()
+    {
+        var profile = CreateProfile(
+            KelpiePolicyMode.Safe,
+            [
+                CreateSite(
+                    allowedFiles: [],
+                    writableExecutableExtensions: [".php"]),
+            ]);
+        var runner = new FakeSshCommandRunner([]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.ReadFileAsync(service, profile, "default", "/index.php");
+
+        result.Error.Should().Be("Requested file extension is denied.");
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task WriteFileAsync_ShouldKeepRejectingSecretFileWithWritableExecutableExtension()
+    {
+        var profile = CreateProfile(
+            KelpiePolicyMode.Expert,
+            [
+                CreateSite(
+                    allowedFiles: [],
+                    writableExecutableExtensions: [".php"]),
+            ]);
+        var runner = new FakeSshCommandRunner([]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.WriteFileAsync(
+            service,
+            profile,
+            "default",
+            "/.htpasswd",
+            Convert.ToBase64String(Encoding.UTF8.GetBytes("secret")),
+            encoding: "utf-8",
+            contentType: "text/plain");
+
+        result.Error.Should().Be("Requested path is denied by web public file safety rules.");
+        result.Written.Should().BeFalse();
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
     public async Task WriteFileAsync_ShouldRejectInvalidBase64()
     {
         var profile = CreateProfile(KelpiePolicyMode.Expert);
@@ -896,17 +1054,49 @@ public sealed class WebPublicFileProviderTests
 
     private static WebPublicSite CreateSite(
         IReadOnlyCollection<WebPublicFileRule> allowedFiles,
-        IReadOnlyCollection<WebPublicContentTypeRule>? allowedContentTypes = null)
+        IReadOnlyCollection<WebPublicContentTypeRule>? allowedContentTypes = null,
+        IReadOnlyCollection<string>? writableExecutableExtensions = null,
+        string siteKey = "default",
+        string rootPath = "/var/www/html")
     {
         return new WebPublicSite
         {
-            SiteKey = "default",
+            SiteKey = siteKey,
             DisplayName = "Default Web Site",
-            RootPath = "/var/www/html",
+            RootPath = rootPath,
             AllowedFiles = allowedFiles,
             AllowedContentTypes = allowedContentTypes ?? [],
+            WritableExecutableExtensions = writableExecutableExtensions ?? [],
         };
     }
+
+    private sealed class TestLogger<T> : ILogger<T>
+    {
+        public List<TestLogEntry> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull
+        {
+            return null;
+        }
+
+        public bool IsEnabled(LogLevel logLevel)
+        {
+            return true;
+        }
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Entries.Add(new TestLogEntry(logLevel, formatter(state, exception)));
+        }
+    }
+
+    private sealed record TestLogEntry(LogLevel Level, string Message);
 
     private sealed class FakeSshCommandRunner : ISshCommandRunner
     {

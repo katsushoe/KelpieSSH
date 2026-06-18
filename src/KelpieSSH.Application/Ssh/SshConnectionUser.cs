@@ -59,4 +59,9 @@ public sealed class SshConnectionUser
     /// Gets the per-environment-variable rules.
     /// </summary>
     public IReadOnlyCollection<EnvironmentValueRule> EnvironmentValues { get; init; } = [];
+
+    /// <summary>
+    /// Gets provider-approved web public sites.
+    /// </summary>
+    public IReadOnlyCollection<WebPublicSite> WebPublicSites { get; init; } = [];
 }

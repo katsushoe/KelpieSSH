@@ -33,6 +33,11 @@ public sealed class WebPublicSiteOptions
     public JsonElement AllowedExtensions { get; set; }
 
     /// <summary>
+    /// Gets or sets executable extensions that may be written only when explicitly allowed by the profile.
+    /// </summary>
+    public JsonElement WritableExecutableExtensions { get; set; }
+
+    /// <summary>
     /// Gets or sets allowed content types.
     /// </summary>
     public JsonElement AllowedContentTypes { get; set; }

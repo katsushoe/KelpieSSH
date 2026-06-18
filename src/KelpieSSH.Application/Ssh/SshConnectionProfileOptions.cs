@@ -166,7 +166,7 @@ public sealed class SshConnectionProfileOptions
             AllowedRootRules = selectedUser.AllowedRootRules,
             SpecialPaths = selectedUser.SpecialPaths,
             EnvironmentValues = selectedUser.EnvironmentValues,
-            WebPublicSites = webPublicSites,
+            WebPublicSites = selectedUser.WebPublicSites,
             Services = services,
             Roles = selectedUser.Roles,
             Users = users,
@@ -496,6 +496,7 @@ public sealed class SshConnectionProfileOptions
             DisplayName = string.IsNullOrWhiteSpace(site.DisplayName) ? property.Name : site.DisplayName,
             RootPath = site.RootPath,
             AllowedExtensions = site.AllowedExtensions,
+            WritableExecutableExtensions = site.WritableExecutableExtensions,
             AllowedContentTypes = site.AllowedContentTypes,
             AllowedFiles = site.AllowedFiles,
             CreateDirectories = site.CreateDirectories,
@@ -535,6 +536,7 @@ public sealed class SshConnectionProfileOptions
             DisplayName = string.IsNullOrWhiteSpace(options.DisplayName) ? options.SiteKey : options.DisplayName,
             RootPath = rootPath,
             AllowedExtensions = ReadStringArray(options.AllowedExtensions),
+            WritableExecutableExtensions = ReadWritableExecutableExtensions(options.WritableExecutableExtensions),
             AllowedContentTypes = allowedContentTypes,
             AllowedFiles = allowedFiles.FileRules,
             CreateDirectories = options.CreateDirectories ?? true,
@@ -679,6 +681,32 @@ public sealed class SshConnectionProfileOptions
             .ToArray();
     }
 
+    private static IReadOnlyCollection<string> ReadWritableExecutableExtensions(JsonElement element)
+    {
+        return ReadStringArray(element)
+            .Select(item => item.Trim())
+            .Select(item =>
+            {
+                if (!item.StartsWith(".", StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException("SSH web public writable executable extensions must start with a dot.");
+                }
+
+                if (item == "."
+                    || item.Contains('*', StringComparison.Ordinal)
+                    || item.Contains('?', StringComparison.Ordinal)
+                    || item.Contains('/', StringComparison.Ordinal)
+                    || item.Contains('\\', StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException("SSH web public writable executable extensions must be explicit extensions without wildcards.");
+                }
+
+                return item;
+            })
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
     private static SpecialPathAction ReadSpecialPathAction(JsonElement value)
     {
         if (value.ValueKind != JsonValueKind.String)
@@ -728,6 +756,7 @@ public sealed class SshConnectionProfileOptions
                     AllowedRootRules = profileAllowedRoots,
                     SpecialPaths = profileSpecialPaths,
                     EnvironmentValues = profileEnvironmentValues,
+                    WebPublicSites = webPublicSites,
                 },
             ];
         }
@@ -740,10 +769,13 @@ public sealed class SshConnectionProfileOptions
 
             var roles = ResolveUserRoles(user, profileRoles);
             var mode = ResolveModeFromRoles(roles);
+            var userWebPublicSites = user.WebPublicSites.ValueKind == JsonValueKind.Undefined
+                ? webPublicSites
+                : ReadWebPublicSites(user.WebPublicSites, rights);
             var userAllowedRoots = user.AllowedRoots.ValueKind == JsonValueKind.Undefined
                 ? profileAllowedRoots
                 : ReadAllowedRoots(user.AllowedRoots, rights);
-            userAllowedRoots = ApplyRolesToAllowedRoots(userAllowedRoots, roles, webPublicSites, services);
+            userAllowedRoots = ApplyRolesToAllowedRoots(userAllowedRoots, roles, userWebPublicSites, services);
 
             return new SshConnectionUser
             {
@@ -770,6 +802,7 @@ public sealed class SshConnectionProfileOptions
                 EnvironmentValues = user.EnvironmentValues.ValueKind == JsonValueKind.Undefined
                     ? profileEnvironmentValues
                     : ReadEnvironmentValues(user.EnvironmentValues),
+                WebPublicSites = userWebPublicSites,
             };
         }).ToArray();
     }
@@ -842,6 +875,7 @@ public sealed class SshConnectionProfileOptions
             AllowedRoots = ReadOptionalElement(userElement, "AllowedRoots"),
             SpecialPaths = ReadOptionalElement(userElement, "SpecialPaths"),
             EnvironmentValues = ReadOptionalElement(userElement, "EnvironmentValues"),
+            WebPublicSites = ReadOptionalElement(userElement, "WebPublicSites"),
         };
     }
 

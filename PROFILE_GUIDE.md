@@ -170,6 +170,12 @@ kelpiemcp forget vps01
     "**/.ssh/**": "Deny",
     "/var/www/.well-known/**": "Allow"
   },
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/example",
+      "WritableExecutableExtensions": [".php"]
+    }
+  },
   "Services": {
     "Nginx": {
       "Root": "/var/www/example",
@@ -591,6 +597,43 @@ Example:
 | `Services.Nginx.Group` | no | Nginx worker group. |
 | `Services.Nginx.Port` | no | Nginx listen port. Must be 1 to 65535. |
 | `Services.Nginx.Root` | no | Web public root. Also used by `WebUser` role. |
+
+### `WebPublicSites`
+
+`WebPublicSites` defines the web public roots that MCP web file tools may access.
+Executable extensions such as `.php`, `.cgi`, `.py`, `.sh`, and `.exe` are denied for writing by default.
+
+Use `WritableExecutableExtensions` only when the profile owner explicitly allows deployment of executable web files for that site.
+
+Example:
+
+```json
+{
+  "Users": {
+    "deploy": {
+      "Mode": "Maintenance|WebUser|WebAdmin",
+      "WebPublicSites": {
+        "default": {
+          "Root": "/var/www/html",
+          "WritableExecutableExtensions": [".php"]
+        }
+      }
+    }
+  }
+}
+```
+
+| Field | Required | Description |
+| :--- | :---: | :--- |
+| `WebPublicSites.<siteKey>.Root` / `RootPath` | yes | Web public root for the site. |
+| `WebPublicSites.<siteKey>.AllowedExtensions` | no | Non-executable extensions allowed by the site. |
+| `WebPublicSites.<siteKey>.WritableExecutableExtensions` | no | Executable extensions allowed for writes on this site only. Values must be explicit dot-prefixed extensions such as `.php`; wildcards are rejected. |
+
+Notes:
+
+- Unset or empty `WritableExecutableExtensions` keeps the default executable-file write denial.
+- The setting applies only to write checks. Read checks, traversal denial, dotfile denial, secret file denial, size limits, and content type checks still apply.
+- The setting is site-local. Other sites and other profiles keep the default denial unless they also opt in.
 
 ## Validation Checklist
 

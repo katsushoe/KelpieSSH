@@ -66,4 +66,9 @@ public sealed class SshConnectionUserOptions
     /// Gets or sets per-environment-variable rules for this user.
     /// </summary>
     public JsonElement EnvironmentValues { get; set; }
+
+    /// <summary>
+    /// Gets or sets provider-approved web public sites for this user.
+    /// </summary>
+    public JsonElement WebPublicSites { get; set; }
 }

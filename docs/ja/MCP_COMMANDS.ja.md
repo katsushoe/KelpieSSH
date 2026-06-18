@@ -4816,6 +4816,8 @@ Web 公開ルート外へ出ないこと、読み取り許可、content type 許
 - SSH 先の Web 公開ファイルを変更します。
 - `owner` / `mode` 指定付き書き込みは `sudo -n /usr/local/libexec/kelpie/kelpie-web-permission-helper ...` 経由です。
 - 解決後の対象パスが Web 公開ルート外へ出る場合は拒否します。
+- `.php` などの実行可能な Web 拡張子は既定では書き込み拒否です。対象プロファイルのサイト設定で `WritableExecutableExtensions` に明示列挙されている場合だけ書き込みできます。
+- `WritableExecutableExtensions` は、その書き込みについて実行可能拡張子の拒否と `AllowedExtensions` 不足だけを解除します。パストラバーサル拒否、ドットファイル拒否、秘密ファイル拒否、サイズ上限、MIME type 判定は従来どおり適用されます。
 
 ### `web_change_owner`
 

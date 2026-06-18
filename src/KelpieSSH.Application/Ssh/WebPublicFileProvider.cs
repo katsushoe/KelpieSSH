@@ -1,6 +1,8 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KelpieSSH.Application.Ssh;
 
@@ -64,6 +66,17 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
     private static readonly UTF8Encoding StrictUtf8Encoding = new(
         encoderShouldEmitUTF8Identifier: false,
         throwOnInvalidBytes: true);
+
+    private readonly ILogger<WebPublicFileProvider> _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="WebPublicFileProvider"/> class.
+    /// </summary>
+    /// <param name="logger">Audit logger.</param>
+    public WebPublicFileProvider(ILogger<WebPublicFileProvider>? logger = null)
+    {
+        _logger = logger ?? NullLogger<WebPublicFileProvider>.Instance;
+    }
 
     /// <inheritdoc />
     public async Task<WebPublicFileListResult> ListAsync(
@@ -782,6 +795,11 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
         var remote = JsonSerializer.Deserialize<RemoteWriteResult>(result.StandardOutput, JsonOptions)
             ?? throw new InvalidOperationException("Web public file write returned empty JSON.");
 
+        if (remote.Written)
+        {
+            LogWritableExecutableWrite(profile, site, normalizedPath);
+        }
+
         return new WebPublicFileWriteResult(
             site.SiteKey,
             site.DisplayName,
@@ -836,6 +854,11 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
 
         var remote = JsonSerializer.Deserialize<RemoteWriteResult>(result.StandardOutput, JsonOptions)
             ?? throw new InvalidOperationException("Web public file write returned empty JSON.");
+
+        if (remote.Written)
+        {
+            LogWritableExecutableWrite(profile, site, normalizedPath);
+        }
 
         return new WebPublicFileWriteResult(
             site.SiteKey,
@@ -1074,7 +1097,9 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 return new WebPublicFileAccess(true, "Requested file is not writable by AllowedFiles.");
             }
 
-            if (requireWrite && DeniedExtensions.Contains(extension))
+            if (requireWrite
+                && DeniedExtensions.Contains(extension)
+                && !IsWritableExecutableExtensionAllowed(site, extension))
             {
                 return new WebPublicFileAccess(true, "Requested file extension is denied for writing.");
             }
@@ -1082,7 +1107,8 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             return new WebPublicFileAccess(true, Error: null);
         }
 
-        if (DeniedExtensions.Contains(extension))
+        if (DeniedExtensions.Contains(extension)
+            && (!requireWrite || !IsWritableExecutableExtensionAllowed(site, extension)))
         {
             return new WebPublicFileAccess(false, "Requested file extension is denied.");
         }
@@ -1095,12 +1121,39 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
         var allowedExtensions = site.AllowedExtensions.Count == 0
             ? DefaultContentTypes.Keys
             : site.AllowedExtensions;
-        if (!allowedExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+        if (!allowedExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase)
+            && (!requireWrite || !IsWritableExecutableExtensionAllowed(site, extension)))
         {
             return new WebPublicFileAccess(false, $"Requested file extension is not allowed: {extension}");
         }
 
         return new WebPublicFileAccess(false, Error: null);
+    }
+
+    private static bool IsWritableExecutableExtensionAllowed(WebPublicSite site, string extension)
+    {
+        return !string.IsNullOrWhiteSpace(extension)
+            && DeniedExtensions.Contains(extension)
+            && site.WritableExecutableExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private void LogWritableExecutableWrite(
+        SshConnectionProfile profile,
+        WebPublicSite site,
+        string normalizedPath)
+    {
+        var extension = System.IO.Path.GetExtension(normalizedPath);
+        if (!IsWritableExecutableExtensionAllowed(site, extension))
+        {
+            return;
+        }
+
+        _logger.LogWarning(
+            "executable web file written under explicit profile permission. Profile={ProfileName}, SiteKey={SiteKey}, Path={Path}, Extension={Extension}",
+            profile.Name,
+            site.SiteKey,
+            normalizedPath,
+            extension);
     }
 
     private static bool TryValidateContent(

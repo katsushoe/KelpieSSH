@@ -6810,6 +6810,8 @@ The MCP execution result body is the return value sample above, wrapped by the c
 Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+- Executable web extensions such as `.php` remain denied by default. They are writable only when the target profile site explicitly lists the extension in `WritableExecutableExtensions`.
+- `WritableExecutableExtensions` bypasses the executable extension write block and the `AllowedExtensions` shortage for that write only. Traversal checks, dotfile and secret-file denial, size limits, and content type rules still apply.
 
 #### `web_change_owner`
 

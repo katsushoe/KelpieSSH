@@ -171,6 +171,12 @@ kelpiemcp forget vps01
     "**/.ssh/**": "Deny",
     "/var/www/.well-known/**": "Allow"
   },
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/example",
+      "WritableExecutableExtensions": [".php"]
+    }
+  },
   "Services": {
     "Nginx": {
       "Root": "/var/www/example",
@@ -591,6 +597,43 @@ Service-specific defaults です。
 | `Services.Nginx.Group` | no | Nginx worker group。 |
 | `Services.Nginx.Port` | no | Nginx listen port。1 から 65535。 |
 | `Services.Nginx.Root` | no | Web public root。`WebUser` role でも使います。 |
+
+### `WebPublicSites`
+
+`WebPublicSites` は、MCP の Web ファイル操作が触ってよい Web 公開ルートを定義します。
+`.php`、`.cgi`、`.py`、`.sh`、`.exe` などの実行可能な拡張子は、既定では書き込み拒否です。
+
+そのサイトで実行可能な Web ファイルの配置を人間が明示的に許可する場合だけ、`WritableExecutableExtensions` を設定します。
+
+例:
+
+```json
+{
+  "Users": {
+    "deploy": {
+      "Mode": "Maintenance|WebUser|WebAdmin",
+      "WebPublicSites": {
+        "default": {
+          "Root": "/var/www/html",
+          "WritableExecutableExtensions": [".php"]
+        }
+      }
+    }
+  }
+}
+```
+
+| Field | Required | Description |
+| :--- | :---: | :--- |
+| `WebPublicSites.<siteKey>.Root` / `RootPath` | yes | そのサイトの Web 公開ルート。 |
+| `WebPublicSites.<siteKey>.AllowedExtensions` | no | サイトで許可する通常拡張子。 |
+| `WebPublicSites.<siteKey>.WritableExecutableExtensions` | no | このサイトだけで書き込みを許可する実行可能拡張子。`.php` のように先頭ドット付きで列挙します。ワイルドカードは拒否されます。 |
+
+注意:
+
+- `WritableExecutableExtensions` が未設定または空の場合、実行可能ファイルの書き込みは従来どおり拒否されます。
+- この設定は書き込み判定だけに効きます。読み取り判定、パストラバーサル拒否、ドットファイル拒否、秘密ファイル拒否、サイズ上限、MIME type 判定は従来どおり適用されます。
+- 許可はサイト単位です。ほかのサイトやほかのプロファイルでは、同じ拡張子でも明示許可がなければ拒否されます。
 
 ## Validation Checklist
 

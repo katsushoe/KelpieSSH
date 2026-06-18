@@ -145,7 +145,7 @@ public sealed class SshConnectionProfile
             AllowedRootRules = user.AllowedRootRules,
             SpecialPaths = user.SpecialPaths,
             EnvironmentValues = user.EnvironmentValues,
-            WebPublicSites = WebPublicSites,
+            WebPublicSites = user.WebPublicSites,
             Services = Services,
             Users = Users,
         };
