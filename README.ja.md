@@ -2,19 +2,19 @@
 
 KelpieSSH は、SSH 越しの VPS 診断と保守を安全に補助するためのローカル MCP サーバーです。
 
-English documentation is available in [README.md](README.md).
+英語版は [README.md](README.md) を参照してください。
 
 コマンドの詳細は [docs/ja/COMMANDS.ja.md](docs/ja/COMMANDS.ja.md) を参照してください。
 
-MCP command の詳細は [docs/ja/MCP_COMMANDS.ja.md](docs/ja/MCP_COMMANDS.ja.md) を参照してください。
+MCP ツールの詳細は [docs/ja/MCP_COMMANDS.ja.md](docs/ja/MCP_COMMANDS.ja.md) を参照してください。
 
 設定の詳細は [docs/ja/CONFIG.ja.md](docs/ja/CONFIG.ja.md) を参照してください。
 
-SSH profile 設定は [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md) を参照してください。
+SSH プロファイルの設定方法は [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md) を参照してください。
 
-AI MCP サーバー設定は [docs/ja/MCP_GUIDE.ja.md](docs/ja/MCP_GUIDE.ja.md) を参照してください。
+AI 用 MCP サーバーの設定は [docs/ja/MCP_GUIDE.ja.md](docs/ja/MCP_GUIDE.ja.md) を参照してください。
 
-Provider の対応状況と実装状況は [PROVIDERS.md](PROVIDERS.md) を参照してください。
+プロバイダーの対応状況と実装状況は [PROVIDERS.md](PROVIDERS.md) を参照してください。
 
 `kelpie` は `config/kelpie.json` を読み込みます。
 
@@ -29,13 +29,13 @@ config_samples/
 
 ## はじめに
 
-KelpieSSH の使い方に合わせて導入方法を選びます。
+KelpieSSH の使い方に合わせて導入方法を選んでください。
 
 ### バイナリ利用者
 
-#### 1. バイナリ（`.msi`）のインストール
+#### 1. バイナリ（`.msi`）をインストールする
 
-通常利用では、GitHub Releases から KelpieSSH の `.msi` インストーラーをダウンロードして実行します。
+通常は、GitHub Releases から KelpieSSH の `.msi` インストーラーをダウンロードして実行します。
 
 インストール後、新しいターミナルを開いてください。
 
@@ -51,7 +51,7 @@ kelpie version
 kelpie 0.3.1.1
 ```
 
-#### 2. Kelpie home の初期化と profile 作成
+#### 2. Kelpie home を初期化してプロファイルを作成する
 
 ターミナルで次を実行します。
 
@@ -59,7 +59,7 @@ kelpie 0.3.1.1
 kelpie init
 ```
 
-初期化時に名前付き SSH profile を作成するには、次のように実行します。
+初期化時に名前付き SSH プロファイルを作成するには、次のように実行します。
 
 ```powershell
 kelpie init vps01
@@ -99,35 +99,35 @@ Created files:
   D:\Kelpie\profiles\vps01.json
 ```
 
-接続前に生成された profile を編集してください。profile ファイルは次の場所に作成されます。
+接続前に、生成されたプロファイルを編集してください。プロファイルファイルは次の場所に作成されます。
 
 ```text
 <KelpieHome>\profiles\vps01.json
 ```
 
-Profile の記述方法の詳細は [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md) を参照してください。
+プロファイルの記述方法は [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md) を参照してください。
 
-このファイルに、接続先 host、SSH user、認証方式、鍵またはパスワード secret 参照を設定します。秘密鍵認証では、秘密鍵ファイルを `<KelpieHome>\keys` 配下に置き、`Auth.PrivateKeyFile` にそのファイル名を設定します。対応する公開鍵は、事前にサーバー側へ登録されている必要があります。パスワード認証では、`Auth.Method` を `password` にし、`Auth.PasswordSecretName` を設定します。平文パスワードを profile に保存してはいけません。
+このファイルに、接続先ホスト、SSH ユーザー、認証方式、秘密鍵またはパスワード参照を設定します。秘密鍵認証では、秘密鍵ファイルを `<KelpieHome>\keys` 配下に置き、`Auth.PrivateKeyFile` にそのファイル名を設定します。対応する公開鍵は、事前にサーバー側へ登録しておく必要があります。パスワード認証では、`Auth.Method` を `password` にし、`Auth.PasswordSecretName` を設定します。平文パスワードをプロファイルに保存してはいけません。
 
-#### 3. サーバーへの接続
+#### 3. サーバーに接続する
 
-profile を編集した後、対象サーバーを開きます。
+プロファイルを編集したら、対象サーバーを開きます。
 
 ```powershell
 kelpie open vps01
 ```
 
-パスワード認証の profile では、対象を開いた後にログインします。
+パスワード認証のプロファイルでは、対象を開いた後にログインします。
 
 ```powershell
 kelpie login
 ```
 
-Windows が不明な発行元または SmartScreen 警告を表示する場合は、MSI が公式 GitHub Release からダウンロードされたものか確認し、提供されている場合は公開 checksum と照合してください。
+Windows が不明な発行元または SmartScreen 警告を表示した場合は、MSI が公式 GitHub Release からダウンロードしたものか確認してください。チェックサムが公開されている場合は、あわせて照合してください。
 
-### Zip 配布版の利用者
+### ZIP 配布版の利用者
 
-#### 1. Zip バイナリの配置
+#### 1. ZIP バイナリを配置する
 
 `KelpieSSH-x.x.x.x-x64.zip` を `D:\Kelpie` に展開します。CLI 利用に関係する主なファイルは次の構成で配置されます。
 
@@ -146,7 +146,7 @@ D:\Kelpie
 └─ PROFILE_GUIDE.md
 ```
 
-#### 2. `PATH` の追加とコマンド確認
+#### 2. `PATH` を追加してコマンドを確認する
 
 `D:\Kelpie\bin` をユーザー `PATH` に追加します。
 
@@ -173,9 +173,9 @@ kelpie version
 kelpie 0.3.1.1
 ```
 
-`PATH` を更新したくない場合は、`D:\Kelpie\bin\kelpie.exe` のようなフルパスを使い続けてください。
+`PATH` を更新したくない場合は、`D:\Kelpie\bin\kelpie.exe` のようにフルパスで実行してください。
 
-#### 3. Kelpie home の初期化と profile 作成
+#### 3. Kelpie home を初期化してプロファイルを作成する
 
 ターミナルで次を実行します。
 
@@ -183,7 +183,7 @@ kelpie 0.3.1.1
 D:\Kelpie\bin\kelpie.exe init
 ```
 
-`D:\Kelpie\bin\kelpie.exe` から `kelpie init` を実行した場合、CLI 利用に関係する主なファイルとディレクトリが `D:\Kelpie` 配下に作成されます。
+`D:\Kelpie\bin\kelpie.exe` から `kelpie init` を実行すると、CLI 利用に関係する主なファイルとディレクトリが `D:\Kelpie` 配下に作成されます。
 
 ```text
 D:\Kelpie
@@ -197,31 +197,31 @@ D:\Kelpie
 └─ bin
 ```
 
-初期化時に名前付き profile を作成するには、次のように実行します。
+初期化時に名前付きプロファイルを作成するには、次のように実行します。
 
 ```powershell
 D:\Kelpie\bin\kelpie.exe init vps01
 ```
 
-接続前に生成された profile を編集してください。
+接続前に、生成されたプロファイルを編集してください。
 
 ```text
 D:\Kelpie\profiles\vps01.json
 ```
 
-Profile の記述方法の詳細は [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md) を参照してください。
+プロファイルの記述方法は [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md) を参照してください。
 
-このファイルに、接続先 host、SSH user、認証方式、鍵またはパスワード secret 参照を設定します。秘密鍵認証では、秘密鍵ファイルを `D:\Kelpie\keys` 配下に置き、`Auth.PrivateKeyFile` にそのファイル名を設定します。対応する公開鍵は、事前にサーバー側へ登録されている必要があります。パスワード認証では、`Auth.Method` を `password` にし、`Auth.PasswordSecretName` を設定します。平文パスワードを profile に保存してはいけません。
+このファイルに、接続先ホスト、SSH ユーザー、認証方式、秘密鍵またはパスワード参照を設定します。秘密鍵認証では、秘密鍵ファイルを `D:\Kelpie\keys` 配下に置き、`Auth.PrivateKeyFile` にそのファイル名を設定します。対応する公開鍵は、事前にサーバー側へ登録しておく必要があります。パスワード認証では、`Auth.Method` を `password` にし、`Auth.PasswordSecretName` を設定します。平文パスワードをプロファイルに保存してはいけません。
 
-#### 4. サーバーへの接続
+#### 4. サーバーに接続する
 
-profile を編集した後、対象サーバーを開きます。
+プロファイルを編集したら、対象サーバーを開きます。
 
 ```powershell
 kelpie open vps01
 ```
 
-パスワード認証の profile では、対象を開いた後にログインします。
+パスワード認証のプロファイルでは、対象を開いた後にログインします。
 
 ```powershell
 kelpie login
@@ -238,7 +238,7 @@ dotnet build
 dotnet test
 ```
 
-コマンド バイナリを手動配置用ディレクトリへ publish します。
+コマンドバイナリを手動配置用ディレクトリへ publish します。
 
 ```powershell
 dotnet publish src\KelpieClientCommand\KelpieClientCommand.csproj -c Release -o D:\Kelpie\bin
@@ -246,40 +246,40 @@ dotnet publish src\KelpieServerCommand\KelpieServerCommand.csproj -c Release -o 
 D:\Kelpie\bin\kelpie.exe init
 ```
 
-名前付き profile を作成する場合は、接続前に初期化します。
+名前付きプロファイルを作成する場合は、接続前に初期化します。
 
 ```powershell
 D:\Kelpie\bin\kelpie.exe init vps01
 ```
 
-`kelpie init` は既存の設定ファイルを上書きしません。利用前に生成された profile を編集してください。
+`kelpie init` は既存の設定ファイルを上書きしません。利用前に、生成されたプロファイルを編集してください。
 
 ```text
 D:\Kelpie\profiles\vps01.json
 ```
 
-Profile の記述方法の詳細は [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md) を参照してください。
+プロファイルの記述方法は [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md) を参照してください。
 
-`kelpie open vps01` を実行する前に、host、user、認証方式、秘密鍵ファイル名またはパスワード secret 参照を設定します。
+`kelpie open vps01` を実行する前に、接続先ホスト、ユーザー、認証方式、秘密鍵ファイル名またはパスワード参照を設定します。
 
-### AI users
+### AI 利用者
 
-AI の MCP サーバーとして Kelpie を使う場合は、[docs/ja/MCP_GUIDE.ja.md](docs/ja/MCP_GUIDE.ja.md) にしたがってサーバーを設定、起動してください。
+Kelpie を AI 用 MCP サーバーとして使う場合は、[docs/ja/MCP_GUIDE.ja.md](docs/ja/MCP_GUIDE.ja.md) にしたがってサーバーを設定、起動してください。
 MCP サーバーの停止とパスワードセッションの削除も [docs/ja/MCP_GUIDE.ja.md](docs/ja/MCP_GUIDE.ja.md) を参照してください。
 
 ### 切断とログアウト
 
-`kelpie login` で開始した対話 SSH session を閉じるには、session 内で `logout` または `exit` を入力します。
+`kelpie login` で開始した対話 SSH セッションを閉じるには、セッション内で `logout` または `exit` を入力します。
 
 ```text
 logout
 ```
 
-## Kelpie command-line tools
+## Kelpie のコマンドラインツール
 
-通常のターミナル利用では、`kelpie` command-line tools に MCP サーバーは不要です。ローカル設定の初期化、profile 確認、対象 profile の open、対話 SSH session、診断、service log の tail は、ターミナルから直接実行できます。
+通常のターミナル利用では、`kelpie` コマンドラインツールに MCP サーバーは不要です。ローカル設定の初期化、プロファイルの確認、対象プロファイルのオープン、対話 SSH セッション、診断、サービスログの表示は、ターミナルから直接実行できます。
 
-KelpieSSH は provider module を使い、対象 OS、package manager、service、web public root ごとの制限された SSH 操作を公開します。Provider は許可リスト方式で、任意 shell access を開放せず、名前付きで parameter validation された operation を追加します。現在の provider 一覧と実装状況は [PROVIDERS.md](PROVIDERS.md) を参照してください。
+KelpieSSH はプロバイダーを使い、対象 OS、パッケージマネージャー、サービス、公開 Web ルートごとに制限された SSH 操作を公開します。プロバイダーは許可リスト方式で、任意のシェル実行を開放せず、名前付きで引数検証された操作だけを追加します。現在のプロバイダー一覧と実装状況は [PROVIDERS.md](PROVIDERS.md) を参照してください。
 
 Kelpie CLI のヘルプやバージョン情報は次のコマンドで確認できます。
 
@@ -292,7 +292,7 @@ kelpie version
 kelpie --version
 ```
 
-設定済み SSH profile を確認します。
+設定済み SSH プロファイルを確認します。
 
 ```powershell
 kelpie profiles
@@ -300,14 +300,14 @@ kelpie profile show vps01
 kelpie status vps01
 ```
 
-対話 SSH session を実行します。
+対話 SSH セッションを実行します。
 
 ```powershell
 kelpie open vps01
 kelpie login
 ```
 
-VPS 診断や service log の tail を実行します。
+VPS 診断やサービスログの表示を実行します。
 
 ```powershell
 kelpie diag vps01
@@ -315,11 +315,11 @@ kelpie logs vps01 nginx.service
 kelpie logs vps01 nginx.service 200
 ```
 
-`kelpie login`、`kelpie diag`、`kelpie logs` は CLI プロセスから SSH 操作を直接実行します。password profile の場合、CLI は実行時にパスワードを尋ね、現在の command process 内にだけ保持します。`kelpie status` はローカル MCP サーバーの状態も表示できますが、上記 command-line tools の利用に MCP サーバーは不要です。
+`kelpie login`、`kelpie diag`、`kelpie logs` は CLI プロセスから SSH 操作を直接実行します。パスワード認証のプロファイルでは、CLI が実行時にパスワードを尋ね、そのコマンドプロセス内だけに保持します。`kelpie status` はローカル MCP サーバーの状態も表示できますが、上記のコマンドラインツールを使うだけなら MCP サーバーは不要です。
 
-## 初期化済みディレクトリで新しい profile を作成する方法
+## 初期化済みディレクトリで新しいプロファイルを作成する
 
-`KelpieHome` がすでに初期化済みの場合は、`kelpie profile create <profile>` を使って、設定ファイルやディレクトリを作り直さずに新しい profile template を1つ追加できます。
+`KelpieHome` がすでに初期化済みの場合は、`kelpie profile create <profile>` を使って、設定ファイルやディレクトリを作り直さずに新しいプロファイルのひな形を1つ追加できます。
 
 ```powershell
 kelpie profile create vps02
@@ -344,19 +344,19 @@ Created profile: vps02
 Profile file: D:\Kelpie\profiles\vps02.json
 ```
 
-`profiles\vps02.json` がすでに存在する場合、command は失敗し、既存ファイルを上書きしません。
+`profiles\vps02.json` がすでに存在する場合、このコマンドは失敗し、既存ファイルを上書きしません。
 
-## Contributing
+## コントリビューション
 
-Contributions are welcome. ドキュメント更新、typo 修正、テスト、範囲の小さい bug fix などの小さな修正は pull request を歓迎します。
+コントリビューションを歓迎します。ドキュメント更新、誤字修正、テスト、範囲の小さい不具合修正などは、pull request として送ってください。
 
-大きな変更、新 command、security に関係する挙動、SSH policy 変更、MCP tool 変更、互換性に影響する変更では、実装前に issue を開き、scope と safety requirements を相談してください。
+大きな変更、新しいコマンド、セキュリティに関係する挙動、SSH ポリシー変更、MCP ツール変更、互換性に影響する変更では、実装前に issue を開き、範囲と安全要件を相談してください。
 
-Issue 報告時には、実ホスト名、実ユーザー名、パスワード、passphrase、秘密鍵、本番 profile file、secret を含み得る raw log を含めないでください。
+Issue 報告時には、実ホスト名、実ユーザー名、パスワード、パスフレーズ、秘密鍵、本番プロファイルファイル、秘密情報を含み得る raw log を含めないでください。
 
-## Contact
+## 連絡先
 
-Project questions、contribution discussions、non-sensitive support inquiries は、可能な限り GitHub Issues を利用してください。
+プロジェクトへの質問、コントリビューションの相談、秘密情報を含まないサポート問い合わせは、可能な限り GitHub Issues を利用してください。
 
 直接連絡する場合は [shoe0604@akatsukisoft.com](mailto:shoe0604@akatsukisoft.com) へメールしてください。
 
@@ -364,11 +364,11 @@ Project questions、contribution discussions、non-sensitive support inquiries �
 
 KelpieSSH は、読み取り中心の診断と許可リスト方式の SSH コマンド実行から始める設計です。
 
-実ホスト名、実ユーザー名、パスワード、passphrase、秘密鍵、本番 profile ファイルをコミットしないでください。実際の `profiles/*.json`、`keys/`、`dat/`、`logs/` は公開リポジトリの外に置いてください。
+実ホスト名、実ユーザー名、パスワード、パスフレーズ、秘密鍵、本番プロファイルファイルをコミットしないでください。実際の `profiles/*.json`、`keys/`、`dat/`、`logs/` は公開リポジトリの外に置いてください。
 
-パスワード認証は runtime のみで扱います。CLI SSH command は現在の command process 用にパスワードを尋ね、`kelpiemcp password <profile>` は実行中の `KelpieMCPServer` プロセス内にのみパスワードを保持します。平文パスワードを JSON 設定ファイルに保存してはいけません。
+パスワード認証は実行時のみ扱います。CLI SSH コマンドは現在のコマンドプロセス用にパスワードを尋ね、`kelpiemcp password <profile>` は実行中の `KelpieMCPServer` プロセス内にのみパスワードを保持します。平文パスワードを JSON 設定ファイルに保存してはいけません。
 
-脆弱性や secret を含む詳細を public issue で報告しないでください。脆弱性報告と対応対象 version の方針は [docs/ja/SECURITY.ja.md](docs/ja/SECURITY.ja.md) を参照してください。
+脆弱性や秘密情報を含む詳細を公開 issue で報告しないでください。脆弱性報告と対応対象バージョンの方針は [docs/ja/SECURITY.ja.md](docs/ja/SECURITY.ja.md) を参照してください。
 
 ## ライセンス
 
@@ -378,26 +378,26 @@ Copyright (c) 2026 Akatsukisoft.
 
 Apache License 2.0 は、ライセンス条件にしたがって KelpieSSH の商用利用、改変、再配布、サブライセンス、特許利用を許可します。また、明示的な contributor patent grant と patent termination clause を含みます。
 
-KelpiePro は有償の closed-source desktop product として計画されています。KelpiePro は、OSS 実装を closed-source product repository へ fork または copy せず、KelpieSSH と Kelpie Core libraries を NuGet packages として参照できます。この repository は OSS 実装と package metadata の upstream source として維持されます。
+KelpiePro は有償のクローズドソースデスクトップ製品として計画されています。KelpiePro は、OSS 実装をクローズドソース製品リポジトリへフォークまたはコピーせず、KelpieSSH と Kelpie Core ライブラリを NuGet パッケージとして参照できます。このリポジトリは、OSS 実装とパッケージメタデータの上流ソースとして維持されます。
 
-KelpieSSH packages または binaries を KelpiePro と再配布する場合は、KelpieSSH の Apache License 2.0 notice と [docs/ja/THIRD_PARTY_NOTICES.ja.md](docs/ja/THIRD_PARTY_NOTICES.ja.md) に記載された third-party notices を installer、application about box、bundled documentation、または同等の notices location に含めてください。
+KelpieSSH パッケージまたはバイナリを KelpiePro と再配布する場合は、KelpieSSH の Apache License 2.0 表示と [docs/ja/THIRD_PARTY_NOTICES.ja.md](docs/ja/THIRD_PARTY_NOTICES.ja.md) に記載されたサードパーティ通知を、インストーラー、アプリケーションの about 画面、同梱ドキュメント、または同等の場所に含めてください。
 
-現在の runtime dependency review では、KelpieSSH runtime packages に GPL、AGPL、LGPL、SSPL、Commons Clause、その他の non-permissive dependencies は確認されていません。package version を追加または更新した場合は、`THIRD_PARTY_NOTICES.md` を再確認してください。
+現在の実行時依存関係の確認では、KelpieSSH の実行時パッケージに GPL、AGPL、LGPL、SSPL、Commons Clause、その他の非パーミッシブライセンスの依存関係は見つかっていません。パッケージバージョンを追加または更新した場合は、`THIRD_PARTY_NOTICES.md` を再確認してください。
 
-## SSH profiles
+## SSH プロファイル
 
-SSH connection profiles は、`KelpieHome/profiles` 配下にサーバーごと1つの JSON ファイルとして設定します。
+SSH 接続プロファイルは、`KelpieHome/profiles` 配下にサーバーごと1つの JSON ファイルとして設定します。
 
-runtime configuration は既定 SSH profile を設定しません。`kelpie open vps01` や MCP tool の `profileName` のように、profile を明示してください。
+実行時設定では既定の SSH プロファイルを指定しません。`kelpie open vps01` や MCP ツールの `profileName` のように、プロファイルを明示してください。
 
-Profiles は、KelpieSSH library が扱う保存済み SSH 接続設定です。`SshConnectionProfile`、`SshConnectionProfileFileLoader`、`SshConnectionProfileCatalog` は、CLI、MCP、KelpiePro などの製品から利用できる library level の profile API です。
+プロファイルは、KelpieSSH ライブラリが扱う保存済み SSH 接続設定です。`SshConnectionProfile`、`SshConnectionProfileFileLoader`、`SshConnectionProfileCatalog` は、CLI、MCP、KelpiePro などの製品から利用できるライブラリレベルのプロファイル API です。
 
-Application API は `SshRemoteOperation` も受け取ります。`SshRemoteOperation` は endpoint、credential、policy、operation、options を持つ1回の SSH 操作を表します。保存済み profile に依存せず、1回限りの操作を直接実行したい caller 向けの入力です。既存の CLI と MCP profile loaders は、保存済み profile を実行前に `SshRemoteOperation` へ変換できます。
+Application API は `SshRemoteOperation` も受け取ります。`SshRemoteOperation` は接続先、認証情報、ポリシー、操作、オプションを持つ1回の SSH 操作を表します。保存済みプロファイルに依存せず、1回限りの操作を直接実行したい呼び出し元向けの入力です。既存の CLI と MCP のプロファイルローダーは、保存済みプロファイルを実行前に `SshRemoteOperation` へ変換できます。
 
-profile count limits、edition limits、license state、ads、support、display order、notes、customer data などの製品固有概念は KelpieSSH の外側に置きます。KelpiePro は、OSS profile model に edition policy を入れず、読み込むまたは表示する OSS profile 数を制限することで Free / Standard の差を実装できます。
+プロファイル数の上限、エディション制限、ライセンス状態、広告、サポート、表示順、メモ、顧客データなどの製品固有概念は KelpieSSH の外側に置きます。KelpiePro は、OSS のプロファイルモデルにエディションポリシーを入れず、読み込むまたは表示する OSS プロファイル数を制限することで Free / Standard の差を実装できます。
 
-各 `KelpieHome/profiles/*.json` ファイルが1つの profile です。ファイル名が profile 名になるため、`profiles/vps01.json` は profile `vps01` です。
-公開サンプル profile は `config_samples/servers/vps01.json` です。
+各 `KelpieHome/profiles/*.json` ファイルが1つのプロファイルです。ファイル名がプロファイル名になるため、`profiles/vps01.json` はプロファイル `vps01` です。
+公開サンプルプロファイルは `config_samples/servers/vps01.json` です。
 
-Profile の項目詳細、サンプル、validation checklist、troubleshooting は [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md) を参照してください。
-実際の `profiles/*.json` files はコミットしないでください。
+プロファイルの項目詳細、サンプル、検証チェックリスト、トラブルシューティングは [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md) を参照してください。
+実際の `profiles/*.json` ファイルはコミットしないでください。
