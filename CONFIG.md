@@ -91,6 +91,13 @@ Editors that normally return immediately must be configured with a wait option, 
 }
 ```
 
+Special values:
+
+| Value | Meaning |
+| :--- | :--- |
+| `Notepad` | Case-insensitive. Starts Windows Notepad. |
+| `default` | Case-insensitive. Opens the profile `.json` file with the application associated by the OS. |
+
 ### `config/kelpiemcp.json`
 
 Used by `kelpiemcp` and `KelpieMCPServer`.

@@ -840,6 +840,7 @@ Processing:
 - The full profile is reloaded and validated before any non-editor update is written.
 - Non-editor updates are written with a temporary file followed by replace, using UTF-8 without BOM and LF line endings.
 - Editor mode resolves the editor from `config/kelpie.json` `editor`, `KELPIE_EDITOR`, `VISUAL`, `EDITOR`, then OS default (`notepad` on Windows, `vi` on Unix).
+- The special editor value `default` is case-insensitive and opens the profile file with the application associated with `.json` files. The value `Notepad` is also case-insensitive and starts Windows Notepad.
 - Editor mode waits for the editor process to exit. Editors that return immediately should be configured with a wait option, for example `"editor": "code --wait"`.
 - If editor validation fails, the user can re-edit or abort. Abort restores the original file content.
 - Editor mode requires an interactive console and fails when input is redirected.

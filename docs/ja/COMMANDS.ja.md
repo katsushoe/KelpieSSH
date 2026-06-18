@@ -1092,6 +1092,7 @@ kelpie profile edit vps02 rm-deny "**/.htpasswd"
 - 非エディタ操作では、書き込み前に profile 全体を既存 loader/parser で再検証します。検証に失敗した場合は書き込みません。
 - 非エディタ操作の書き込みは temp file からの置換で行い、UTF-8 BOMなし、LF 改行で保存します。
 - エディタは `config/kelpie.json` の `editor`、`KELPIE_EDITOR`、`VISUAL`、`EDITOR`、OS既定（Windows は `notepad`、Unix は `vi`）の順に解決します。
+- special value の `default` は大文字小文字を区別せず、`.json` に関連付けられたアプリで profile file を開きます。`Notepad` も大文字小文字を区別せず Windows Notepad を起動します。
 - エディタ起動は終了待ちします。`code` など即時終了するエディタは `"editor": "code --wait"` のように待機オプション付きで設定します。
 - エディタ終了後の検証に失敗した場合は、再編集または中止を選べます。中止すると元内容へ戻します。
 - エディタモードは対話コンソール専用です。標準入力リダイレクト中はエラーにします。
@@ -1552,7 +1553,7 @@ kelpie -v
 実行結果サンプル:
 
 ```text
-kelpie 0.3.0.0
+kelpie 0.3.0.1
 ```
 
 ### `kelpie help`

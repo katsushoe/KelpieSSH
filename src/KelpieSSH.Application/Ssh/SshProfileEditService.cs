@@ -594,7 +594,13 @@ public sealed class ProcessEditorLauncher : IEditorLauncher
     /// <inheritdoc />
     public EditorLaunchResult Launch(string editorCommand, string profilePath)
     {
-        var parts = SplitCommandLine(editorCommand);
+        var normalizedEditorCommand = editorCommand?.Trim() ?? string.Empty;
+        if (string.Equals(normalizedEditorCommand, "default", StringComparison.OrdinalIgnoreCase))
+        {
+            return LaunchDefaultApplication(profilePath);
+        }
+
+        var parts = SplitCommandLine(normalizedEditorCommand);
         if (parts.Count == 0)
         {
             return EditorLaunchResult.Fail("Editor command is not configured.");
@@ -604,7 +610,9 @@ public sealed class ProcessEditorLauncher : IEditorLauncher
         {
             var startInfo = new ProcessStartInfo
             {
-                FileName = parts[0],
+                FileName = string.Equals(parts[0], "notepad", StringComparison.OrdinalIgnoreCase)
+                    ? "notepad"
+                    : parts[0],
                 UseShellExecute = false,
             };
 
@@ -618,6 +626,29 @@ public sealed class ProcessEditorLauncher : IEditorLauncher
             if (process is null)
             {
                 return EditorLaunchResult.Fail("Failed to start editor.");
+            }
+
+            process.WaitForExit();
+            return EditorLaunchResult.FromExitCode(process.ExitCode);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            return EditorLaunchResult.Fail(ex.Message);
+        }
+    }
+
+    private static EditorLaunchResult LaunchDefaultApplication(string profilePath)
+    {
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = profilePath,
+                UseShellExecute = true,
+            });
+            if (process is null)
+            {
+                return EditorLaunchResult.Fail("Failed to start default editor.");
             }
 
             process.WaitForExit();

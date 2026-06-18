@@ -88,6 +88,13 @@ config_samples/
 }
 ```
 
+special value:
+
+| Value | 意味 |
+| :--- | :--- |
+| `Notepad` | 大文字小文字を区別せず Windows Notepad を起動します。 |
+| `default` | 大文字小文字を区別せず、OS が `.json` に関連付けたアプリで profile file を開きます。 |
+
 ### `config/kelpiemcp.json`
 
 `kelpiemcp` と `KelpieMCPServer` が読む設定ファイルです。
