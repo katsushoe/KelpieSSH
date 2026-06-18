@@ -220,7 +220,7 @@ public sealed class NginxConfigPathsProviderTests
                 StandardOutput: originalContent,
                 StandardError: string.Empty),
             new FakeSshCommandOutput(
-                StandardOutput: Encoding.UTF8.GetByteCount(updatedContent).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                StandardOutput: Encoding.UTF8.GetByteCount(NormalizeLf(updatedContent)).ToString(System.Globalization.CultureInfo.InvariantCulture),
                 StandardError: string.Empty),
         ]);
         var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
@@ -237,12 +237,12 @@ public sealed class NginxConfigPathsProviderTests
         result.Error.Should().BeNull();
         result.Path.Should().Be("/etc/nginx/conf.d/kelpie-test.conf");
         result.Encoding.Should().Be("utf-8");
-        result.BytesWritten.Should().Be(Encoding.UTF8.GetByteCount(updatedContent));
+        result.BytesWritten.Should().Be(Encoding.UTF8.GetByteCount(NormalizeLf(updatedContent)));
         runner.LastRequest!.CommandName.Should().Be("service_config_nginx_write_config");
         DecodeArgument(runner.LastRequest, "pathBase64").Should().Be("/etc/nginx/conf.d/kelpie-test.conf");
         DecodeArgument(runner.LastRequest, "allowedPathsBase64").Should().Be("/etc/nginx/nginx.conf");
         DecodeArgument(runner.LastRequest, "allowedDirsBase64").Should().Be("/etc/nginx/conf.d");
-        DecodeArgument(runner.LastRequest, "contentBase64").Should().Be(updatedContent);
+        DecodeArgument(runner.LastRequest, "contentBase64").Should().Be(NormalizeLf(updatedContent));
     }
 
     [Fact]
@@ -269,7 +269,7 @@ public sealed class NginxConfigPathsProviderTests
                 StandardOutput: originalContent,
                 StandardError: string.Empty),
             new FakeSshCommandOutput(
-                StandardOutput: Encoding.UTF8.GetByteCount(updatedContent).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                StandardOutput: Encoding.UTF8.GetByteCount(NormalizeLf(updatedContent)).ToString(System.Globalization.CultureInfo.InvariantCulture),
                 StandardError: string.Empty),
         ]);
         var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
@@ -284,8 +284,8 @@ public sealed class NginxConfigPathsProviderTests
             "user:www-data");
 
         result.Error.Should().BeNull();
-        result.BytesWritten.Should().Be(Encoding.UTF8.GetByteCount(updatedContent));
-        DecodeArgument(runner.LastRequest!, "contentBase64").Should().Be(updatedContent);
+        result.BytesWritten.Should().Be(Encoding.UTF8.GetByteCount(NormalizeLf(updatedContent)));
+        DecodeArgument(runner.LastRequest!, "contentBase64").Should().Be(NormalizeLf(updatedContent));
     }
 
     [Fact]
@@ -331,7 +331,7 @@ public sealed class NginxConfigPathsProviderTests
                 StandardOutput: originalContent,
                 StandardError: string.Empty),
             new FakeSshCommandOutput(
-                StandardOutput: Encoding.UTF8.GetByteCount(updatedContent).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                StandardOutput: Encoding.UTF8.GetByteCount(NormalizeLf(updatedContent)).ToString(System.Globalization.CultureInfo.InvariantCulture),
                 StandardError: string.Empty),
         ]);
         var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
@@ -346,8 +346,8 @@ public sealed class NginxConfigPathsProviderTests
             "localhost");
 
         result.Error.Should().BeNull();
-        result.BytesWritten.Should().Be(Encoding.UTF8.GetByteCount(updatedContent));
-        DecodeArgument(runner.LastRequest!, "contentBase64").Should().Be(updatedContent);
+        result.BytesWritten.Should().Be(Encoding.UTF8.GetByteCount(NormalizeLf(updatedContent)));
+        DecodeArgument(runner.LastRequest!, "contentBase64").Should().Be(NormalizeLf(updatedContent));
     }
 
     [Fact]
@@ -420,7 +420,7 @@ public sealed class NginxConfigPathsProviderTests
                 StandardOutput: originalContent,
                 StandardError: string.Empty),
             new FakeSshCommandOutput(
-                StandardOutput: Encoding.UTF8.GetByteCount(updatedContent).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                StandardOutput: Encoding.UTF8.GetByteCount(NormalizeLf(updatedContent)).ToString(System.Globalization.CultureInfo.InvariantCulture),
                 StandardError: string.Empty),
         ]);
         var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
@@ -434,8 +434,8 @@ public sealed class NginxConfigPathsProviderTests
             "delete");
 
         result.Error.Should().BeNull();
-        result.BytesWritten.Should().Be(Encoding.UTF8.GetByteCount(updatedContent));
-        DecodeArgument(runner.LastRequest!, "contentBase64").Should().Be(updatedContent);
+        result.BytesWritten.Should().Be(Encoding.UTF8.GetByteCount(NormalizeLf(updatedContent)));
+        DecodeArgument(runner.LastRequest!, "contentBase64").Should().Be(NormalizeLf(updatedContent));
     }
 
     [Fact]
@@ -909,6 +909,11 @@ public sealed class NginxConfigPathsProviderTests
     private static string DecodeArgument(SshCommandRequest request, string name)
     {
         return Encoding.UTF8.GetString(Convert.FromBase64String(request.Arguments[name]));
+    }
+
+    private static string NormalizeLf(string value)
+    {
+        return value.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
     }
 
     private static SshConnectionProfile CreateProfile(KelpiePolicyMode mode = KelpiePolicyMode.Safe)
