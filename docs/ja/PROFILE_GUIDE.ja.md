@@ -265,6 +265,225 @@ kelpiemcp forget vps01
 - `Users.<user>` の user-level settings は、選択された user について profile-level settings を上書きします。
 - `Root` と `RootPath` は別名です。サンプルでは `Root` を推奨します。
 
+### 設定値サンプル
+
+このセクションでは、profile 設定で使う値の形ごとに、最低1つの有効なサンプルを示します。
+サンプルでは、文書用の host、user、鍵名、secret reference だけを使います。
+
+Scalar と object のサンプル:
+
+```json
+{
+  "Host": {
+    "Address": "203.0.113.10",
+    "Port": 22
+  },
+  "Auth": {
+    "UserName": "deploy",
+    "Method": "privateKey",
+    "PrivateKeyFile": "vps01_ed25519",
+    "PrivateKeyPassphrase": "sample-passphrase"
+  },
+  "Connection": {
+    "TimeoutSeconds": 10
+  },
+  "Platform": {
+    "OsFamily": "ubuntu",
+    "PackageManager": "apt"
+  },
+  "Services": {
+    "Nginx": {
+      "User": "www-data",
+      "Group": "www-data",
+      "Port": 80,
+      "Root": "/var/www/html"
+    }
+  }
+}
+```
+
+null を許容する秘密情報参照系のサンプル:
+
+```json
+{
+  "Auth": {
+    "PrivateKeyPassphrase": null,
+    "PasswordSecretName": "kelpie:vps01"
+  }
+}
+```
+
+Role expression のサンプル:
+
+```json
+{
+  "Mode": "Maintenance|WebUser",
+  "Roles": "Maintenance|WebUser"
+}
+```
+
+```json
+{
+  "Roles": ["Maintenance", "WebUser"]
+}
+```
+
+Capability のサンプル:
+
+```json
+{
+  "Capabilities": "AllowListPackage|AllowInstallPackage"
+}
+```
+
+```json
+{
+  "Capabilities": ["AllowListPackage", "AllowInstallPackage"]
+}
+```
+
+```json
+{
+  "Capabilities": {
+    "Flags": ["AllowListPackage", "AllowInstallPackage"]
+  }
+}
+```
+
+Dictionary と array のサンプル:
+
+```json
+{
+  "Rights": {
+    "$WebDeploy": "$ReadWrite|@Import"
+  },
+  "AllowedRoots": {
+    "/var/www": "$WebDeploy",
+    "/var/log": "$ReadOnly"
+  },
+  "SpecialPaths": {
+    "**/.env": "Deny",
+    "/var/www/.well-known/**": "Allow"
+  },
+  "EnvironmentValues": {
+    "PATH": "Read",
+    "APP_ENV": "Read|Write"
+  }
+}
+```
+
+```json
+{
+  "AllowedRoots": ["/var/log", "/etc/nginx"]
+}
+```
+
+User のサンプル:
+
+```json
+{
+  "DefaultUser": "deploy",
+  "Users": {
+    "deploy": "Maintenance|WebUser",
+    "readonly": {
+      "Mode": "ReadOnly",
+      "AllowedRoots": {
+        "/var/log": "$ReadOnly"
+      }
+    }
+  }
+}
+```
+
+```json
+{
+  "Users": [
+    {
+      "UserName": "deploy",
+      "Mode": "Safe"
+    }
+  ]
+}
+```
+
+Web public site のサンプル:
+
+```json
+{
+  "WebPublicSites": {
+    "default": "/var/www/html"
+  }
+}
+```
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html",
+      "AllowedExtensions": [".html", ".css", ".js"],
+      "WritableExecutableExtensions": [".php"],
+      "AllowedContentTypes": ["text/html", "text/css"],
+      "AllowedFiles": {
+        "file:assets/**": "$ReadWrite",
+        "mime:image/png": "$ReadOnly"
+      },
+      "CreateDirectories": true,
+      "MaxReadBytes": 1048576,
+      "MaxWriteBytes": 1048576
+    }
+  }
+}
+```
+
+```json
+{
+  "WebPublicSites": [
+    {
+      "SiteKey": "default",
+      "DisplayName": "Default site",
+      "Root": "/var/www/html"
+    }
+  ]
+}
+```
+
+`AllowedContentTypes` object form:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html",
+      "AllowedContentTypes": {
+        "text/html": "$ReadWrite",
+        "image/png": "$ReadOnly"
+      }
+    }
+  }
+}
+```
+
+Legacy compatibility のサンプル:
+
+```json
+{
+  "Ssh": {
+    "Host": "203.0.113.10",
+    "Port": 22,
+    "UserName": "deploy",
+    "Authentication": {
+      "Method": "privateKey",
+      "PrivateKeyFile": "vps01_ed25519"
+    }
+  },
+  "Policy": {
+    "Level": "AllowListPackage",
+    "AllowedRoots": ["/var/log"]
+  }
+}
+```
+
 ### `Host`
 
 SSH 接続先です。

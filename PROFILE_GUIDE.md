@@ -264,6 +264,225 @@ Compatibility and priority:
 - User-level settings under `Users.<user>` override profile-level settings for that selected user.
 - `Root` and `RootPath` are aliases; samples prefer `Root`.
 
+### Configuration value samples
+
+This section gives at least one valid sample for each value shape used by profile settings.
+Samples use documentation-only hosts, users, key names, and secret references.
+
+Scalar and object settings:
+
+```json
+{
+  "Host": {
+    "Address": "203.0.113.10",
+    "Port": 22
+  },
+  "Auth": {
+    "UserName": "deploy",
+    "Method": "privateKey",
+    "PrivateKeyFile": "vps01_ed25519",
+    "PrivateKeyPassphrase": "sample-passphrase"
+  },
+  "Connection": {
+    "TimeoutSeconds": 10
+  },
+  "Platform": {
+    "OsFamily": "ubuntu",
+    "PackageManager": "apt"
+  },
+  "Services": {
+    "Nginx": {
+      "User": "www-data",
+      "Group": "www-data",
+      "Port": 80,
+      "Root": "/var/www/html"
+    }
+  }
+}
+```
+
+Nullable secret fields:
+
+```json
+{
+  "Auth": {
+    "PrivateKeyPassphrase": null,
+    "PasswordSecretName": "kelpie:vps01"
+  }
+}
+```
+
+Role expression samples:
+
+```json
+{
+  "Mode": "Maintenance|WebUser",
+  "Roles": "Maintenance|WebUser"
+}
+```
+
+```json
+{
+  "Roles": ["Maintenance", "WebUser"]
+}
+```
+
+Capability samples:
+
+```json
+{
+  "Capabilities": "AllowListPackage|AllowInstallPackage"
+}
+```
+
+```json
+{
+  "Capabilities": ["AllowListPackage", "AllowInstallPackage"]
+}
+```
+
+```json
+{
+  "Capabilities": {
+    "Flags": ["AllowListPackage", "AllowInstallPackage"]
+  }
+}
+```
+
+Dictionary and array samples:
+
+```json
+{
+  "Rights": {
+    "$WebDeploy": "$ReadWrite|@Import"
+  },
+  "AllowedRoots": {
+    "/var/www": "$WebDeploy",
+    "/var/log": "$ReadOnly"
+  },
+  "SpecialPaths": {
+    "**/.env": "Deny",
+    "/var/www/.well-known/**": "Allow"
+  },
+  "EnvironmentValues": {
+    "PATH": "Read",
+    "APP_ENV": "Read|Write"
+  }
+}
+```
+
+```json
+{
+  "AllowedRoots": ["/var/log", "/etc/nginx"]
+}
+```
+
+User samples:
+
+```json
+{
+  "DefaultUser": "deploy",
+  "Users": {
+    "deploy": "Maintenance|WebUser",
+    "readonly": {
+      "Mode": "ReadOnly",
+      "AllowedRoots": {
+        "/var/log": "$ReadOnly"
+      }
+    }
+  }
+}
+```
+
+```json
+{
+  "Users": [
+    {
+      "UserName": "deploy",
+      "Mode": "Safe"
+    }
+  ]
+}
+```
+
+Web public site samples:
+
+```json
+{
+  "WebPublicSites": {
+    "default": "/var/www/html"
+  }
+}
+```
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html",
+      "AllowedExtensions": [".html", ".css", ".js"],
+      "WritableExecutableExtensions": [".php"],
+      "AllowedContentTypes": ["text/html", "text/css"],
+      "AllowedFiles": {
+        "file:assets/**": "$ReadWrite",
+        "mime:image/png": "$ReadOnly"
+      },
+      "CreateDirectories": true,
+      "MaxReadBytes": 1048576,
+      "MaxWriteBytes": 1048576
+    }
+  }
+}
+```
+
+```json
+{
+  "WebPublicSites": [
+    {
+      "SiteKey": "default",
+      "DisplayName": "Default site",
+      "Root": "/var/www/html"
+    }
+  ]
+}
+```
+
+`AllowedContentTypes` object form:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html",
+      "AllowedContentTypes": {
+        "text/html": "$ReadWrite",
+        "image/png": "$ReadOnly"
+      }
+    }
+  }
+}
+```
+
+Legacy compatibility samples:
+
+```json
+{
+  "Ssh": {
+    "Host": "203.0.113.10",
+    "Port": 22,
+    "UserName": "deploy",
+    "Authentication": {
+      "Method": "privateKey",
+      "PrivateKeyFile": "vps01_ed25519"
+    }
+  },
+  "Policy": {
+    "Level": "AllowListPackage",
+    "AllowedRoots": ["/var/log"]
+  }
+}
+```
+
 ### `Host`
 
 Target SSH endpoint.
