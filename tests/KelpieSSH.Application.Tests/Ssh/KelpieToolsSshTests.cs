@@ -2761,7 +2761,7 @@ public sealed class KelpieToolsSshTests
     [Fact]
     public void ConfirmSshPackageInstall_ShouldReturnConfirmationWithoutExecution()
     {
-        var profile = CreateProfile("vps01", KelpiePolicyMode.Maintenance);
+        var profile = CreateProfile("vps01", KelpiePolicyMode.Expert);
         var runner = new FakeSshCommandRunner();
         var service = CreateProviderBackedService(runner);
         var profiles = new SshConnectionProfileCatalog([profile]);
@@ -2769,7 +2769,7 @@ public sealed class KelpieToolsSshTests
         var result = KelpieTools.ConfirmSshPackageInstall(service, profiles, "nginx", "vps01");
 
         result.CommandName.Should().Be("pkg_install");
-        result.CommandText.Should().Be("apt-get install 'nginx'");
+        result.CommandText.Should().Be("sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y 'nginx'");
         result.RiskLevel.Should().Be(nameof(SshCommandRiskLevel.ConfirmRequired));
         result.RequiresConfirmation.Should().BeTrue();
         result.Message.Should().Be("Command requires confirmation and has not been executed.");
@@ -2918,7 +2918,7 @@ public sealed class KelpieToolsSshTests
     [Fact]
     public void ConfirmSshPackageRemove_ShouldReturnConfirmationWithoutExecution()
     {
-        var profile = CreateProfile("vps01", KelpiePolicyMode.Maintenance);
+        var profile = CreateProfile("vps01", KelpiePolicyMode.Expert);
         var runner = new FakeSshCommandRunner();
         var service = CreateProviderBackedService(runner);
         var profiles = new SshConnectionProfileCatalog([profile]);
@@ -2926,7 +2926,7 @@ public sealed class KelpieToolsSshTests
         var result = KelpieTools.ConfirmSshPackageRemove(service, profiles, "nginx", "vps01");
 
         result.CommandName.Should().Be("pkg_remove");
-        result.CommandText.Should().Be("apt-get remove 'nginx'");
+        result.CommandText.Should().Be("sudo -n env DEBIAN_FRONTEND=noninteractive apt-get remove -y 'nginx'");
         result.RiskLevel.Should().Be(nameof(SshCommandRiskLevel.ConfirmRequired));
         result.RequiresConfirmation.Should().BeTrue();
         runner.LastRequest.Should().BeNull();

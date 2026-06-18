@@ -52,6 +52,7 @@ SSHプロファイルの認証設定は、同じ `profiles/<profile>.json` の�
 | :--- | :--- | :--- | :--- | :--- |
 | `CommonDiagnosticCommandProvider` | `*` | 任意 | なし | `get_system_info`, `get_disk_usage`, `get_memory_usage`, `get_listening_ports`, `get_failed_services`, `tail_log` |
 | `DebianAptCommandProvider` | `debian` | `apt` | `apt` | `pkg_check_updates`, `pkg_simulate_install`, `pkg_install`, `pkg_simulate_remove`, `pkg_remove` |
+| `DebianNginxCommandProvider` | `debian` | any | systemd | `service_enable_now`, `service_reload`, `service_restart`, `service_stop`, `service_disable`, `http_get_local` |
 | `RhelDnfCommandProvider` | `rhel` | `dnf` | `dnf` | `pkg_check_updates`, `pkg_simulate_install`, `pkg_install`, `pkg_simulate_remove`, `pkg_remove` |
 
 ## Commands
@@ -1553,7 +1554,7 @@ kelpie -v
 実行結果サンプル:
 
 ```text
-kelpie 0.3.0.1
+kelpie 0.3.1.0
 ```
 
 ### `kelpie help`

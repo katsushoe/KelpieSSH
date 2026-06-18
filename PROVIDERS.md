@@ -19,6 +19,7 @@ Providers are small allow-list modules that expose a bounded set of SSH operatio
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `CommonDiagnosticCommandProvider` | Command-processing | Implemented | Any non-empty OS family (`*`) | System info, OS release, inventory, disk/memory/network checks, cron checks and changes, user permission changes, service status/log reads, firewall checks and changes, backups, audit checks. | Some write operations require confirmation and sudo. Service status/log operations depend on `systemctl` and `journalctl`. |
 | `DebianAptCommandProvider` | Command-processing | Implemented | Debian-family profiles with `PackageManager` = `apt` | Package update check, package info/search, installed package listing, install/remove simulation, install/remove. | `pkg_install` and `pkg_remove` are confirmation-required. |
+| `DebianNginxCommandProvider` | Command-processing | Implemented | Debian-family profiles | `systemctl enable --now`, reload, restart, stop, disable, and local HTTP check. | Despite the class name, the service parameter is generic. The provider is currently Debian-family only. |
 | `RhelDnfCommandProvider` | Command-processing | Implemented | RHEL-family profiles with `PackageManager` = `dnf` | Package update check, package info/search, installed package listing, install/remove simulation, install/remove. | Uses `sudo -n dnf` for install/remove paths. |
 | `NginxServiceConfigCommandProvider` | Command-processing | Implemented | Any non-empty OS family (`*`) | Internal command definitions for Nginx config discovery, read, write, check, rollback, commit, test, and log read. | Intended to be used through service configuration MCP tools, not as a broad Nginx shell interface. |
 | `RhelNginxCommandProvider` | Command-processing | Implemented | RHEL-family profiles | `systemctl enable --now`, reload, restart, stop, disable, and local HTTP check. | Despite the class name, the service parameter is generic. The provider is currently RHEL-family only. |
@@ -34,7 +35,6 @@ Providers are small allow-list modules that expose a bounded set of SSH operatio
 
 | Area | Status | Current Behavior | Expected Future Provider Shape |
 | :--- | :--- | :--- | :--- |
-| Debian/Ubuntu service lifecycle write provider | Not implemented | Read-oriented service status/log commands are available through the common provider. Write operations such as service enable/reload/restart/stop are not provided by a Debian-specific provider. | A Debian/systemd provider can expose confirmation-required service lifecycle operations for Debian-family targets. |
 | `yum` package provider | Not implemented | RHEL-family package management currently targets `dnf`. | A legacy RHEL/CentOS provider can support `yum` if needed. |
 | `apk` package provider | Not implemented | Alpine Linux package management is not available. | An Alpine provider can expose bounded `apk` info/search/install/remove commands. |
 | `pacman` package provider | Not implemented | Arch Linux package management is not available. | An Arch provider can expose bounded `pacman` query/install/remove commands. |
@@ -50,7 +50,7 @@ Providers are small allow-list modules that expose a bounded set of SSH operatio
 
 | Registry | Source | Default Providers |
 | :--- | :--- | :--- |
-| Command-processing provider catalog | `src/KelpieSSH.Application/Ssh/CommandProcessingProviderCatalog.cs` | `CommonDiagnosticCommandProvider`, `NginxServiceConfigCommandProvider`, `WebPublicFileCommandProvider`, `DebianAptCommandProvider`, `RhelDnfCommandProvider`, `RhelNginxCommandProvider` |
+| Command-processing provider catalog | `src/KelpieSSH.Application/Ssh/CommandProcessingProviderCatalog.cs` | `CommonDiagnosticCommandProvider`, `NginxServiceConfigCommandProvider`, `WebPublicFileCommandProvider`, `DebianAptCommandProvider`, `DebianNginxCommandProvider`, `RhelDnfCommandProvider`, `RhelNginxCommandProvider` |
 | Service configuration provider catalog | `src/KelpieSSH.Application/Ssh/ServiceConfigPathsProviderCatalog.cs` | `NginxConfigPathsProvider` |
 | Web public file provider | `src/KelpieSSH.Application/Ssh/WebPublicFileProvider.cs` | Single generic provider, driven by profile `Services.WebPublic` site definitions. |
 | Profile catalog providers | `src/KelpieSSH.Application/Ssh/SshConnectionProfileCatalog.cs`, `src/KelpieSSH.Application/Ssh/ReloadingSshConnectionProfileCatalog.cs` | File-based profile catalog and trust-store-aware reloading catalog. |

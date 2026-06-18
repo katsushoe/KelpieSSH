@@ -171,6 +171,24 @@ public sealed class AllowedCommandProviderTests
     }
 
     [Theory]
+    [InlineData("0")]
+    [InlineData("65536")]
+    public void DebianNginxCommandProvider_ShouldRejectOutOfRangeLocalPort(string port)
+    {
+        var provider = new DebianNginxCommandProvider();
+        var profile = CreateProfile("debian", "apt");
+        var command = provider.GetCommands(profile).Single(command => command.Name == "http_get_local");
+
+        var action = () => command.BuildCommandText(new Dictionary<string, string>
+        {
+            ["port"] = port,
+        });
+
+        action.Should().Throw<InvalidOperationException>()
+            .WithMessage("SSH command argument format is invalid: port");
+    }
+
+    [Theory]
     [InlineData("1")]
     [InlineData("65535")]
     public void RhelNginxCommandProvider_ShouldAcceptValidLocalPortBoundary(string port)
@@ -263,6 +281,42 @@ public sealed class AllowedCommandProviderTests
         var profile = CreateProfile("ubuntu", "apt");
 
         provider.Supports(profile).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("debian")]
+    [InlineData("ubuntu")]
+    public void DebianNginxCommandProvider_ShouldSupportDebianFamilyProfile(string osFamily)
+    {
+        var provider = new DebianNginxCommandProvider();
+        var profile = CreateProfile(osFamily, "apt");
+
+        provider.Supports(profile).Should().BeTrue();
+
+        var commands = provider.GetCommands(profile);
+        commands.Select(command => command.Name).Should().Contain(
+        [
+            "service_enable_now",
+            "service_reload",
+            "service_restart",
+            "service_stop",
+            "service_disable",
+            "http_get_local",
+        ]);
+        commands.Single(command => command.Name == "service_enable_now")
+            .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
+        commands.Single(command => command.Name == "service_restart")
+            .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
+    }
+
+    [Fact]
+    public void DebianNginxCommandProvider_ShouldRejectRhelProfile()
+    {
+        var provider = new DebianNginxCommandProvider();
+        var profile = CreateProfile("rhel", "dnf");
+
+        provider.Supports(profile).Should().BeFalse();
+        provider.GetCommands(profile).Should().BeEmpty();
     }
 
     [Fact]
@@ -425,6 +479,24 @@ public sealed class AllowedCommandProviderTests
         commands["pkg_install"].RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
         commands["pkg_simulate_remove"].RiskLevel.Should().Be(SshCommandRiskLevel.ReadOnly);
         commands["pkg_remove"].RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
+    }
+
+    [Theory]
+    [InlineData("pkg_install", "sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y 'nginx'")]
+    [InlineData("pkg_remove", "sudo -n env DEBIAN_FRONTEND=noninteractive apt-get remove -y 'nginx'")]
+    public void DebianAptCommandProvider_ShouldRenderSudoPackageMutationCommands(string commandName, string expected)
+    {
+        var provider = new DebianAptCommandProvider();
+        var profile = CreateProfile("ubuntu", "apt");
+        var command = provider.GetCommands(profile).Single(command => command.Name == commandName);
+
+        var commandText = command.BuildCommandText(new Dictionary<string, string>
+        {
+            ["package"] = "nginx",
+        });
+
+        commandText.Should().Be(expected);
+        command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
     }
 
     [Fact]
@@ -1114,6 +1186,27 @@ public sealed class AllowedCommandProviderTests
 
         commandText.Should().StartWith("sudo -n python3");
         commandText.Should().Contain("'remove' 'service' 'https' 'public' 'true'");
+        command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
+    }
+
+    [Theory]
+    [InlineData("service_enable_now", "sudo -n systemctl enable --now 'nginx.service'")]
+    [InlineData("service_reload", "sudo -n systemctl reload 'nginx.service'")]
+    [InlineData("service_restart", "sudo -n systemctl restart 'nginx.service'")]
+    [InlineData("service_stop", "sudo -n systemctl stop 'nginx.service'")]
+    [InlineData("service_disable", "sudo -n systemctl disable 'nginx.service'")]
+    public void DebianNginxCommandProvider_ShouldRenderServiceMaintenanceCommands(string commandName, string expected)
+    {
+        var provider = new DebianNginxCommandProvider();
+        var profile = CreateProfile("ubuntu", "apt");
+        var command = provider.GetCommands(profile).Single(command => command.Name == commandName);
+
+        var commandText = command.BuildCommandText(new Dictionary<string, string>
+        {
+            ["service"] = "nginx.service",
+        });
+
+        commandText.Should().Be(expected);
         command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
     }
 

@@ -46,7 +46,7 @@ kelpie version
 出力例:
 
 ```text
-kelpie 0.2.0.1
+kelpie 0.3.1.0
 ```
 
 #### 2. Kelpie home の初期化と profile 作成
@@ -133,7 +133,7 @@ kelpie version
 出力例:
 
 ```text
-kelpie 0.2.0.1
+kelpie 0.3.1.0
 ```
 
 `PATH` を更新したくない場合は、`D:\Kelpie\bin\kelpie.exe` のようなフルパスを使い続けてください。

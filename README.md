@@ -48,7 +48,7 @@ kelpie version
 Expected output:
 
 ```text
-kelpie 0.2.0.1
+kelpie 0.3.1.0
 ```
 
 #### 2. Initializing Kelpie home and creating a profile
@@ -169,7 +169,7 @@ kelpie version
 Expected output:
 
 ```text
-kelpie 0.2.0.1
+kelpie 0.3.1.0
 ```
 
 If you do not want to update `PATH`, keep using full paths such as `D:\Kelpie\bin\kelpie.exe`.

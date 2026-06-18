@@ -49,7 +49,7 @@ public sealed class DebianAptCommandProvider : IAllowedCommandProvider
             [PackageParameter]),
         new(
             "pkg_install",
-            "apt-get install {package}",
+            "sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y {package}",
             TimeSpan.FromMinutes(10),
             [PackageParameter],
             SshCommandRiskLevel.ConfirmRequired),
@@ -60,7 +60,7 @@ public sealed class DebianAptCommandProvider : IAllowedCommandProvider
             [PackageParameter]),
         new(
             "pkg_remove",
-            "apt-get remove {package}",
+            "sudo -n env DEBIAN_FRONTEND=noninteractive apt-get remove -y {package}",
             TimeSpan.FromMinutes(10),
             [PackageParameter],
             SshCommandRiskLevel.ConfirmRequired),

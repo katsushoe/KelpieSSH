@@ -17,6 +17,7 @@ public static class CommandProcessingProviderCatalog
             new NginxServiceConfigCommandProvider(),
             new WebPublicFileCommandProvider(),
             new DebianAptCommandProvider(),
+            new DebianNginxCommandProvider(),
             new RhelDnfCommandProvider(),
             new RhelNginxCommandProvider(),
         ];

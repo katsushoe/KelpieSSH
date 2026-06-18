@@ -83,6 +83,31 @@ public sealed class AllowedCommandCatalogTests
     }
 
     [Fact]
+    public void CreateForProfile_ShouldUseDebianPackageAndServiceProviders()
+    {
+        var profile = CreateProfile("ubuntu", "apt");
+        var catalog = AllowedCommandCatalog.CreateForProfile(
+            profile,
+            CommandProcessingProviderCatalog.CreateDefault());
+
+        catalog.TryGet("pkg_install", out var packageInstall).Should().BeTrue();
+        catalog.TryGet("service_enable_now", out var serviceEnableNow).Should().BeTrue();
+        catalog.TryGet("service_restart", out var serviceRestart).Should().BeTrue();
+        catalog.TryGet("service_disable", out var serviceDisable).Should().BeTrue();
+
+        packageInstall.BuildCommandText(new Dictionary<string, string>
+        {
+            ["package"] = "nginx",
+        }).Should().Be("sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y 'nginx'");
+        serviceEnableNow.BuildCommandText(new Dictionary<string, string>
+        {
+            ["service"] = "nginx.service",
+        }).Should().Be("sudo -n systemctl enable --now 'nginx.service'");
+        serviceRestart.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
+        serviceDisable.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
+    }
+
+    [Fact]
     public void CreateForProfile_ShouldExcludeUnsupportedPackageProvider()
     {
         var profile = CreateProfile("debian", "dnf");

@@ -55,6 +55,7 @@ public sealed class AllowedCommandCatalog : IAllowedCommandCatalog
             [
                 new CommonDiagnosticCommandProvider(),
                 new NginxServiceConfigCommandProvider(),
+                new DebianNginxCommandProvider(),
             ]);
     }
 
