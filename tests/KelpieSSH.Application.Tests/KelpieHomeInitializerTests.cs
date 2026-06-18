@@ -165,11 +165,11 @@ public sealed class KelpieHomeInitializerTests
             using var document = JsonDocument.Parse(File.ReadAllText(kelpieMcpConfigPath));
             var profileOperations = document.RootElement.GetProperty("ProfileOperations");
 
-            profileOperations.GetProperty("Add").GetProperty("CLI").GetString().Should().Be("Allowed");
+            profileOperations.GetProperty("Add").GetProperty("CLI").GetString().Should().Be("Allow");
             profileOperations.GetProperty("Add").GetProperty("MCP").GetString().Should().Be("Deny");
-            profileOperations.GetProperty("Reload").GetProperty("CLI").GetString().Should().Be("Allowed");
+            profileOperations.GetProperty("Reload").GetProperty("CLI").GetString().Should().Be("Allow");
             profileOperations.GetProperty("Reload").GetProperty("MCP").GetString().Should().Be("Deny");
-            profileOperations.GetProperty("Revoke").GetProperty("CLI").GetString().Should().Be("Allowed");
+            profileOperations.GetProperty("Revoke").GetProperty("CLI").GetString().Should().Be("Allow");
             profileOperations.GetProperty("Revoke").GetProperty("MCP").GetString().Should().Be("Deny");
         }
         finally
@@ -237,9 +237,9 @@ public sealed class KelpieHomeInitializerTests
             using var document = JsonDocument.Parse(File.ReadAllText(kelpieMcpConfigPath));
             var profileOperations = document.RootElement.GetProperty("ProfileOperations");
             profileOperations.GetProperty("Reload").GetProperty("MCP").GetString().Should().Be("Deny");
-            profileOperations.GetProperty("Reload").GetProperty("CLI").GetString().Should().Be("Allowed");
-            profileOperations.GetProperty("Add").GetProperty("CLI").GetString().Should().Be("Allowed");
-            profileOperations.GetProperty("Revoke").GetProperty("CLI").GetString().Should().Be("Allowed");
+            profileOperations.GetProperty("Reload").GetProperty("CLI").GetString().Should().Be("Allow");
+            profileOperations.GetProperty("Add").GetProperty("CLI").GetString().Should().Be("Allow");
+            profileOperations.GetProperty("Revoke").GetProperty("CLI").GetString().Should().Be("Allow");
         }
         finally
         {

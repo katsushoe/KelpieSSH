@@ -295,7 +295,7 @@ Return value:
 - Return type: `SshProfileCapabilitiesToolResult`.
 - `Handle`: requested terminal handle.
 - `ProfileName`: profile name associated with the terminal handle, or an empty string when the handle is not found.
-- `ReloadAllowed`: `true` when `ProfileOperations:Reload:MCP` is `Allowed`; otherwise `false`. Legacy boolean `true` is also treated as allowed.
+- `ReloadAllowed`: `true` when `ProfileOperations:Reload:MCP` is `Allow`; otherwise `false`. Legacy `Allowed` and boolean `true` are also treated as allowed.
 - `Reason`: stable reason string such as `allowed-by-config`, `disabled-by-config`, or `session-not-found`.
 
 Return value sample:

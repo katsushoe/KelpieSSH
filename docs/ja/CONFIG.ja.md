@@ -132,15 +132,15 @@ http://127.0.0.1:45432/health
   },
   "ProfileOperations": {
     "Add": {
-      "CLI": "Allowed",
+      "CLI": "Allow",
       "MCP": "Deny"
     },
     "Reload": {
-      "CLI": "Allowed",
+      "CLI": "Allow",
       "MCP": "Deny"
     },
     "Revoke": {
-      "CLI": "Allowed",
+      "CLI": "Allow",
       "MCP": "Deny"
     }
   }
@@ -156,18 +156,18 @@ http://127.0.0.1:45432/health
 
 | 値 | 意味 |
 | :--- | :--- |
-| `Allowed` | その経路で操作を許可する。 |
+| `Allow` | その経路で操作を許可する。 |
 | `Deny` | その経路で操作を拒否する。 |
 
-互換のため、旧 boolean 値も読み取ります。`true` は `Allowed`、`false` は `Deny` として扱います。
+互換のため、旧値も読み取ります。`Allowed` と boolean `true` は `Allow`、boolean `false` は `Deny` として扱います。
 
 既定値:
 
 | Setting | 既定値 | 目的 |
 | :--- | :--- | :--- |
-| `ProfileOperations:Add:CLI` | `Allowed` | `kelpiemcp profile add <profile>` を許可する。 |
-| `ProfileOperations:Reload:CLI` | `Allowed` | `kelpiemcp profile reload <profile>` を許可する。 |
-| `ProfileOperations:Revoke:CLI` | `Allowed` | `kelpiemcp profile revoke <profile>` を許可する。 |
+| `ProfileOperations:Add:CLI` | `Allow` | `kelpiemcp profile add <profile>` を許可する。 |
+| `ProfileOperations:Reload:CLI` | `Allow` | `kelpiemcp profile reload <profile>` を許可する。 |
+| `ProfileOperations:Revoke:CLI` | `Allow` | `kelpiemcp profile revoke <profile>` を許可する。 |
 | `ProfileOperations:Add:MCP` | `Deny` | MCP 経由の profile add は公開しない。 |
 | `ProfileOperations:Reload:MCP` | `Deny` | `ssh_profile_capabilities` が返す `ReloadAllowed` を制御する。 |
 | `ProfileOperations:Revoke:MCP` | `Deny` | MCP 経由の profile revoke は公開しない。 |
@@ -184,7 +184,7 @@ kelpiemcp profile reload <profile>
 kelpiemcp profile revoke <profile>
 ```
 
-`ProfileOperations:Reload:MCP` を `Allowed` にするのは、運用者が MCP client へ接続中 profile の reload capability を見せることを明示的に許可する場合だけにしてください。
+`ProfileOperations:Reload:MCP` を `Allow` にするのは、運用者が MCP client へ接続中 profile の reload capability を見せることを明示的に許可する場合だけにしてください。
 その場合でも trusted profile hash validation は引き続き適用されるため、この flag だけで編集済み profile file が無条件に受け入れられることはありません。
 
 ## Runtime State

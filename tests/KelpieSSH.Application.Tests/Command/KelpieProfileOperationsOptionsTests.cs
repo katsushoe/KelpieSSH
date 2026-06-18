@@ -22,15 +22,15 @@ public sealed class KelpieProfileOperationsOptionsTests
     }
 
     [Fact]
-    public void FromConfiguration_ShouldReadAllowedDenyStrings()
+    public void FromConfiguration_ShouldReadAllowDenyStrings()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ProfileOperations:Add:CLI"] = "Deny",
-                ["ProfileOperations:Reload:CLI"] = "Allowed",
+                ["ProfileOperations:Reload:CLI"] = "Allow",
                 ["ProfileOperations:Revoke:CLI"] = "Deny",
-                ["ProfileOperations:Reload:MCP"] = "Allowed",
+                ["ProfileOperations:Reload:MCP"] = "Allow",
             })
             .Build();
 
@@ -39,6 +39,21 @@ public sealed class KelpieProfileOperationsOptionsTests
         options.IsAllowed("add", "CLI").Should().BeFalse();
         options.IsAllowed("reload", "CLI").Should().BeTrue();
         options.IsAllowed("revoke", "CLI").Should().BeFalse();
+        options.IsAllowed("reload", "MCP").Should().BeTrue();
+    }
+
+    [Fact]
+    public void FromConfiguration_ShouldReadLegacyAllowedString()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ProfileOperations:Reload:MCP"] = "Allowed",
+            })
+            .Build();
+
+        var options = KelpieProfileOperationsOptions.FromConfiguration(configuration);
+
         options.IsAllowed("reload", "MCP").Should().BeTrue();
     }
 

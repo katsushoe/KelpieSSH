@@ -400,17 +400,17 @@ public static class KelpieHomeInitializer
             {
                 Add = new
                 {
-                    CLI = "Allowed",
+                    CLI = "Allow",
                     MCP = "Deny",
                 },
                 Reload = new
                 {
-                    CLI = "Allowed",
+                    CLI = "Allow",
                     MCP = "Deny",
                 },
                 Revoke = new
                 {
-                    CLI = "Allowed",
+                    CLI = "Allow",
                     MCP = "Deny",
                 },
             },
@@ -544,7 +544,7 @@ public static class KelpieHomeInitializer
     private static void SetOperationDefault(JsonObject profileOperations, string operation, ref bool updated)
     {
         var operationNode = GetOrCreateObject(profileOperations, operation, ref updated);
-        updated |= SetPermissionIfMissingOrLegacy(operationNode, "CLI", "Allowed");
+        updated |= SetPermissionIfMissingOrLegacy(operationNode, "CLI", "Allow");
         updated |= SetPermissionIfMissingOrLegacy(operationNode, "MCP", "Deny");
     }
 
@@ -554,7 +554,7 @@ public static class KelpieHomeInitializer
         {
             if (value.TryGetValue<bool>(out var boolValue))
             {
-                node[propertyName] = boolValue ? "Allowed" : "Deny";
+                node[propertyName] = boolValue ? "Allow" : "Deny";
                 return true;
             }
 

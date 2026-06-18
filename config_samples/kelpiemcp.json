@@ -11,15 +11,15 @@
   },
   "ProfileOperations": {
     "Add": {
-      "CLI": "Allowed",
+      "CLI": "Allow",
       "MCP": "Deny"
     },
     "Reload": {
-      "CLI": "Allowed",
+      "CLI": "Allow",
       "MCP": "Deny"
     },
     "Revoke": {
-      "CLI": "Allowed",
+      "CLI": "Allow",
       "MCP": "Deny"
     }
   }
