@@ -14,6 +14,8 @@ SSH profile setup is documented in [PROFILE_GUIDE.md](PROFILE_GUIDE.md).
 
 AI MCP server setup is documented in [MCP_GUIDE.md](MCP_GUIDE.md).
 
+Provider support and implementation status are documented in [PROVIDERS.md](PROVIDERS.md).
+
 `kelpie` reads `config/kelpie.json`.
 
 Sample configuration files are provided under `config_samples/`:
@@ -275,6 +277,8 @@ logout
 ## Kelpie command-line tools
 
 The `kelpie` command-line tools do not require the MCP server for normal terminal use. Use them directly from a terminal to initialize local settings, inspect profiles, open a target profile, start an interactive SSH session, run diagnostics, or tail service logs.
+
+KelpieSSH uses provider modules to expose bounded SSH operations for each target OS, package manager, service, and web public root. Providers are allow-list based; they add named, parameter-validated operations instead of opening arbitrary shell access. For the current provider list and implementation status, see [PROVIDERS.md](PROVIDERS.md).
 
 Show Kelpie CLI help or version information with:
 
