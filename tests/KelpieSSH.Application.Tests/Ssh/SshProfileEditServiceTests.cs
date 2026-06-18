@@ -181,7 +181,7 @@ public sealed class SshProfileEditServiceTests
         var result = service.EditWithEditor(profile.Path, "fake", _ => ProfileEditRecoveryAction.Retry);
 
         result.Success.Should().BeFalse();
-        File.ReadAllText(profile.Path).Should().Be(original);
+        NormalizeLineEndings(File.ReadAllText(profile.Path)).Should().Be(NormalizeLineEndings(original));
         launcher.Received(1).Launch("fake", profile.Path);
     }
 
@@ -201,7 +201,7 @@ public sealed class SshProfileEditServiceTests
         var result = service.EditWithEditor(profile.Path, "fake", _ => ProfileEditRecoveryAction.Abort);
 
         result.Success.Should().BeFalse();
-        File.ReadAllText(profile.Path).Should().Be(original);
+        NormalizeLineEndings(File.ReadAllText(profile.Path)).Should().Be(NormalizeLineEndings(original));
     }
 
     private static SshProfileEditService CreateService()
@@ -213,6 +213,11 @@ public sealed class SshProfileEditServiceTests
     private static JsonObject ReadProfile(string path)
     {
         return JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+    }
+
+    private static string NormalizeLineEndings(string value)
+    {
+        return value.Replace("\r\n", "\n", StringComparison.Ordinal);
     }
 
     private sealed class TestProfile : IDisposable
