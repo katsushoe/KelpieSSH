@@ -40,6 +40,7 @@ This file is the public source of truth for KelpieSSH Git-managed public documen
 | `SECURITY.md` | `SECURITY.md` | Yes | Public security policy and vulnerability reporting guidance. Japanese version is under `docs/ja/`. |
 | `THIRD_PARTY_NOTICES.md` | `THIRD_PARTY_NOTICES.md` | Yes | Public third-party dependency and license notices. Japanese version is under `docs/ja/`. |
 | `LICENSE` | `LICENSE` | Yes | Apache License 2.0 text. |
+| `servers/demo-vps/README.md` | `servers/demo-vps/README.md` | Yes | Public Docker-based demo VPS target guide for SSH, sudo, and KelpieSSH demonstrations. |
 
 ## Private Document Handling
 
