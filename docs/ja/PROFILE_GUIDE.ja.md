@@ -926,6 +926,19 @@ Service-specific defaults です。
 | `WebPublicSites.<siteKey>.AllowedExtensions` | no | このサイトで許可する通常ファイルの拡張子。有効な値は `.html` や `.png` のような、先頭ドット付きの単一ファイル拡張子です。大文字小文字は区別しません。path、glob、MIME type、実行可能拡張子は指定しません。未設定または空の場合は、Kelpie 組み込みの安全な静的ファイル拡張子リストを使います。 |
 | `WebPublicSites.<siteKey>.WritableExecutableExtensions` | no | このサイトだけで書き込みを許可する実行可能拡張子。`.php` のように先頭ドット付きで列挙します。ワイルドカードは拒否されます。 |
 
+`AllowedExtensions` のサンプル:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html",
+      "AllowedExtensions": [".html", ".css", ".js", ".png", ".jpg", ".txt"]
+    }
+  }
+}
+```
+
 注意:
 
 - `AllowedExtensions` は HTML、CSS、JavaScript、画像、テキスト、JSON、XML、アーカイブなど通常の Web 公開ファイル向けです。`.php` のような実行可能な Web 拡張子は許可しません。

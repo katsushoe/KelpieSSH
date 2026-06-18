@@ -926,6 +926,19 @@ Example:
 | `WebPublicSites.<siteKey>.AllowedExtensions` | no | Regular file extensions allowed for this site. Effective values are explicit single file extensions with a leading dot, such as `.html` or `.png`. Matching is case-insensitive. Do not specify paths, globs, MIME types, or executable extensions here. If omitted or empty, Kelpie uses its built-in safe static-file extension list. |
 | `WebPublicSites.<siteKey>.WritableExecutableExtensions` | no | Executable extensions allowed for writes on this site only. Values must be explicit dot-prefixed extensions such as `.php`; wildcards are rejected. |
 
+`AllowedExtensions` sample:
+
+```json
+{
+  "WebPublicSites": {
+    "default": {
+      "Root": "/var/www/html",
+      "AllowedExtensions": [".html", ".css", ".js", ".png", ".jpg", ".txt"]
+    }
+  }
+}
+```
+
 Notes:
 
 - `AllowedExtensions` is for normal web assets such as HTML, CSS, JavaScript, images, text, JSON, XML, and archives. It does not allow executable web extensions such as `.php`.
