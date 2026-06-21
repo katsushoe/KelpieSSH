@@ -75,7 +75,7 @@ MCP server port [45432]: 45432
 MCP control pipe name [KelpieMCPServer.Control]: KelpieMCPServer.Control
 Create SSH profile template.
 Press Enter to use the default value.
-Host address [example.invalid]: example.org
+Host address [localhost]: example.org
 Port [22]: 2222
 SSH user [deploy]: ops
 Authentication method (privateKey/password) [privateKey]: password
@@ -367,7 +367,7 @@ kelpie profile create vps02
 ```text
 Create SSH profile template.
 Press Enter to use the default value.
-Host address [example.invalid]: example.org
+Host address [localhost]: example.org
 Port [22]: 2222
 SSH user [deploy]: ops
 Authentication method (privateKey/password) [privateKey]: password

@@ -48,7 +48,7 @@ public sealed class KelpieHomeInitializerTests
             var profileJson = File.ReadAllText(profilePath);
 
             profileJson.Should().Contain("vps01_ed25519");
-            profileJson.Should().Contain("example.invalid");
+            profileJson.Should().Contain("localhost");
         }
         finally
         {

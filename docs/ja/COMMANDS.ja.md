@@ -1039,7 +1039,7 @@ MCPサーバーの protected trust store へ反映する場合は、作成した
 ```text
 Create SSH profile template.
 Press Enter to use the default value.
-Host address [example.invalid]:
+Host address [localhost]:
 Port [22]:
 SSH user [deploy]:
 Authentication method (privateKey/password) [privateKey]:

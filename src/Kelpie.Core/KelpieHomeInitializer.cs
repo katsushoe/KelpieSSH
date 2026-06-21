@@ -706,7 +706,7 @@ public sealed record KelpieProfileTemplateOptions(
     public static KelpieProfileTemplateOptions CreateDefault(string profileName)
     {
         return new KelpieProfileTemplateOptions(
-            HostAddress: "example.invalid",
+            HostAddress: "localhost",
             Port: 22,
             AuthMethod: "privateKey",
             PrivateKeyFile: $"{profileName}_ed25519",
