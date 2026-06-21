@@ -1345,6 +1345,9 @@ public sealed class KelpieToolsSshTests
                 StandardError: string.Empty),
             new FakeSshCommandOutput(
                 StandardOutput: string.Empty,
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
                 StandardError: "nginx: configuration file /etc/nginx/nginx.conf test is successful\n"),
             new FakeSshCommandOutput(
                 StandardOutput: string.Empty,

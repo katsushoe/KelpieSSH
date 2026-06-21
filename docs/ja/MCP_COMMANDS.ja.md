@@ -4199,7 +4199,7 @@ provider 管理の設定テストコマンドを実行します。
 
 目的:
 
-provider が許可した nginx site 設定に、PHP-FPM 連携用の固定テンプレートを適用します。
+provider が許可した nginx site 設定に、PHP-FPM 連携用の固定テンプレートを適用し、対象 listen の既定 server として応答できるようにします。
 
 入力引数:
 
@@ -4232,6 +4232,7 @@ Kelpie は nginx site key を `/etc/nginx/conf.d/<site>.conf` や `/etc/nginx/si
 Kelpie は対象ファイルを読み取り、次の固定テンプレートだけを適用します。対象 site file が存在しない場合は、最小限の固定 server block を新規作成してから同じテンプレートを適用します。
 
 ```nginx
+listen 80 default_server;
 index index.php ...
 
 location ~ \.php$ {
@@ -4240,7 +4241,7 @@ location ~ \.php$ {
 }
 ```
 
-任意の nginx block、`proxy_pass`、`root`、`alias` は受け取りません。書き込み後に `nginx -t` を実行し、失敗した場合は作成済み backup から rollback します。nginx の reload はこの tool では行いません。成功後に `ssh_service_reload` を別途実行します。
+任意の nginx block、`proxy_pass`、`root`、`alias` は受け取りません。設定テスト前に、`/etc/nginx/sites-enabled/<name>` の symlink 先が `listen 80 ... default_server` を含む場合は競合する有効 site とみなし、symlink target を `/etc/nginx/.kelpie-disabled-sites/` 配下へ記録してから `sites-enabled` 上の symlink だけを削除します。これにより一般的な `include /etc/nginx/sites-enabled/*;` の対象外へ退避します。regular file や provider 外の `sites-available` 本文は編集しません。書き込みと競合解消後に `nginx -t` を実行し、失敗した場合は作成済み backup から rollback し、この実行で退避した symlink も復元します。nginx の reload はこの tool では行いません。成功後に `ssh_service_reload` を別途実行します。
 
 戻り値:
 
@@ -4249,6 +4250,7 @@ location ~ \.php$ {
 - `tested`: `nginx -t` を実行した場合は `true`。
 - `rolledBack`: 書き込み後の `nginx -t` 失敗により rollback した場合は `true`。
 - `committed`: `nginx -t` 成功後に backup commit まで完了した場合は `true`。
+- `warnings`: 競合する Nginx `default_server` site link を退避した場合、件数だけを含む警告が入ることがあります。
 
 実行結果サンプル:
 
@@ -4294,6 +4296,7 @@ location ~ \.php$ {
 - SSH 先の nginx 設定ファイルを変更します。
 - 固定テンプレートだけを適用し、任意設定 block は受け取りません。
 - provider が許可した nginx site 設定ファイルだけを編集します。解決済み site file が存在しない場合は新規作成できます。
+- 既存の `sites-enabled` 競合は symlink を include glob 外へ退避するだけで解消し、provider 外の `sites-available` 本文は編集しません。
 - `nginx -t` 成功を必須とし、失敗時は rollback を試行します。
 - nginx の reload は別操作です。結果確認後に `ssh_service_reload` を実行してください。
 

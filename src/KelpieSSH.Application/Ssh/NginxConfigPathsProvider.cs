@@ -22,6 +22,8 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
     private const string NginxRollbackConfigCommandName = "service_config_nginx_rollback_config";
     private const string NginxCommitConfigCommandName = "service_config_nginx_commit_config";
     private const string NginxTestConfigCommandName = "service_config_nginx_test_config";
+    private const string NginxDisableDefaultSitesCommandName = "service_config_nginx_disable_default_sites";
+    private const string NginxRollbackDefaultSitesCommandName = "service_config_nginx_rollback_default_sites";
     private const string NginxReadLogCommandName = "service_logfile_nginx_read";
 
     private static readonly IReadOnlyDictionary<string, string> LogPaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -556,13 +558,91 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
             normalizedSocketPath,
             normalizedExtension,
             out var updatedContent,
-            out var changed,
+            out var configChanged,
             out var editError))
         {
             return CreatePhpEnableError(normalizedSiteKey, requestedPath, normalizedSocketPath, normalizedExtension, editError, paths.Warnings);
         }
 
-        if (!changed)
+        if (configChanged)
+        {
+            var updatedBytesForSizeCheck = Encoding.UTF8.GetBytes(updatedContent);
+            if (updatedBytesForSizeCheck.Length > MaxWriteBytes)
+            {
+                return CreatePhpEnableError(
+                    normalizedSiteKey,
+                    requestedPath,
+                    normalizedSocketPath,
+                    normalizedExtension,
+                    $"Edited content exceeds the maximum write size of {MaxWriteBytes} bytes.",
+                    warnings);
+            }
+        }
+
+        var updatedBytes = configChanged ? Encoding.UTF8.GetBytes(updatedContent) : [];
+        if (configChanged)
+        {
+            var writeResult = await sshCommandService.ExecuteAsync(
+                profile,
+                NginxWriteConfigCommandName,
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["pathBase64"] = EncodeArgument(requestedPath),
+                    ["allowedPathsBase64"] = EncodeLines(access.ExactPaths),
+                    ["allowedDirsBase64"] = EncodeLines(access.AllowedDirectories),
+                    ["contentBase64"] = Convert.ToBase64String(updatedBytes),
+                },
+                channel: KelpieExecutionChannel.Mcp,
+                cancellationToken: cancellationToken);
+
+            if (writeResult.ExitCode != 0)
+            {
+                return CreatePhpEnableError(
+                    normalizedSiteKey,
+                    requestedPath,
+                    normalizedSocketPath,
+                    normalizedExtension,
+                    $"Nginx config file write failed through provider {DisplayName}. ExitCode={writeResult.ExitCode}. {CreateSafeErrorDetail(writeResult.StandardError)}",
+                    warnings);
+            }
+        }
+
+        var disableDefaultSitesResult = await DisableConflictingDefaultSitesAsync(sshCommandService, profile, cancellationToken);
+        var disabledDefaultSitePaths = SplitOutputLines(disableDefaultSitesResult.StandardOutput)
+            .Where(IsSafeSitesEnabledPath)
+            .ToArray();
+        if (disableDefaultSitesResult.ExitCode != 0)
+        {
+            var rollbackResult = configChanged
+                ? await RollbackConfigFileAsync(sshCommandService, profile, requestedPath, cancellationToken)
+                : null;
+            var rollbackError = rollbackResult?.Error is null
+                ? string.Empty
+                : $" Rollback failed: {rollbackResult.Error}";
+            return new NginxPhpEnableResult(
+                ServiceKey,
+                DisplayName,
+                normalizedSiteKey,
+                requestedPath,
+                normalizedSocketPath,
+                normalizedExtension,
+                Changed: configChanged,
+                Tested: false,
+                RolledBack: configChanged && rollbackResult?.Error is null,
+                Committed: false,
+                updatedBytes.Length,
+                warnings.Concat(rollbackResult?.Warnings ?? []).ToArray(),
+                $"Nginx conflicting default site disable failed through provider {DisplayName}. ExitCode={disableDefaultSitesResult.ExitCode}. {CreateSafeErrorDetail(disableDefaultSitesResult.StandardError)}{rollbackError}");
+        }
+
+        if (disabledDefaultSitePaths.Length > 0)
+        {
+            warnings = warnings
+                .Concat([$"Disabled {disabledDefaultSitePaths.Length.ToString(CultureInfo.InvariantCulture)} conflicting Nginx default_server site link(s)."])
+                .ToArray();
+        }
+
+        if (!configChanged && disabledDefaultSitePaths.Length == 0)
         {
             return new NginxPhpEnableResult(
                 ServiceKey,
@@ -579,49 +659,21 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
                 warnings);
         }
 
-        var updatedBytes = Encoding.UTF8.GetBytes(updatedContent);
-        if (updatedBytes.Length > MaxWriteBytes)
-        {
-            return CreatePhpEnableError(
-                normalizedSiteKey,
-                requestedPath,
-                normalizedSocketPath,
-                normalizedExtension,
-                $"Edited content exceeds the maximum write size of {MaxWriteBytes} bytes.",
-                warnings);
-        }
-
-        var writeResult = await sshCommandService.ExecuteAsync(
-            profile,
-            NginxWriteConfigCommandName,
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["pathBase64"] = EncodeArgument(requestedPath),
-                ["allowedPathsBase64"] = EncodeLines(access.ExactPaths),
-                ["allowedDirsBase64"] = EncodeLines(access.AllowedDirectories),
-                ["contentBase64"] = Convert.ToBase64String(updatedBytes),
-            },
-            channel: KelpieExecutionChannel.Mcp,
-            cancellationToken: cancellationToken);
-
-        if (writeResult.ExitCode != 0)
-        {
-            return CreatePhpEnableError(
-                normalizedSiteKey,
-                requestedPath,
-                normalizedSocketPath,
-                normalizedExtension,
-                $"Nginx config file write failed through provider {DisplayName}. ExitCode={writeResult.ExitCode}. {CreateSafeErrorDetail(writeResult.StandardError)}",
-                warnings);
-        }
-
         var testResult = await TestConfigFileAsync(sshCommandService, profile, cancellationToken);
         if (testResult.Error is not null)
         {
-            var rollbackResult = await RollbackConfigFileAsync(sshCommandService, profile, requestedPath, cancellationToken);
-            var rollbackError = rollbackResult.Error is null
+            var rollbackResult = configChanged
+                ? await RollbackConfigFileAsync(sshCommandService, profile, requestedPath, cancellationToken)
+                : null;
+            var defaultSitesRollbackResult = disabledDefaultSitePaths.Length > 0
+                ? await RollbackConflictingDefaultSitesAsync(sshCommandService, profile, disabledDefaultSitePaths, cancellationToken)
+                : null;
+            var rollbackError = rollbackResult?.Error is null
                 ? string.Empty
                 : $" Rollback failed: {rollbackResult.Error}";
+            var defaultSitesRollbackError = defaultSitesRollbackResult?.Error is null
+                ? string.Empty
+                : $" Default site rollback failed: {defaultSitesRollbackResult.Error}";
             return new NginxPhpEnableResult(
                 ServiceKey,
                 DisplayName,
@@ -631,14 +683,16 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
                 normalizedExtension,
                 Changed: true,
                 Tested: true,
-                RolledBack: rollbackResult.Error is null,
+                RolledBack: (rollbackResult?.Error is null) && (defaultSitesRollbackResult?.Error is null),
                 Committed: false,
                 updatedBytes.Length,
-                warnings.Concat(testResult.Warnings).Concat(rollbackResult.Warnings).ToArray(),
-                testResult.Error + rollbackError);
+                warnings.Concat(testResult.Warnings).Concat(rollbackResult?.Warnings ?? []).Concat(defaultSitesRollbackResult?.Warnings ?? []).ToArray(),
+                testResult.Error + rollbackError + defaultSitesRollbackError);
         }
 
-        var commitResult = await CommitConfigFileAsync(sshCommandService, profile, requestedPath, cancellationToken);
+        var commitResult = configChanged
+            ? await CommitConfigFileAsync(sshCommandService, profile, requestedPath, cancellationToken)
+            : null;
         return new NginxPhpEnableResult(
             ServiceKey,
             DisplayName,
@@ -649,10 +703,58 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
             Changed: true,
             Tested: true,
             RolledBack: false,
-            Committed: commitResult.Error is null,
+            Committed: commitResult?.Error is null,
             updatedBytes.Length,
-            warnings.Concat(testResult.Warnings).Concat(commitResult.Warnings).ToArray(),
-            commitResult.Error);
+            warnings.Concat(testResult.Warnings).Concat(commitResult?.Warnings ?? []).ToArray(),
+            commitResult?.Error);
+    }
+
+    private static async Task<SshCommandResult> DisableConflictingDefaultSitesAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        CancellationToken cancellationToken)
+    {
+        return await sshCommandService.ExecuteAsync(
+            profile,
+            NginxDisableDefaultSitesCommandName,
+            arguments: null,
+            channel: KelpieExecutionChannel.Mcp,
+            cancellationToken: cancellationToken);
+    }
+
+    private async Task<ServiceConfigFileBackupActionResult> RollbackConflictingDefaultSitesAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        IReadOnlyList<string> disabledDefaultSitePaths,
+        CancellationToken cancellationToken)
+    {
+        var result = await sshCommandService.ExecuteAsync(
+            profile,
+            NginxRollbackDefaultSitesCommandName,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["disabledPathsBase64"] = EncodeLines(disabledDefaultSitePaths),
+            },
+            channel: KelpieExecutionChannel.Mcp,
+            cancellationToken: cancellationToken);
+
+        if (result.ExitCode != 0)
+        {
+            return CreateBackupActionError(
+                "/etc/nginx/sites-enabled",
+                "/etc/nginx/.kelpie-disabled-sites",
+                $"Nginx default site rollback failed through provider {DisplayName}. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}",
+                []);
+        }
+
+        return new ServiceConfigFileBackupActionResult(
+            ServiceKey,
+            DisplayName,
+            "/etc/nginx/sites-enabled",
+            "/etc/nginx/.kelpie-disabled-sites",
+            Changed: true,
+            Warnings: [],
+            Error: null);
     }
 
     private async Task<ServiceConfigFileBackupActionResult> ExecuteBackupActionAsync(
@@ -1057,8 +1159,9 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
 
         var serverBlock = updatedContent.Substring(openBrace + 1, closeBrace - openBrace - 1);
         var updatedBlock = EnsureIndexPhp(serverBlock, out var indexChanged);
+        updatedBlock = EnsureDefaultServerListen(updatedBlock, out var defaultServerChanged);
         updatedBlock = EnsurePhpLocation(updatedBlock, socketPath, extension, out var locationChanged);
-        changed = indexChanged || locationChanged;
+        changed = indexChanged || defaultServerChanged || locationChanged;
         if (!changed)
         {
             return true;
@@ -1072,7 +1175,7 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
     {
         return """
             server {
-                listen 80;
+                listen 80 default_server;
                 server_name _;
                 root /var/www/html;
 
@@ -1113,6 +1216,29 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
             @"(?i)^\s*index\s+",
             match.Value[..(match.Value.Length - match.Value.TrimStart().Length)] + "index index.php ",
             RegexOptions.CultureInvariant);
+        return serverBlock[..match.Index] + replacement + serverBlock[(match.Index + match.Length)..];
+    }
+
+    private static string EnsureDefaultServerListen(string serverBlock, out bool changed)
+    {
+        if (Regex.IsMatch(
+            serverBlock,
+            @"(?im)^[ \t]*listen\s+[^;]*(?<!\d)80(?!\d)[^;]*\bdefault_server\b[^;]*;",
+            RegexOptions.CultureInvariant))
+        {
+            changed = false;
+            return serverBlock;
+        }
+
+        var match = Listen80DirectiveRegex().Match(serverBlock);
+        if (!match.Success)
+        {
+            changed = true;
+            return "\n    listen 80 default_server;" + serverBlock;
+        }
+
+        changed = true;
+        var replacement = match.Value[..^1].TrimEnd() + " default_server;";
         return serverBlock[..match.Index] + replacement + serverBlock[(match.Index + match.Length)..];
     }
 
@@ -1179,6 +1305,22 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
     private static bool IsSafePhpExtension(string extension)
     {
         return SafePhpExtensionRegex().IsMatch(extension);
+    }
+
+    private static bool IsSafeSitesEnabledPath(string path)
+    {
+        if (!IsSafeAbsoluteUnixPath(path))
+        {
+            return false;
+        }
+
+        if (!path.StartsWith("/etc/nginx/sites-enabled/", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var name = PathFileName(path);
+        return SafeSiteKeyRegex().IsMatch(name) && !name.EndsWith(".kelpiedisabled", StringComparison.Ordinal);
     }
 
     private static string EncodeArgument(string value)
@@ -1402,6 +1544,9 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
 
     [GeneratedRegex(@"(?im)^[ \t]*index\s+[^;]+;")]
     private static partial Regex IndexDirectiveRegex();
+
+    [GeneratedRegex(@"(?im)^[ \t]*listen\s+[^;]*(?<!\d)80(?!\d)[^;]*;")]
+    private static partial Regex Listen80DirectiveRegex();
 
     [GeneratedRegex(@"^[A-Za-z0-9._-]{1,64}$", RegexOptions.CultureInvariant)]
     private static partial Regex SafeSiteKeyRegex();

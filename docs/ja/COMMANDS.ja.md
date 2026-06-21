@@ -1,6 +1,6 @@
 # KelpieSSH Commands
 
-最終更新: 2026-06-18
+最終更新: 2026-06-21
 
 このファイルは、利用者が通常のターミナルから直接実行する `kelpie` / `kelpiemcp` CLI コマンドの正本です。
 MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とします。
@@ -15,7 +15,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | MCP password session | `kelpiemcp password`, `kelpiemcp forget` | 起動中の MCP server に SSH パスワードを一時保存、削除する。 |
 | Compatibility | `kelpiemcp login`, `kelpiemcp logout` | 旧名互換。新規利用では `password` / `forget` を使う。 |
 | Initialization | `kelpie init [--silent] [profile]` | `KelpieHome` 配下の初期ディレクトリとサンプル設定を作成する。 |
-| Profile/session | `kelpie profile create`, `kelpie profile edit`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイルひな形作成・編集、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
+| Profile/session | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイルひな形作成・編集・削除、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
 | Mode/UI | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | CLI/GUI モードや一時的な起動方式を切り替える。 |
 | Diagnostics | `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | プロファイル情報、MCP server 状態、SSH 診断、サービスログを表示する。 |
 | Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | profile policy に従って remote 環境変数の key 表示、値参照、一時設定、永続化を行う。 |
@@ -25,6 +25,17 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 ## Common Options
 
 `KelpieHome` は `kelpie` / `kelpiemcp` の配置ディレクトリの1つ上に固定します。たとえば `D:\Kelpie\bin\kelpie.exe` から実行した場合、`KelpieHome` は `D:\Kelpie` です。
+
+`kelpie` / `kelpiemcp` / `KelpieMCPServer` は、検証用レイアウトや dry-run 相当の隔離実行のために、次の runtime directory override option を受け付けます。option は command 名の前後どちらにも指定できます。`kelpiemcp start` では、指定した override が起動される `KelpieMCPServer` 本体にも引き継がれます。`kelpie env set ... -- <command>` の `--` 以降は remote command として扱われ、Kelpie の runtime option として解析されません。
+
+| Option | 内容 |
+| :--- | :--- |
+| `--config-dir <dir>` | `kelpie.json` / `kelpiemcp.json` を読む config directory を上書きします。 |
+| `--profiles-dir <dir>` | SSH profile directory を上書きします。 |
+| `--logs-dir <dir>` | log directory を上書きします。config の `LogDirectory` より優先します。 |
+| `--bin-dir <dir>` | 既定 `KelpieHome` の算出と補助 executable 探索に使う binary directory を上書きします。 |
+| `--keys-dir <dir>` | `kelpie init` が作成する key directory を上書きします。 |
+| `--dat-dir <dir>` | MCP trust store や local state file を置く runtime data directory を上書きします。 |
 
 設定ファイルはコマンド単位で分けます。
 
@@ -1013,15 +1024,33 @@ SSH session was not found: ssh-missing
 
 ```powershell
 kelpie profile create vps02
+kelpie profile create vps02 --silent
+kelpie profile create vps02 --silent --host-address: demo
+kelpie profile create vps02 --no-backup
 ```
 
 引数詳細:
 
-- `profile`: 作成するプロファイル名。`KelpieHome/profiles/<profile>.json` として作成されます。パス区切り文字やファイル名に使えない文字は拒否します。
+- `profile`: 作成する単一プロファイル名。`KelpieHome/profiles/<profile>.json` として作成されます。wildcard、パス区切り文字、ファイル名に使えない文字は拒否します。
+- `--silent`: prompt を出さず、既定値または指定された template option だけで profile を作成します。
+- `--host-address <value>`: `Host.Address` を上書きします。`--host-address: <value>` 形式も受け付けます。
+- `--port <value>`: `Host.Port` を上書きします。`1` から `65535` の整数です。
+- `--ssh-user <value>`: `DefaultUser` を上書きします。
+- `--auth-method <privateKey|password>`: `Auth.Method` を上書きします。
+- `--private-key-file <value>`: `Auth.PrivateKeyFile` を上書きします。`privateKey` 認証時に使います。
+- `--password-secret-name <value>`: `Auth.PasswordSecretName` を上書きします。`password` 認証時に使います。
+- `--os-family <value>`: `Platform.OsFamily` を上書きします。
+- `--mode <ReadOnly|Safe|Maintenance|Expert>`: 生成する default user の `Mode` を上書きします。
+- `--read-only-root <value>`: 生成する read-only root を上書きします。複数回指定できます。`-` で空リストにできます。
+- `--read-write-root <value>`: 生成する read-write root を上書きします。複数回指定できます。`-` で空リストにできます。
+- `--allowed-root <key=value[;...]>`: 生成する `AllowedRoots` map entry を上書きします。複数回指定できます。`ReadOnly` / `ReadWrite` は `$ReadOnly` / `$ReadWrite` に正規化し、`$Write` などの値はそのまま保持します。
+- `--deny-pattern <value>`: 生成する deny pattern を上書きします。複数回指定できます。`-` で空リストにできます。
+- `--special-path <key=value[;...]>`: 生成する `SpecialPaths` map entry を上書きします。複数回指定できます。`deny` / `confirm` / `allow` は `Deny` / `Confirm` / `Allow` に正規化します。
+- `--no-backup`: 既存 profile を上書きする場合に `.kelpie` backup を作成せず、即コミットとして書き込みます。
 
 処理内容:
 
-`kelpie init` 済みの `KelpieHome` を前提に、`profiles/<profile>.json` だけを新規作成します。`config/kelpie.json`、`config/kelpiemcp.json`、ディレクトリ、trust store、open profile 状態は作成・更新しません。既に同名 profile がある場合は上書き確認を行い、上書き時は旧ファイルを `profiles/<profile>.json.kelpie` として保存します。既に `.kelpie` backup がある場合は、先に `kelpie profile commit <profile>` または `kelpie profile rollback <profile>` を実行するよう案内して失敗します。
+`kelpie init` 済みの `KelpieHome` を前提に、`profiles/<profile>.json` だけを新規作成します。`config/kelpie.json`、`config/kelpiemcp.json`、ディレクトリ、trust store、open profile 状態は作成・更新しません。既に同名 profile がある場合は上書き確認を行い、上書き時は旧ファイルを `profiles/<profile>.json.kelpie` として保存します。既に `.kelpie` backup がある場合は、先に `kelpie profile commit <profile>` または `kelpie profile rollback <profile>` を実行するよう案内して失敗します。`--no-backup` 指定時は、上書き時も `.kelpie` backup を作成せず、`Commit profile? [Y/n]:` も尋ねません。`--silent` 指定時は template 値の prompt を出さず、既定値 `Host.Address = localhost`、`Host.Port = 22`、`DefaultUser = deploy`、private-key auth、`Mode = Safe`、`Platform.OsFamily = debian`、read-only root `/var/log`、read-write root `/var/www`、deny pattern `**/.env` で作成します。silent template option は `<profile>` の前後どちらにも指定でき、`--name value`、`--name=value`、`--name: value` 形式を受け付けます。`--allowed-root` と `--special-path` は `;` 区切りの map entry を受け付けます。`;` を含む値は quote してください。PowerShell で `$` を含む場合は、`--allowed-root '/srv/www=$ReadWrite;/tmp=$Write'` のように single quote を推奨します。`--allowed-root` を指定すると既定 allowed-root map は置き換わります。ただし `--read-only-root` / `--read-write-root` も指定した場合は併用されます。`--special-path` を指定すると既定 special-path map は置き換わります。ただし `--deny-pattern` も指定した場合は併用されます。
 
 host address、port、SSH user、authentication method、private key file または password secret name、OS family、mode、allowed roots、deny pattern を対話入力します。password authentication の場合も入力するのは `PasswordSecretName` だけで、パスワード実値は入力・保存しません。optional な allowed-root / deny-pattern prompt では1行に1 pattern を入力できます。空 Enter または `-` で、その prompt を省略または終了します。既存 profile を上書きした場合は最後に `Commit profile? [Y/n]:` を尋ね、`Y` なら `.kelpie` backup を削除し、`n` なら後で commit / rollback できるよう backup を残します。
 
@@ -1055,6 +1084,22 @@ Created profile: vps02
 Profile file: D:\Kelpie\profiles\vps02.json
 ```
 
+silent 実行結果サンプル:
+
+```text
+kelpie profile create demo --silent --host-address: demo
+Created profile: demo
+Profile file: D:\Kelpie\profiles\demo.json
+```
+
+silent map 指定サンプル:
+
+```powershell
+kelpie profile create demo --silent `
+  --allowed-root '/srv/www=$ReadWrite;/tmp=$Write' `
+  --special-path '**/.env=Deny;**/.tmp=Allow'
+```
+
 既に存在する場合:
 
 ```text
@@ -1081,6 +1126,10 @@ kelpie profile edit vps02 add-root /etc/nginx ReadWrite
 kelpie profile edit vps02 rm-root /etc/nginx
 kelpie profile edit vps02 add-deny "**/.htpasswd"
 kelpie profile edit vps02 rm-deny "**/.htpasswd"
+kelpie profile edit vps02 set Host.Port 2222 --no-backup
+kelpie profile delete vps02
+kelpie profile delete "vps-*"
+kelpie profile clean vps02
 kelpie profile commit vps02
 kelpie profile rollback vps02
 ```
@@ -1093,15 +1142,18 @@ kelpie profile rollback vps02
 - `path`: `add-root` / `rm-root` の allowed root path または glob です。
 - `access`: `add-root` の権限。`ReadOnly`、`ReadWrite`、`$ReadOnly`、`$ReadWrite` を受け付け、`$...` 形式へ正規化します。
 - `pattern`: `add-deny` / `rm-deny` の special path glob です。`**/.htpasswd` のように dot を含む pattern も扱えます。
+- `--no-backup`: `.kelpie` backup を作成せず、編集結果を即コミットとして書き込みます。
 
 処理内容:
 
 - `set` は scalar path のみを更新します。object、dictionary、array に相当する path は拒否し、`add-root` / `rm-root` / `add-deny` / `rm-deny` の利用を案内します。
+- `profile edit` は単一 profile 名だけを受け入れます。wildcard は拒否します。
 - `add-root`、`rm-root`、`add-deny`、`rm-deny` は `Users.<DefaultUser>` が object の場合はその user-level 設定を編集し、それ以外は profile 直下の設定を編集します。
 - 既存 profile を変更する前に、現在のファイルを `profiles/<profile>.json.kelpie` として保存します。既に backup がある場合は、commit または rollback するまで編集を拒否します。
 - 編集成功後は `Commit profile? [Y/n]:` を尋ねます。`Y` は backup を削除し、`n` は後で `kelpie profile commit <profile>` または `kelpie profile rollback <profile>` できるよう backup を残します。
-- `kelpie profile commit <profile>` は pending `.kelpie` backup を削除し、現在の profile JSON を確定扱いにします。
-- `kelpie profile rollback <profile>` は `.kelpie` backup を現在の profile JSON へ戻します。backup がない場合はエラーです。
+- `--no-backup` 指定時は `.kelpie` backup を作成せず、`Commit profile? [Y/n]:` も尋ねません。
+- `kelpie profile commit <profile-pattern>` は pending `.kelpie` backup を削除し、削除 pending を含む現在の profile JSON 状態を確定扱いにします。
+- `kelpie profile rollback <profile-pattern>` は `.kelpie` backup を現在の profile JSON へ戻します。削除 pending の場合は削除済み profile file を復元します。一致する backup がない場合はエラーです。
 - 非エディタ操作では、書き込み前に profile 全体を既存 loader/parser で再検証します。検証に失敗した場合は書き込みません。
 - 非エディタ操作の書き込みは temp file からの置換で行い、UTF-8 BOMなし、LF 改行で保存します。
 - エディタは `config/kelpie.json` の `Editor`、`KELPIE_EDITOR`、`VISUAL`、`EDITOR`、OS既定（Windows は `notepad`、Unix は `vi`）の順に解決します。
@@ -1135,7 +1187,130 @@ SSH profile was not found: vps02
 Use `kelpie profile create vps02` to create it.
 ```
 
-### `kelpie profile show <profile>`
+### `kelpie profile delete <profile-pattern>`
+
+目的:
+
+既存 SSH profile を、profile create/edit と同じ `.kelpie` transaction 方式で1件または複数件削除します。
+
+構文:
+
+```powershell
+kelpie profile delete vps02
+kelpie profile delete "vps-*"
+kelpie profile delete "vps-*" --no-backup
+```
+
+引数詳細:
+
+| 引数 | 必須 | 説明 |
+| :--- | :---: | :--- |
+| `<profile-pattern>` | yes | SSH profile 名、または wildcard pattern。`*` は0文字以上、`?` は1文字に一致します。path separator と `*` / `?` 以外の不正ファイル名文字は拒否します。 |
+| `--no-backup` | no | `.kelpie` backup を作成せず、一致 profile の削除を即コミットとして扱います。 |
+
+処理内容:
+
+- wildcard を含まない場合は、既存の `profiles/<profile>.json` が必要です。
+- wildcard を含む場合は、設定済み Kelpie home の `profiles/*.json` の file name に対して一致する profile を解決します。コマンドは確認前に一致した profile 名を表示します。
+- 一致対象に `.kelpie` backup が既にある場合は warning を表示し、その profile を skip します。pending backup がない他の一致 profile は削除できます。
+- 単一 profile の場合は、ファイル変更前に `Delete profile: <profile>? [Y/n]:` を尋ねます。
+- wildcard pattern の場合は、ファイル変更前に ``Delete <count> profiles matching `<profile-pattern>`? [Y/n]:`` を尋ねます。
+- 確認後、現在の各 profile を `profiles/<profile>.json.kelpie` として保存し、`profiles/<profile>.json` を削除します。
+- 最後に、単一 profile では `Commit profile? [Y/n]:`、複数 wildcard match では `Commit profiles? [Y/n]:` を尋ねます。`Y` は backup を削除して削除を確定します。`n` は後で `kelpie profile rollback <profile>` で削除済み profile を復元、または `kelpie profile commit <profile>` で削除を確定できるよう backup を残します。
+- `--no-backup` 指定時は `.kelpie` backup を作成せず、削除後の commit 確認も行いません。
+
+戻り値:
+
+- profile 削除 transaction の作成またはユーザーによるキャンセル時は exit code `0`。
+- profile file と pending backup のどちらにも一致がない、profile pattern が不正、backup または削除に失敗した場合は non-zero exit code。
+- 標準出力には一致した profile 名、削除対象 profile 名、file path、pending transaction の案内を出します。
+- 標準エラーには検証エラーとファイルシステムエラーを出します。
+
+実行結果サンプル:
+
+```text
+Delete profile: vps02? [Y/n]: Y
+Deleted profile: vps02
+Profile file: D:\Kelpie\profiles\vps02.json
+Commit profile? [Y/n]: n
+Profile backup is pending: D:\Kelpie\profiles\vps02.json.kelpie
+Run `kelpie profile commit vps02` or `kelpie profile rollback vps02`.
+```
+
+wildcard 実行結果サンプル:
+
+```text
+Matched profiles: 2
+  vps-alpha
+  vps-beta
+Delete 2 profiles matching `vps-*`? [Y/n]: Y
+Deleted profiles: 2
+  vps-alpha: D:\Kelpie\profiles\vps-alpha.json
+  vps-beta: D:\Kelpie\profiles\vps-beta.json
+Commit profiles? [Y/n]: n
+Profile backups are pending:
+  D:\Kelpie\profiles\vps-alpha.json.kelpie
+  D:\Kelpie\profiles\vps-beta.json.kelpie
+Run `kelpie profile commit <profile>` or `kelpie profile rollback <profile>` for each pending profile.
+```
+
+### `kelpie profile clean <profile-pattern>`
+
+目的:
+
+profile file と pending `.kelpie` backup file をまとめて削除します。これは即時 cleanup コマンドであり、新しい backup は作成しません。cleanup 後の profile は `kelpie profile rollback` では復元できません。
+
+構文:
+
+```powershell
+kelpie profile clean vps02
+kelpie profile clean "vps-*"
+```
+
+引数詳細:
+
+| 引数 | 必須 | 説明 |
+| :--- | :---: | :--- |
+| `<profile-pattern>` | yes | SSH profile 名、または wildcard pattern。`*` は0文字以上、`?` は1文字に一致します。path separator と `*` / `?` 以外の不正ファイル名文字は拒否します。 |
+
+処理内容:
+
+- wildcard を含まない場合は、存在する `profiles/<profile>.json` と `profiles/<profile>.json.kelpie` を削除します。
+- wildcard を含む場合は、設定済み Kelpie home の `profiles/*.json` と `profiles/*.json.kelpie` の file name に対して一致する profile を重複なしで解決します。
+- コマンドは確認前に一致した profile 名を表示します。
+- 単一 profile の場合は、ファイル変更前に `Clean profile and backup: <profile>? [Y/n]:` を尋ねます。
+- wildcard pattern の場合は、ファイル変更前に ``Clean <count> profiles and backups matching `<profile-pattern>`? [Y/n]:`` を尋ねます。
+- 確認後、一致 profile の JSON file と `.kelpie` backup file を、存在するものだけ削除します。
+
+戻り値:
+
+- cleanup 実行またはユーザーによるキャンセル時は exit code `0`。
+- profile file と pending backup のどちらにも一致がない、profile pattern が不正、または削除に失敗した場合は non-zero exit code。
+- 標準出力には一致した profile 名、cleanup 対象 profile 名、file path を出します。
+- 標準エラーには検証エラーとファイルシステムエラーを出します。
+
+実行結果サンプル:
+
+```text
+Clean profile and backup: vps02? [Y/n]: Y
+Cleaned profile: vps02
+Removed profile file: D:\Kelpie\profiles\vps02.json
+Removed backup: D:\Kelpie\profiles\vps02.json.kelpie
+```
+
+wildcard 実行結果サンプル:
+
+```text
+Matched profiles: 2
+  vps-alpha
+  vps-beta
+Clean 2 profiles and backups matching `vps-*`? [Y/n]: Y
+Cleaned profiles: 2
+  vps-alpha: D:\Kelpie\profiles\vps-alpha.json
+  vps-beta: D:\Kelpie\profiles\vps-beta.json
+```
+
+### `kelpie profile show <profile-pattern>`
 
 目的:
 
@@ -1641,16 +1816,18 @@ Usage:
   kelpie profiles
   kelpie sessions
   kelpie kill <handle>
-  kelpie profile create <profile>
-  kelpie profile edit <profile>
-  kelpie profile edit <profile> set <dotPath> <value>
-  kelpie profile edit <profile> add-root <path> <access>
-  kelpie profile edit <profile> rm-root <path>
-  kelpie profile edit <profile> add-deny <pattern>
-  kelpie profile edit <profile> rm-deny <pattern>
-  kelpie profile commit <profile>
-  kelpie profile rollback <profile>
-  kelpie profile show <profile>
+  kelpie profile create <profile> [--silent] [--no-backup] [options]
+  kelpie profile edit <profile> [--no-backup]
+  kelpie profile edit <profile> set <dotPath> <value> [--no-backup]
+  kelpie profile edit <profile> add-root <path> <access> [--no-backup]
+  kelpie profile edit <profile> rm-root <path> [--no-backup]
+  kelpie profile edit <profile> add-deny <pattern> [--no-backup]
+  kelpie profile edit <profile> rm-deny <pattern> [--no-backup]
+  kelpie profile delete <profile-pattern> [--no-backup]
+  kelpie profile clean <profile-pattern>
+  kelpie profile commit <profile-pattern>
+  kelpie profile rollback <profile-pattern>
+  kelpie profile show <profile-pattern>
   kelpie status <profile>
   kelpie diag <profile>
   kelpie logs <profile> <service> [lines]
@@ -1666,6 +1843,12 @@ Usage:
 Options:
   --version, -v  Show version information.
   --help, -h     Show command help.
+  --config-dir <dir>    Override the config directory.
+  --profiles-dir <dir>  Override the SSH profile directory.
+  --logs-dir <dir>      Override the log directory.
+  --bin-dir <dir>       Override the binary directory.
+  --keys-dir <dir>      Override the key directory.
+  --dat-dir <dir>       Override the runtime data directory.
 ```
 
 ### `kelpie services <profile>`

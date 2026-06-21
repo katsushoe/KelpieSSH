@@ -385,6 +385,90 @@ Profile file: D:\Kelpie\profiles\vps02.json
 
 If `profiles\vps02.json` already exists, the command asks whether to overwrite it. When overwritten, the old file is kept as `profiles\vps02.json.kelpie` until you commit or roll back the profile change.
 
+## Silent options for profile creation
+
+Use `--silent` when you want to create a profile template without interactive prompts. Without overrides, Kelpie writes the default template values.
+
+```powershell
+kelpie profile create demo --silent
+```
+
+Override template fields by adding options:
+
+```powershell
+kelpie profile create demo --silent --host-address: demo
+```
+
+Common silent options:
+
+```powershell
+kelpie profile create demo --silent `
+  --host-address demo.example `
+  --port 2222 `
+  --ssh-user ops `
+  --auth-method password `
+  --password-secret-name kelpie:demo `
+  --os-family ubuntu `
+  --mode ReadOnly
+```
+
+Map-style values can be specified with `;` separated `key=value` pairs. In PowerShell, use single quotes when the value contains `$`.
+
+```powershell
+kelpie profile create demo --silent `
+  --allowed-root '/srv/www=$ReadWrite;/tmp=$Write' `
+  --special-path '**/.env=Deny;**/.tmp=Allow'
+```
+
+The older shortcut options are still available:
+
+```powershell
+kelpie profile create demo --silent `
+  --read-only-root /var/log/nginx `
+  --read-write-root /srv/www `
+  --deny-pattern '**/.secret'
+```
+
+## Dry-run directory options
+
+Kelpie supports directory override options for isolated tests and dry-run-style layouts. These options do not make SSH operations harmless by themselves; they redirect local Kelpie configuration, profile, log, key, binary, and data paths so you can test setup commands without touching the normal `KelpieHome`.
+
+Available options:
+
+```text
+--config-dir <dir>
+--profiles-dir <dir>
+--logs-dir <dir>
+--bin-dir <dir>
+--keys-dir <dir>
+--dat-dir <dir>
+```
+
+Example:
+
+```powershell
+$root = "C:\Tmp\KelpieDryRun"
+
+kelpie `
+  --config-dir "$root\config" `
+  --profiles-dir "$root\profiles" `
+  --logs-dir "$root\logs" `
+  --bin-dir "$root\bin" `
+  --keys-dir "$root\keys" `
+  --dat-dir "$root\dat" `
+  init --silent sample
+
+kelpie `
+  --profiles-dir "$root\profiles" `
+  profile create demo --silent --host-address: demo
+
+kelpie `
+  --profiles-dir "$root\profiles" `
+  profile show demo
+```
+
+`kelpiemcp` accepts the same directory options. When used with `kelpiemcp start`, the overrides are passed to the launched `KelpieMCPServer` process.
+
 ## Contributing
 
 Contributions are welcome. For small fixes such as documentation updates, typo fixes, tests, and narrow bug fixes, feel free to open a pull request.

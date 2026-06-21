@@ -2,6 +2,16 @@ using KelpieServerCommand;
 using Kelpie.Core;
 using Microsoft.Extensions.Configuration;
 
+if (!KelpieRuntimePathOverrideParser.TryParse(args, out var commandArgs, out var runtimePathOverrides, out var runtimePathError))
+{
+    Console.Error.WriteLine(runtimePathError);
+    Environment.ExitCode = 1;
+    return;
+}
+
+KelpieRuntimePaths.SetOverrides(runtimePathOverrides);
+args = commandArgs;
+
 KpLogSetup.Configure(
     AppContext.BaseDirectory,
     "kelpiemcp.log",
@@ -18,6 +28,12 @@ var configuration = new ConfigurationBuilder()
     .Build();
 
 var command = args.Length > 0 ? args[0] : string.Empty;
+
+if (IsHelpCommand(command))
+{
+    ShowUsage();
+    return;
+}
 
 if (string.Equals(command, "start", StringComparison.OrdinalIgnoreCase))
 {
@@ -154,6 +170,14 @@ if (string.Equals(command, "logout", StringComparison.OrdinalIgnoreCase))
 ShowUsage(command);
 Environment.ExitCode = string.IsNullOrWhiteSpace(command) ? 0 : 1;
 
+static bool IsHelpCommand(string command)
+{
+    return string.IsNullOrWhiteSpace(command)
+        || string.Equals(command, "help", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(command, "--help", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(command, "-h", StringComparison.OrdinalIgnoreCase);
+}
+
 static KelpieMcpServerOptions CreateOptions(IConfiguration configuration)
 {
     return KelpieMcpServerOptions.FromConfiguration(configuration);
@@ -205,26 +229,35 @@ static IReadOnlyCollection<string> ParseReloadProfileNames(IEnumerable<string> a
         .ToArray();
 }
 
-static void ShowUsage(string command)
+static void ShowUsage(string command = "")
 {
     if (!string.IsNullOrWhiteSpace(command))
     {
         Console.Error.WriteLine($"Unknown command: {command}");
     }
 
-    Console.Error.WriteLine("Usage:");
-    Console.Error.WriteLine("  kelpiemcp start [--reload-config]");
-    Console.Error.WriteLine("  kelpiemcp stop");
-    Console.Error.WriteLine("  kelpiemcp status");
-    Console.Error.WriteLine("  kelpiemcp service register");
-    Console.Error.WriteLine("  kelpiemcp service unregister");
-    Console.Error.WriteLine("  kelpiemcp service status");
-    Console.Error.WriteLine("  kelpiemcp profile add <profile>");
-    Console.Error.WriteLine("  kelpiemcp profile reload <profile>");
-    Console.Error.WriteLine("  kelpiemcp profile revoke <profile>");
-    Console.Error.WriteLine("  kelpiemcp profile-capabilities [profile]");
-    Console.Error.WriteLine("  kelpiemcp password <profile>");
-    Console.Error.WriteLine("  kelpiemcp forget <profile>");
+    var writer = string.IsNullOrWhiteSpace(command) ? Console.Out : Console.Error;
+    writer.WriteLine("Usage:");
+    writer.WriteLine("  kelpiemcp start [--reload-config]");
+    writer.WriteLine("  kelpiemcp stop");
+    writer.WriteLine("  kelpiemcp status");
+    writer.WriteLine("  kelpiemcp service register");
+    writer.WriteLine("  kelpiemcp service unregister");
+    writer.WriteLine("  kelpiemcp service status");
+    writer.WriteLine("  kelpiemcp profile add <profile>");
+    writer.WriteLine("  kelpiemcp profile reload <profile>");
+    writer.WriteLine("  kelpiemcp profile revoke <profile>");
+    writer.WriteLine("  kelpiemcp profile-capabilities [profile]");
+    writer.WriteLine("  kelpiemcp password <profile>");
+    writer.WriteLine("  kelpiemcp forget <profile>");
+    writer.WriteLine();
+    writer.WriteLine("Options:");
+    writer.WriteLine("  --config-dir <dir>    Override the config directory.");
+    writer.WriteLine("  --profiles-dir <dir>  Override the SSH profile directory.");
+    writer.WriteLine("  --logs-dir <dir>      Override the log directory.");
+    writer.WriteLine("  --bin-dir <dir>       Override the binary directory.");
+    writer.WriteLine("  --keys-dir <dir>      Override the key directory.");
+    writer.WriteLine("  --dat-dir <dir>       Override the runtime data directory.");
 }
 
 static void ShowServiceUsage(string serviceCommand)

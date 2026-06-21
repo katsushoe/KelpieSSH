@@ -8,6 +8,16 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+if (!KelpieRuntimePathOverrideParser.TryParse(args, out var commandArgs, out var runtimePathOverrides, out var runtimePathError))
+{
+    Console.Error.WriteLine(runtimePathError);
+    Environment.ExitCode = 2;
+    return;
+}
+
+KelpieRuntimePaths.SetOverrides(runtimePathOverrides);
+args = commandArgs;
+
 var runtimeBaseDirectory = ResolveRuntimeBaseDirectory(args);
 KpLogSetup.Configure(
     runtimeBaseDirectory,

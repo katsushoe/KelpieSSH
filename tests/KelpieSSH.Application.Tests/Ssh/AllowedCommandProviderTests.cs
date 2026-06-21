@@ -96,6 +96,8 @@ public sealed class AllowedCommandProviderTests
             "service_config_nginx_write_config",
             "service_config_nginx_rollback_config",
             "service_config_nginx_commit_config",
+            "service_config_nginx_disable_default_sites",
+            "service_config_nginx_rollback_default_sites",
             "service_logfile_nginx_read",
         ]);
         commands.Single(command => command.Name == "service_config_nginx_write_config")
@@ -106,7 +108,11 @@ public sealed class AllowedCommandProviderTests
             .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
         commands.Single(command => command.Name == "service_config_nginx_test_config")
             .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
-        commands.Where(command => command.Name is not ("service_config_nginx_write_config" or "service_config_nginx_rollback_config" or "service_config_nginx_commit_config" or "service_config_nginx_test_config"))
+        commands.Single(command => command.Name == "service_config_nginx_disable_default_sites")
+            .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
+        commands.Single(command => command.Name == "service_config_nginx_rollback_default_sites")
+            .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
+        commands.Where(command => command.Name is not ("service_config_nginx_write_config" or "service_config_nginx_rollback_config" or "service_config_nginx_commit_config" or "service_config_nginx_test_config" or "service_config_nginx_disable_default_sites" or "service_config_nginx_rollback_default_sites"))
             .Should().OnlyContain(command => command.RiskLevel == SshCommandRiskLevel.ReadOnly);
     }
 
@@ -162,6 +168,35 @@ public sealed class AllowedCommandProviderTests
         checkCommand.Should().Contain("exists and not os.path.isfile(rp)");
         rollbackCommand.Should().Contain("KELPIE_CREATED_CONFIG_FILE_BACKUP_V1");
         rollbackCommand.Should().Contain("os.remove(p)");
+    }
+
+    [Fact]
+    public void NginxServiceConfigCommandProvider_ShouldDisableAndRollbackConflictingDefaultSiteLinks()
+    {
+        var provider = new NginxServiceConfigCommandProvider();
+        var profile = CreateProfile("debian", "apt");
+        var commands = provider.GetCommands(profile);
+
+        var disableCommand = commands.Single(command => command.Name == "service_config_nginx_disable_default_sites")
+            .BuildCommandText(new Dictionary<string, string>());
+        var rollbackCommand = commands.Single(command => command.Name == "service_config_nginx_rollback_default_sites")
+            .BuildCommandText(new Dictionary<string, string>
+            {
+                ["disabledPathsBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("/etc/nginx/sites-enabled/default\n")),
+            });
+        var disableScript = DecodeEmbeddedPythonScript(disableCommand);
+        var rollbackScript = DecodeEmbeddedPythonScript(rollbackCommand);
+
+        disableScript.Should().Contain("/etc/nginx/sites-enabled");
+        disableScript.Should().Contain("/etc/nginx/.kelpie-disabled-sites");
+        disableScript.Should().Contain("default_server");
+        disableScript.Should().Contain("os.path.islink(p)");
+        disableScript.Should().Contain("os.readlink(p)");
+        disableScript.Should().Contain("os.unlink(p)");
+        rollbackScript.Should().Contain("base64.b64decode(sys.argv[1])");
+        rollbackScript.Should().Contain("os.symlink(target,p)");
+        rollbackScript.Should().Contain("os.remove(marker)");
+        rollbackCommand.Should().Contain(Convert.ToBase64String(Encoding.UTF8.GetBytes("/etc/nginx/sites-enabled/default\n")));
     }
 
     [Theory]
@@ -1419,5 +1454,13 @@ public sealed class AllowedCommandProviderTests
             PackageManager = packageManager,
             Capabilities = PolicySet.Empty,
         };
+    }
+
+    private static string DecodeEmbeddedPythonScript(string commandText)
+    {
+        var scriptBase64 = Regex.Match(commandText, "b64decode\\('(?<script>[^']+)'\\)")
+            .Groups["script"]
+            .Value;
+        return Encoding.UTF8.GetString(Convert.FromBase64String(scriptBase64));
     }
 }

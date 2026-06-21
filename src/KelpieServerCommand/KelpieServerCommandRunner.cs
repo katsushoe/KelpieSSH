@@ -768,7 +768,7 @@ public static class KelpieServerCommandRunner
 
     private static IEnumerable<string> GetServerPathCandidates()
     {
-        var baseDirectory = AppContext.BaseDirectory;
+        var baseDirectory = KelpieRuntimePaths.GetBinDirectory(AppContext.BaseDirectory);
         var mcpDirectory = Path.Combine(baseDirectory, "mcp");
 
         yield return Path.Combine(mcpDirectory, "KelpieMCPServer.exe");
@@ -806,7 +806,7 @@ public static class KelpieServerCommandRunner
     {
         var workingDirectory = !string.IsNullOrWhiteSpace(configuredWorkingDirectory)
             ? Path.GetFullPath(configuredWorkingDirectory)
-            : AppContext.BaseDirectory;
+            : KelpieRuntimePaths.GetBinDirectory(AppContext.BaseDirectory);
 
         if (string.Equals(Path.GetExtension(serverPath), ".dll", StringComparison.OrdinalIgnoreCase))
         {
@@ -883,15 +883,23 @@ public static class KelpieServerCommandRunner
     {
         var runtimeBase = serverCommand.WorkingDirectory;
         var runtimeBaseArgument = "--runtime-base " + QuoteWindowsCommandLineArgument(runtimeBase);
+        var pathOverrideArguments = KelpieRuntimePathOverrideParser
+            .ToArguments(KelpieRuntimePaths.Overrides)
+            .Select(QuoteWindowsCommandLineArgument)
+            .ToArray();
+        var pathOverrideText = pathOverrideArguments.Length > 0
+            ? " " + string.Join(" ", pathOverrideArguments)
+            : string.Empty;
 
         if (string.Equals(serverCommand.FileName, "dotnet", StringComparison.OrdinalIgnoreCase))
         {
             return QuoteWindowsCommandLineArgument("dotnet") + " "
                 + serverCommand.Arguments + " "
-                + runtimeBaseArgument;
+                + runtimeBaseArgument
+                + pathOverrideText;
         }
 
-        return QuoteWindowsCommandLineArgument(serverCommand.FileName) + " " + runtimeBaseArgument;
+        return QuoteWindowsCommandLineArgument(serverCommand.FileName) + " " + runtimeBaseArgument + pathOverrideText;
     }
 
     private static string QuoteWindowsCommandLineArgument(string value)
@@ -1027,6 +1035,7 @@ public static class KelpieServerCommandRunner
         }
 
         arguments.AddRange(reloadProfileNames.Select(profileName => "--reload-profile:" + profileName));
+        arguments.AddRange(KelpieRuntimePathOverrideParser.ToArguments(KelpieRuntimePaths.Overrides));
         return arguments;
     }
 

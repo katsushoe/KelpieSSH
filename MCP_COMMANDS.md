@@ -6110,6 +6110,7 @@ Kelpie resolves the Nginx site key to a provider-approved site include file such
 Kelpie reads the target file and applies only the fixed PHP-FPM template. If the target site file does not exist, Kelpie creates a minimal fixed server block and then applies the same template:
 
 ```nginx
+listen 80 default_server;
 index index.php ...
 
 location ~ \.php$ {
@@ -6118,7 +6119,7 @@ location ~ \.php$ {
 }
 ```
 
-The tool does not accept arbitrary Nginx blocks, `proxy_pass`, `root`, or `alias` values. After writing, it runs `nginx -t`. If the test fails, Kelpie rolls the file back from the generated backup. Reloading Nginx is intentionally separate; use `ssh_service_reload` after this tool succeeds.
+The tool does not accept arbitrary Nginx blocks, `proxy_pass`, `root`, or `alias` values. Before testing, it disables conflicting `/etc/nginx/sites-enabled/<name>` symbolic links whose target contains `listen 80 ... default_server` by recording the symlink target under `/etc/nginx/.kelpie-disabled-sites/` and removing only the enabled symlink from `sites-enabled`. This keeps the disabled site outside the common `include /etc/nginx/sites-enabled/*;` glob. Regular files are not edited. After writing and conflict resolution, it runs `nginx -t`. If the test fails, Kelpie rolls the file back from the generated backup and restores any symlink disabled by this run. Reloading Nginx is intentionally separate; use `ssh_service_reload` after this tool succeeds.
 
 Return value:
 
@@ -6127,6 +6128,7 @@ Return value:
 - `Tested` is `true` only after `nginx -t` was executed.
 - `RolledBack` is `true` when the tool wrote a change and then restored it after `nginx -t` failed.
 - `Committed` is `true` when `nginx -t` passed and the generated backup was removed.
+- `Warnings` can include a sanitized count of conflicting Nginx `default_server` site links disabled by the tool.
 - Error fields are empty on success and contain validation, policy, connection, test, rollback, or execution errors when the tool cannot complete normally.
 
 Return value sample:
@@ -6157,6 +6159,7 @@ Safety notes:
 - This tool can change remote service configuration files.
 - It uses a fixed template and rejects arbitrary configuration blocks.
 - It edits only provider-approved Nginx site configuration files and can create the resolved site file when it is absent.
+- It may disable conflicting `/etc/nginx/sites-enabled` symlinks that would otherwise keep the stock `default_server` ahead of the generated PHP site. Disabled symlink targets are recorded outside the `sites-enabled/*` include glob for rollback.
 - `nginx -t` must pass. On failure, Kelpie attempts rollback before returning.
 - This tool does not reload Nginx. Call `ssh_service_reload` separately after reviewing the result.
 
