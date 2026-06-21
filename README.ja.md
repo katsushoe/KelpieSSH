@@ -296,8 +296,32 @@ kelpie --version
 
 ```powershell
 kelpie profiles
-kelpie profile show vps01
 kelpie status vps01
+```
+
+対話 SSH セッションを実行します。
+
+```powershell
+kelpie open vps01
+kelpie login
+```
+
+VPS 診断やサービスログの表示を実行します。
+
+```powershell
+kelpie diag vps01
+kelpie logs vps01 nginx.service
+kelpie logs vps01 nginx.service 200
+```
+
+`kelpie login`、`kelpie diag`、`kelpie logs` は CLI プロセスから SSH 操作を直接実行します。パスワード認証のプロファイルでは、CLI が実行時にパスワードを尋ね、そのコマンドプロセス内だけに保持します。`kelpie status` はローカル MCP サーバーの状態も表示できますが、上記のコマンドラインツールを使うだけなら MCP サーバーは不要です。
+
+## プロファイルの確認方法
+
+設定済み SSH プロファイルの安全な概要を確認するには `kelpie profile show <profile>` を使います。
+
+```powershell
+kelpie profile show vps01
 ```
 
 `kelpie profile show vps01` の出力例:
@@ -329,23 +353,6 @@ Users:
 Authentication: privateKey
 Private key: (configured)
 ```
-
-対話 SSH セッションを実行します。
-
-```powershell
-kelpie open vps01
-kelpie login
-```
-
-VPS 診断やサービスログの表示を実行します。
-
-```powershell
-kelpie diag vps01
-kelpie logs vps01 nginx.service
-kelpie logs vps01 nginx.service 200
-```
-
-`kelpie login`、`kelpie diag`、`kelpie logs` は CLI プロセスから SSH 操作を直接実行します。パスワード認証のプロファイルでは、CLI が実行時にパスワードを尋ね、そのコマンドプロセス内だけに保持します。`kelpie status` はローカル MCP サーバーの状態も表示できますが、上記のコマンドラインツールを使うだけなら MCP サーバーは不要です。
 
 ## 初期化済みディレクトリで新しいプロファイルを作成する
 

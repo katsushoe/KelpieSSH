@@ -296,8 +296,32 @@ Inspect configured SSH profiles with:
 
 ```powershell
 kelpie profiles
-kelpie profile show vps01
 kelpie status vps01
+```
+
+Run an interactive SSH session with:
+
+```powershell
+kelpie open vps01
+kelpie login
+```
+
+Run high-level VPS diagnostics or tail service logs with:
+
+```powershell
+kelpie diag vps01
+kelpie logs vps01 nginx.service
+kelpie logs vps01 nginx.service 200
+```
+
+`kelpie login`, `kelpie diag`, and `kelpie logs` run SSH operations directly from the CLI process. For password profiles, the CLI asks for the password at runtime and keeps it only in the current command process. `kelpie status` can also report whether the local MCP server is running, but the server is not required for the command-line tools above.
+
+## How to confirm profile
+
+Use `kelpie profile show <profile>` to inspect a sanitized summary of a configured SSH profile.
+
+```powershell
+kelpie profile show vps01
 ```
 
 Example `kelpie profile show vps01` output:
@@ -329,23 +353,6 @@ Users:
 Authentication: privateKey
 Private key: (configured)
 ```
-
-Run an interactive SSH session with:
-
-```powershell
-kelpie open vps01
-kelpie login
-```
-
-Run high-level VPS diagnostics or tail service logs with:
-
-```powershell
-kelpie diag vps01
-kelpie logs vps01 nginx.service
-kelpie logs vps01 nginx.service 200
-```
-
-`kelpie login`, `kelpie diag`, and `kelpie logs` run SSH operations directly from the CLI process. For password profiles, the CLI asks for the password at runtime and keeps it only in the current command process. `kelpie status` can also report whether the local MCP server is running, but the server is not required for the command-line tools above.
 
 ## How to create new profile in initialized directory
 
