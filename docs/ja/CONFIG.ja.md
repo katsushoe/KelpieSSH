@@ -60,31 +60,33 @@ config_samples/
 | `Server:ControlPipeName` | `kelpie` / `kelpiemcp` が server control に使う local named pipe。 |
 | `Commands:ExecutablePath` | 任意の `kelpie` command 明示 path。 |
 | `Commands:WorkingDirectory` | 任意の command working directory。 |
-| `editor` | `kelpie profile edit <profile>` のエディタモードで使う任意の editor command。引数も指定できます。 |
+| `Editor` | `kelpie profile edit <profile>` のエディタモードで使う任意の editor command。引数も指定できます。 |
 
 最小例:
 
 ```json
 {
   "LogDirectory": "D:\\Kelpie\\logs",
-  "editor": ""
+  "Editor": ""
 }
 ```
 
 `kelpie profile edit <profile>` は editor を次の順に解決します。
 
-1. `config/kelpie.json` の `editor`
+1. `config/kelpie.json` の `Editor`
 2. `KELPIE_EDITOR`
 3. `VISUAL`
 4. `EDITOR`
 5. OS 既定: Windows は `notepad`、Unix は `vi`
+
+互換性のため、旧小文字 `editor` も受理します。`kelpie.json` に `editor` が含まれる場合、`kelpie` コマンドは実行ごとに標準出力へ `Editor` へのリネームを促す warning を表示します。Kelpie が設定ファイルを更新するタイミングでは `Editor` に正規化します。
 
 エディタプロセスはブロッキング起動し、Kelpie はエディタ終了後に profile を検証します。
 通常は即時終了するエディタを使う場合は、次のように待機オプション付きで設定します。
 
 ```json
 {
-  "editor": "code --wait"
+  "Editor": "code --wait"
 }
 ```
 
@@ -92,6 +94,7 @@ special value:
 
 | Value | 意味 |
 | :--- | :--- |
+| `vscode` | 大文字小文字を区別しない VS Code `code` CLI の別名です。Windows では可能な場合に `PATH` / `PATHEXT` から `code` を解決するため、`"Editor": "vscode --wait"` でインストール済みの `code.cmd` を実パス決め打ちなしに使えます。 |
 | `Notepad` | 大文字小文字を区別せず Windows Notepad を起動します。 |
 | `default` | 大文字小文字を区別せず、OS が `.json` に関連付けたアプリで profile file を開きます。 |
 

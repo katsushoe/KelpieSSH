@@ -16,7 +16,8 @@ public sealed class KelpieHomeInitializerTests
             var result = KelpieHomeInitializer.Initialize(homeDirectory);
 
             result.ProfileName.Should().Be("sample");
-            File.Exists(Path.Combine(homeDirectory, "config", "kelpie.json")).Should().BeTrue();
+            var kelpieConfigPath = Path.Combine(homeDirectory, "config", "kelpie.json");
+            File.Exists(kelpieConfigPath).Should().BeTrue();
             File.Exists(Path.Combine(homeDirectory, "config", "kelpiemcp.json")).Should().BeTrue();
             File.Exists(Path.Combine(homeDirectory, "profiles", "sample.json")).Should().BeTrue();
             Directory.Exists(Path.Combine(homeDirectory, "config")).Should().BeTrue();
@@ -24,6 +25,9 @@ public sealed class KelpieHomeInitializerTests
             Directory.Exists(Path.Combine(homeDirectory, "dat")).Should().BeTrue();
             Directory.Exists(Path.Combine(homeDirectory, "logs")).Should().BeTrue();
             Directory.Exists(Path.Combine(homeDirectory, "bin", "mcp")).Should().BeTrue();
+
+            using var kelpieConfig = JsonDocument.Parse(File.ReadAllText(kelpieConfigPath));
+            kelpieConfig.RootElement.GetProperty("Editor").GetString().Should().BeEmpty();
         }
         finally
         {
@@ -71,9 +75,9 @@ public sealed class KelpieHomeInitializerTests
                     DefaultUser: "ops",
                     Mode: "ReadOnly",
                     OsFamily: "ubuntu",
-                    ReadOnlyRoot: "/var/log/nginx",
-                    ReadWriteRoot: string.Empty,
-                    DenyPattern: "**/.secret"));
+                    ReadOnlyRoots: ["/var/log/nginx", "/var/log/apache2"],
+                    ReadWriteRoots: ["/var/www"],
+                    DenyPatterns: ["**/.secret", "**/.env.local"]));
 
             var profilePath = Path.Combine(homeDirectory, "profiles", "vps01.json");
             using var document = JsonDocument.Parse(File.ReadAllText(profilePath));
@@ -86,8 +90,11 @@ public sealed class KelpieHomeInitializerTests
             root.GetProperty("DefaultUser").GetString().Should().Be("ops");
             root.GetProperty("Users").GetProperty("ops").GetProperty("Mode").GetString().Should().Be("ReadOnly");
             root.GetProperty("Users").GetProperty("ops").GetProperty("AllowedRoots").GetProperty("/var/log/nginx").GetString().Should().Be("$ReadOnly");
-            root.GetProperty("Users").GetProperty("ops").GetProperty("AllowedRoots").EnumerateObject().Should().HaveCount(1);
+            root.GetProperty("Users").GetProperty("ops").GetProperty("AllowedRoots").GetProperty("/var/log/apache2").GetString().Should().Be("$ReadOnly");
+            root.GetProperty("Users").GetProperty("ops").GetProperty("AllowedRoots").GetProperty("/var/www").GetString().Should().Be("$ReadWrite");
+            root.GetProperty("Users").GetProperty("ops").GetProperty("AllowedRoots").EnumerateObject().Should().HaveCount(3);
             root.GetProperty("Users").GetProperty("ops").GetProperty("SpecialPaths").GetProperty("**/.secret").GetString().Should().Be("Deny");
+            root.GetProperty("Users").GetProperty("ops").GetProperty("SpecialPaths").GetProperty("**/.env.local").GetString().Should().Be("Deny");
             root.GetProperty("Platform").GetProperty("OsFamily").GetString().Should().Be("ubuntu");
         }
         finally
@@ -113,6 +120,30 @@ public sealed class KelpieHomeInitializerTests
             File.ReadAllText(kelpieConfigPath).Should().Contain("custom");
             File.ReadAllText(kelpieConfigPath).Should().NotContain("KelpieHome");
             result.ExistingFiles.Should().Contain(kelpieConfigPath);
+        }
+        finally
+        {
+            Directory.Delete(homeDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Initialize_migrates_legacy_editor_key_to_canonical_editor()
+    {
+        var homeDirectory = CreateTempDirectory();
+
+        try
+        {
+            var configDirectory = Path.Combine(homeDirectory, "config");
+            Directory.CreateDirectory(configDirectory);
+            var kelpieConfigPath = Path.Combine(configDirectory, "kelpie.json");
+            File.WriteAllText(kelpieConfigPath, "{ \"LogDirectory\": \"custom\", \"editor\": \"code --wait\" }");
+
+            KelpieHomeInitializer.Initialize(homeDirectory);
+
+            using var document = JsonDocument.Parse(File.ReadAllText(kelpieConfigPath));
+            document.RootElement.GetProperty("Editor").GetString().Should().Be("code --wait");
+            document.RootElement.TryGetProperty("editor", out _).Should().BeFalse();
         }
         finally
         {
@@ -316,9 +347,9 @@ public sealed class KelpieHomeInitializerTests
                     DefaultUser: "ops",
                     Mode: "ReadOnly",
                     OsFamily: "ubuntu",
-                    ReadOnlyRoot: "/var/log/nginx",
-                    ReadWriteRoot: string.Empty,
-                    DenyPattern: "**/.secret"));
+                    ReadOnlyRoots: ["/var/log/nginx", "/var/log/apache2"],
+                    ReadWriteRoots: ["/var/www"],
+                    DenyPatterns: ["**/.secret", "**/.env.local"]));
 
             using var document = JsonDocument.Parse(File.ReadAllText(profilePath));
             var root = document.RootElement;
@@ -330,8 +361,11 @@ public sealed class KelpieHomeInitializerTests
             root.GetProperty("DefaultUser").GetString().Should().Be("ops");
             root.GetProperty("Users").GetProperty("ops").GetProperty("Mode").GetString().Should().Be("ReadOnly");
             root.GetProperty("Users").GetProperty("ops").GetProperty("AllowedRoots").GetProperty("/var/log/nginx").GetString().Should().Be("$ReadOnly");
-            root.GetProperty("Users").GetProperty("ops").GetProperty("AllowedRoots").EnumerateObject().Should().HaveCount(1);
+            root.GetProperty("Users").GetProperty("ops").GetProperty("AllowedRoots").GetProperty("/var/log/apache2").GetString().Should().Be("$ReadOnly");
+            root.GetProperty("Users").GetProperty("ops").GetProperty("AllowedRoots").GetProperty("/var/www").GetString().Should().Be("$ReadWrite");
+            root.GetProperty("Users").GetProperty("ops").GetProperty("AllowedRoots").EnumerateObject().Should().HaveCount(3);
             root.GetProperty("Users").GetProperty("ops").GetProperty("SpecialPaths").GetProperty("**/.secret").GetString().Should().Be("Deny");
+            root.GetProperty("Users").GetProperty("ops").GetProperty("SpecialPaths").GetProperty("**/.env.local").GetString().Should().Be("Deny");
             root.GetProperty("Platform").GetProperty("OsFamily").GetString().Should().Be("ubuntu");
         }
         finally

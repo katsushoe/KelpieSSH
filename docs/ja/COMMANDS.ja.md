@@ -15,7 +15,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | MCP password session | `kelpiemcp password`, `kelpiemcp forget` | 起動中の MCP server に SSH パスワードを一時保存、削除する。 |
 | Compatibility | `kelpiemcp login`, `kelpiemcp logout` | 旧名互換。新規利用では `password` / `forget` を使う。 |
 | Initialization | `kelpie init [--silent] [profile]` | `KelpieHome` 配下の初期ディレクトリとサンプル設定を作成する。 |
-| Profile/session | `kelpie profile create`, `kelpie profile edit`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイルひな形作成・編集、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
+| Profile/session | `kelpie profile create`, `kelpie profile edit`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイルひな形作成・編集、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
 | Mode/UI | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | CLI/GUI モードや一時的な起動方式を切り替える。 |
 | Diagnostics | `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | プロファイル情報、MCP server 状態、SSH 診断、サービスログを表示する。 |
 | Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | profile policy に従って remote 環境変数の key 表示、値参照、一時設定、永続化を行う。 |
@@ -1021,16 +1021,16 @@ kelpie profile create vps02
 
 処理内容:
 
-`kelpie init` 済みの `KelpieHome` を前提に、`profiles/<profile>.json` だけを新規作成します。`config/kelpie.json`、`config/kelpiemcp.json`、ディレクトリ、trust store、open profile 状態は作成・更新しません。既に同名 profile がある場合はエラーにします。
+`kelpie init` 済みの `KelpieHome` を前提に、`profiles/<profile>.json` だけを新規作成します。`config/kelpie.json`、`config/kelpiemcp.json`、ディレクトリ、trust store、open profile 状態は作成・更新しません。既に同名 profile がある場合は上書き確認を行い、上書き時は旧ファイルを `profiles/<profile>.json.kelpie` として保存します。既に `.kelpie` backup がある場合は、先に `kelpie profile commit <profile>` または `kelpie profile rollback <profile>` を実行するよう案内して失敗します。
 
-host address、port、SSH user、authentication method、private key file または password secret name、OS family、mode、allowed roots、deny pattern を対話入力します。password authentication の場合も入力するのは `PasswordSecretName` だけで、パスワード実値は入力・保存しません。optional な allowed-root / deny-pattern prompt では `-` を入力すると値を省略します。
+host address、port、SSH user、authentication method、private key file または password secret name、OS family、mode、allowed roots、deny pattern を対話入力します。password authentication の場合も入力するのは `PasswordSecretName` だけで、パスワード実値は入力・保存しません。optional な allowed-root / deny-pattern prompt では1行に1 pattern を入力できます。空 Enter または `-` で、その prompt を省略または終了します。既存 profile を上書きした場合は最後に `Commit profile? [Y/n]:` を尋ね、`Y` なら `.kelpie` backup を削除し、`n` なら後で commit / rollback できるよう backup を残します。
 
 MCPサーバーの protected trust store へ反映する場合は、作成した profile 内容を確認した後に `kelpiemcp profile add <profile>` を実行します。
 
 戻り値:
 
 - exit code `0`: profile ひな形を作成した。
-- exit code non-zero: profile 名不足、profile 名不正、`KelpieHome` 未初期化、同名 profile 既存、またはファイル作成失敗。
+- exit code non-zero: profile 名不足、profile 名不正、`KelpieHome` 未初期化、上書き拒否、pending backup 既存、またはファイル作成失敗。
 - standard output: 作成した profile 名とファイルパス。
 - standard error: 検証エラーまたはファイル操作エラー。
 
@@ -1046,9 +1046,11 @@ Authentication method (privateKey/password) [privateKey]:
 Private key file [vps02_ed25519]:
 OS family [debian]:
 Mode (ReadOnly/Safe/Maintenance/Expert) [Safe]:
-Read-only root, '-' to omit [/var/log]:
-Read-write root, '-' to omit [/var/www]:
-Deny pattern, '-' to omit [**/.env]:
+Read-only root [Returnで続行]: /var/log/nginx
+Read-only root [Returnで続行]:
+Read-write root [Returnで続行]:
+Deny pattern [Returnで続行]: **/.secret
+Deny pattern [Returnで続行]:
 Created profile: vps02
 Profile file: D:\Kelpie\profiles\vps02.json
 ```
@@ -1056,7 +1058,11 @@ Profile file: D:\Kelpie\profiles\vps02.json
 既に存在する場合:
 
 ```text
-SSH profile already exists: vps02
+Profile already exists: vps02. Overwrite? [Y/n]: Y
+...
+Commit profile? [Y/n]: n
+Profile backup is pending: D:\Kelpie\profiles\vps02.json.kelpie
+Run `kelpie profile commit vps02` or `kelpie profile rollback vps02`.
 ```
 
 ### `kelpie profile edit <profile>`
@@ -1075,6 +1081,8 @@ kelpie profile edit vps02 add-root /etc/nginx ReadWrite
 kelpie profile edit vps02 rm-root /etc/nginx
 kelpie profile edit vps02 add-deny "**/.htpasswd"
 kelpie profile edit vps02 rm-deny "**/.htpasswd"
+kelpie profile commit vps02
+kelpie profile rollback vps02
 ```
 
 引数詳細:
@@ -1090,18 +1098,24 @@ kelpie profile edit vps02 rm-deny "**/.htpasswd"
 
 - `set` は scalar path のみを更新します。object、dictionary、array に相当する path は拒否し、`add-root` / `rm-root` / `add-deny` / `rm-deny` の利用を案内します。
 - `add-root`、`rm-root`、`add-deny`、`rm-deny` は `Users.<DefaultUser>` が object の場合はその user-level 設定を編集し、それ以外は profile 直下の設定を編集します。
+- 既存 profile を変更する前に、現在のファイルを `profiles/<profile>.json.kelpie` として保存します。既に backup がある場合は、commit または rollback するまで編集を拒否します。
+- 編集成功後は `Commit profile? [Y/n]:` を尋ねます。`Y` は backup を削除し、`n` は後で `kelpie profile commit <profile>` または `kelpie profile rollback <profile>` できるよう backup を残します。
+- `kelpie profile commit <profile>` は pending `.kelpie` backup を削除し、現在の profile JSON を確定扱いにします。
+- `kelpie profile rollback <profile>` は `.kelpie` backup を現在の profile JSON へ戻します。backup がない場合はエラーです。
 - 非エディタ操作では、書き込み前に profile 全体を既存 loader/parser で再検証します。検証に失敗した場合は書き込みません。
 - 非エディタ操作の書き込みは temp file からの置換で行い、UTF-8 BOMなし、LF 改行で保存します。
-- エディタは `config/kelpie.json` の `editor`、`KELPIE_EDITOR`、`VISUAL`、`EDITOR`、OS既定（Windows は `notepad`、Unix は `vi`）の順に解決します。
+- エディタは `config/kelpie.json` の `Editor`、`KELPIE_EDITOR`、`VISUAL`、`EDITOR`、OS既定（Windows は `notepad`、Unix は `vi`）の順に解決します。
+- `config/kelpie.json` に旧小文字 `editor` が残っている場合、`kelpie` コマンドは実行ごとに標準出力へ `Editor` へのリネームを促す warning を表示します。
+- editor command alias の `vscode` は VS Code `code` CLI として解釈します。Windows では可能な場合に `PATH` / `PATHEXT` から `code` を解決するため、`"Editor": "vscode --wait"` でインストール済みの `code.cmd` を実パス決め打ちなしに使えます。
 - special value の `default` は大文字小文字を区別せず、`.json` に関連付けられたアプリで profile file を開きます。`Notepad` も大文字小文字を区別せず Windows Notepad を起動します。
-- エディタ起動は終了待ちします。`code` など即時終了するエディタは `"editor": "code --wait"` のように待機オプション付きで設定します。
+- エディタ起動は終了待ちします。`code` など即時終了するエディタは `"Editor": "code --wait"` のように待機オプション付きで設定します。
 - エディタ終了後の検証に失敗した場合は、再編集または中止を選べます。中止すると元内容へ戻します。
 - エディタモードは対話コンソール専用です。標準入力リダイレクト中はエラーにします。
 
 戻り値:
 
 - exit code `0`: profile を更新し、検証に成功した。
-- exit code non-zero: profile 不存在、path または値の不正、profile 検証失敗、エディタ起動失敗、または非対話でのエディタモード実行。
+- exit code non-zero: profile 不存在、pending backup 既存、path または値の不正、profile 検証失敗、エディタ起動失敗、または非対話でのエディタモード実行。
 - standard output: 更新した profile 名と解決済み profile file path。
 - standard error: 検証エラーまたはエディタエラー。
 - 秘密鍵、パスフレーズ、パスワード実値は表示しません。
@@ -1111,6 +1125,7 @@ kelpie profile edit vps02 rm-deny "**/.htpasswd"
 ```text
 Updated profile: vps02
 Profile file: D:\Kelpie\profiles\vps02.json
+Commit profile? [Y/n]:
 ```
 
 profile が存在しない場合:
@@ -1605,6 +1620,8 @@ Usage:
   kelpie profile edit <profile> rm-root <path>
   kelpie profile edit <profile> add-deny <pattern>
   kelpie profile edit <profile> rm-deny <pattern>
+  kelpie profile commit <profile>
+  kelpie profile rollback <profile>
   kelpie profile show <profile>
   kelpie status <profile>
   kelpie diag <profile>

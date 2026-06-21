@@ -15,7 +15,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | [MCP Windows Service](#mcp-windows-service) | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Register, unregister, and inspect the Windows Service entry. |
 | [MCP password session](#mcp-password-session) | `kelpiemcp password`, `kelpiemcp forget`, `kelpiemcp login`, `kelpiemcp logout` | Store or clear an SSH password in the running MCP server session. |
 | [Initialization](#initialization) | `kelpie init [--silent] [profile]` | Create the local Kelpie home directory layout and sample configuration files. |
-| [Profile/session](#profilesession) | `kelpie profile create`, `kelpie profile edit`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | Create and edit profile templates, select profiles, and manage interactive SSH sessions. |
+| [Profile/session](#profilesession) | `kelpie profile create`, `kelpie profile edit`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | Create and edit profile templates, select profiles, and manage interactive SSH sessions. |
 | [Mode/UI](#modeui) | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | Switch CLI/GUI mode or choose a temporary launch mode. |
 | [Diagnostics](#diagnostics) | `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | Show profile information, MCP server status, SSH diagnostics, and service logs. |
 | [Environment](#environment) | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | List, read, temporarily set, or persist remote environment variables under profile policy. |
@@ -711,6 +711,8 @@ Commands in this group:
 - [`kelpie profiles`](#kelpie-profiles)
 - [`kelpie profile create <profile>`](#kelpie-profile-create-profile)
 - [`kelpie profile edit <profile>`](#kelpie-profile-edit-profile)
+- `kelpie profile commit <profile>`
+- `kelpie profile rollback <profile>`
 - [`kelpie profile show <profile>`](#kelpie-profile-show-profile)
 - [`kelpie open <profile>`](#kelpie-open-profile)
 - [`kelpie login`](#kelpie-login)
@@ -769,16 +771,18 @@ Processing:
 - Requires an initialized Kelpie home created by `kelpie init`.
 - Creates only `profiles/<profile>.json`.
 - Does not create or update `config/kelpie.json`, `config/kelpiemcp.json`, directories, trust-store entries, or open-profile state.
-- Fails when `profiles/<profile>.json` already exists.
+- If `profiles/<profile>.json` already exists, asks whether to overwrite it. When overwriting, the old file is saved as `profiles/<profile>.json.kelpie`.
+- If a `.kelpie` backup already exists, the command fails and asks the user to run `kelpie profile commit <profile>` or `kelpie profile rollback <profile>` first.
 - Prompts for host address, port, SSH user, authentication method, private key file or password secret name, OS family, mode, allowed roots, and deny pattern.
 - For password authentication, the command writes only `PasswordSecretName`. It never asks for or stores the raw password.
-- Enter accepts the displayed default. For optional allowed-root and deny-pattern prompts, enter `-` to omit the value.
+- Optional allowed-root and deny-pattern prompts accept one value per line. Press Enter on an empty line or enter `-` to omit or finish that prompt.
+- After overwriting an existing profile, asks `Commit profile? [Y/n]:`. `Y` removes the `.kelpie` backup. `n` leaves the backup pending for later `commit` or `rollback`.
 - After creating a profile that should be visible to a protected MCP server, review the file and run `kelpiemcp profile add <profile>`.
 
 Return value:
 
 - Exit code `0` when the profile template is created.
-- Non-zero exit code when the profile name is missing or invalid, Kelpie home is not initialized, the profile already exists, or the file cannot be written.
+- Non-zero exit code when the profile name is missing or invalid, Kelpie home is not initialized, overwrite is rejected, a pending backup already exists, or the file cannot be written.
 - Standard output contains the created profile name and file path.
 - Standard error contains validation and file-system errors.
 
@@ -794,9 +798,11 @@ Authentication method (privateKey/password) [privateKey]:
 Private key file [vps02_ed25519]:
 OS family [debian]:
 Mode (ReadOnly/Safe/Maintenance/Expert) [Safe]:
-Read-only root, '-' to omit [/var/log]:
-Read-write root, '-' to omit [/var/www]:
-Deny pattern, '-' to omit [**/.env]:
+Read-only root [Return to skip]: /var/log/nginx
+Read-only root [Return to skip]:
+Read-write root [Return to skip]:
+Deny pattern [Return to skip]: **/.secret
+Deny pattern [Return to skip]:
 Created profile: vps02
 Profile file: D:\Kelpie\profiles\vps02.json
 ```
@@ -804,7 +810,11 @@ Profile file: D:\Kelpie\profiles\vps02.json
 Existing profile sample:
 
 ```text
-SSH profile already exists: vps02
+Profile already exists: vps02. Overwrite? [Y/n]: Y
+...
+Commit profile? [Y/n]: n
+Profile backup is pending: D:\Kelpie\profiles\vps02.json.kelpie
+Run `kelpie profile commit vps02` or `kelpie profile rollback vps02`.
 ```
 
 #### `kelpie profile edit <profile>`
@@ -820,6 +830,8 @@ kelpie profile edit vps02 add-root /etc/nginx ReadWrite
 kelpie profile edit vps02 rm-root /etc/nginx
 kelpie profile edit vps02 add-deny "**/.htpasswd"
 kelpie profile edit vps02 rm-deny "**/.htpasswd"
+kelpie profile commit vps02
+kelpie profile rollback vps02
 ```
 
 Arguments:
@@ -837,18 +849,24 @@ Processing:
 
 - `set` only accepts scalar paths. Object, dictionary, and array paths are rejected; use `add-root`, `rm-root`, `add-deny`, or `rm-deny` for dictionary settings.
 - `add-root`, `rm-root`, `add-deny`, and `rm-deny` edit the default user's rule object when `Users.<DefaultUser>` is an object; otherwise they edit the profile-level object.
+- Before changing an existing profile, the current file is saved as `profiles/<profile>.json.kelpie`. If that backup already exists, editing fails until the profile is committed or rolled back.
+- After a successful edit, asks `Commit profile? [Y/n]:`. `Y` deletes the backup. `n` keeps the backup so `kelpie profile commit <profile>` or `kelpie profile rollback <profile>` can be run later.
+- `kelpie profile commit <profile>` deletes the pending `.kelpie` backup and treats the current profile JSON as committed.
+- `kelpie profile rollback <profile>` restores the `.kelpie` backup over the current profile JSON. It fails if no backup exists.
 - The full profile is reloaded and validated before any non-editor update is written.
 - Non-editor updates are written with a temporary file followed by replace, using UTF-8 without BOM and LF line endings.
-- Editor mode resolves the editor from `config/kelpie.json` `editor`, `KELPIE_EDITOR`, `VISUAL`, `EDITOR`, then OS default (`notepad` on Windows, `vi` on Unix).
+- Editor mode resolves the editor from `config/kelpie.json` `Editor`, `KELPIE_EDITOR`, `VISUAL`, `EDITOR`, then OS default (`notepad` on Windows, `vi` on Unix).
+- If `config/kelpie.json` still contains legacy lowercase `editor`, every `kelpie` command prints a standard-output warning asking the user to rename it to `Editor`.
+- The editor command alias `vscode` is interpreted as the VS Code `code` CLI. On Windows, Kelpie resolves `code` from `PATH` / `PATHEXT` when available, so `"Editor": "vscode --wait"` can use the installed `code.cmd` path without hard-coding it.
 - The special editor value `default` is case-insensitive and opens the profile file with the application associated with `.json` files. The value `Notepad` is also case-insensitive and starts Windows Notepad.
-- Editor mode waits for the editor process to exit. Editors that return immediately should be configured with a wait option, for example `"editor": "code --wait"`.
+- Editor mode waits for the editor process to exit. Editors that return immediately should be configured with a wait option, for example `"Editor": "code --wait"`.
 - If editor validation fails, the user can re-edit or abort. Abort restores the original file content.
 - Editor mode requires an interactive console and fails when input is redirected.
 
 Return value:
 
 - Exit code `0` when the profile is updated and validated.
-- Non-zero exit code when the profile is missing, the path or value is invalid, profile validation fails, editor launch fails, or editor mode is used non-interactively.
+- Non-zero exit code when the profile is missing, a pending backup already exists, the path or value is invalid, profile validation fails, editor launch fails, or editor mode is used non-interactively.
 - Standard output contains the updated profile name and resolved profile file path.
 - Standard error contains validation and editor errors.
 - Secrets, private keys, passphrases, and raw password values are not printed.
@@ -858,6 +876,7 @@ Execution result sample:
 ```text
 Updated profile: vps02
 Profile file: D:\Kelpie\profiles\vps02.json
+Commit profile? [Y/n]:
 ```
 
 Missing profile sample:
@@ -1666,4 +1685,3 @@ Safety notes:
 - Dangerous operations require dedicated commands, policy checks, and confirmation strings.
 - Passwords are session-only for the MCP server process.
 - Production profile files and private keys must stay outside the public repository.
-

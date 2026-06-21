@@ -16,6 +16,7 @@ KpLogSetup.Configure(
 KpLog.Info("Kelpie CLI starting.");
 
 var command = args.Length > 0 ? args[0] : string.Empty;
+WarnLegacyEditorConfigIfNeeded();
 
 if (IsHelpCommand(command))
 {
@@ -161,17 +162,28 @@ if (string.Equals(command, "profile", StringComparison.OrdinalIgnoreCase))
 {
     KpLog.Info("Kelpie CLI profile requested.");
     var subcommand = args.Length > 1 ? args[1] : string.Empty;
+    if (IsHelpCommand(subcommand))
+    {
+        WriteProfileUsage(Console.Out);
+        return;
+    }
+
     if (string.Equals(subcommand, "create", StringComparison.OrdinalIgnoreCase))
     {
+        var createProfileName = args.Length > 2 ? args[2] : string.Empty;
+        if (IsHelpCommand(createProfileName))
+        {
+            WriteProfileCreateUsage(Console.Out);
+            return;
+        }
+
         if (args.Length != 3)
         {
-            Console.Error.WriteLine("Usage:");
-            Console.Error.WriteLine("  kelpie profile create <profile>");
+            WriteProfileCreateUsage(Console.Error);
             Environment.ExitCode = 1;
             return;
         }
 
-        var createProfileName = args.Length > 2 ? args[2] : string.Empty;
         CreateProfile(createProfileName);
         return;
     }
@@ -182,17 +194,35 @@ if (string.Equals(command, "profile", StringComparison.OrdinalIgnoreCase))
         return;
     }
 
+    if (string.Equals(subcommand, "commit", StringComparison.OrdinalIgnoreCase))
+    {
+        if (args.Length != 3)
+        {
+            WriteProfileUsage(Console.Error);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        CommitProfile(args[2]);
+        return;
+    }
+
+    if (string.Equals(subcommand, "rollback", StringComparison.OrdinalIgnoreCase))
+    {
+        if (args.Length != 3)
+        {
+            WriteProfileUsage(Console.Error);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        RollbackProfile(args[2]);
+        return;
+    }
+
     if (!string.Equals(subcommand, "show", StringComparison.OrdinalIgnoreCase))
     {
-        Console.Error.WriteLine("Usage:");
-        Console.Error.WriteLine("  kelpie profile create <profile>");
-        Console.Error.WriteLine("  kelpie profile edit <profile>");
-        Console.Error.WriteLine("  kelpie profile edit <profile> set <dotPath> <value>");
-        Console.Error.WriteLine("  kelpie profile edit <profile> add-root <path> <access>");
-        Console.Error.WriteLine("  kelpie profile edit <profile> rm-root <path>");
-        Console.Error.WriteLine("  kelpie profile edit <profile> add-deny <pattern>");
-        Console.Error.WriteLine("  kelpie profile edit <profile> rm-deny <pattern>");
-        Console.Error.WriteLine("  kelpie profile show <profile>");
+        WriteProfileUsage(Console.Error);
         Environment.ExitCode = 1;
         return;
     }
@@ -266,6 +296,30 @@ static SshConnectionProfileCatalog LoadProfileCatalog()
         SshConnectionProfileFileLoader.LoadDirectory(profilesDirectory));
 }
 
+static void WarnLegacyEditorConfigIfNeeded()
+{
+    try
+    {
+        var configPath = KelpieRuntimePaths.GetConfigFilePath(AppContext.BaseDirectory, KelpieRuntimePaths.KelpieConfigFileName);
+        if (!File.Exists(configPath))
+        {
+            return;
+        }
+
+        using var document = JsonDocument.Parse(File.ReadAllText(configPath));
+        if (!document.RootElement.TryGetProperty("editor", out _))
+        {
+            return;
+        }
+
+        Console.WriteLine($"Warning: {KelpieRuntimePaths.KelpieConfigFileName} uses legacy key `editor`. Please rename it to `Editor`.");
+    }
+    catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+    {
+        KpLog.Warn($"Failed to inspect Kelpie config for legacy editor key. reason={ex.GetType().Name}");
+    }
+}
+
 static bool IsHelpCommand(string command)
 {
     return string.IsNullOrWhiteSpace(command)
@@ -279,6 +333,27 @@ static bool IsVersionCommand(string command)
     return string.Equals(command, "version", StringComparison.OrdinalIgnoreCase)
         || string.Equals(command, "--version", StringComparison.OrdinalIgnoreCase)
         || string.Equals(command, "-v", StringComparison.OrdinalIgnoreCase);
+}
+
+static void WriteProfileUsage(TextWriter writer)
+{
+    writer.WriteLine("Usage:");
+    writer.WriteLine("  kelpie profile create <profile>");
+    writer.WriteLine("  kelpie profile edit <profile>");
+    writer.WriteLine("  kelpie profile edit <profile> set <dotPath> <value>");
+    writer.WriteLine("  kelpie profile edit <profile> add-root <path> <access>");
+    writer.WriteLine("  kelpie profile edit <profile> rm-root <path>");
+    writer.WriteLine("  kelpie profile edit <profile> add-deny <pattern>");
+    writer.WriteLine("  kelpie profile edit <profile> rm-deny <pattern>");
+    writer.WriteLine("  kelpie profile commit <profile>");
+    writer.WriteLine("  kelpie profile rollback <profile>");
+    writer.WriteLine("  kelpie profile show <profile>");
+}
+
+static void WriteProfileCreateUsage(TextWriter writer)
+{
+    writer.WriteLine("Usage:");
+    writer.WriteLine("  kelpie profile create <profile>");
 }
 
 static void ShowUsage(string command = "")
@@ -308,6 +383,8 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpie profile edit <profile> rm-root <path>");
     writer.WriteLine("  kelpie profile edit <profile> add-deny <pattern>");
     writer.WriteLine("  kelpie profile edit <profile> rm-deny <pattern>");
+    writer.WriteLine("  kelpie profile commit <profile>");
+    writer.WriteLine("  kelpie profile rollback <profile>");
     writer.WriteLine("  kelpie profile show <profile>");
     writer.WriteLine("  kelpie status <profile>");
     writer.WriteLine("  kelpie diag <profile>");
@@ -423,8 +500,7 @@ static void CreateProfile(string profileName)
 {
     if (string.IsNullOrWhiteSpace(profileName))
     {
-        Console.Error.WriteLine("Usage:");
-        Console.Error.WriteLine("  kelpie profile create <profile>");
+        WriteProfileCreateUsage(Console.Error);
         Environment.ExitCode = 1;
         return;
     }
@@ -432,11 +508,50 @@ static void CreateProfile(string profileName)
     try
     {
         var homeDirectory = KelpieRuntimePaths.GetHomeDirectory(AppContext.BaseDirectory);
-        KelpieHomeInitializer.GetCreatableProfilePath(homeDirectory, profileName);
+        var profilePath = KelpieHomeInitializer.GetProfilePath(homeDirectory, profileName);
+        if (File.Exists(GetProfileBackupPath(profilePath)))
+        {
+            WritePendingProfileTransactionError(profileName, profilePath);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var overwrite = File.Exists(profilePath);
+        if (overwrite && !ReadYesNoDefaultYes($"Profile already exists: {profileName}. Overwrite? [Y/n]: "))
+        {
+            Console.WriteLine("Profile create was canceled.");
+            return;
+        }
+
+        if (!overwrite)
+        {
+            KelpieHomeInitializer.GetCreatableProfilePath(homeDirectory, profileName);
+        }
+
         var templateOptions = ReadProfileTemplateOptions(profileName);
-        var profilePath = KelpieHomeInitializer.CreateProfile(homeDirectory, profileName, templateOptions);
+        ProfileTransaction? transaction = null;
+        try
+        {
+            transaction = overwrite ? BeginProfileTransaction(profilePath) : null;
+            if (overwrite)
+            {
+                File.Delete(profilePath);
+            }
+
+            profilePath = KelpieHomeInitializer.CreateProfile(homeDirectory, profileName, templateOptions);
+        }
+        catch
+        {
+            transaction?.Rollback();
+            throw;
+        }
+
         Console.WriteLine($"Created profile: {profileName}");
         Console.WriteLine($"Profile file: {profilePath}");
+        if (transaction is not null)
+        {
+            FinishProfileTransaction(profileName, transaction);
+        }
     }
     catch (ArgumentException ex)
     {
@@ -452,6 +567,66 @@ static void CreateProfile(string profileName)
     catch (UnauthorizedAccessException ex)
     {
         KpLog.Err($"Kelpie profile create failed. exceptionType={ex.GetType().FullName ?? "UnknownException"}");
+        Console.Error.WriteLine(ex.Message);
+        Environment.ExitCode = 1;
+    }
+}
+
+static void CommitProfile(string profileName)
+{
+    var profilePath = GetExistingOrPendingProfilePath(profileName);
+    if (profilePath is null)
+    {
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    var backupPath = GetProfileBackupPath(profilePath);
+    if (!File.Exists(backupPath))
+    {
+        Console.Error.WriteLine($"Pending profile backup was not found: {backupPath}");
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    try
+    {
+        File.Delete(backupPath);
+        Console.WriteLine($"Committed profile: {profileName}");
+        Console.WriteLine($"Removed backup: {backupPath}");
+    }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+    {
+        Console.Error.WriteLine(ex.Message);
+        Environment.ExitCode = 1;
+    }
+}
+
+static void RollbackProfile(string profileName)
+{
+    var profilePath = GetExistingOrPendingProfilePath(profileName);
+    if (profilePath is null)
+    {
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    var backupPath = GetProfileBackupPath(profilePath);
+    if (!File.Exists(backupPath))
+    {
+        Console.Error.WriteLine($"Pending profile backup was not found: {backupPath}");
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    try
+    {
+        File.Move(backupPath, profilePath, overwrite: true);
+        Console.WriteLine($"Rolled back profile: {profileName}");
+        Console.WriteLine($"Profile file: {profilePath}");
+    }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+    {
         Console.Error.WriteLine(ex.Message);
         Environment.ExitCode = 1;
     }
@@ -474,8 +649,14 @@ static void RunProfileEdit(string[] args)
         return;
     }
 
+    if (File.Exists(GetProfileBackupPath(profilePath)))
+    {
+        WritePendingProfileTransactionError(profileName, profilePath);
+        Environment.ExitCode = 1;
+        return;
+    }
+
     var editService = new SshProfileEditService(new ProcessEditorLauncher());
-    ProfileEditResult result;
 
     if (args.Length == 3)
     {
@@ -487,11 +668,13 @@ static void RunProfileEdit(string[] args)
         }
 
         var editorCommand = ProfileEditorCommandResolver.Resolve(
-            LoadConfiguration()["editor"],
+            LoadConfiguration()["Editor"],
             Environment.GetEnvironmentVariable,
             OperatingSystem.IsWindows());
-        result = editService.EditWithEditor(profilePath, editorCommand, ReadProfileEditRecoveryAction);
-        WriteProfileEditResult(profileName, result);
+        RunTransactionalProfileEdit(
+            profileName,
+            profilePath,
+            () => editService.EditWithEditor(profilePath, editorCommand, ReadProfileEditRecoveryAction));
         return;
     }
 
@@ -505,8 +688,7 @@ static void RunProfileEdit(string[] args)
             return;
         }
 
-        result = editService.SetScalar(profilePath, args[4], args[5]);
-        WriteProfileEditResult(profileName, result);
+        RunTransactionalProfileEdit(profileName, profilePath, () => editService.SetScalar(profilePath, args[4], args[5]));
         return;
     }
 
@@ -519,8 +701,7 @@ static void RunProfileEdit(string[] args)
             return;
         }
 
-        result = editService.AddRoot(profilePath, args[4], args[5]);
-        WriteProfileEditResult(profileName, result);
+        RunTransactionalProfileEdit(profileName, profilePath, () => editService.AddRoot(profilePath, args[4], args[5]));
         return;
     }
 
@@ -533,8 +714,7 @@ static void RunProfileEdit(string[] args)
             return;
         }
 
-        result = editService.RemoveRoot(profilePath, args[4]);
-        WriteProfileEditResult(profileName, result);
+        RunTransactionalProfileEdit(profileName, profilePath, () => editService.RemoveRoot(profilePath, args[4]));
         return;
     }
 
@@ -547,8 +727,7 @@ static void RunProfileEdit(string[] args)
             return;
         }
 
-        result = editService.AddDeny(profilePath, args[4]);
-        WriteProfileEditResult(profileName, result);
+        RunTransactionalProfileEdit(profileName, profilePath, () => editService.AddDeny(profilePath, args[4]));
         return;
     }
 
@@ -561,8 +740,7 @@ static void RunProfileEdit(string[] args)
             return;
         }
 
-        result = editService.RemoveDeny(profilePath, args[4]);
-        WriteProfileEditResult(profileName, result);
+        RunTransactionalProfileEdit(profileName, profilePath, () => editService.RemoveDeny(profilePath, args[4]));
         return;
     }
 
@@ -592,10 +770,115 @@ static string? GetExistingProfilePath(string profileName)
     }
 }
 
-static void WriteProfileEditResult(string profileName, ProfileEditResult result)
+static string? GetExistingOrPendingProfilePath(string profileName)
+{
+    try
+    {
+        var homeDirectory = KelpieRuntimePaths.GetHomeDirectory(AppContext.BaseDirectory);
+        var profilePath = KelpieHomeInitializer.GetProfilePath(homeDirectory, profileName);
+        if (File.Exists(profilePath) || File.Exists(GetProfileBackupPath(profilePath)))
+        {
+            return profilePath;
+        }
+
+        Console.Error.WriteLine($"SSH profile was not found: {profileName}");
+        return null;
+    }
+    catch (ArgumentException ex)
+    {
+        Console.Error.WriteLine(ex.Message);
+        return null;
+    }
+}
+
+static string GetProfileBackupPath(string profilePath)
+{
+    return profilePath + ".kelpie";
+}
+
+static ProfileTransaction BeginProfileTransaction(string profilePath)
+{
+    var backupPath = GetProfileBackupPath(profilePath);
+    if (File.Exists(backupPath))
+    {
+        throw new IOException($"Pending profile backup already exists: {backupPath}");
+    }
+
+    File.Copy(profilePath, backupPath, overwrite: false);
+    return new ProfileTransaction(profilePath, backupPath);
+}
+
+static void FinishProfileTransaction(string profileName, ProfileTransaction transaction)
+{
+    if (ReadYesNoDefaultYes("Commit profile? [Y/n]: "))
+    {
+        transaction.Commit();
+        Console.WriteLine($"Committed profile: {profileName}");
+        return;
+    }
+
+    Console.WriteLine($"Profile backup is pending: {transaction.BackupPath}");
+    Console.WriteLine($"Run `kelpie profile commit {profileName}` or `kelpie profile rollback {profileName}`.");
+}
+
+static void WritePendingProfileTransactionError(string profileName, string profilePath)
+{
+    var backupPath = GetProfileBackupPath(profilePath);
+    Console.Error.WriteLine($"Pending profile backup exists: {backupPath}");
+    Console.Error.WriteLine($"Run `kelpie profile commit {profileName}` or `kelpie profile rollback {profileName}` first.");
+}
+
+static void RunTransactionalProfileEdit(string profileName, string profilePath, Func<ProfileEditResult> edit)
+{
+    ProfileTransaction? transaction = null;
+    try
+    {
+        transaction = BeginProfileTransaction(profilePath);
+        var result = edit();
+        WriteProfileEditResult(profileName, result, transaction);
+    }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+    {
+        transaction?.Rollback();
+        Console.Error.WriteLine(ex.Message);
+        Environment.ExitCode = 1;
+    }
+}
+
+static bool ReadYesNoDefaultYes(string prompt)
+{
+    while (true)
+    {
+        Console.Write(prompt);
+        var value = Console.ReadLine();
+        if (value is null)
+        {
+            return false;
+        }
+
+        var normalized = value.Trim();
+        if (string.IsNullOrWhiteSpace(normalized)
+            || string.Equals(normalized, "y", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "yes", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (string.Equals(normalized, "n", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "no", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        Console.Error.WriteLine("Enter Y or N.");
+    }
+}
+
+static void WriteProfileEditResult(string profileName, ProfileEditResult result, ProfileTransaction transaction)
 {
     if (!result.Success)
     {
+        transaction.Rollback();
         Console.Error.WriteLine(result.ErrorMessage);
         Environment.ExitCode = 1;
         return;
@@ -603,6 +886,7 @@ static void WriteProfileEditResult(string profileName, ProfileEditResult result)
 
     Console.WriteLine($"Updated profile: {profileName}");
     Console.WriteLine($"Profile file: {Path.GetFullPath(result.ProfilePath)}");
+    FinishProfileTransaction(profileName, transaction);
 }
 
 static ProfileEditRecoveryAction ReadProfileEditRecoveryAction(string validationError)
@@ -646,6 +930,8 @@ static void WriteProfileEditUsage()
     Console.Error.WriteLine("  kelpie profile edit <profile> rm-root <path>");
     Console.Error.WriteLine("  kelpie profile edit <profile> add-deny <pattern>");
     Console.Error.WriteLine("  kelpie profile edit <profile> rm-deny <pattern>");
+    Console.Error.WriteLine("  kelpie profile commit <profile>");
+    Console.Error.WriteLine("  kelpie profile rollback <profile>");
 }
 
 static KelpieMcpConfigTemplateOptions ReadMcpConfigTemplateOptions(string defaultLogDirectory)
@@ -684,9 +970,9 @@ static KelpieProfileTemplateOptions ReadProfileTemplateOptions(string profileNam
         : defaults.PasswordSecretName;
     var osFamily = ReadPrompt("OS family", defaults.OsFamily);
     var mode = ReadChoicePrompt("Mode", defaults.Mode, ["ReadOnly", "Safe", "Maintenance", "Expert"]);
-    var readOnlyRoot = ReadOptionalPrompt("Read-only root", defaults.ReadOnlyRoot);
-    var readWriteRoot = ReadOptionalPrompt("Read-write root", defaults.ReadWriteRoot);
-    var denyPattern = ReadOptionalPrompt("Deny pattern", defaults.DenyPattern);
+    var readOnlyRoots = ReadOptionalPromptList("Read-only root", defaults.ReadOnlyRoots);
+    var readWriteRoots = ReadOptionalPromptList("Read-write root", defaults.ReadWriteRoots);
+    var denyPatterns = ReadOptionalPromptList("Deny pattern", defaults.DenyPatterns);
 
     return new KelpieProfileTemplateOptions(
         HostAddress: hostAddress,
@@ -697,9 +983,9 @@ static KelpieProfileTemplateOptions ReadProfileTemplateOptions(string profileNam
         DefaultUser: defaultUser,
         Mode: mode,
         OsFamily: osFamily,
-        ReadOnlyRoot: readOnlyRoot,
-        ReadWriteRoot: readWriteRoot,
-        DenyPattern: denyPattern);
+        ReadOnlyRoots: readOnlyRoots,
+        ReadWriteRoots: readWriteRoots,
+        DenyPatterns: denyPatterns);
 }
 
 static string ReadPrompt(string title, string defaultValue)
@@ -723,10 +1009,53 @@ static string ReadPrompt(string title, string defaultValue)
     }
 }
 
-static string ReadOptionalPrompt(string title, string defaultValue)
+static IReadOnlyList<string> ReadOptionalPromptList(string title, IReadOnlyCollection<string> defaultValues)
 {
-    var value = ReadPrompt($"{title}, '-' to omit", defaultValue);
-    return string.Equals(value, "-", StringComparison.Ordinal) ? string.Empty : value;
+    var values = new List<string>();
+    Console.Write($"{title} [Return to skip]: ");
+    var firstValue = Console.ReadLine();
+    if (firstValue is null)
+    {
+        return [];
+    }
+
+    var trimmedFirstValue = firstValue.Trim();
+    if (string.IsNullOrWhiteSpace(trimmedFirstValue))
+    {
+        return [];
+    }
+
+    if (string.Equals(trimmedFirstValue, "-", StringComparison.Ordinal))
+    {
+        return [];
+    }
+
+    values.Add(trimmedFirstValue);
+
+    while (true)
+    {
+        Console.Write($"{title} [Return to skip]: ");
+        var value = Console.ReadLine();
+        if (value is null)
+        {
+            break;
+        }
+
+        var trimmed = value.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            break;
+        }
+
+        if (string.Equals(trimmed, "-", StringComparison.Ordinal))
+        {
+            return [];
+        }
+
+        values.Add(trimmed);
+    }
+
+    return values;
 }
 
 static int ReadPortPrompt(string title, int defaultValue)
@@ -1627,3 +1956,29 @@ static void SaveClientState(KelpieClientState state)
 public sealed record KelpieClientState(
     string? OpenProfile = null,
     string? ClientMode = null);
+
+sealed class ProfileTransaction
+{
+    public ProfileTransaction(string profilePath, string backupPath)
+    {
+        ProfilePath = profilePath;
+        BackupPath = backupPath;
+    }
+
+    public string ProfilePath { get; }
+
+    public string BackupPath { get; }
+
+    public void Commit()
+    {
+        File.Delete(BackupPath);
+    }
+
+    public void Rollback()
+    {
+        if (File.Exists(BackupPath))
+        {
+            File.Move(BackupPath, ProfilePath, overwrite: true);
+        }
+    }
+}

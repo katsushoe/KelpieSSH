@@ -272,7 +272,7 @@ public static class KelpieHomeInitializer
             }
             else
             {
-                updated |= SetStringIfMissing(node, "editor", string.Empty);
+                updated |= SetStringIfMissingWithCanonicalName(node, "Editor", string.Empty);
             }
 
             if (!updated)
@@ -339,6 +339,30 @@ public static class KelpieHomeInitializer
         return true;
     }
 
+    private static bool SetStringIfMissingWithCanonicalName(JsonObject node, string propertyName, string value)
+    {
+        foreach (var item in node)
+        {
+            if (!string.Equals(item.Key, propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (string.Equals(item.Key, propertyName, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var existingValue = item.Value;
+            node.Remove(item.Key);
+            node[propertyName] = existingValue ?? JsonValue.Create(value);
+            return true;
+        }
+
+        node[propertyName] = value;
+        return true;
+    }
+
     private static bool SetIntIfMissingOrInvalid(JsonObject node, string propertyName, int value)
     {
         if (node[propertyName] is JsonValue jsonValue
@@ -374,7 +398,7 @@ public static class KelpieHomeInitializer
         return Serialize(new
         {
             LogDirectory = paths.LogsDirectory,
-            editor = string.Empty,
+            Editor = string.Empty,
         });
     }
 
@@ -421,20 +445,20 @@ public static class KelpieHomeInitializer
     {
         var options = NormalizeProfileTemplateOptions(profileName, templateOptions);
         var allowedRoots = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (!string.IsNullOrWhiteSpace(options.ReadOnlyRoot))
+        foreach (var readOnlyRoot in options.ReadOnlyRoots)
         {
-            allowedRoots[options.ReadOnlyRoot] = "$ReadOnly";
+            allowedRoots[readOnlyRoot] = "$ReadOnly";
         }
 
-        if (!string.IsNullOrWhiteSpace(options.ReadWriteRoot))
+        foreach (var readWriteRoot in options.ReadWriteRoots)
         {
-            allowedRoots[options.ReadWriteRoot] = "$ReadWrite";
+            allowedRoots[readWriteRoot] = "$ReadWrite";
         }
 
         var specialPaths = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (!string.IsNullOrWhiteSpace(options.DenyPattern))
+        foreach (var denyPattern in options.DenyPatterns)
         {
-            specialPaths[options.DenyPattern] = "Deny";
+            specialPaths[denyPattern] = "Deny";
         }
 
         var authentication = new Dictionary<string, object?>(StringComparer.Ordinal)
@@ -498,9 +522,19 @@ public static class KelpieHomeInitializer
             DefaultUser: string.IsNullOrWhiteSpace(templateOptions.DefaultUser) ? defaults.DefaultUser : templateOptions.DefaultUser.Trim(),
             Mode: string.IsNullOrWhiteSpace(templateOptions.Mode) ? defaults.Mode : templateOptions.Mode.Trim(),
             OsFamily: string.IsNullOrWhiteSpace(templateOptions.OsFamily) ? defaults.OsFamily : templateOptions.OsFamily.Trim(),
-            ReadOnlyRoot: templateOptions.ReadOnlyRoot?.Trim() ?? string.Empty,
-            ReadWriteRoot: templateOptions.ReadWriteRoot?.Trim() ?? string.Empty,
-            DenyPattern: templateOptions.DenyPattern?.Trim() ?? string.Empty);
+            ReadOnlyRoots: NormalizeStringList(templateOptions.ReadOnlyRoots),
+            ReadWriteRoots: NormalizeStringList(templateOptions.ReadWriteRoots),
+            DenyPatterns: NormalizeStringList(templateOptions.DenyPatterns));
+    }
+
+    private static IReadOnlyList<string> NormalizeStringList(IEnumerable<string>? values)
+    {
+        return values?
+            .Select(value => value?.Trim() ?? string.Empty)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray()
+            ?? [];
     }
 
     private static KelpieMcpConfigTemplateOptions NormalizeMcpConfigTemplateOptions(
@@ -615,10 +649,55 @@ public sealed record KelpieProfileTemplateOptions(
     string DefaultUser,
     string Mode,
     string OsFamily,
-    string ReadOnlyRoot,
-    string ReadWriteRoot,
-    string DenyPattern)
+    IReadOnlyList<string> ReadOnlyRoots,
+    IReadOnlyList<string> ReadWriteRoots,
+    IReadOnlyList<string> DenyPatterns)
 {
+    /// <summary>
+    /// Initializes a new instance with single optional root and deny values.
+    /// </summary>
+    public KelpieProfileTemplateOptions(
+        string HostAddress,
+        int Port,
+        string AuthMethod,
+        string? PrivateKeyFile,
+        string? PasswordSecretName,
+        string DefaultUser,
+        string Mode,
+        string OsFamily,
+        string ReadOnlyRoot,
+        string ReadWriteRoot,
+        string DenyPattern)
+        : this(
+            HostAddress,
+            Port,
+            AuthMethod,
+            PrivateKeyFile,
+            PasswordSecretName,
+            DefaultUser,
+            Mode,
+            OsFamily,
+            string.IsNullOrWhiteSpace(ReadOnlyRoot) ? [] : [ReadOnlyRoot],
+            string.IsNullOrWhiteSpace(ReadWriteRoot) ? [] : [ReadWriteRoot],
+            string.IsNullOrWhiteSpace(DenyPattern) ? [] : [DenyPattern])
+    {
+    }
+
+    /// <summary>
+    /// Gets the first read-only root for legacy callers.
+    /// </summary>
+    public string ReadOnlyRoot => ReadOnlyRoots.FirstOrDefault() ?? string.Empty;
+
+    /// <summary>
+    /// Gets the first read-write root for legacy callers.
+    /// </summary>
+    public string ReadWriteRoot => ReadWriteRoots.FirstOrDefault() ?? string.Empty;
+
+    /// <summary>
+    /// Gets the first deny pattern for legacy callers.
+    /// </summary>
+    public string DenyPattern => DenyPatterns.FirstOrDefault() ?? string.Empty;
+
     /// <summary>
     /// Creates the default SSH profile template values.
     /// </summary>
@@ -635,9 +714,9 @@ public sealed record KelpieProfileTemplateOptions(
             DefaultUser: "deploy",
             Mode: "Safe",
             OsFamily: "debian",
-            ReadOnlyRoot: "/var/log",
-            ReadWriteRoot: "/var/www",
-            DenyPattern: "**/.env");
+            ReadOnlyRoots: ["/var/log"],
+            ReadWriteRoots: ["/var/www"],
+            DenyPatterns: ["**/.env"]);
     }
 }
 

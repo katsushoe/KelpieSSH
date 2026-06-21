@@ -63,31 +63,33 @@ Important values:
 | `Server:ControlPipeName` | Local named pipe used by `kelpie` / `kelpiemcp` to control the server. |
 | `Commands:ExecutablePath` | Optional explicit `kelpie` command path. |
 | `Commands:WorkingDirectory` | Optional command working directory. |
-| `editor` | Optional editor command used by `kelpie profile edit <profile>` editor mode. Arguments are allowed. |
+| `Editor` | Optional editor command used by `kelpie profile edit <profile>` editor mode. Arguments are allowed. |
 
 Minimal example:
 
 ```json
 {
   "LogDirectory": "D:\\Kelpie\\logs",
-  "editor": ""
+  "Editor": ""
 }
 ```
 
 `kelpie profile edit <profile>` resolves the editor in this order:
 
-1. `config/kelpie.json` `editor`
+1. `config/kelpie.json` `Editor`
 2. `KELPIE_EDITOR`
 3. `VISUAL`
 4. `EDITOR`
 5. OS default: `notepad` on Windows, `vi` on Unix
+
+Legacy lowercase `editor` is accepted for compatibility. When `kelpie.json` contains `editor`, every `kelpie` command prints a standard-output warning asking the user to rename it to `Editor`. The key is normalized to `Editor` when Kelpie updates the config file.
 
 The editor process is started in blocking mode and Kelpie waits for it to exit before validating the profile.
 Editors that normally return immediately must be configured with a wait option, for example:
 
 ```json
 {
-  "editor": "code --wait"
+  "Editor": "code --wait"
 }
 ```
 
@@ -95,6 +97,7 @@ Special values:
 
 | Value | Meaning |
 | :--- | :--- |
+| `vscode` | Case-insensitive alias for the VS Code `code` CLI. On Windows, Kelpie resolves `code` from `PATH` / `PATHEXT` when available, so `"Editor": "vscode --wait"` can use the installed `code.cmd` path without hard-coding it. |
 | `Notepad` | Case-insensitive. Starts Windows Notepad. |
 | `default` | Case-insensitive. Opens the profile `.json` file with the application associated by the OS. |
 
