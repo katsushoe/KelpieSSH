@@ -71,7 +71,14 @@ if (string.Equals(command, "cli", StringComparison.OrdinalIgnoreCase))
 if (string.Equals(command, "config", StringComparison.OrdinalIgnoreCase))
 {
     KpLog.Info("Kelpie CLI config requested.");
-    RunConfigCheck(args);
+    if (!TryExtractPagerOption(args, out var configArgs, out var configPagerMode))
+    {
+        Console.Error.WriteLine("Specify only one of --pager or --no-pager.");
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    RunWithPager(configPagerMode, () => RunConfigCheck(configArgs));
     return;
 }
 
@@ -311,14 +318,22 @@ if (string.Equals(command, "profile", StringComparison.OrdinalIgnoreCase))
 
     if (string.Equals(subcommand, "check", StringComparison.OrdinalIgnoreCase))
     {
-        if (args.Length != 3)
+        if (!TryExtractPagerOption(args, out var checkArgs, out var checkPagerMode))
+        {
+            Console.Error.WriteLine("Specify only one of --pager or --no-pager.");
+            WriteProfileUsage(Console.Error);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        if (checkArgs.Length != 3)
         {
             WriteProfileUsage(Console.Error);
             Environment.ExitCode = 1;
             return;
         }
 
-        CheckProfile(args[2]);
+        RunWithPager(checkPagerMode, () => CheckProfile(checkArgs[2]));
         return;
     }
 
@@ -329,14 +344,29 @@ if (string.Equals(command, "profile", StringComparison.OrdinalIgnoreCase))
         return;
     }
 
-    var profileName = args.Length > 2 ? args[2] : string.Empty;
-    if (ContainsWildcard(profileName))
+    if (!TryExtractPagerOption(args, out var showArgs, out var showPagerMode))
     {
-        ShowProfilesByPattern(LoadProfileCatalog(), profileName);
+        Console.Error.WriteLine("Specify only one of --pager or --no-pager.");
+        WriteProfileUsage(Console.Error);
+        Environment.ExitCode = 1;
         return;
     }
 
-    ShowProfile(LoadProfileCatalog(), profileName);
+    if (showArgs.Length != 3)
+    {
+        WriteProfileUsage(Console.Error);
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    var profileName = showArgs[2];
+    if (ContainsWildcard(profileName))
+    {
+        RunWithPager(showPagerMode, () => ShowProfilesByPattern(LoadProfileCatalog(), profileName));
+        return;
+    }
+
+    RunWithPager(showPagerMode, () => ShowProfile(LoadProfileCatalog(), profileName));
     return;
 }
 
@@ -460,6 +490,7 @@ static void RunConfigCheck(string[] args)
         CheckDirectory("dat", KelpieRuntimePaths.GetDataDirectory(AppContext.BaseDirectory)),
     });
 
+    result.WriteSummary();
     Environment.ExitCode = result.HasErrors ? 1 : 0;
 }
 
@@ -533,6 +564,7 @@ static void CheckProfile(string profileName)
     if (string.IsNullOrWhiteSpace(profileName))
     {
         result.Write("Profile name", false, "profile name is required");
+        result.WriteSummary();
         Environment.ExitCode = 1;
         return;
     }
@@ -540,6 +572,7 @@ static void CheckProfile(string profileName)
     if (ContainsWildcard(profileName))
     {
         result.Write("Profile name", false, "profile check requires a single profile name; wildcards are not supported");
+        result.WriteSummary();
         Environment.ExitCode = 1;
         return;
     }
@@ -552,6 +585,7 @@ static void CheckProfile(string profileName)
     catch (ArgumentException ex)
     {
         result.Write("Profile name", false, SanitizeReason(ex.Message));
+        result.WriteSummary();
         Environment.ExitCode = 1;
         return;
     }
@@ -559,6 +593,7 @@ static void CheckProfile(string profileName)
     var document = CheckJsonFile(result, "Profile file", "Profile JSON", profilePath);
     if (document is null)
     {
+        result.WriteSummary();
         Environment.ExitCode = 1;
         return;
     }
@@ -575,6 +610,7 @@ static void CheckProfile(string profileName)
     catch (Exception ex) when (ex is InvalidOperationException or JsonException or IOException or UnauthorizedAccessException)
     {
         result.Write("Profile schema", false, SanitizeReason(ex.Message));
+        result.WriteSummary();
         Environment.ExitCode = 1;
         return;
     }
@@ -582,6 +618,7 @@ static void CheckProfile(string profileName)
     CheckLoadedProfile(result, profile);
     result.Write("Pending backup", !File.Exists(GetProfileBackupPath(profilePath)), $"pending backup exists: {GetProfileBackupPath(profilePath)}");
 
+    result.WriteSummary();
     Environment.ExitCode = result.HasErrors ? 1 : 0;
 }
 
@@ -827,12 +864,18 @@ static bool IsVersionCommand(string command)
 
 static bool IsCheckCommand(string[] args)
 {
+    if (!TryExtractPagerOption(args, out var checkArgs, out _))
+    {
+        checkArgs = args;
+    }
+
     return args.Length >= 2
-        && ((string.Equals(args[0], "config", StringComparison.OrdinalIgnoreCase)
-                && (string.Equals(args[1], "--check", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(args[1], "check", StringComparison.OrdinalIgnoreCase)))
-            || (string.Equals(args[0], "profile", StringComparison.OrdinalIgnoreCase)
-                && string.Equals(args[1], "check", StringComparison.OrdinalIgnoreCase)));
+        && checkArgs.Length >= 2
+        && ((string.Equals(checkArgs[0], "config", StringComparison.OrdinalIgnoreCase)
+                && (string.Equals(checkArgs[1], "--check", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(checkArgs[1], "check", StringComparison.OrdinalIgnoreCase)))
+            || (string.Equals(checkArgs[0], "profile", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(checkArgs[1], "check", StringComparison.OrdinalIgnoreCase)));
 }
 
 static void WriteProfileUsage(TextWriter writer)
@@ -849,8 +892,12 @@ static void WriteProfileUsage(TextWriter writer)
     writer.WriteLine("  kelpie profile clean <profile-pattern> [--dry-run]");
     writer.WriteLine("  kelpie profile commit <profile-pattern> [--dry-run]");
     writer.WriteLine("  kelpie profile rollback <profile-pattern> [--dry-run]");
-    writer.WriteLine("  kelpie profile check <profile>");
-    writer.WriteLine("  kelpie profile show <profile-pattern>");
+    writer.WriteLine("  kelpie profile check <profile> [--pager|--no-pager]");
+    writer.WriteLine("  kelpie profile show <profile-pattern> [--pager|--no-pager]");
+    writer.WriteLine();
+    writer.WriteLine("Options:");
+    writer.WriteLine("  --pager     Page long terminal output.");
+    writer.WriteLine("  --no-pager  Print all terminal output without paging.");
 }
 
 static void WriteProfileCreateUsage(TextWriter writer)
@@ -890,7 +937,7 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpie open <profile>");
     writer.WriteLine("  kelpie gui");
     writer.WriteLine("  kelpie cli");
-    writer.WriteLine("  kelpie config --check");
+    writer.WriteLine("  kelpie config --check [--pager|--no-pager]");
     writer.WriteLine("  kelpie login");
     writer.WriteLine("  kelpie login --console");
     writer.WriteLine("  kelpie login --desktop");
@@ -909,8 +956,8 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpie profile clean <profile-pattern>");
     writer.WriteLine("  kelpie profile commit <profile-pattern>");
     writer.WriteLine("  kelpie profile rollback <profile-pattern>");
-    writer.WriteLine("  kelpie profile check <profile>");
-    writer.WriteLine("  kelpie profile show <profile-pattern>");
+    writer.WriteLine("  kelpie profile check <profile> [--pager|--no-pager]");
+    writer.WriteLine("  kelpie profile show <profile-pattern> [--pager|--no-pager]");
     writer.WriteLine("  kelpie status <profile>");
     writer.WriteLine("  kelpie diag <profile>");
     writer.WriteLine("  kelpie logs <profile> <service> [lines]");
@@ -932,6 +979,8 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  --bin-dir <dir>       Override the binary directory.");
     writer.WriteLine("  --keys-dir <dir>      Override the key directory.");
     writer.WriteLine("  --dat-dir <dir>       Override the runtime data directory.");
+    writer.WriteLine("  --pager               Page long terminal output for supported commands.");
+    writer.WriteLine("  --no-pager            Print all terminal output for supported commands.");
 }
 
 static void InitializeKelpieHome(string[] args)
@@ -1077,6 +1126,173 @@ static bool TryExtractDryRunOption(string[] args, out string[] remainingArgs, ou
 
     remainingArgs = remaining.ToArray();
     return true;
+}
+
+static bool TryExtractPagerOption(string[] args, out string[] remainingArgs, out PagerMode pagerMode)
+{
+    var pagerSpecified = false;
+    var noPagerSpecified = false;
+    var remaining = new List<string>(args.Length);
+
+    foreach (var arg in args)
+    {
+        if (string.Equals(arg, "--pager", StringComparison.OrdinalIgnoreCase))
+        {
+            pagerSpecified = true;
+            continue;
+        }
+
+        if (string.Equals(arg, "--no-pager", StringComparison.OrdinalIgnoreCase))
+        {
+            noPagerSpecified = true;
+            continue;
+        }
+
+        remaining.Add(arg);
+    }
+
+    if (pagerSpecified && noPagerSpecified)
+    {
+        remainingArgs = args;
+        pagerMode = PagerMode.Auto;
+        return false;
+    }
+
+    remainingArgs = remaining.ToArray();
+    pagerMode = pagerSpecified
+        ? PagerMode.Force
+        : noPagerSpecified
+            ? PagerMode.Disabled
+            : PagerMode.Auto;
+    return true;
+}
+
+static void RunWithPager(PagerMode pagerMode, Action action)
+{
+    var originalOut = Console.Out;
+    using var buffer = new StringWriter();
+
+    try
+    {
+        Console.SetOut(buffer);
+        action();
+    }
+    finally
+    {
+        Console.SetOut(originalOut);
+    }
+
+    WritePagedOutput(buffer.ToString(), pagerMode, originalOut);
+}
+
+static void WritePagedOutput(string output, PagerMode pagerMode, TextWriter writer)
+{
+    if (!ShouldPageOutput(pagerMode))
+    {
+        writer.Write(output);
+        return;
+    }
+
+    var pageSize = GetPagerPageSize();
+    var lines = ReadOutputLines(output);
+    if (lines.Count <= pageSize)
+    {
+        writer.Write(output);
+        return;
+    }
+
+    for (var i = 0; i < lines.Count; i++)
+    {
+        writer.WriteLine(lines[i]);
+        if ((i + 1) % pageSize != 0 || i == lines.Count - 1)
+        {
+            continue;
+        }
+
+        if (!WaitForPagerContinue())
+        {
+            break;
+        }
+    }
+}
+
+static bool ShouldPageOutput(PagerMode pagerMode)
+{
+    if (pagerMode == PagerMode.Disabled)
+    {
+        return false;
+    }
+
+    if (Console.IsInputRedirected)
+    {
+        return false;
+    }
+
+    if (pagerMode == PagerMode.Force)
+    {
+        return true;
+    }
+
+    return !Console.IsOutputRedirected;
+}
+
+static int GetPagerPageSize()
+{
+    try
+    {
+        return Math.Max(1, Console.WindowHeight - 1);
+    }
+    catch (IOException)
+    {
+        return 23;
+    }
+    catch (PlatformNotSupportedException)
+    {
+        return 23;
+    }
+}
+
+static IReadOnlyList<string> ReadOutputLines(string output)
+{
+    var lines = new List<string>();
+    using var reader = new StringReader(output);
+    while (reader.ReadLine() is { } line)
+    {
+        lines.Add(line);
+    }
+
+    return lines;
+}
+
+static bool WaitForPagerContinue()
+{
+    const string prompt = "-- more -- (Return to continue, q to quit)";
+
+    Console.Error.Write(prompt);
+    while (true)
+    {
+        var key = Console.ReadKey(intercept: true);
+        ClearPagerPrompt(prompt.Length);
+
+        if (key.Key == ConsoleKey.Q)
+        {
+            return false;
+        }
+
+        if (key.Key == ConsoleKey.Enter)
+        {
+            return true;
+        }
+
+        Console.Error.Write(prompt);
+    }
+}
+
+static void ClearPagerPrompt(int promptLength)
+{
+    Console.Error.Write("\r");
+    Console.Error.Write(new string(' ', promptLength));
+    Console.Error.Write("\r");
 }
 
 static bool TryParseProfileCreateOptions(
@@ -3902,12 +4118,23 @@ sealed record CheckItem(string Name, bool IsOk, string? Reason)
     }
 }
 
+enum PagerMode
+{
+    Auto,
+    Force,
+    Disabled,
+}
+
 sealed class CheckResultWriter
 {
     public bool HasErrors { get; private set; }
 
+    private int _okCount;
+    private int _totalCount;
+
     public void Write(string itemName, bool isOk, string? reason = null)
     {
+        Count(isOk);
         if (isOk)
         {
             Console.WriteLine($"{itemName}: OK");
@@ -3939,8 +4166,15 @@ sealed class CheckResultWriter
         }
     }
 
+    public void WriteSummary()
+    {
+        var ngCount = _totalCount - _okCount;
+        Console.WriteLine($"Check summary: OK={_okCount}/{_totalCount} NG={ngCount}/{_totalCount}");
+    }
+
     private void WriteIndented(string itemName, bool isOk, string? reason)
     {
+        Count(isOk);
         if (isOk)
         {
             Console.WriteLine($"  {itemName}: OK");
@@ -3949,5 +4183,14 @@ sealed class CheckResultWriter
 
         HasErrors = true;
         Console.WriteLine($"  {itemName}: NG ({reason ?? "check failed"})");
+    }
+
+    private void Count(bool isOk)
+    {
+        _totalCount++;
+        if (isOk)
+        {
+            _okCount++;
+        }
     }
 }

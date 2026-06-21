@@ -197,72 +197,72 @@ kelpiemcp forget vps01
 
 ### Profile schema summary
 
-| Field | 必須 | Type | 初期値 | Values / constraints |
+| Field | Required | Type | Initial value | Values / constraints |
 | :--- | :---: | :--- | :--- | :--- |
-| `Host` | はい | object | なし | SSH endpoint settings. |
-| `Host.Address` | はい | string | なし | Host name or IP address. Must not be empty. |
-| `Host.Port` | いいえ | integer | `22` | SSH port, normally `1` to `65535`. |
-| `Auth` | `Authentication` がない場合は はい | object | なし | Short alias for `Authentication`. Used by samples. |
-| `Authentication` | `Auth` がない場合は はい | object | なし | Formal authentication section. Takes priority over `Auth` when both are present. |
-| `Auth.UserName` / `Authentication.UserName` | single-user profile では はい | string | なし | SSH login user. Direct `root` login is rejected. |
-| `Auth.UsrName` / `Authentication.UsrName` | いいえ | string | なし | Compatibility typo alias for `UserName`. Prefer `UserName`. |
-| `Auth.Method` / `Authentication.Method` | はい | string enum | `privateKey` | `privateKey`: use a private key. `password`: use runtime password session by `PasswordSecretName`. |
-| `Auth.PrivateKeyFile` / `Authentication.PrivateKeyFile` | `privateKey` では はい | string | なし | File name under `KelpieHome\keys`, or an absolute path. |
-| `Auth.PrivateKeyPath` / `Authentication.PrivateKeyPath` | いいえ | string | なし | Compatibility path. Prefer `PrivateKeyFile`. |
-| `Auth.PrivateKeyPassphrase` / `Authentication.PrivateKeyPassphrase` | いいえ | string or null | `null` | Optional private key passphrase. Do not write real secrets into public samples. |
-| `Auth.PasswordSecretName` / `Authentication.PasswordSecretName` | `password` では はい | string or null | `null` | Secret reference name. Plain text passwords are not allowed in profiles. |
-| `Connection` | いいえ | object | `{ "TimeoutSeconds": 10 }` | SSH connection behavior. |
-| `Connection.TimeoutSeconds` | いいえ | integer | `10` | Must be positive. |
-| `Platform` | はい | object | なし | Target OS metadata used to select providers. |
-| `Platform.OsFamily` | はい | string enum/alias | なし | `debian`, `ubuntu`, `rhel`, `alma`, `almalinux`, `rocky`, `centos`, `oraclelinux`. Aliases resolve to an effective family. |
-| `Platform.PackageManager` | いいえ | string | inferred from `OsFamily` | `apt` for effective `debian`, `dnf` for effective `rhel`, or an explicit package manager name. |
-| `Mode` | いいえ | string role expression | `Safe` | `ReadOnly`, `Safe`, `Maintenance`, `Expert`, `WebUser`, `WebAdmin`, combined with `|`. Compatibility key read as roles. |
-| `Roles` | いいえ | string or string array | derived from `Mode` | Same role names as `Mode`. If set, it participates in role resolution. |
-| `Capabilities` | いいえ | string, string array, or object | 空 | CLI-only policy flags. MCP ignores this section. See [`Capabilities`](#capabilities). |
-| `Rights` | いいえ | dictionary object | built-ins only | Keys are `$`-prefixed names. Values are access expressions using presets or `@` flags. |
-| `AllowedRoots` | いいえ | dictionary object or string array | 空 | Object form maps path/glob to access expression. Array form is compatibility read-only/list/cd. |
-| `SpecialPaths` | いいえ | dictionary object | 空 | Keys are path globs. Values are `Deny`, `Confirm`, or `Allow`. |
-| `EnvironmentValues` | いいえ | dictionary object | 空 | Keys are environment variable names. Values are environment access expressions. |
-| `DefaultUser` | いいえ | string | `Auth.UserName` | User selected when `Users` has multiple entries and no command-level user is specified. |
-| `Users` | いいえ | dictionary object or array | single legacy user | Recommended object form maps SSH user name to role expression or detailed user object. |
-| `Users.<user>` | いいえ | string or object | inherits profile settings | String value is a role expression. Object value can override auth, roles, roots, special paths, environment values, and web public sites. |
-| `Users.<user>.Method` | いいえ | string enum | profile auth method | `privateKey` or `password`. |
-| `Users.<user>.PrivateKeyFile` | いいえ | string | profile auth value | User-level private key file override. |
-| `Users.<user>.PrivateKeyPath` | いいえ | string | profile auth value | Compatibility user-level private key path. Prefer `PrivateKeyFile`. |
-| `Users.<user>.PrivateKeyPassphrase` | いいえ | string or null | profile auth value | User-level private key passphrase override. |
-| `Users.<user>.PasswordSecretName` | いいえ | string or null | profile auth value | User-level password secret reference override. |
-| `Users.<user>.Mode` | いいえ | string role expression | profile roles | Same values as profile `Mode`. |
-| `Users.<user>.Roles` | いいえ | string or string array | profile roles | Same values as profile `Roles`. |
-| `Users.<user>.Capabilities` | いいえ | string, string array, or object | profile capabilities | CLI-only user-level policy flags. |
-| `Users.<user>.AllowedRoots` | いいえ | dictionary object or string array | profile allowed roots | Same format as profile `AllowedRoots`. |
-| `Users.<user>.SpecialPaths` | いいえ | dictionary object | profile special paths | Same format as profile `SpecialPaths`. |
-| `Users.<user>.EnvironmentValues` | いいえ | dictionary object | profile environment rules | Same format as profile `EnvironmentValues`. |
-| `Users.<user>.WebPublicSites` | いいえ | dictionary object or array | profile web public sites | Same format as profile `WebPublicSites`. |
-| `Services` | いいえ | object | 空object | Service-specific defaults. |
-| `Services.Nginx` | いいえ | object | 空object | Nginx defaults used by Nginx and web helpers. |
-| `Services.Nginx.User` | いいえ | string | なし | Nginx worker user. |
-| `Services.Nginx.Group` | いいえ | string | なし | Nginx worker group. |
-| `Services.Nginx.Port` | いいえ | integer | なし | Must be `1` to `65535` when set. |
-| `Services.Nginx.Root` | いいえ | string | なし | Web public root. Also used by the `WebUser` role when `WebPublicSites` is not configured. |
-| `WebPublicSites` | いいえ | dictionary object or array | provider default site | Provider default site is `default` at `/var/www/html` with safe static extensions. |
-| `WebPublicSites.<siteKey>.SiteKey` | object form では いいえ | string | dictionary key | Required for array items. Must not be empty. |
-| `WebPublicSites.<siteKey>.DisplayName` | いいえ | string | `siteKey` | Human-readable site label. |
-| `WebPublicSites.<siteKey>.Root` / `RootPath` | はい | string | なし | Safe absolute Unix web root path. `RootPath` is the alias; prefer `Root` in samples. |
-| `WebPublicSites.<siteKey>.AllowedExtensions` | いいえ | string array | built-in safe static extensions | Effective values are explicit single file extensions with a leading dot, matched case-insensitively, such as `.html` or `.png`. Use normal web asset extensions only. Do not use paths, globs, MIME types, or executable extensions. |
-| `WebPublicSites.<siteKey>.WritableExecutableExtensions` | いいえ | string array | 空 | Dot-prefixed explicit executable extensions such as `.php`. Wildcards and path separators are rejected. |
-| `WebPublicSites.<siteKey>.AllowedContentTypes` | いいえ | string array or dictionary object | built-in safe content types | Array grants read/write. Object maps MIME type to access expression. |
-| `WebPublicSites.<siteKey>.AllowedFiles` | いいえ | dictionary object | 空 | Keys are file globs, `file:<glob>`, or `mime:<content-type>`. Values are access expressions. |
-| `WebPublicSites.<siteKey>.CreateDirectories` | いいえ | boolean | `true` | Allows missing parent directories to be created by web write operations. |
-| `WebPublicSites.<siteKey>.MaxReadBytes` | いいえ | integer | `5242880` | Maximum bytes read by web file read operations. |
-| `WebPublicSites.<siteKey>.MaxWriteBytes` | いいえ | integer | `5242880` | Maximum bytes accepted by web file write operations. |
-| `Ssh` | いいえ | object | 空object | Legacy endpoint/auth section. Prefer `Host` and `Auth` / `Authentication`. |
-| `Ssh.Host` | いいえ | string | なし | Legacy host address. Used only when `Host.Address` is not set. |
-| `Ssh.Port` | いいえ | integer | `22` | Legacy SSH port. Used only when `Host.Address` is not set. |
-| `Ssh.UserName` | いいえ | string | なし | Legacy SSH user. Used only when auth user name is not set. |
-| `Ssh.Authentication` | いいえ | object | 空object | Legacy authentication section. Lowest priority. |
-| `Policy` | いいえ | object | 空object | Legacy CLI policy section. Prefer `Capabilities` and `AllowedRoots`. |
-| `Policy.Level` | いいえ | string | 空 | Legacy capability expression. |
-| `Policy.AllowedRoots` | いいえ | string array | 空 | Legacy read-only/list/cd allowed roots. |
+| `Host` | yes | object | none | SSH endpoint settings. |
+| `Host.Address` | yes | string | none | Host name or IP address. Must not be empty. |
+| `Host.Port` | no | integer | `22` | SSH port, normally `1` to `65535`. |
+| `Auth` | yes unless `Authentication` is used | object | none | Short alias for `Authentication`. Used by samples. |
+| `Authentication` | yes unless `Auth` is used | object | none | Formal authentication section. Takes priority over `Auth` when both are present. |
+| `Auth.UserName` / `Authentication.UserName` | yes for single-user profiles | string | none | SSH login user. Direct `root` login is rejected. |
+| `Auth.UsrName` / `Authentication.UsrName` | no | string | none | Compatibility typo alias for `UserName`. Prefer `UserName`. |
+| `Auth.Method` / `Authentication.Method` | yes | string enum | `privateKey` | `privateKey`: use a private key. `password`: use runtime password session by `PasswordSecretName`. |
+| `Auth.PrivateKeyFile` / `Authentication.PrivateKeyFile` | yes for `privateKey` | string | none | File name under `KelpieHome\keys`, or an absolute path. |
+| `Auth.PrivateKeyPath` / `Authentication.PrivateKeyPath` | no | string | none | Compatibility path. Prefer `PrivateKeyFile`. |
+| `Auth.PrivateKeyPassphrase` / `Authentication.PrivateKeyPassphrase` | no | string or null | `null` | Optional private key passphrase. Do not write real secrets into public samples. |
+| `Auth.PasswordSecretName` / `Authentication.PasswordSecretName` | yes for `password` | string or null | `null` | Secret reference name. Plain text passwords are not allowed in profiles. |
+| `Connection` | no | object | `{ "TimeoutSeconds": 10 }` | SSH connection behavior. |
+| `Connection.TimeoutSeconds` | no | integer | `10` | Must be positive. |
+| `Platform` | yes | object | none | Target OS metadata used to select providers. |
+| `Platform.OsFamily` | yes | string enum/alias | none | `debian`, `ubuntu`, `rhel`, `alma`, `almalinux`, `rocky`, `centos`, `oraclelinux`. Aliases resolve to an effective family. |
+| `Platform.PackageManager` | no | string | inferred from `OsFamily` | `apt` for effective `debian`, `dnf` for effective `rhel`, or an explicit package manager name. |
+| `Mode` | no | string role expression | `Safe` | `ReadOnly`, `Safe`, `Maintenance`, `Expert`, `WebUser`, `WebAdmin`, combined with `|`. Compatibility key read as roles. |
+| `Roles` | no | string or string array | derived from `Mode` | Same role names as `Mode`. If set, it participates in role resolution. |
+| `Capabilities` | no | string, string array, or object | empty | CLI-only policy flags. MCP ignores this section. See [`Capabilities`](#capabilities). |
+| `Rights` | no | dictionary object | built-ins only | Keys are `$`-prefixed names. Values are access expressions using presets or `@` flags. |
+| `AllowedRoots` | no | dictionary object or string array | empty | Object form maps path/glob to access expression. Array form is compatibility read-only/list/cd. |
+| `SpecialPaths` | no | dictionary object | empty | Keys are path globs. Values are `Deny`, `Confirm`, or `Allow`. |
+| `EnvironmentValues` | no | dictionary object | empty | Keys are environment variable names. Values are environment access expressions. |
+| `DefaultUser` | no | string | `Auth.UserName` | User selected when `Users` has multiple entries and no command-level user is specified. |
+| `Users` | no | dictionary object or array | single legacy user | Recommended object form maps SSH user name to role expression or detailed user object. |
+| `Users.<user>` | no | string or object | inherits profile settings | String value is a role expression. Object value can override auth, roles, roots, special paths, environment values, and web public sites. |
+| `Users.<user>.Method` | no | string enum | profile auth method | `privateKey` or `password`. |
+| `Users.<user>.PrivateKeyFile` | no | string | profile auth value | User-level private key file override. |
+| `Users.<user>.PrivateKeyPath` | no | string | profile auth value | Compatibility user-level private key path. Prefer `PrivateKeyFile`. |
+| `Users.<user>.PrivateKeyPassphrase` | no | string or null | profile auth value | User-level private key passphrase override. |
+| `Users.<user>.PasswordSecretName` | no | string or null | profile auth value | User-level password secret reference override. |
+| `Users.<user>.Mode` | no | string role expression | profile roles | Same values as profile `Mode`. |
+| `Users.<user>.Roles` | no | string or string array | profile roles | Same values as profile `Roles`. |
+| `Users.<user>.Capabilities` | no | string, string array, or object | profile capabilities | CLI-only user-level policy flags. |
+| `Users.<user>.AllowedRoots` | no | dictionary object or string array | profile allowed roots | Same format as profile `AllowedRoots`. |
+| `Users.<user>.SpecialPaths` | no | dictionary object | profile special paths | Same format as profile `SpecialPaths`. |
+| `Users.<user>.EnvironmentValues` | no | dictionary object | profile environment rules | Same format as profile `EnvironmentValues`. |
+| `Users.<user>.WebPublicSites` | no | dictionary object or array | profile web public sites | Same format as profile `WebPublicSites`. |
+| `Services` | no | object | empty object | Service-specific defaults. |
+| `Services.Nginx` | no | object | empty object | Nginx defaults used by Nginx and web helpers. |
+| `Services.Nginx.User` | no | string | none | Nginx worker user. |
+| `Services.Nginx.Group` | no | string | none | Nginx worker group. |
+| `Services.Nginx.Port` | no | integer | none | Must be `1` to `65535` when set. |
+| `Services.Nginx.Root` | no | string | none | Web public root. Also used by the `WebUser` role when `WebPublicSites` is not configured. |
+| `WebPublicSites` | no | dictionary object or array | provider default site | Provider default site is `default` at `/var/www/html` with safe static extensions. |
+| `WebPublicSites.<siteKey>.SiteKey` | no in object form | string | dictionary key | Required for array items. Must not be empty. |
+| `WebPublicSites.<siteKey>.DisplayName` | no | string | `siteKey` | Human-readable site label. |
+| `WebPublicSites.<siteKey>.Root` / `RootPath` | yes | string | none | Safe absolute Unix web root path. `RootPath` is the alias; prefer `Root` in samples. |
+| `WebPublicSites.<siteKey>.AllowedExtensions` | no | string array | built-in safe static extensions | Effective values are explicit single file extensions with a leading dot, matched case-insensitively, such as `.html` or `.png`. Use normal web asset extensions only. Do not use paths, globs, MIME types, or executable extensions. |
+| `WebPublicSites.<siteKey>.WritableExecutableExtensions` | no | string array | empty | Dot-prefixed explicit executable extensions such as `.php`. Wildcards and path separators are rejected. |
+| `WebPublicSites.<siteKey>.AllowedContentTypes` | no | string array or dictionary object | built-in safe content types | Array grants read/write. Object maps MIME type to access expression. |
+| `WebPublicSites.<siteKey>.AllowedFiles` | no | dictionary object | empty | Keys are file globs, `file:<glob>`, or `mime:<content-type>`. Values are access expressions. |
+| `WebPublicSites.<siteKey>.CreateDirectories` | no | boolean | `true` | Allows missing parent directories to be created by web write operations. |
+| `WebPublicSites.<siteKey>.MaxReadBytes` | no | integer | `5242880` | Maximum bytes read by web file read operations. |
+| `WebPublicSites.<siteKey>.MaxWriteBytes` | no | integer | `5242880` | Maximum bytes accepted by web file write operations. |
+| `Ssh` | no | object | empty object | Legacy endpoint/auth section. Prefer `Host` and `Auth` / `Authentication`. |
+| `Ssh.Host` | no | string | none | Legacy host address. Used only when `Host.Address` is not set. |
+| `Ssh.Port` | no | integer | `22` | Legacy SSH port. Used only when `Host.Address` is not set. |
+| `Ssh.UserName` | no | string | none | Legacy SSH user. Used only when auth user name is not set. |
+| `Ssh.Authentication` | no | object | empty object | Legacy authentication section. Lowest priority. |
+| `Policy` | no | object | empty object | Legacy CLI policy section. Prefer `Capabilities` and `AllowedRoots`. |
+| `Policy.Level` | no | string | empty | Legacy capability expression. |
+| `Policy.AllowedRoots` | no | string array | empty | Legacy read-only/list/cd allowed roots. |
 
 Compatibility and priority:
 
@@ -495,10 +495,10 @@ Legacy compatibility samples:
 
 Target SSH endpoint.
 
-| Field | 必須 | 初期値 | Description |
+| Field | Required | Initial value | Description |
 | :--- | :---: | :--- | :--- |
-| `Host.Address` | はい | なし | Host name or IP address. |
-| `Host.Port` | いいえ | `22` | SSH port. |
+| `Host.Address` | yes | none | Host name or IP address. |
+| `Host.Port` | no | `22` | SSH port. |
 
 Troubleshooting:
 
@@ -512,14 +512,14 @@ SSH authentication settings.
 `Auth` is the short alias used by samples.
 If both are present, `Authentication` takes priority.
 
-| Field | 必須 | 初期値 | Description |
+| Field | Required | Initial value | Description |
 | :--- | :---: | :--- | :--- |
-| `Auth.UserName` | single-user profile では はい | なし | SSH login user. Direct `root` login is rejected. |
-| `Auth.Method` | はい | `privateKey` | `privateKey` or `password`. |
-| `Auth.PrivateKeyFile` | `privateKey` では はい | なし | Private key file name under `KelpieHome\keys`, or an absolute path. |
-| `Auth.PrivateKeyPath` | いいえ | なし | Compatibility path. Prefer `PrivateKeyFile` for new profiles. |
-| `Auth.PrivateKeyPassphrase` | いいえ | `null` | Private key passphrase. Do not expose it in logs or public files. |
-| `Auth.PasswordSecretName` | `password` では はい | `null` | Secret reference name. The password itself is entered at runtime. |
+| `Auth.UserName` | yes for single-user profiles | none | SSH login user. Direct `root` login is rejected. |
+| `Auth.Method` | yes | `privateKey` | `privateKey` or `password`. |
+| `Auth.PrivateKeyFile` | yes for `privateKey` | none | Private key file name under `KelpieHome\keys`, or an absolute path. |
+| `Auth.PrivateKeyPath` | no | none | Compatibility path. Prefer `PrivateKeyFile` for new profiles. |
+| `Auth.PrivateKeyPassphrase` | no | `null` | Private key passphrase. Do not expose it in logs or public files. |
+| `Auth.PasswordSecretName` | yes for `password` | `null` | Secret reference name. The password itself is entered at runtime. |
 
 Troubleshooting:
 
@@ -532,9 +532,9 @@ Troubleshooting:
 
 Connection behavior.
 
-| Field | 必須 | 初期値 | Description |
+| Field | Required | Initial value | Description |
 | :--- | :---: | :--- | :--- |
-| `Connection.TimeoutSeconds` | いいえ | `10` | SSH connection timeout in seconds. |
+| `Connection.TimeoutSeconds` | no | `10` | SSH connection timeout in seconds. |
 
 Troubleshooting:
 
@@ -545,10 +545,10 @@ Troubleshooting:
 
 Target OS metadata used to select safe commands.
 
-| Field | 必須 | 初期値 | Description |
+| Field | Required | Initial value | Description |
 | :--- | :---: | :--- | :--- |
-| `Platform.OsFamily` | はい | なし | Target OS family or alias. |
-| `Platform.PackageManager` | いいえ | inferred from `OsFamily` | `apt`, `dnf`, `yum`, etc. |
+| `Platform.OsFamily` | yes | none | Target OS family or alias. |
+| `Platform.PackageManager` | no | inferred from `OsFamily` | `apt`, `dnf`, `yum`, etc. |
 
 Common `OsFamily` values:
 
@@ -895,12 +895,12 @@ Example:
 }
 ```
 
-| Field | 必須 | 初期値 | Description |
+| Field | Required | Initial value | Description |
 | :--- | :---: | :--- | :--- |
-| `Services.Nginx.User` | いいえ | なし | Nginx worker user. |
-| `Services.Nginx.Group` | いいえ | なし | Nginx worker group. |
-| `Services.Nginx.Port` | いいえ | なし | Nginx listen port. Must be 1 to 65535. |
-| `Services.Nginx.Root` | いいえ | なし | Web public root. Also used by `WebUser` role. |
+| `Services.Nginx.User` | no | none | Nginx worker user. |
+| `Services.Nginx.Group` | no | none | Nginx worker group. |
+| `Services.Nginx.Port` | no | none | Nginx listen port. Must be 1 to 65535. |
+| `Services.Nginx.Root` | no | none | Web public root. Also used by `WebUser` role. |
 
 ### `WebPublicSites`
 
@@ -942,16 +942,16 @@ Example:
 }
 ```
 
-| Field | 必須 | 初期値 | Description |
+| Field | Required | Initial value | Description |
 | :--- | :---: | :--- | :--- |
-| `WebPublicSites.<siteKey>.Root` / `RootPath` | はい | なし | Web public root for the site. |
-| `WebPublicSites.<siteKey>.AllowedExtensions` | いいえ | built-in safe static extensions | Regular file extensions allowed for this site. Effective values are explicit single file extensions with a leading dot, such as `.html` or `.png`. Matching is case-insensitive. Do not specify paths, globs, MIME types, or executable extensions here. |
-| `WebPublicSites.<siteKey>.WritableExecutableExtensions` | いいえ | 空 | Executable extensions allowed for writes on this site only. Values must be explicit dot-prefixed extensions such as `.php`; wildcards are rejected. |
-| `WebPublicSites.<siteKey>.AllowedContentTypes` | いいえ | built-in safe content types | MIME content types allowed for this site. Array form grants read/write; object form maps MIME type to an access expression. |
-| `WebPublicSites.<siteKey>.AllowedFiles` | いいえ | 空 | File-specific allow rules. Keys are file globs, `file:<glob>`, or `mime:<content-type>`; values are access expressions. |
-| `WebPublicSites.<siteKey>.CreateDirectories` | いいえ | `true` | Allows missing parent directories to be created during write operations. |
-| `WebPublicSites.<siteKey>.MaxReadBytes` | いいえ | `5242880` | Maximum bytes returned by web file read operations. |
-| `WebPublicSites.<siteKey>.MaxWriteBytes` | いいえ | `5242880` | Maximum bytes accepted by web file write operations. |
+| `WebPublicSites.<siteKey>.Root` / `RootPath` | yes | none | Web public root for the site. |
+| `WebPublicSites.<siteKey>.AllowedExtensions` | no | built-in safe static extensions | Regular file extensions allowed for this site. Effective values are explicit single file extensions with a leading dot, such as `.html` or `.png`. Matching is case-insensitive. Do not specify paths, globs, MIME types, or executable extensions here. |
+| `WebPublicSites.<siteKey>.WritableExecutableExtensions` | no | empty | Executable extensions allowed for writes on this site only. Values must be explicit dot-prefixed extensions such as `.php`; wildcards are rejected. |
+| `WebPublicSites.<siteKey>.AllowedContentTypes` | no | built-in safe content types | MIME content types allowed for this site. Array form grants read/write; object form maps MIME type to an access expression. |
+| `WebPublicSites.<siteKey>.AllowedFiles` | no | empty | File-specific allow rules. Keys are file globs, `file:<glob>`, or `mime:<content-type>`; values are access expressions. |
+| `WebPublicSites.<siteKey>.CreateDirectories` | no | `true` | Allows missing parent directories to be created during write operations. |
+| `WebPublicSites.<siteKey>.MaxReadBytes` | no | `5242880` | Maximum bytes returned by web file read operations. |
+| `WebPublicSites.<siteKey>.MaxWriteBytes` | no | `5242880` | Maximum bytes accepted by web file write operations. |
 
 #### `WebPublicSites.<siteKey>`
 
@@ -1420,4 +1420,5 @@ For MCP, start the server and register the password:
 kelpiemcp start
 kelpiemcp password vps01
 ```
+
 

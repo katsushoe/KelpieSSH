@@ -78,6 +78,33 @@ kelpie profile edit demo --dry-run
 
 Use an explicit edit operation such as `set`, `add-root`, `rm-root`, `add-deny`, or `rm-deny`.
 
+## Pager Options
+
+Kelpie can pause long terminal output one screen at a time for readable commands.
+When paging is active, the prompt is:
+
+```text
+-- more -- (Return to continue, q to quit)
+```
+
+Available options:
+
+| Option | Description |
+| :--- | :--- |
+| `--pager` | Request paging for supported commands. |
+| `--no-pager` | Print all output without paging. |
+
+Supported commands:
+
+```powershell
+kelpie config check --pager
+kelpie profile check demo --pager
+kelpie profile show demo --pager
+```
+
+In an interactive terminal, supported commands page output automatically when it is longer than one screen.
+When standard input or standard output is redirected, Kelpie prints all output without waiting for input.
+
 ## Runtime Directory Options
 
 Kelpie supports directory override options for isolated tests, temporary layouts, and dry-run-style local setup checks.

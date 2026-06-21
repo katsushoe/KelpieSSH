@@ -676,12 +676,16 @@ SSH 接続を行わず、Kelpie CLI と MCP のローカル設定ファイルを
 ```powershell
 kelpie config --check
 kelpie config check
+kelpie config check --no-pager
 ```
 
 処理内容:
 
 `config/kelpie.json` と `config/kelpiemcp.json` を読み、ファイル存在、JSON 構文、正規 `Editor` キー、MCP server 設定、runtime directory を確認します。
 結果は `項目名: OK` または `項目名: NG (理由)` で表示します。複数値の項目は最初に項目名を表示し、1件ずつインデントして表示します。
+最後に `Check summary: OK=<OK件数>/<check件数> NG=<NG件数>/<check件数>` を表示します。
+対話 terminal では、1画面を超える長い出力を `-- more -- (Return to continue, q to quit)` でページングします。
+`--no-pager` でページングを無効化できます。`--pager` でページングを要求できますが、redirect や非対話出力では停止せず全出力します。
 
 実行結果サンプル:
 
@@ -701,6 +705,7 @@ Directories:
   bin: OK
   keys: OK
   dat: OK
+Check summary: OK=14/14 NG=0/14
 ```
 
 ### `kelpie open <profile>`
@@ -1452,12 +1457,16 @@ SSH 接続を行わず、単一 SSH profile file を検証します。wildcard �
 
 ```powershell
 kelpie profile check vps01
+kelpie profile check vps01 --no-pager
 ```
 
 処理内容:
 
 `profiles/<profile>.json` を読み、ファイル存在、JSON 構文、profile schema、接続項目、認証参照、command provider 対応、policy list、user、pending `.kelpie` backup を確認します。
 結果は `項目名: OK` または `項目名: NG (理由)` で表示します。複数値の項目は `kelpie profile show` と同様に、最初に項目名を表示し、1件ずつインデントして表示します。空リストは `(empty list): OK` と表示します。
+最後に `Check summary: OK=<OK件数>/<check件数> NG=<NG件数>/<check件数>` を表示します。
+対話 terminal では、1画面を超える長い出力を `-- more -- (Return to continue, q to quit)` でページングします。
+`--no-pager` でページングを無効化できます。`--pager` でページングを要求できますが、redirect や非対話出力では停止せず全出力します。
 `User` または `Users` に直接 `root` login がある場合は NG です。private-key 認証では、解決後の秘密鍵ファイルが存在するかを確認します。
 
 実行結果サンプル:
@@ -1487,6 +1496,7 @@ Special paths:
 Users:
   deploy: OK
 Pending backup: OK
+Check summary: OK=18/18 NG=0/18
 ```
 
 ### `kelpie profile show <profile-pattern>`
@@ -1499,6 +1509,7 @@ Pending backup: OK
 
 ```powershell
 kelpie profile show vps01
+kelpie profile show vps01 --no-pager
 ```
 
 引数詳細:
@@ -1514,6 +1525,8 @@ kelpie profile show vps01
 対象プロファイルを読み込み、接続先、OS family、command provider、mode、認証方式などの概要を表示します。
 `Command providers`、`Capabilities`、`Roles`、`Allowed roots`、`Special paths`、`Services`、`Users` などの複数値項目は、インデント付きで1行に1件ずつ表示します。
 空の複数値項目は `(empty list)` と表示します。マップ形式の複数値項目では key と value の間に `=>` を表示し、key 列の幅を揃えて value 列を見やすくします。
+対話 terminal では、1画面を超える長い出力を `-- more -- (Return to continue, q to quit)` でページングします。
+`--no-pager` でページングを無効化できます。`--pager` でページングを要求できますが、redirect や非対話出力では停止せず全出力します。
 
 実行結果サンプル:
 

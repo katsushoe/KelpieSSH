@@ -715,6 +715,7 @@ Validates the local Kelpie CLI and MCP configuration files without opening an SS
 ```powershell
 kelpie config --check
 kelpie config check
+kelpie config check --no-pager
 ```
 
 Processing:
@@ -723,6 +724,9 @@ Processing:
 - Reports file existence, JSON parse status, canonical `Editor` key usage, MCP server settings, and runtime directories.
 - Prints each result as `<item>: OK` or `<item>: NG (<reason>)`.
 - Prints multi-value sections one item per indented line. Empty sections are printed as `(empty list): OK` unless that section requires at least one value.
+- Prints `Check summary: OK=<ok-count>/<check-count> NG=<ng-count>/<check-count>` as the final line.
+- In an interactive terminal, long output is paged with `-- more -- (Return to continue, q to quit)`.
+- Use `--no-pager` to disable paging, or `--pager` to request paging. Redirected or non-interactive output is printed without paging.
 
 Return value:
 
@@ -747,6 +751,7 @@ Directories:
   bin: OK
   keys: OK
   dat: OK
+Check summary: OK=14/14 NG=0/14
 ```
 
 ### Profile/session
@@ -1200,6 +1205,7 @@ Wildcards are not supported.
 
 ```powershell
 kelpie profile check vps01
+kelpie profile check vps01 --no-pager
 ```
 
 Processing:
@@ -1208,6 +1214,9 @@ Processing:
 - Reports file existence, JSON parse status, profile schema validation, connection fields, authentication references, command provider support, profile policy lists, user entries, and pending `.kelpie` backup state.
 - Prints each result as `<item>: OK` or `<item>: NG (<reason>)`.
 - Prints multi-value sections one item per indented line, matching `kelpie profile show` style. Empty list sections are printed as `(empty list): OK`.
+- Prints `Check summary: OK=<ok-count>/<check-count> NG=<ng-count>/<check-count>` as the final line.
+- In an interactive terminal, long output is paged with `-- more -- (Return to continue, q to quit)`.
+- Use `--no-pager` to disable paging, or `--pager` to request paging. Redirected or non-interactive output is printed without paging.
 - Fails `User` or `Users` entries that use direct `root` login.
 - For private-key authentication, checks that the resolved private key file exists.
 
@@ -1243,6 +1252,7 @@ Special paths:
 Users:
   deploy: OK
 Pending backup: OK
+Check summary: OK=18/18 NG=0/18
 ```
 
 #### `kelpie profile show <profile-pattern>`
@@ -1252,6 +1262,7 @@ Secret values are not printed.
 
 ```powershell
 kelpie profile show vps01
+kelpie profile show vps01 --no-pager
 ```
 
 Return value:
@@ -1260,6 +1271,8 @@ Return value:
 - Standard output contains profile metadata safe for terminal display. Secret values are not returned.
 - List-style fields such as `Command providers`, `Capabilities`, `Roles`, `Allowed roots`, `Special paths`, `Services`, and `Users` are printed one entry per indented line.
 - Empty list-style fields are printed as `(empty list)`. Map-like list fields use `=>` between key and value, and the key column is padded so the value column lines up.
+- In an interactive terminal, long output is paged with `-- more -- (Return to continue, q to quit)`.
+- Use `--no-pager` to disable paging, or `--pager` to request paging. Redirected or non-interactive output is printed without paging.
 
 Return value sample:
 
