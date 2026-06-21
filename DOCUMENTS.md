@@ -32,6 +32,7 @@ This file is the public source of truth for KelpieSSH Git-managed public documen
 | `README.md` | `README.md` | Yes | Public entry point, setup, usage, security, and license overview. |
 | `README.ja.md` | `README.ja.md` | Yes | Japanese public entry point kept next to `README.md` so both documents are updated together. |
 | `DOCUMENTS.md` | `DOCUMENTS.md` | Yes | Directory and document canonical-location index. |
+| `CLI_OPTIONS.md` | `CLI_OPTIONS.md` | Yes | Public command-line option guide for silent mode, dry-run, runtime directory overrides, and profile transaction options. |
 | `COMMANDS.md` | `COMMANDS.md` | Yes | Public terminal CLI command reference. Japanese version is under `docs/ja/`. |
 | `MCP_COMMANDS.md` | `MCP_COMMANDS.md` | Yes | Public MCP callable tool reference. Japanese version is under `docs/ja/`. |
 | `MCP_GUIDE.md` | `MCP_GUIDE.md` | Yes | Public AI MCP server setup, layout, startup, and usage guide. Japanese version is under `docs/ja/`. |

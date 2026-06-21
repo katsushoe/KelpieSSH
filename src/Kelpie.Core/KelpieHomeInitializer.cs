@@ -484,7 +484,7 @@ public static class KelpieHomeInitializer
         });
     }
 
-    private static string CreateProfileJson(string profileName, KelpieProfileTemplateOptions? templateOptions = null)
+    public static string CreateProfileJson(string profileName, KelpieProfileTemplateOptions? templateOptions = null)
     {
         var options = NormalizeProfileTemplateOptions(profileName, templateOptions);
         var allowedRoots = new Dictionary<string, string>(StringComparer.Ordinal);

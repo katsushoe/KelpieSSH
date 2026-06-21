@@ -6,6 +6,8 @@ KelpieSSH は、SSH 越しの VPS 診断と保守を安全に補助するため�
 
 コマンドの詳細は [docs/ja/COMMANDS.ja.md](docs/ja/COMMANDS.ja.md) を参照してください。
 
+コマンドラインオプションは [CLI_OPTIONS.md](CLI_OPTIONS.md) を参照してください。
+
 MCP ツールの詳細は [docs/ja/MCP_COMMANDS.ja.md](docs/ja/MCP_COMMANDS.ja.md) を参照してください。
 
 設定の詳細は [docs/ja/CONFIG.ja.md](docs/ja/CONFIG.ja.md) を参照してください。
@@ -381,7 +383,13 @@ Created profile: vps02
 Profile file: D:\Kelpie\profiles\vps02.json
 ```
 
-`profiles\vps02.json` がすでに存在する場合、このコマンドは失敗し、既存ファイルを上書きしません。
+`profiles\vps02.json` がすでに存在する場合、このコマンドは上書きするか確認します。上書きした場合、古いファイルは profile 変更を commit または rollback するまで `profiles\vps02.json.kelpie` として保持されます。
+
+## コマンドラインオプション
+
+Kelpie は、非対話 profile 作成、dry-run preview、runtime directory override、profile transaction の即コミット動作に関するコマンドラインオプションを提供します。
+
+Dry-run、Silent モード、runtime directory override、即コミット profile 操作に関するオプションは [CLI_OPTIONS.md](CLI_OPTIONS.md) を参照してください。
 
 ## コントリビューション
 

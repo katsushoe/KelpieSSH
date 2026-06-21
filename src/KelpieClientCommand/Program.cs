@@ -221,6 +221,13 @@ if (string.Equals(command, "profile", StringComparison.OrdinalIgnoreCase))
             return;
         }
 
+        if (!TryExtractDryRunOption(deleteArgs, out deleteArgs, out var deleteDryRun))
+        {
+            WriteProfileUsage(Console.Error);
+            Environment.ExitCode = 1;
+            return;
+        }
+
         if (deleteArgs.Length != 3)
         {
             WriteProfileUsage(Console.Error);
@@ -228,46 +235,67 @@ if (string.Equals(command, "profile", StringComparison.OrdinalIgnoreCase))
             return;
         }
 
-        DeleteProfile(deleteArgs[2], deleteNoBackup);
+        DeleteProfile(deleteArgs[2], deleteNoBackup, deleteDryRun);
         return;
     }
 
     if (string.Equals(subcommand, "clean", StringComparison.OrdinalIgnoreCase))
     {
-        if (args.Length != 3)
+        if (!TryExtractDryRunOption(args, out var cleanArgs, out var cleanDryRun))
         {
             WriteProfileUsage(Console.Error);
             Environment.ExitCode = 1;
             return;
         }
 
-        CleanProfile(args[2]);
+        if (cleanArgs.Length != 3)
+        {
+            WriteProfileUsage(Console.Error);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        CleanProfile(cleanArgs[2], cleanDryRun);
         return;
     }
 
     if (string.Equals(subcommand, "commit", StringComparison.OrdinalIgnoreCase))
     {
-        if (args.Length != 3)
+        if (!TryExtractDryRunOption(args, out var commitArgs, out var commitDryRun))
         {
             WriteProfileUsage(Console.Error);
             Environment.ExitCode = 1;
             return;
         }
 
-        CommitProfile(args[2]);
+        if (commitArgs.Length != 3)
+        {
+            WriteProfileUsage(Console.Error);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        CommitProfile(commitArgs[2], commitDryRun);
         return;
     }
 
     if (string.Equals(subcommand, "rollback", StringComparison.OrdinalIgnoreCase))
     {
-        if (args.Length != 3)
+        if (!TryExtractDryRunOption(args, out var rollbackArgs, out var rollbackDryRun))
         {
             WriteProfileUsage(Console.Error);
             Environment.ExitCode = 1;
             return;
         }
 
-        RollbackProfile(args[2]);
+        if (rollbackArgs.Length != 3)
+        {
+            WriteProfileUsage(Console.Error);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        RollbackProfile(rollbackArgs[2], rollbackDryRun);
         return;
     }
 
@@ -395,24 +423,24 @@ static bool IsVersionCommand(string command)
 static void WriteProfileUsage(TextWriter writer)
 {
     writer.WriteLine("Usage:");
-    writer.WriteLine("  kelpie profile create <profile> [--silent] [--no-backup] [options]");
+    writer.WriteLine("  kelpie profile create <profile> [--silent] [--no-backup] [--dry-run] [options]");
     writer.WriteLine("  kelpie profile edit <profile> [--no-backup]");
-    writer.WriteLine("  kelpie profile edit <profile> set <dotPath> <value> [--no-backup]");
-    writer.WriteLine("  kelpie profile edit <profile> add-root <path> <access> [--no-backup]");
-    writer.WriteLine("  kelpie profile edit <profile> rm-root <path> [--no-backup]");
-    writer.WriteLine("  kelpie profile edit <profile> add-deny <pattern> [--no-backup]");
-    writer.WriteLine("  kelpie profile edit <profile> rm-deny <pattern> [--no-backup]");
-    writer.WriteLine("  kelpie profile delete <profile-pattern> [--no-backup]");
-    writer.WriteLine("  kelpie profile clean <profile-pattern>");
-    writer.WriteLine("  kelpie profile commit <profile-pattern>");
-    writer.WriteLine("  kelpie profile rollback <profile-pattern>");
+    writer.WriteLine("  kelpie profile edit <profile> set <dotPath> <value> [--no-backup] [--dry-run]");
+    writer.WriteLine("  kelpie profile edit <profile> add-root <path> <access> [--no-backup] [--dry-run]");
+    writer.WriteLine("  kelpie profile edit <profile> rm-root <path> [--no-backup] [--dry-run]");
+    writer.WriteLine("  kelpie profile edit <profile> add-deny <pattern> [--no-backup] [--dry-run]");
+    writer.WriteLine("  kelpie profile edit <profile> rm-deny <pattern> [--no-backup] [--dry-run]");
+    writer.WriteLine("  kelpie profile delete <profile-pattern> [--no-backup] [--dry-run]");
+    writer.WriteLine("  kelpie profile clean <profile-pattern> [--dry-run]");
+    writer.WriteLine("  kelpie profile commit <profile-pattern> [--dry-run]");
+    writer.WriteLine("  kelpie profile rollback <profile-pattern> [--dry-run]");
     writer.WriteLine("  kelpie profile show <profile-pattern>");
 }
 
 static void WriteProfileCreateUsage(TextWriter writer)
 {
     writer.WriteLine("Usage:");
-    writer.WriteLine("  kelpie profile create <profile> [--silent] [--no-backup] [options]");
+    writer.WriteLine("  kelpie profile create <profile> [--silent] [--no-backup] [--dry-run] [options]");
     writer.WriteLine();
     writer.WriteLine("Options:");
     writer.WriteLine("  --silent                         Create the profile without prompts.");
@@ -429,6 +457,7 @@ static void WriteProfileCreateUsage(TextWriter writer)
     writer.WriteLine("  --allowed-root <key=value[;...]>  Override allowed-root map entries; repeatable.");
     writer.WriteLine("  --deny-pattern <value>            Override deny patterns; repeatable.");
     writer.WriteLine("  --special-path <key=value[;...]>  Override special-path map entries; repeatable.");
+    writer.WriteLine("  --dry-run                         Print planned changes without writing files.");
     writer.WriteLine("  --no-backup                       Overwrite without creating a .kelpie backup.");
 }
 
@@ -606,6 +635,32 @@ static bool TryExtractNoBackupOption(string[] args, out string[] remainingArgs, 
     return true;
 }
 
+static bool TryExtractDryRunOption(string[] args, out string[] remainingArgs, out bool dryRun)
+{
+    dryRun = false;
+    var remaining = new List<string>(args.Length);
+    foreach (var arg in args)
+    {
+        if (string.Equals(arg, "--dry-run", StringComparison.OrdinalIgnoreCase))
+        {
+            if (dryRun)
+            {
+                Console.Error.WriteLine("--dry-run was specified more than once.");
+                remainingArgs = args;
+                return false;
+            }
+
+            dryRun = true;
+            continue;
+        }
+
+        remaining.Add(arg);
+    }
+
+    remainingArgs = remaining.ToArray();
+    return true;
+}
+
 static bool TryParseProfileCreateOptions(
     string[] args,
     out string[] remainingArgs,
@@ -614,6 +669,7 @@ static bool TryParseProfileCreateOptions(
     var remaining = new List<string>(args.Length);
     var silent = false;
     var noBackup = false;
+    var dryRun = false;
     string? hostAddress = null;
     int? port = null;
     string? defaultUser = null;
@@ -656,6 +712,20 @@ static bool TryParseProfileCreateOptions(
             }
 
             noBackup = true;
+            continue;
+        }
+
+        if (string.Equals(arg, "--dry-run", StringComparison.OrdinalIgnoreCase))
+        {
+            if (dryRun)
+            {
+                Console.Error.WriteLine("--dry-run was specified more than once.");
+                remainingArgs = args;
+                options = ProfileCreateCommandOptions.Default;
+                return false;
+            }
+
+            dryRun = true;
             continue;
         }
 
@@ -812,6 +882,7 @@ static bool TryParseProfileCreateOptions(
     options = new ProfileCreateCommandOptions(
         Silent: silent,
         NoBackup: noBackup,
+        DryRun: dryRun,
         HostAddress: hostAddress,
         Port: port,
         DefaultUser: defaultUser,
@@ -1019,7 +1090,7 @@ static void CreateProfile(string profileName, ProfileCreateCommandOptions option
         return;
     }
 
-    if (!options.Silent && options.HasTemplateOverrides)
+    if (!options.Silent && !options.DryRun && options.HasTemplateOverrides)
     {
         Console.Error.WriteLine("Profile create template options require --silent.");
         Environment.ExitCode = 1;
@@ -1038,7 +1109,7 @@ static void CreateProfile(string profileName, ProfileCreateCommandOptions option
         }
 
         var overwrite = File.Exists(profilePath);
-        if (overwrite && !ReadYesNoDefaultYes($"Profile already exists: {profileName}. Overwrite? [Y/n]: "))
+        if (overwrite && !options.DryRun && !ReadYesNoDefaultYes($"Profile already exists: {profileName}. Overwrite? [Y/n]: "))
         {
             Console.WriteLine("Profile create was canceled.");
             return;
@@ -1049,9 +1120,32 @@ static void CreateProfile(string profileName, ProfileCreateCommandOptions option
             KelpieHomeInitializer.GetCreatableProfilePath(homeDirectory, profileName);
         }
 
-        var templateOptions = options.Silent
+        var templateOptions = options.Silent || options.DryRun
             ? CreateSilentProfileTemplateOptions(profileName, options)
             : ReadProfileTemplateOptions(profileName);
+        if (options.DryRun)
+        {
+            Console.WriteLine("Dry run: profile create");
+            Console.WriteLine(overwrite ? $"Would overwrite profile: {profileName}" : $"Would create profile: {profileName}");
+            Console.WriteLine($"Profile file: {profilePath}");
+            if (overwrite)
+            {
+                if (options.NoBackup)
+                {
+                    Console.WriteLine("Would not create backup because --no-backup is specified.");
+                }
+                else
+                {
+                    Console.WriteLine($"Would create backup: {GetProfileBackupPath(profilePath)}");
+                }
+            }
+
+            Console.WriteLine("Would write:");
+            Console.Write(KelpieHomeInitializer.CreateProfileJson(profileName, templateOptions));
+            Console.WriteLine("No files were changed.");
+            return;
+        }
+
         ProfileTransaction? transaction = null;
         try
         {
@@ -1099,11 +1193,11 @@ static void CreateProfile(string profileName, ProfileCreateCommandOptions option
     }
 }
 
-static void CommitProfile(string profileName)
+static void CommitProfile(string profileName, bool dryRun)
 {
     if (ContainsWildcard(profileName))
     {
-        CommitProfilesByPattern(profileName);
+        CommitProfilesByPattern(profileName, dryRun);
         return;
     }
 
@@ -1122,6 +1216,15 @@ static void CommitProfile(string profileName)
         return;
     }
 
+    if (dryRun)
+    {
+        Console.WriteLine("Dry run: profile commit");
+        Console.WriteLine($"Would commit profile: {profileName}");
+        Console.WriteLine($"Would remove backup: {backupPath}");
+        Console.WriteLine("No files were changed.");
+        return;
+    }
+
     try
     {
         File.Delete(backupPath);
@@ -1135,7 +1238,7 @@ static void CommitProfile(string profileName)
     }
 }
 
-static void CommitProfilesByPattern(string profilePattern)
+static void CommitProfilesByPattern(string profilePattern, bool dryRun)
 {
     var targets = ResolveProfileTargets(profilePattern, ProfileTargetKind.Pending, rejectPendingBackups: false);
     if (targets is null)
@@ -1148,6 +1251,18 @@ static void CommitProfilesByPattern(string profilePattern)
     foreach (var target in targets)
     {
         Console.WriteLine($"  {target.ProfileName}");
+    }
+
+    if (dryRun)
+    {
+        Console.WriteLine("Dry run: profile commit");
+        foreach (var target in targets)
+        {
+            Console.WriteLine($"Would remove backup: {GetProfileBackupPath(target.ProfilePath)}");
+        }
+
+        Console.WriteLine("No files were changed.");
+        return;
     }
 
     if (!ReadYesNoDefaultYes($"Commit {targets.Count} profiles matching `{profilePattern.Trim()}`? [Y/n]: "))
@@ -1172,11 +1287,11 @@ static void CommitProfilesByPattern(string profilePattern)
     }
 }
 
-static void CleanProfile(string profileName)
+static void CleanProfile(string profileName, bool dryRun)
 {
     if (ContainsWildcard(profileName))
     {
-        CleanProfilesByPattern(profileName);
+        CleanProfilesByPattern(profileName, dryRun);
         return;
     }
 
@@ -1188,6 +1303,16 @@ static void CleanProfile(string profileName)
     }
 
     var backupPath = GetProfileBackupPath(profilePath);
+    if (dryRun)
+    {
+        Console.WriteLine("Dry run: profile clean");
+        Console.WriteLine($"Would clean profile: {profileName}");
+        WriteWouldDeleteIfExists("profile file", profilePath);
+        WriteWouldDeleteIfExists("backup", backupPath);
+        Console.WriteLine("No files were changed.");
+        return;
+    }
+
     if (!ReadYesNoDefaultYes($"Clean profile and backup: {profileName}? [Y/n]: "))
     {
         Console.WriteLine("Profile clean was canceled.");
@@ -1224,7 +1349,7 @@ static void CleanProfile(string profileName)
     }
 }
 
-static void CleanProfilesByPattern(string profilePattern)
+static void CleanProfilesByPattern(string profilePattern, bool dryRun)
 {
     var targets = ResolveProfileTargets(profilePattern, ProfileTargetKind.ExistingOrPending, rejectPendingBackups: false);
     if (targets is null)
@@ -1237,6 +1362,19 @@ static void CleanProfilesByPattern(string profilePattern)
     foreach (var target in targets)
     {
         Console.WriteLine($"  {target.ProfileName}");
+    }
+
+    if (dryRun)
+    {
+        Console.WriteLine("Dry run: profile clean");
+        foreach (var target in targets)
+        {
+            WriteWouldDeleteIfExists("profile file", target.ProfilePath);
+            WriteWouldDeleteIfExists("backup", GetProfileBackupPath(target.ProfilePath));
+        }
+
+        Console.WriteLine("No files were changed.");
+        return;
     }
 
     if (!ReadYesNoDefaultYes($"Clean {targets.Count} profiles and backups matching `{profilePattern.Trim()}`? [Y/n]: "))
@@ -1266,11 +1404,11 @@ static void CleanProfilesByPattern(string profilePattern)
     }
 }
 
-static void RollbackProfile(string profileName)
+static void RollbackProfile(string profileName, bool dryRun)
 {
     if (ContainsWildcard(profileName))
     {
-        RollbackProfilesByPattern(profileName);
+        RollbackProfilesByPattern(profileName, dryRun);
         return;
     }
 
@@ -1289,6 +1427,16 @@ static void RollbackProfile(string profileName)
         return;
     }
 
+    if (dryRun)
+    {
+        Console.WriteLine("Dry run: profile rollback");
+        Console.WriteLine($"Would roll back profile: {profileName}");
+        Console.WriteLine($"Would restore backup: {backupPath}");
+        Console.WriteLine($"Would write profile file: {profilePath}");
+        Console.WriteLine("No files were changed.");
+        return;
+    }
+
     try
     {
         File.Move(backupPath, profilePath, overwrite: true);
@@ -1302,7 +1450,7 @@ static void RollbackProfile(string profileName)
     }
 }
 
-static void RollbackProfilesByPattern(string profilePattern)
+static void RollbackProfilesByPattern(string profilePattern, bool dryRun)
 {
     var targets = ResolveProfileTargets(profilePattern, ProfileTargetKind.Pending, rejectPendingBackups: false);
     if (targets is null)
@@ -1315,6 +1463,19 @@ static void RollbackProfilesByPattern(string profilePattern)
     foreach (var target in targets)
     {
         Console.WriteLine($"  {target.ProfileName}");
+    }
+
+    if (dryRun)
+    {
+        Console.WriteLine("Dry run: profile rollback");
+        foreach (var target in targets)
+        {
+            Console.WriteLine($"Would restore backup: {GetProfileBackupPath(target.ProfilePath)}");
+            Console.WriteLine($"Would write profile file: {target.ProfilePath}");
+        }
+
+        Console.WriteLine("No files were changed.");
+        return;
     }
 
     if (!ReadYesNoDefaultYes($"Rollback {targets.Count} profiles matching `{profilePattern.Trim()}`? [Y/n]: "))
@@ -1339,11 +1500,11 @@ static void RollbackProfilesByPattern(string profilePattern)
     }
 }
 
-static void DeleteProfile(string profileName, bool noBackup)
+static void DeleteProfile(string profileName, bool noBackup, bool dryRun)
 {
     if (ContainsWildcard(profileName))
     {
-        DeleteProfilesByPattern(profileName, noBackup);
+        DeleteProfilesByPattern(profileName, noBackup, dryRun);
         return;
     }
 
@@ -1358,6 +1519,24 @@ static void DeleteProfile(string profileName, bool noBackup)
     {
         Console.WriteLine($"Warning: profile backup is already pending: {GetProfileBackupPath(profilePath)}");
         Console.WriteLine($"Run `kelpie profile commit {profileName}` or `kelpie profile rollback {profileName}`.");
+        return;
+    }
+
+    if (dryRun)
+    {
+        Console.WriteLine("Dry run: profile delete");
+        Console.WriteLine($"Would delete profile: {profileName}");
+        Console.WriteLine($"Would delete profile file: {profilePath}");
+        if (noBackup)
+        {
+            Console.WriteLine("Would not create backup because --no-backup is specified.");
+        }
+        else
+        {
+            Console.WriteLine($"Would create backup: {GetProfileBackupPath(profilePath)}");
+        }
+
+        Console.WriteLine("No files were changed.");
         return;
     }
 
@@ -1391,7 +1570,7 @@ static void DeleteProfile(string profileName, bool noBackup)
     }
 }
 
-static void DeleteProfilesByPattern(string profilePattern, bool noBackup)
+static void DeleteProfilesByPattern(string profilePattern, bool noBackup, bool dryRun)
 {
     var pendingTargets = ResolvePendingProfileTargets(profilePattern);
     if (pendingTargets is null)
@@ -1429,6 +1608,26 @@ static void DeleteProfilesByPattern(string profilePattern, bool noBackup)
     foreach (var target in targets)
     {
         Console.WriteLine($"  {target.ProfileName}");
+    }
+
+    if (dryRun)
+    {
+        Console.WriteLine("Dry run: profile delete");
+        foreach (var target in targets)
+        {
+            Console.WriteLine($"Would delete profile file: {target.ProfilePath}");
+            if (noBackup)
+            {
+                Console.WriteLine("Would not create backup because --no-backup is specified.");
+            }
+            else
+            {
+                Console.WriteLine($"Would create backup: {GetProfileBackupPath(target.ProfilePath)}");
+            }
+        }
+
+        Console.WriteLine("No files were changed.");
+        return;
     }
 
     if (!ReadYesNoDefaultYes($"Delete {targets.Count} profiles matching `{profilePattern.Trim()}`? [Y/n]: "))
@@ -1633,6 +1832,13 @@ static void RunProfileEdit(string[] args)
         return;
     }
 
+    if (!TryExtractDryRunOption(editArgs, out editArgs, out var dryRun))
+    {
+        WriteProfileEditUsage();
+        Environment.ExitCode = 1;
+        return;
+    }
+
     args = editArgs;
 
     if (args.Length < 3)
@@ -1668,6 +1874,13 @@ static void RunProfileEdit(string[] args)
 
     if (args.Length == 3)
     {
+        if (dryRun)
+        {
+            Console.Error.WriteLine("Profile editor mode does not support --dry-run. Use set/add-root/rm-root/add-deny/rm-deny.");
+            Environment.ExitCode = 1;
+            return;
+        }
+
         if (Console.IsInputRedirected)
         {
             Console.Error.WriteLine("Editor mode requires an interactive console.");
@@ -1697,7 +1910,7 @@ static void RunProfileEdit(string[] args)
             return;
         }
 
-        RunTransactionalProfileEdit(profileName, profilePath, () => editService.SetScalar(profilePath, args[4], args[5]), noBackup);
+        RunProfileEditOperation(profileName, profilePath, path => editService.SetScalar(path, args[4], args[5]), noBackup, dryRun);
         return;
     }
 
@@ -1710,7 +1923,7 @@ static void RunProfileEdit(string[] args)
             return;
         }
 
-        RunTransactionalProfileEdit(profileName, profilePath, () => editService.AddRoot(profilePath, args[4], args[5]), noBackup);
+        RunProfileEditOperation(profileName, profilePath, path => editService.AddRoot(path, args[4], args[5]), noBackup, dryRun);
         return;
     }
 
@@ -1723,7 +1936,7 @@ static void RunProfileEdit(string[] args)
             return;
         }
 
-        RunTransactionalProfileEdit(profileName, profilePath, () => editService.RemoveRoot(profilePath, args[4]), noBackup);
+        RunProfileEditOperation(profileName, profilePath, path => editService.RemoveRoot(path, args[4]), noBackup, dryRun);
         return;
     }
 
@@ -1736,7 +1949,7 @@ static void RunProfileEdit(string[] args)
             return;
         }
 
-        RunTransactionalProfileEdit(profileName, profilePath, () => editService.AddDeny(profilePath, args[4]), noBackup);
+        RunProfileEditOperation(profileName, profilePath, path => editService.AddDeny(path, args[4]), noBackup, dryRun);
         return;
     }
 
@@ -1749,7 +1962,7 @@ static void RunProfileEdit(string[] args)
             return;
         }
 
-        RunTransactionalProfileEdit(profileName, profilePath, () => editService.RemoveDeny(profilePath, args[4]), noBackup);
+        RunProfileEditOperation(profileName, profilePath, path => editService.RemoveDeny(path, args[4]), noBackup, dryRun);
         return;
     }
 
@@ -1816,6 +2029,18 @@ static bool DeleteFileIfExists(string path)
     return true;
 }
 
+static void WriteWouldDeleteIfExists(string label, string path)
+{
+    if (File.Exists(path))
+    {
+        Console.WriteLine($"Would delete {label}: {path}");
+    }
+    else
+    {
+        Console.WriteLine($"Would not delete missing {label}: {path}");
+    }
+}
+
 static ProfileTransaction BeginProfileTransaction(string profilePath)
 {
     var backupPath = GetProfileBackupPath(profilePath);
@@ -1868,6 +2093,68 @@ static void WritePendingProfileTransactionError(string profileName, string profi
     var backupPath = GetProfileBackupPath(profilePath);
     Console.Error.WriteLine($"Pending profile backup exists: {backupPath}");
     Console.Error.WriteLine($"Run `kelpie profile commit {profileName}` or `kelpie profile rollback {profileName}` first.");
+}
+
+static void RunProfileEditOperation(
+    string profileName,
+    string profilePath,
+    Func<string, ProfileEditResult> edit,
+    bool noBackup,
+    bool dryRun)
+{
+    if (dryRun)
+    {
+        RunDryRunProfileEdit(profileName, profilePath, edit, noBackup);
+        return;
+    }
+
+    RunTransactionalProfileEdit(profileName, profilePath, () => edit(profilePath), noBackup);
+}
+
+static void RunDryRunProfileEdit(string profileName, string profilePath, Func<string, ProfileEditResult> edit, bool noBackup)
+{
+    var tempPath = Path.Combine(
+        Path.GetTempPath(),
+        $"kelpie-profile-dry-run-{Guid.NewGuid():N}.json");
+    try
+    {
+        File.Copy(profilePath, tempPath, overwrite: false);
+        var result = edit(tempPath);
+        if (!result.Success)
+        {
+            Console.Error.WriteLine(result.ErrorMessage);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        Console.WriteLine("Dry run: profile edit");
+        Console.WriteLine($"Would update profile: {profileName}");
+        Console.WriteLine($"Profile file: {profilePath}");
+        if (noBackup)
+        {
+            Console.WriteLine("Would not create backup because --no-backup is specified.");
+        }
+        else
+        {
+            Console.WriteLine($"Would create backup: {GetProfileBackupPath(profilePath)}");
+        }
+
+        Console.WriteLine("Would write:");
+        Console.Write(File.ReadAllText(tempPath));
+        Console.WriteLine("No files were changed.");
+    }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+    {
+        Console.Error.WriteLine(ex.Message);
+        Environment.ExitCode = 1;
+    }
+    finally
+    {
+        if (File.Exists(tempPath))
+        {
+            File.Delete(tempPath);
+        }
+    }
 }
 
 static void RunTransactionalProfileEdit(string profileName, string profilePath, Func<ProfileEditResult> edit, bool noBackup)
@@ -1974,15 +2261,15 @@ static void WriteProfileEditUsage()
 {
     Console.Error.WriteLine("Usage:");
     Console.Error.WriteLine("  kelpie profile edit <profile> [--no-backup]");
-    Console.Error.WriteLine("  kelpie profile edit <profile> set <dotPath> <value> [--no-backup]");
-    Console.Error.WriteLine("  kelpie profile edit <profile> add-root <path> <access> [--no-backup]");
-    Console.Error.WriteLine("  kelpie profile edit <profile> rm-root <path> [--no-backup]");
-    Console.Error.WriteLine("  kelpie profile edit <profile> add-deny <pattern> [--no-backup]");
-    Console.Error.WriteLine("  kelpie profile edit <profile> rm-deny <pattern> [--no-backup]");
-    Console.Error.WriteLine("  kelpie profile delete <profile-pattern> [--no-backup]");
-    Console.Error.WriteLine("  kelpie profile clean <profile-pattern>");
-    Console.Error.WriteLine("  kelpie profile commit <profile-pattern>");
-    Console.Error.WriteLine("  kelpie profile rollback <profile-pattern>");
+    Console.Error.WriteLine("  kelpie profile edit <profile> set <dotPath> <value> [--no-backup] [--dry-run]");
+    Console.Error.WriteLine("  kelpie profile edit <profile> add-root <path> <access> [--no-backup] [--dry-run]");
+    Console.Error.WriteLine("  kelpie profile edit <profile> rm-root <path> [--no-backup] [--dry-run]");
+    Console.Error.WriteLine("  kelpie profile edit <profile> add-deny <pattern> [--no-backup] [--dry-run]");
+    Console.Error.WriteLine("  kelpie profile edit <profile> rm-deny <pattern> [--no-backup] [--dry-run]");
+    Console.Error.WriteLine("  kelpie profile delete <profile-pattern> [--no-backup] [--dry-run]");
+    Console.Error.WriteLine("  kelpie profile clean <profile-pattern> [--dry-run]");
+    Console.Error.WriteLine("  kelpie profile commit <profile-pattern> [--dry-run]");
+    Console.Error.WriteLine("  kelpie profile rollback <profile-pattern> [--dry-run]");
 }
 
 static KelpieMcpConfigTemplateOptions ReadMcpConfigTemplateOptions(string defaultLogDirectory)
@@ -3100,6 +3387,7 @@ public sealed record KelpieClientState(
 sealed record ProfileCreateCommandOptions(
     bool Silent,
     bool NoBackup,
+    bool DryRun,
     string? HostAddress,
     int? Port,
     string? DefaultUser,
@@ -3132,6 +3420,7 @@ sealed record ProfileCreateCommandOptions(
     public static ProfileCreateCommandOptions Default { get; } = new(
         Silent: false,
         NoBackup: false,
+        DryRun: false,
         HostAddress: null,
         Port: null,
         DefaultUser: null,

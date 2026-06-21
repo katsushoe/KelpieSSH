@@ -4,6 +4,7 @@ Last updated: 2026-06-21
 
 This file is the English command reference for commands run directly from a terminal, such as `kelpie` and `kelpiemcp`.
 For Japanese documentation, see [docs/ja/COMMANDS.ja.md](docs/ja/COMMANDS.ja.md).
+For command-line option details, see [CLI_OPTIONS.md](CLI_OPTIONS.md).
 For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 
 ## Command Groups
@@ -30,21 +31,9 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 - Secrets, private keys, real host names, real user names, and production profiles must not be committed.
 - Direct `root` SSH login is not allowed.
 
-## Common Options
+## Command-Line Options
 
-`kelpie`, `kelpiemcp`, and `KelpieMCPServer` accept the following runtime directory override options.
-They are intended for isolated verification, dry-run-style layouts, tests, and temporary deployments where the normal `KelpieHome` directory must not be touched.
-
-| Option | Scope | Description |
-| :--- | :--- | :--- |
-| `--config-dir <dir>` | `kelpie`, `kelpiemcp`, `KelpieMCPServer` | Overrides the directory that contains `kelpie.json` and `kelpiemcp.json`. |
-| `--profiles-dir <dir>` | `kelpie`, `kelpiemcp`, `KelpieMCPServer` | Overrides the SSH profile directory. |
-| `--logs-dir <dir>` | `kelpie`, `kelpiemcp`, `KelpieMCPServer` | Overrides the log directory and takes priority over `LogDirectory` in config files. |
-| `--bin-dir <dir>` | `kelpie`, `kelpiemcp`, `KelpieMCPServer` | Overrides the binary directory used to derive the default `KelpieHome` and to find local helper executables. |
-| `--keys-dir <dir>` | `kelpie`, `kelpiemcp`, `KelpieMCPServer` | Overrides the key directory created by `kelpie init`. |
-| `--dat-dir <dir>` | `kelpie`, `kelpiemcp`, `KelpieMCPServer` | Overrides the runtime data directory, including the MCP trust store and local state files. |
-
-The options may appear before or after the command name. For `kelpiemcp start`, the overrides are also passed to the launched `KelpieMCPServer` process. For `kelpie env set ... -- <command>`, arguments after `--` are treated as the remote command and are not parsed as Kelpie runtime options.
+Runtime directory overrides, dry-run previews, silent mode, and profile transaction options are documented in [CLI_OPTIONS.md](CLI_OPTIONS.md).
 
 ## Return Value Specification
 
@@ -729,8 +718,8 @@ Commands in this group:
 - [`kelpie profile edit <profile>`](#kelpie-profile-edit-profile)
 - [`kelpie profile delete <profile-pattern>`](#kelpie-profile-delete-profile-pattern)
 - [`kelpie profile clean <profile-pattern>`](#kelpie-profile-clean-profile-pattern)
-- `kelpie profile commit <profile-pattern>`
-- `kelpie profile rollback <profile-pattern>`
+- [`kelpie profile commit <profile-pattern>`](#kelpie-profile-commit-profile-pattern)
+- [`kelpie profile rollback <profile-pattern>`](#kelpie-profile-rollback-profile-pattern)
 - [`kelpie profile show <profile-pattern>`](#kelpie-profile-show-profile-pattern)
 - [`kelpie open <profile>`](#kelpie-open-profile)
 - [`kelpie login`](#kelpie-login)
@@ -778,6 +767,7 @@ The command prompts for template values interactively. Press Enter to use the di
 kelpie profile create vps02
 kelpie profile create vps02 --silent
 kelpie profile create vps02 --silent --host-address: demo
+kelpie profile create vps02 --dry-run --host-address: demo
 kelpie profile create vps02 --no-backup
 ```
 
@@ -800,6 +790,7 @@ Arguments:
 | `--allowed-root <key=value[;...]>` | no | Override generated `AllowedRoots` map entries. Repeatable. Values such as `ReadOnly` and `ReadWrite` are normalized to `$ReadOnly` and `$ReadWrite`; other values such as `$Write` are preserved. |
 | `--deny-pattern <value>` | no | Override generated deny patterns. Repeat to add multiple values. Use `-` to clear the list. |
 | `--special-path <key=value[;...]>` | no | Override generated `SpecialPaths` map entries. Repeatable. `deny`, `confirm`, and `allow` are normalized to `Deny`, `Confirm`, and `Allow`. |
+| `--dry-run` | no | Print the generated profile JSON and planned backup/write operation without changing files. |
 | `--no-backup` | no | When overwriting an existing profile, do not create `profiles/<profile>.json.kelpie`; write the new profile as an immediate commit. |
 
 Processing:
@@ -812,6 +803,7 @@ Processing:
 - With `--no-backup`, overwriting does not create a `.kelpie` backup and does not ask `Commit profile? [Y/n]:`.
 - Prompts for host address, port, SSH user, authentication method, private key file or password secret name, OS family, mode, allowed roots, and deny pattern.
 - With `--silent`, does not prompt for template values and writes defaults: `Host.Address = localhost`, `Host.Port = 22`, `DefaultUser = deploy`, private-key auth, `Mode = Safe`, `Platform.OsFamily = debian`, read-only root `/var/log`, read-write root `/var/www`, and deny pattern `**/.env`.
+- With `--dry-run`, prints the target profile path, backup plan, and generated JSON without writing files. Dry-run template options are allowed even without `--silent`.
 - Silent template options can appear before or after `<profile>`. Options can be written as `--name value`, `--name=value`, or `--name: value`.
 - `--allowed-root` and `--special-path` accept semicolon-separated map entries. Use quotes around values containing `;`. In PowerShell, use single quotes when the value contains `$`, for example `--allowed-root '/srv/www=$ReadWrite;/tmp=$Write'`.
 - `--allowed-root` replaces the default generated allowed-root map unless `--read-only-root` or `--read-write-root` are also specified. `--special-path` replaces the default generated special-path map unless `--deny-pattern` is also specified.
@@ -856,6 +848,23 @@ Created profile: demo
 Profile file: D:\Kelpie\profiles\demo.json
 ```
 
+Dry-run sample:
+
+```text
+kelpie profile create demo --dry-run --host-address: demo
+Dry run: profile create
+Would create profile: demo
+Profile file: D:\Kelpie\profiles\demo.json
+Would write:
+{
+  "Host": {
+    "Address": "demo",
+    "Port": 22
+  }
+}
+No files were changed.
+```
+
 Silent map sample:
 
 ```powershell
@@ -888,6 +897,7 @@ kelpie profile edit vps02 rm-root /etc/nginx
 kelpie profile edit vps02 add-deny "**/.htpasswd"
 kelpie profile edit vps02 rm-deny "**/.htpasswd"
 kelpie profile edit vps02 set Host.Port 2222 --no-backup
+kelpie profile edit vps02 set Host.Port 2222 --dry-run
 kelpie profile delete vps02
 kelpie profile delete "vps-*"
 kelpie profile clean vps02
@@ -906,6 +916,7 @@ Arguments:
 | `<access>` | for `add-root` | `ReadOnly`, `ReadWrite`, `$ReadOnly`, or `$ReadWrite`. The value is normalized to the `$...` form. |
 | `<pattern>` | for `add-deny` / `rm-deny` | Special path glob pattern. Patterns may contain dots, such as `**/.htpasswd`. |
 | `--no-backup` | no | Do not create `profiles/<profile>.json.kelpie`; apply the edit as an immediate commit. |
+| `--dry-run` | no | For explicit edit operations, validate the edit and print the JSON that would be written without changing files. |
 
 Processing:
 
@@ -915,6 +926,7 @@ Processing:
 - Before changing an existing profile, the current file is saved as `profiles/<profile>.json.kelpie`. If that backup already exists, editing fails until the profile is committed or rolled back.
 - After a successful edit, asks `Commit profile? [Y/n]:`. `Y` deletes the backup. `n` keeps the backup so `kelpie profile commit <profile>` or `kelpie profile rollback <profile>` can be run later.
 - With `--no-backup`, the command does not create a `.kelpie` backup and does not ask `Commit profile? [Y/n]:`.
+- With `--dry-run`, explicit edit operations `set`, `add-root`, `rm-root`, `add-deny`, and `rm-deny` validate the edit and print the JSON that would be written without changing files. Editor mode (`kelpie profile edit <profile>`) does not support `--dry-run`.
 - `kelpie profile commit <profile-pattern>` deletes pending `.kelpie` backups and treats the current profile JSON states, including pending deletions, as committed.
 - `kelpie profile rollback <profile-pattern>` restores `.kelpie` backups over the current profile JSON files. For pending deletions, it restores deleted profile files. It fails if no backup matches.
 - The full profile is reloaded and validated before any non-editor update is written.
@@ -943,6 +955,24 @@ Profile file: D:\Kelpie\profiles\vps02.json
 Commit profile? [Y/n]:
 ```
 
+Dry-run sample:
+
+```text
+kelpie profile edit vps02 set Host.Port 2222 --dry-run
+Dry run: profile edit
+Would update profile: vps02
+Profile file: D:\Kelpie\profiles\vps02.json
+Would create backup: D:\Kelpie\profiles\vps02.json.kelpie
+Would write:
+{
+  "Host": {
+    "Address": "localhost",
+    "Port": 2222
+  }
+}
+No files were changed.
+```
+
 Missing profile sample:
 
 ```text
@@ -958,6 +988,7 @@ Deletes one or more existing SSH profiles through the same `.kelpie` transaction
 kelpie profile delete vps02
 kelpie profile delete "vps-*"
 kelpie profile delete "vps-*" --no-backup
+kelpie profile delete "vps-*" --dry-run
 ```
 
 Arguments:
@@ -966,6 +997,7 @@ Arguments:
 | :--- | :---: | :--- |
 | `<profile-pattern>` | yes | SSH profile name or wildcard pattern. `*` matches zero or more characters and `?` matches one character. Path separators and invalid file-name characters other than `*` and `?` are rejected. |
 | `--no-backup` | no | Do not create `.kelpie` backups; delete matching profiles as an immediate commit. |
+| `--dry-run` | no | Print matching profiles, backup plan, and delete plan without changing files. |
 
 Processing:
 
@@ -977,6 +1009,7 @@ Processing:
 - On confirmation, saves each current profile as `profiles/<profile>.json.kelpie`, then deletes `profiles/<profile>.json`.
 - Asks `Commit profile? [Y/n]:` for one exact profile, or `Commit profiles? [Y/n]:` for multiple wildcard matches. `Y` deletes the backup and finalizes deletion. `n` leaves backups pending so `kelpie profile rollback <profile>` can restore deleted profiles or `kelpie profile commit <profile>` can finalize deletion later.
 - With `--no-backup`, the command does not create `.kelpie` backups and does not ask for commit after deletion.
+- With `--dry-run`, the command does not ask for confirmation and does not create backups or delete profile files.
 
 Return value:
 
@@ -1021,6 +1054,7 @@ This is an immediate cleanup command; it does not create a new backup and the cl
 ```powershell
 kelpie profile clean vps02
 kelpie profile clean "vps-*"
+kelpie profile clean "vps-*" --dry-run
 ```
 
 Arguments:
@@ -1028,6 +1062,7 @@ Arguments:
 | Argument | Required | Description |
 | :--- | :---: | :--- |
 | `<profile-pattern>` | yes | SSH profile name or wildcard pattern. `*` matches zero or more characters and `?` matches one character. Path separators and invalid file-name characters other than `*` and `?` are rejected. |
+| `--dry-run` | no | Print matching profile and backup files that would be removed without changing files. |
 
 Processing:
 
@@ -1037,6 +1072,7 @@ Processing:
 - For a single exact profile, asks `Clean profile and backup: <profile>? [Y/n]:` before changing files.
 - For a wildcard pattern, asks ``Clean <count> profiles and backups matching `<profile-pattern>`? [Y/n]:`` before changing files.
 - On confirmation, deletes each matching profile JSON file and each matching `.kelpie` backup file if present.
+- With `--dry-run`, the command does not ask for confirmation and does not delete profile or backup files.
 
 Return value:
 
@@ -1065,6 +1101,54 @@ Cleaned profiles: 2
   vps-alpha: D:\Kelpie\profiles\vps-alpha.json
   vps-beta: D:\Kelpie\profiles\vps-beta.json
 ```
+
+#### `kelpie profile commit <profile-pattern>`
+
+Commits pending profile transactions by deleting matching `.kelpie` backup files.
+
+```powershell
+kelpie profile commit vps02
+kelpie profile commit "vps-*"
+kelpie profile commit "vps-*" --dry-run
+```
+
+Arguments:
+
+| Argument | Required | Description |
+| :--- | :---: | :--- |
+| `<profile-pattern>` | yes | SSH profile name or wildcard pattern. `*` matches zero or more characters and `?` matches one character. Path separators and invalid file-name characters other than `*` and `?` are rejected. |
+| `--dry-run` | no | Print matching backups that would be removed without changing files. |
+
+Processing:
+
+- Without wildcards, requires `profiles/<profile>.json.kelpie`.
+- With wildcards, resolves matching pending backups from `profiles/*.json.kelpie`.
+- With `--dry-run`, the command does not ask for confirmation and does not delete backup files.
+- Without `--dry-run`, exact commit removes the backup immediately; wildcard commit asks for confirmation before removing matching backups.
+
+#### `kelpie profile rollback <profile-pattern>`
+
+Rolls back pending profile transactions by restoring matching `.kelpie` backup files to their profile JSON paths.
+
+```powershell
+kelpie profile rollback vps02
+kelpie profile rollback "vps-*"
+kelpie profile rollback "vps-*" --dry-run
+```
+
+Arguments:
+
+| Argument | Required | Description |
+| :--- | :---: | :--- |
+| `<profile-pattern>` | yes | SSH profile name or wildcard pattern. `*` matches zero or more characters and `?` matches one character. Path separators and invalid file-name characters other than `*` and `?` are rejected. |
+| `--dry-run` | no | Print matching backups that would be restored without changing files. |
+
+Processing:
+
+- Without wildcards, requires `profiles/<profile>.json.kelpie`.
+- With wildcards, resolves matching pending backups from `profiles/*.json.kelpie`.
+- With `--dry-run`, the command does not ask for confirmation and does not restore or delete files.
+- Without `--dry-run`, exact rollback restores the backup immediately; wildcard rollback asks for confirmation before restoring matching backups.
 
 #### `kelpie profile show <profile-pattern>`
 
