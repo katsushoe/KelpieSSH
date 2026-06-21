@@ -15,10 +15,10 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | [MCP profile trust](#mcp-profile-trust) | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile>`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | Add, reload, revoke, and inspect trusted SSH profile baselines. |
 | [MCP Windows Service](#mcp-windows-service) | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Register, unregister, and inspect the Windows Service entry. |
 | [MCP password session](#mcp-password-session) | `kelpiemcp password`, `kelpiemcp forget`, `kelpiemcp login`, `kelpiemcp logout` | Store or clear an SSH password in the running MCP server session. |
-| [Initialization](#initialization) | `kelpie init [--silent] [profile]` | Create the local Kelpie home directory layout and sample configuration files. |
+| [Initialization](#initialization) | `kelpie init [--silent] [profile]`, `kelpie config --check` | Create and validate the local Kelpie home configuration. |
 | [Profile/session](#profilesession) | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | Create, edit, and delete profile templates, select profiles, and manage interactive SSH sessions. |
 | [Mode/UI](#modeui) | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | Switch CLI/GUI mode or choose a temporary launch mode. |
-| [Diagnostics](#diagnostics) | `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | Show profile information, MCP server status, SSH diagnostics, and service logs. |
+| [Diagnostics](#diagnostics) | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | Validate profiles, show profile information, MCP server status, SSH diagnostics, and service logs. |
 | [Environment](#environment) | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | List, read, temporarily set, or persist remote environment variables under profile policy. |
 | [Help/version](#helpversion) | `kelpie version`, `kelpie help`, `kelpie --help`, `kelpie --version` | Show version and help text. |
 
@@ -662,6 +662,7 @@ Create the local Kelpie home layout and sample configuration files.
 Commands in this group:
 
 - [`kelpie init [--silent] [profile]`](#kelpie-init---silent-profile)
+- [`kelpie config --check`](#kelpie-config---check)
 
 #### `kelpie init [--silent] [profile]`
 
@@ -707,6 +708,47 @@ Safety notes:
 
 - Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
 
+#### `kelpie config --check`
+
+Validates the local Kelpie CLI and MCP configuration files without opening an SSH connection.
+
+```powershell
+kelpie config --check
+kelpie config check
+```
+
+Processing:
+
+- Reads `config/kelpie.json` and `config/kelpiemcp.json`.
+- Reports file existence, JSON parse status, canonical `Editor` key usage, MCP server settings, and runtime directories.
+- Prints each result as `<item>: OK` or `<item>: NG (<reason>)`.
+- Prints multi-value sections one item per indented line. Empty sections are printed as `(empty list): OK` unless that section requires at least one value.
+
+Return value:
+
+- Exit code `0` when all checked items are OK.
+- Exit code `1` when any checked item is NG.
+
+Execution result sample:
+
+```text
+Kelpie config file: OK
+Kelpie config JSON: OK
+Editor: OK
+MCP config file: OK
+MCP config JSON: OK
+Server: OK
+Server.ControlPipeName: OK
+Server.Port: OK
+Directories:
+  config: OK
+  profiles: OK
+  logs: OK
+  bin: OK
+  keys: OK
+  dat: OK
+```
+
 ### Profile/session
 
 Select SSH profiles and manage interactive or temporary sessions.
@@ -720,6 +762,7 @@ Commands in this group:
 - [`kelpie profile clean <profile-pattern>`](#kelpie-profile-clean-profile-pattern)
 - [`kelpie profile commit <profile-pattern>`](#kelpie-profile-commit-profile-pattern)
 - [`kelpie profile rollback <profile-pattern>`](#kelpie-profile-rollback-profile-pattern)
+- [`kelpie profile check <profile>`](#kelpie-profile-check-profile)
 - [`kelpie profile show <profile-pattern>`](#kelpie-profile-show-profile-pattern)
 - [`kelpie open <profile>`](#kelpie-open-profile)
 - [`kelpie login`](#kelpie-login)
@@ -1149,6 +1192,58 @@ Processing:
 - With wildcards, resolves matching pending backups from `profiles/*.json.kelpie`.
 - With `--dry-run`, the command does not ask for confirmation and does not restore or delete files.
 - Without `--dry-run`, exact rollback restores the backup immediately; wildcard rollback asks for confirmation before restoring matching backups.
+
+#### `kelpie profile check <profile>`
+
+Validates one SSH profile file without opening an SSH connection.
+Wildcards are not supported.
+
+```powershell
+kelpie profile check vps01
+```
+
+Processing:
+
+- Reads `profiles/<profile>.json`.
+- Reports file existence, JSON parse status, profile schema validation, connection fields, authentication references, command provider support, profile policy lists, user entries, and pending `.kelpie` backup state.
+- Prints each result as `<item>: OK` or `<item>: NG (<reason>)`.
+- Prints multi-value sections one item per indented line, matching `kelpie profile show` style. Empty list sections are printed as `(empty list): OK`.
+- Fails `User` or `Users` entries that use direct `root` login.
+- For private-key authentication, checks that the resolved private key file exists.
+
+Return value:
+
+- Exit code `0` when all checked items are OK.
+- Exit code `1` when any checked item is NG.
+
+Execution result sample:
+
+```text
+Profile file: OK
+Profile JSON: OK
+Profile schema: OK
+Host.Address: OK
+Host.Port: OK
+User: OK
+Auth.Method: OK
+Auth.PrivateKeyFile: OK
+Platform.OsFamily: OK
+Platform.PackageManager: OK
+Mode: OK
+Command providers:
+  DebianDiagnosticCommandProvider: OK
+Capabilities:
+  (empty list): OK
+Roles:
+  Safe: OK
+Allowed roots:
+  /var/www: OK
+Special paths:
+  **/.env: OK
+Users:
+  deploy: OK
+Pending backup: OK
+```
 
 #### `kelpie profile show <profile-pattern>`
 

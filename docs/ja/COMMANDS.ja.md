@@ -15,10 +15,10 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | MCP Windows Service | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Windows Service 登録、登録解除、登録状態確認を行う。 |
 | MCP password session | `kelpiemcp password`, `kelpiemcp forget` | 起動中の MCP server に SSH パスワードを一時保存、削除する。 |
 | Compatibility | `kelpiemcp login`, `kelpiemcp logout` | 旧名互換。新規利用では `password` / `forget` を使う。 |
-| Initialization | `kelpie init [--silent] [profile]` | `KelpieHome` 配下の初期ディレクトリとサンプル設定を作成する。 |
+| Initialization | `kelpie init [--silent] [profile]`, `kelpie config --check` | `KelpieHome` 配下の初期ディレクトリとサンプル設定を作成・検証する。 |
 | Profile/session | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイルひな形作成・編集・削除、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
 | Mode/UI | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | CLI/GUI モードや一時的な起動方式を切り替える。 |
-| Diagnostics | `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | プロファイル情報、MCP server 状態、SSH 診断、サービスログを表示する。 |
+| Diagnostics | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | プロファイル検証、プロファイル情報、MCP server 状態、SSH 診断、サービスログを表示する。 |
 | Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | profile policy に従って remote 環境変数の key 表示、値参照、一時設定、永続化を行う。 |
 | Help/version | `kelpie version`, `kelpie help` | バージョンとヘルプを表示する。 |
 | Candidates | `kelpie services`, `kelpie pkg ...` | 今後追加候補。 |
@@ -663,6 +663,44 @@ Created files:
   D:\Kelpie\config\kelpie.json
   D:\Kelpie\config\kelpiemcp.json
   D:\Kelpie\profiles\vps01.json
+```
+
+### `kelpie config --check`
+
+目的:
+
+SSH 接続を行わず、Kelpie CLI と MCP のローカル設定ファイルを検証します。
+
+構文:
+
+```powershell
+kelpie config --check
+kelpie config check
+```
+
+処理内容:
+
+`config/kelpie.json` と `config/kelpiemcp.json` を読み、ファイル存在、JSON 構文、正規 `Editor` キー、MCP server 設定、runtime directory を確認します。
+結果は `項目名: OK` または `項目名: NG (理由)` で表示します。複数値の項目は最初に項目名を表示し、1件ずつインデントして表示します。
+
+実行結果サンプル:
+
+```text
+Kelpie config file: OK
+Kelpie config JSON: OK
+Editor: OK
+MCP config file: OK
+MCP config JSON: OK
+Server: OK
+Server.ControlPipeName: OK
+Server.Port: OK
+Directories:
+  config: OK
+  profiles: OK
+  logs: OK
+  bin: OK
+  keys: OK
+  dat: OK
 ```
 
 ### `kelpie open <profile>`
@@ -1403,6 +1441,53 @@ kelpie profile rollback "vps-*" --dry-run
 - wildcard を含む場合は `profiles/*.json.kelpie` から一致する pending backup を解決します。
 - `--dry-run` 指定時は確認 prompt を出さず、profile file の復元も backup file の削除も行いません。
 - `--dry-run` なしの場合、単一 profile は即時復元し、wildcard は確認後に一致 backup を復元します。
+
+### `kelpie profile check <profile>`
+
+目的:
+
+SSH 接続を行わず、単一 SSH profile file を検証します。wildcard は対応しません。
+
+構文:
+
+```powershell
+kelpie profile check vps01
+```
+
+処理内容:
+
+`profiles/<profile>.json` を読み、ファイル存在、JSON 構文、profile schema、接続項目、認証参照、command provider 対応、policy list、user、pending `.kelpie` backup を確認します。
+結果は `項目名: OK` または `項目名: NG (理由)` で表示します。複数値の項目は `kelpie profile show` と同様に、最初に項目名を表示し、1件ずつインデントして表示します。空リストは `(empty list): OK` と表示します。
+`User` または `Users` に直接 `root` login がある場合は NG です。private-key 認証では、解決後の秘密鍵ファイルが存在するかを確認します。
+
+実行結果サンプル:
+
+```text
+Profile file: OK
+Profile JSON: OK
+Profile schema: OK
+Host.Address: OK
+Host.Port: OK
+User: OK
+Auth.Method: OK
+Auth.PrivateKeyFile: OK
+Platform.OsFamily: OK
+Platform.PackageManager: OK
+Mode: OK
+Command providers:
+  DebianDiagnosticCommandProvider: OK
+Capabilities:
+  (empty list): OK
+Roles:
+  Safe: OK
+Allowed roots:
+  /var/www: OK
+Special paths:
+  **/.env: OK
+Users:
+  deploy: OK
+Pending backup: OK
+```
 
 ### `kelpie profile show <profile-pattern>`
 

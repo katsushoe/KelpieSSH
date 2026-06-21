@@ -1,6 +1,6 @@
 # KelpieSSH Configuration
 
-Last updated: 2026-06-18
+Last updated: 2026-06-21
 
 This file is the English reference for KelpieSSH configuration file locations and host-level settings.
 For Japanese documentation, see [docs/ja/CONFIG.ja.md](docs/ja/CONFIG.ja.md).
@@ -55,15 +55,15 @@ Used by the `kelpie` command.
 
 Important values:
 
-| Setting | Purpose |
-| :--- | :--- |
-| `LogDirectory` | Directory for CLI logs. |
-| `OpenProfile` | Last selected profile name for commands that use the open profile. |
-| `Server:Port` | Local HTTP port used by the MCP server. |
-| `Server:ControlPipeName` | Local named pipe used by `kelpie` / `kelpiemcp` to control the server. |
-| `Commands:ExecutablePath` | Optional explicit `kelpie` command path. |
-| `Commands:WorkingDirectory` | Optional command working directory. |
-| `Editor` | Optional editor command used by `kelpie profile edit <profile>` editor mode. Arguments are allowed. |
+| Setting | 必須 | 初期値 | Purpose |
+| :--- | :---: | :--- | :--- |
+| `LogDirectory` | いいえ | `KelpieHome\logs` | Directory for CLI logs. |
+| `OpenProfile` | いいえ | なし | Last selected profile name for commands that use the open profile. Runtime state is normally stored in `dat/storm_state.dat`. |
+| `Server:Port` | いいえ | `45432` | Local HTTP port used by the MCP server when command options are loaded. Usually configured in `kelpiemcp.json`. |
+| `Server:ControlPipeName` | いいえ | なし | Local named pipe used by `kelpie` / `kelpiemcp` to control the server. Usually configured in `kelpiemcp.json`; commands that contact the server require an effective value. |
+| `Commands:ExecutablePath` | いいえ | なし | Optional explicit `kelpie` command path. |
+| `Commands:WorkingDirectory` | いいえ | なし | Optional command working directory. |
+| `Editor` | いいえ | 空文字 | Optional editor command used by `kelpie profile edit <profile>` editor mode. Arguments are allowed. |
 
 Minimal example:
 
@@ -107,15 +107,15 @@ Used by `kelpiemcp` and `KelpieMCPServer`.
 
 Important values:
 
-| Setting | Purpose |
-| :--- | :--- |
-| `AllowedHosts` | HTTP Host allow-list for the local MCP server. |
-| `Server:Port` | Local HTTP port for the MCP endpoint. |
-| `Server:ControlPipeName` | Local named pipe used by `kelpiemcp` to control the server. |
-| `LogDirectory` | Directory for MCP server logs. |
-| `Commands:ExecutablePath` | Optional explicit `KelpieMCPServer` executable path. |
-| `Commands:WorkingDirectory` | Optional server working directory. |
-| `ProfileOperations` | Allows or denies profile trust operations by caller channel. Defaults allow CLI operations and deny MCP operations. |
+| Setting | 必須 | 初期値 | Purpose |
+| :--- | :---: | :--- | :--- |
+| `AllowedHosts` | いいえ | `localhost;127.0.0.1;[::1]` | HTTP Host allow-list for the local MCP server. |
+| `Server:Port` | いいえ | `45432` | Local HTTP port for the MCP endpoint. |
+| `Server:ControlPipeName` | はい | `KelpieMCPServer.Control` | Local named pipe used by `kelpiemcp` to control the server. |
+| `LogDirectory` | いいえ | `KelpieHome\logs` | Directory for MCP server logs. |
+| `Commands:ExecutablePath` | いいえ | `KelpieHome\bin\mcp\KelpieMCPServer.exe` on Windows | Optional explicit `KelpieMCPServer` executable path. |
+| `Commands:WorkingDirectory` | いいえ | `KelpieHome\bin` | Optional server working directory. |
+| `ProfileOperations` | いいえ | CLI `Allow`, MCP `Deny` | Allows or denies profile trust operations by caller channel. Defaults allow CLI operations and deny MCP operations. |
 
 By default, the MCP endpoint is:
 
@@ -171,14 +171,14 @@ The current implementation also accepts legacy values for compatibility: `Allowe
 
 Default policy:
 
-| Setting | Default | Purpose |
-| :--- | :--- | :--- |
-| `ProfileOperations:Add:CLI` | `Allow` | Allows `kelpiemcp profile add <profile>`. |
-| `ProfileOperations:Reload:CLI` | `Allow` | Allows `kelpiemcp profile reload <profile>`. |
-| `ProfileOperations:Revoke:CLI` | `Allow` | Allows `kelpiemcp profile revoke <profile>`. |
-| `ProfileOperations:Add:MCP` | `Deny` | MCP profile add is not exposed. |
-| `ProfileOperations:Reload:MCP` | `Deny` | Controls the `ReloadAllowed` value returned by `ssh_profile_capabilities`. |
-| `ProfileOperations:Revoke:MCP` | `Deny` | MCP profile revoke is not exposed. |
+| Setting | 必須 | 初期値 | Purpose |
+| :--- | :---: | :--- | :--- |
+| `ProfileOperations:Add:CLI` | いいえ | `Allow` | Allows `kelpiemcp profile add <profile>`. |
+| `ProfileOperations:Reload:CLI` | いいえ | `Allow` | Allows `kelpiemcp profile reload <profile>`. |
+| `ProfileOperations:Revoke:CLI` | いいえ | `Allow` | Allows `kelpiemcp profile revoke <profile>`. |
+| `ProfileOperations:Add:MCP` | いいえ | `Deny` | MCP profile add is not exposed. |
+| `ProfileOperations:Reload:MCP` | いいえ | `Deny` | Controls the `ReloadAllowed` value returned by `ssh_profile_capabilities`. |
+| `ProfileOperations:Revoke:MCP` | いいえ | `Deny` | MCP profile revoke is not exposed. |
 
 When a CLI operation is denied, the corresponding command returns a JSON result with `Success: false` and `Status: disabled-by-config`.
 `kelpiemcp profile-capabilities [profile]` returns `AddAllowed`, `ReloadAllowed`, and `RevokeAllowed` after applying both the trust-store state and the `ProfileOperations:*:CLI` settings.
@@ -211,10 +211,10 @@ Example:
 }
 ```
 
-| Setting | Purpose |
-| :--- | :--- |
-| `OpenProfile` | Last profile opened with `kelpie open <profile>`. `kelpie login` uses this value. |
-| `ClientMode` | Client mode selected by commands such as `kelpie gui` or `kelpie cli`. |
+| Setting | 必須 | 初期値 | Purpose |
+| :--- | :---: | :--- | :--- |
+| `OpenProfile` | いいえ | なし | Last profile opened with `kelpie open <profile>`. `kelpie login` uses this value. |
+| `ClientMode` | いいえ | なし | Client mode selected by commands such as `kelpie gui` or `kelpie cli`. |
 
 ## SSH Profiles
 

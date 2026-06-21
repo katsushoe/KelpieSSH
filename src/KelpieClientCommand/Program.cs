@@ -27,7 +27,10 @@ KpLogSetup.Configure(
 KpLog.Info("Kelpie CLI starting.");
 
 var command = args.Length > 0 ? args[0] : string.Empty;
-WarnLegacyEditorConfigIfNeeded();
+if (!IsCheckCommand(args))
+{
+    WarnLegacyEditorConfigIfNeeded();
+}
 
 if (IsHelpCommand(command))
 {
@@ -62,6 +65,13 @@ if (string.Equals(command, "cli", StringComparison.OrdinalIgnoreCase))
     KpLog.Info("Kelpie CLI cli mode requested.");
     SaveClientMode("cli");
     Console.WriteLine("Kelpie mode: cli");
+    return;
+}
+
+if (string.Equals(command, "config", StringComparison.OrdinalIgnoreCase))
+{
+    KpLog.Info("Kelpie CLI config requested.");
+    RunConfigCheck(args);
     return;
 }
 
@@ -299,6 +309,19 @@ if (string.Equals(command, "profile", StringComparison.OrdinalIgnoreCase))
         return;
     }
 
+    if (string.Equals(subcommand, "check", StringComparison.OrdinalIgnoreCase))
+    {
+        if (args.Length != 3)
+        {
+            WriteProfileUsage(Console.Error);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        CheckProfile(args[2]);
+        return;
+    }
+
     if (!string.Equals(subcommand, "show", StringComparison.OrdinalIgnoreCase))
     {
         WriteProfileUsage(Console.Error);
@@ -381,6 +404,388 @@ static SshConnectionProfileCatalog LoadProfileCatalog()
         SshConnectionProfileFileLoader.LoadDirectory(profilesDirectory));
 }
 
+static void RunConfigCheck(string[] args)
+{
+    if (args.Length != 2
+        || (!string.Equals(args[1], "--check", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(args[1], "check", StringComparison.OrdinalIgnoreCase)))
+    {
+        Console.Error.WriteLine("Usage:");
+        Console.Error.WriteLine("  kelpie config --check");
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    var result = new CheckResultWriter();
+    var configPath = KelpieRuntimePaths.GetConfigFilePath(AppContext.BaseDirectory, KelpieRuntimePaths.KelpieConfigFileName);
+    var mcpConfigPath = KelpieRuntimePaths.GetConfigFilePath(AppContext.BaseDirectory, KelpieRuntimePaths.KelpieMcpConfigFileName);
+
+    var kelpieConfigDocument = CheckJsonFile(result, "Kelpie config file", "Kelpie config JSON", configPath);
+    if (kelpieConfigDocument is not null)
+    {
+        using (kelpieConfigDocument)
+        {
+            var root = kelpieConfigDocument.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                result.Write("Editor", false, "configuration root must be an object");
+            }
+            else if (root.TryGetProperty("editor", out _))
+            {
+                result.Write("Editor", false, "legacy key `editor` is used; rename it to `Editor`");
+            }
+            else
+            {
+                result.Write("Editor", true);
+            }
+        }
+    }
+
+    var mcpConfigDocument = CheckJsonFile(result, "MCP config file", "MCP config JSON", mcpConfigPath);
+    if (mcpConfigDocument is not null)
+    {
+        using (mcpConfigDocument)
+        {
+            CheckMcpConfig(result, mcpConfigDocument.RootElement);
+        }
+    }
+
+    result.WriteGroup("Directories:", new[]
+    {
+        CheckDirectory("config", KelpieRuntimePaths.GetConfigDirectory(AppContext.BaseDirectory)),
+        CheckDirectory("profiles", KelpieRuntimePaths.GetProfilesDirectory(AppContext.BaseDirectory)),
+        CheckDirectory("logs", KelpieRuntimePaths.GetLogDirectory(AppContext.BaseDirectory)),
+        CheckDirectory("bin", KelpieRuntimePaths.GetBinDirectory(AppContext.BaseDirectory)),
+        CheckDirectory("keys", KelpieRuntimePaths.GetKeysDirectory(AppContext.BaseDirectory)),
+        CheckDirectory("dat", KelpieRuntimePaths.GetDataDirectory(AppContext.BaseDirectory)),
+    });
+
+    Environment.ExitCode = result.HasErrors ? 1 : 0;
+}
+
+static JsonDocument? CheckJsonFile(CheckResultWriter result, string fileItemName, string jsonItemName, string path)
+{
+    if (!File.Exists(path))
+    {
+        result.Write(fileItemName, false, $"file was not found: {path}");
+        result.Write(jsonItemName, false, "file was not found");
+        return null;
+    }
+
+    result.Write(fileItemName, true);
+
+    try
+    {
+        var document = JsonDocument.Parse(File.ReadAllText(path));
+        result.Write(jsonItemName, true);
+        return document;
+    }
+    catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+    {
+        result.Write(jsonItemName, false, SanitizeReason(ex.Message));
+        return null;
+    }
+}
+
+static void CheckMcpConfig(CheckResultWriter result, JsonElement root)
+{
+    if (!TryGetJsonProperty(root, "Server", out var server)
+        || server.ValueKind != JsonValueKind.Object)
+    {
+        result.Write("Server", false, "Server section is not configured");
+        result.Write("Server.ControlPipeName", false, "Server section is not configured");
+        result.Write("Server.Port", false, "Server section is not configured");
+        return;
+    }
+
+    result.Write("Server", true);
+
+    result.Write(
+        "Server.ControlPipeName",
+        TryGetStringProperty(server, "ControlPipeName", out var controlPipeName) && !string.IsNullOrWhiteSpace(controlPipeName),
+        "Server:ControlPipeName is not configured");
+
+    if (!TryGetJsonProperty(server, "Port", out var portElement))
+    {
+        result.Write("Server.Port", true);
+        return;
+    }
+
+    var portOk = portElement.ValueKind == JsonValueKind.Number
+        ? portElement.TryGetInt32(out var port) && port is > 0 and <= 65535
+        : portElement.ValueKind == JsonValueKind.String
+            && int.TryParse(portElement.GetString(), out port)
+            && port is > 0 and <= 65535;
+    result.Write("Server.Port", portOk, "port must be between 1 and 65535");
+}
+
+static CheckItem CheckDirectory(string name, string path)
+{
+    return Directory.Exists(path)
+        ? CheckItem.Ok(name)
+        : CheckItem.Ng(name, $"directory was not found: {path}");
+}
+
+static void CheckProfile(string profileName)
+{
+    var result = new CheckResultWriter();
+
+    if (string.IsNullOrWhiteSpace(profileName))
+    {
+        result.Write("Profile name", false, "profile name is required");
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    if (ContainsWildcard(profileName))
+    {
+        result.Write("Profile name", false, "profile check requires a single profile name; wildcards are not supported");
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    string profilePath;
+    try
+    {
+        profilePath = GetProfileCheckPath(profileName);
+    }
+    catch (ArgumentException ex)
+    {
+        result.Write("Profile name", false, SanitizeReason(ex.Message));
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    var document = CheckJsonFile(result, "Profile file", "Profile JSON", profilePath);
+    if (document is null)
+    {
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    document.Dispose();
+
+    SshConnectionProfile profile;
+    try
+    {
+        profile = SshConnectionProfileFileLoader.LoadFile(profilePath);
+        profile.Validate();
+        result.Write("Profile schema", true);
+    }
+    catch (Exception ex) when (ex is InvalidOperationException or JsonException or IOException or UnauthorizedAccessException)
+    {
+        result.Write("Profile schema", false, SanitizeReason(ex.Message));
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    CheckLoadedProfile(result, profile);
+    result.Write("Pending backup", !File.Exists(GetProfileBackupPath(profilePath)), $"pending backup exists: {GetProfileBackupPath(profilePath)}");
+
+    Environment.ExitCode = result.HasErrors ? 1 : 0;
+}
+
+static string GetProfileCheckPath(string profileName)
+{
+    if (profileName.Contains('/', StringComparison.Ordinal) || profileName.Contains('\\', StringComparison.Ordinal))
+    {
+        throw new ArgumentException("Profile name must not contain path separators.");
+    }
+
+    if (profileName.Any(c => Path.GetInvalidFileNameChars().Contains(c)))
+    {
+        throw new ArgumentException("Profile name contains invalid file-name characters.");
+    }
+
+    return Path.GetFullPath(Path.Combine(
+        KelpieRuntimePaths.GetProfilesDirectory(AppContext.BaseDirectory),
+        profileName + ".json"));
+}
+
+static void CheckLoadedProfile(CheckResultWriter result, SshConnectionProfile profile)
+{
+    result.Write("Host.Address", !string.IsNullOrWhiteSpace(profile.Host), "host address is required");
+    result.Write("Host.Port", profile.Port is > 0 and <= 65535, "port must be between 1 and 65535");
+    result.Write("User", CheckUserName(profile.UserName, out var userReason), userReason);
+    result.Write("Auth.Method", IsSupportedAuthMethod(profile.AuthenticationMethod), "authentication method must be privateKey or password");
+    CheckAuthSecret(result, "Auth", profile.AuthenticationMethod, profile.PrivateKeyPath, profile.PasswordSecretName);
+    result.Write("Platform.OsFamily", !string.IsNullOrWhiteSpace(profile.OsFamily), "OS family is required");
+    result.Write("Platform.PackageManager", !string.IsNullOrWhiteSpace(profile.PackageManager), "package manager is required");
+    result.Write("Mode", Enum.IsDefined(profile.Mode), "mode is invalid");
+
+    var commandProviders = CommandProcessingProviderCatalog.CreateDefault()
+        .Where(provider => provider.Supports(profile))
+        .Select(provider => CheckItem.Ok(provider.GetType().Name))
+        .ToArray();
+    result.WriteGroup(
+        "Command providers:",
+        commandProviders,
+        emptyOk: false,
+        emptyReason: "no command provider supports this profile");
+
+    result.WriteGroup("Capabilities:", profile.Capabilities.List().Select(CheckPolicyName));
+    result.WriteGroup("Roles:", profile.Roles.Select(CheckNonEmptyValue));
+    result.WriteGroup("Allowed roots:", profile.AllowedRootRules.Select(CheckAllowedRoot));
+    result.WriteGroup("Special paths:", profile.SpecialPaths.Select(CheckSpecialPath));
+    result.WriteGroup("Users:", profile.Users.Select(CheckUser));
+}
+
+static void CheckAuthSecret(
+    CheckResultWriter result,
+    string itemPrefix,
+    string authenticationMethod,
+    string? privateKeyPath,
+    string? passwordSecretName)
+{
+    if (string.Equals(authenticationMethod, "privateKey", StringComparison.OrdinalIgnoreCase))
+    {
+        if (string.IsNullOrWhiteSpace(privateKeyPath))
+        {
+            result.Write($"{itemPrefix}.PrivateKeyFile", false, "private key file is required");
+            return;
+        }
+
+        result.Write(
+            $"{itemPrefix}.PrivateKeyFile",
+            File.Exists(privateKeyPath),
+            $"private key file was not found: {privateKeyPath}");
+        return;
+    }
+
+    if (string.Equals(authenticationMethod, "password", StringComparison.OrdinalIgnoreCase))
+    {
+        result.Write(
+            $"{itemPrefix}.PasswordSecretName",
+            !string.IsNullOrWhiteSpace(passwordSecretName),
+            "password secret name is required");
+    }
+}
+
+static CheckItem CheckPolicyName(string policyName)
+{
+    return string.IsNullOrWhiteSpace(policyName)
+        ? CheckItem.Ng(policyName, "capability name must not be empty")
+        : CheckItem.Ok(policyName);
+}
+
+static CheckItem CheckNonEmptyValue(string value)
+{
+    return string.IsNullOrWhiteSpace(value)
+        ? CheckItem.Ng("(empty)", "value must not be empty")
+        : CheckItem.Ok(value);
+}
+
+static CheckItem CheckAllowedRoot(AllowedRootRule rule)
+{
+    if (string.IsNullOrWhiteSpace(rule.Path))
+    {
+        return CheckItem.Ng("(empty)", "allowed root must not be empty");
+    }
+
+    if (ContainsParentTraversalSegment(rule.Path))
+    {
+        return CheckItem.Ng(rule.Path, "path traversal is not allowed");
+    }
+
+    if (rule.Access == AllowedRootAccess.None)
+    {
+        return CheckItem.Ng(rule.Path, "allowed root access must not be empty");
+    }
+
+    return CheckItem.Ok(rule.Path);
+}
+
+static CheckItem CheckSpecialPath(SpecialPathRule rule)
+{
+    if (string.IsNullOrWhiteSpace(rule.Pattern))
+    {
+        return CheckItem.Ng("(empty)", "special path pattern must not be empty");
+    }
+
+    if (ContainsParentTraversalSegment(rule.Pattern))
+    {
+        return CheckItem.Ng(rule.Pattern, "path traversal is not allowed");
+    }
+
+    return CheckItem.Ok(rule.Pattern);
+}
+
+static CheckItem CheckUser(SshConnectionUser user)
+{
+    return CheckUserName(user.UserName, out var reason)
+        ? CheckItem.Ok(user.UserName)
+        : CheckItem.Ng(string.IsNullOrWhiteSpace(user.UserName) ? "(empty)" : user.UserName, reason ?? "user name is invalid");
+}
+
+static bool CheckUserName(string userName, out string? reason)
+{
+    if (string.IsNullOrWhiteSpace(userName))
+    {
+        reason = "user name is required";
+        return false;
+    }
+
+    if (string.Equals(userName, "root", StringComparison.OrdinalIgnoreCase))
+    {
+        reason = "root login is not allowed";
+        return false;
+    }
+
+    reason = null;
+    return true;
+}
+
+static bool IsSupportedAuthMethod(string authenticationMethod)
+{
+    return string.Equals(authenticationMethod, "privateKey", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(authenticationMethod, "password", StringComparison.OrdinalIgnoreCase);
+}
+
+static bool ContainsParentTraversalSegment(string value)
+{
+    var segments = value.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    return segments.Any(segment => string.Equals(segment, "..", StringComparison.Ordinal));
+}
+
+static bool TryGetStringProperty(JsonElement element, string propertyName, out string value)
+{
+    if (TryGetJsonProperty(element, propertyName, out var property)
+        && property.ValueKind == JsonValueKind.String)
+    {
+        value = property.GetString() ?? string.Empty;
+        return true;
+    }
+
+    value = string.Empty;
+    return false;
+}
+
+static bool TryGetJsonProperty(JsonElement element, string propertyName, out JsonElement property)
+{
+    if (element.ValueKind != JsonValueKind.Object)
+    {
+        property = default;
+        return false;
+    }
+
+    foreach (var item in element.EnumerateObject())
+    {
+        if (string.Equals(item.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+        {
+            property = item.Value;
+            return true;
+        }
+    }
+
+    property = default;
+    return false;
+}
+
+static string SanitizeReason(string reason)
+{
+    return string.Join(" ", reason.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+}
+
 static void WarnLegacyEditorConfigIfNeeded()
 {
     try
@@ -420,6 +825,16 @@ static bool IsVersionCommand(string command)
         || string.Equals(command, "-v", StringComparison.OrdinalIgnoreCase);
 }
 
+static bool IsCheckCommand(string[] args)
+{
+    return args.Length >= 2
+        && ((string.Equals(args[0], "config", StringComparison.OrdinalIgnoreCase)
+                && (string.Equals(args[1], "--check", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(args[1], "check", StringComparison.OrdinalIgnoreCase)))
+            || (string.Equals(args[0], "profile", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(args[1], "check", StringComparison.OrdinalIgnoreCase)));
+}
+
 static void WriteProfileUsage(TextWriter writer)
 {
     writer.WriteLine("Usage:");
@@ -434,6 +849,7 @@ static void WriteProfileUsage(TextWriter writer)
     writer.WriteLine("  kelpie profile clean <profile-pattern> [--dry-run]");
     writer.WriteLine("  kelpie profile commit <profile-pattern> [--dry-run]");
     writer.WriteLine("  kelpie profile rollback <profile-pattern> [--dry-run]");
+    writer.WriteLine("  kelpie profile check <profile>");
     writer.WriteLine("  kelpie profile show <profile-pattern>");
 }
 
@@ -474,6 +890,7 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpie open <profile>");
     writer.WriteLine("  kelpie gui");
     writer.WriteLine("  kelpie cli");
+    writer.WriteLine("  kelpie config --check");
     writer.WriteLine("  kelpie login");
     writer.WriteLine("  kelpie login --console");
     writer.WriteLine("  kelpie login --desktop");
@@ -492,6 +909,7 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpie profile clean <profile-pattern>");
     writer.WriteLine("  kelpie profile commit <profile-pattern>");
     writer.WriteLine("  kelpie profile rollback <profile-pattern>");
+    writer.WriteLine("  kelpie profile check <profile>");
     writer.WriteLine("  kelpie profile show <profile-pattern>");
     writer.WriteLine("  kelpie status <profile>");
     writer.WriteLine("  kelpie diag <profile>");
@@ -3468,5 +3886,68 @@ sealed class ProfileTransaction
         {
             File.Move(BackupPath, ProfilePath, overwrite: true);
         }
+    }
+}
+
+sealed record CheckItem(string Name, bool IsOk, string? Reason)
+{
+    public static CheckItem Ok(string name)
+    {
+        return new CheckItem(name, true, null);
+    }
+
+    public static CheckItem Ng(string name, string reason)
+    {
+        return new CheckItem(name, false, reason);
+    }
+}
+
+sealed class CheckResultWriter
+{
+    public bool HasErrors { get; private set; }
+
+    public void Write(string itemName, bool isOk, string? reason = null)
+    {
+        if (isOk)
+        {
+            Console.WriteLine($"{itemName}: OK");
+            return;
+        }
+
+        HasErrors = true;
+        Console.WriteLine($"{itemName}: NG ({reason ?? "check failed"})");
+    }
+
+    public void WriteGroup(
+        string title,
+        IEnumerable<CheckItem> items,
+        bool emptyOk = true,
+        string emptyReason = "empty list")
+    {
+        Console.WriteLine(title);
+
+        var itemArray = items.ToArray();
+        if (itemArray.Length == 0)
+        {
+            WriteIndented("(empty list)", emptyOk, emptyReason);
+            return;
+        }
+
+        foreach (var item in itemArray)
+        {
+            WriteIndented(item.Name, item.IsOk, item.Reason);
+        }
+    }
+
+    private void WriteIndented(string itemName, bool isOk, string? reason)
+    {
+        if (isOk)
+        {
+            Console.WriteLine($"  {itemName}: OK");
+            return;
+        }
+
+        HasErrors = true;
+        Console.WriteLine($"  {itemName}: NG ({reason ?? "check failed"})");
     }
 }
