@@ -337,14 +337,16 @@ Authentication method (privateKey/password) [privateKey]: password
 Password secret name [kelpie:vps02]: kelpie:vps02
 OS family [debian]: ubuntu
 Mode (ReadOnly/Safe/Maintenance/Expert) [Safe]: ReadOnly
-Read-only root, '-' to omit [/var/log]: /var/log/nginx
-Read-write root, '-' to omit [/var/www]: -
-Deny pattern, '-' to omit [**/.env]: **/.secret
+Read-only root [Return to skip]: /var/log/nginx
+Read-only root [Return to skip]:
+Read-write root [Return to skip]:
+Deny pattern [Return to skip]: **/.secret
+Deny pattern [Return to skip]:
 Created profile: vps02
 Profile file: D:\Kelpie\profiles\vps02.json
 ```
 
-If `profiles\vps02.json` already exists, the command fails and does not overwrite it.
+If `profiles\vps02.json` already exists, the command asks whether to overwrite it. When overwritten, the old file is kept as `profiles\vps02.json.kelpie` until you commit or roll back the profile change.
 
 ## Contributing
 
