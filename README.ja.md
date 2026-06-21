@@ -300,6 +300,36 @@ kelpie profile show vps01
 kelpie status vps01
 ```
 
+`kelpie profile show vps01` の出力例:
+
+```text
+Profile: vps01
+Host: example.invalid
+Port: 22
+User: deploy
+OS family: debian
+Package manager: apt
+Command OS family: debian
+Command providers:
+  CommonDiagnosticCommandProvider
+  DebianAptCommandProvider
+Capabilities:
+  (empty list)
+Roles:
+  Safe
+Effective mode: Safe
+Allowed roots:
+  /var/www  @Read|@List|@Write|@CD
+Special paths:
+  **/.env  Deny
+Services:
+  (empty list)
+Users:
+  deploy  Safe
+Authentication: privateKey
+Private key: (configured)
+```
+
 対話 SSH セッションを実行します。
 
 ```powershell

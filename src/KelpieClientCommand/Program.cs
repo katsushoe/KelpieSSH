@@ -1722,14 +1722,14 @@ static void WriteProfileSummary(SshConnectionProfile profile, bool includeAuthen
     Console.WriteLine($"OS family: {profile.OsFamily}");
     Console.WriteLine($"Package manager: {profile.PackageManager}");
     Console.WriteLine($"Command OS family: {OsFamilyAliasResolver.Resolve(profile.OsFamily)}");
-    Console.WriteLine($"Command providers: {FormatCommandProcessingProviders(profile)}");
-    Console.WriteLine($"Capabilities: {FormatCapabilities(profile.Capabilities)}");
-    Console.WriteLine($"Roles: {FormatRoles(profile.Roles)}");
+    WriteCommandProcessingProviders(profile);
+    WriteCapabilities(profile.Capabilities);
+    WriteRoles(profile.Roles);
     Console.WriteLine($"Effective mode: {profile.Mode}");
-    Console.WriteLine($"Allowed roots: {FormatAllowedRoots(profile)}");
-    Console.WriteLine($"Special paths: {FormatSpecialPaths(profile.SpecialPaths)}");
-    Console.WriteLine($"Services: {FormatServices(profile.Services)}");
-    Console.WriteLine($"Users: {FormatUsers(profile.Users)}");
+    WriteAllowedRoots(profile);
+    WriteSpecialPaths(profile.SpecialPaths);
+    WriteServices(profile.Services);
+    WriteUsers(profile.Users);
 
     if (!includeAuthenticationDetails)
     {
@@ -1748,40 +1748,72 @@ static void WriteProfileSummary(SshConnectionProfile profile, bool includeAuthen
     }
 }
 
-static string FormatAllowedRoots(SshConnectionProfile profile)
+static void WriteAllowedRoots(SshConnectionProfile profile)
 {
-    var allowedRoots = profile.AllowedRootRules.Count > 0
-        ? profile.AllowedRootRules.Select(rule => $"{rule.Path} {AllowedRootAccessText.Format(rule.Access)}")
-        : profile.AllowedRoots;
+    Console.WriteLine("Allowed roots:");
 
-    var roots = allowedRoots.ToArray();
-    return roots.Length == 0
-        ? "(none)"
-        : string.Join(", ", roots);
+    if (profile.AllowedRootRules.Count > 0)
+    {
+        var pathWidth = profile.AllowedRootRules.Max(rule => rule.Path.Length);
+        foreach (var rule in profile.AllowedRootRules)
+        {
+            Console.WriteLine($"  {rule.Path.PadRight(pathWidth)}  {AllowedRootAccessText.Format(rule.Access)}");
+        }
+
+        return;
+    }
+
+    if (profile.AllowedRoots.Count > 0)
+    {
+        foreach (var root in profile.AllowedRoots)
+        {
+            Console.WriteLine($"  {root}");
+        }
+
+        return;
+    }
+
+    Console.WriteLine("  (empty list)");
 }
 
-static string FormatSpecialPaths(IReadOnlyCollection<SpecialPathRule> specialPaths)
+static void WriteCommandProcessingProviders(SshConnectionProfile profile)
 {
-    return specialPaths.Count == 0
-        ? "(none)"
-        : string.Join(", ", specialPaths.Select(rule => $"{rule.Pattern} {rule.Action}"));
+    var providerNames = CommandProcessingProviderCatalog.CreateDefault()
+        .Where(provider => provider.Supports(profile))
+        .Select(provider => provider.GetType().Name)
+        .ToArray();
+
+    WriteIndentedList("Command providers:", providerNames);
 }
 
-static string FormatUsers(IReadOnlyCollection<SshConnectionUser> users)
+static void WriteCapabilities(PolicySet capabilities)
 {
-    return users.Count <= 1
-        ? "(single)"
-        : string.Join(", ", users.Select(user => $"{user.UserName} {FormatRoles(user.Roles)}"));
+    WriteIndentedList("Capabilities:", capabilities.List());
 }
 
-static string FormatRoles(IReadOnlyCollection<string> roles)
+static void WriteRoles(IReadOnlyCollection<string> roles)
 {
-    return roles.Count == 0
-        ? "(none)"
-        : string.Join("|", roles);
+    WriteIndentedList("Roles:", roles);
 }
 
-static string FormatServices(SshConnectionServices services)
+static void WriteSpecialPaths(IReadOnlyCollection<SpecialPathRule> specialPaths)
+{
+    Console.WriteLine("Special paths:");
+
+    if (specialPaths.Count == 0)
+    {
+        Console.WriteLine("  (empty list)");
+        return;
+    }
+
+    var patternWidth = specialPaths.Max(rule => rule.Pattern.Length);
+    foreach (var rule in specialPaths)
+    {
+        Console.WriteLine($"  {rule.Pattern.PadRight(patternWidth)}  {rule.Action}");
+    }
+}
+
+static void WriteServices(SshConnectionServices services)
 {
     var serviceSummaries = new List<string>();
     if (services.Nginx is not null)
@@ -1789,9 +1821,27 @@ static string FormatServices(SshConnectionServices services)
         serviceSummaries.Add($"Nginx {FormatNginxService(services.Nginx)}");
     }
 
-    return serviceSummaries.Count == 0
-        ? "(none)"
-        : string.Join(", ", serviceSummaries);
+    WriteIndentedList("Services:", serviceSummaries);
+}
+
+static void WriteUsers(IReadOnlyCollection<SshConnectionUser> users)
+{
+    Console.WriteLine("Users:");
+
+    if (users.Count == 0)
+    {
+        Console.WriteLine("  (empty list)");
+        return;
+    }
+
+    var userNameWidth = users.Max(user => user.UserName.Length);
+    foreach (var user in users)
+    {
+        var roles = user.Roles.Count == 0
+            ? "(empty list)"
+            : string.Join("|", user.Roles);
+        Console.WriteLine($"  {user.UserName.PadRight(userNameWidth)}  {roles}");
+    }
 }
 
 static string FormatNginxService(NginxServiceSettings nginx)
@@ -1822,24 +1872,20 @@ static string FormatNginxService(NginxServiceSettings nginx)
         : string.Join(" ", values);
 }
 
-static string FormatCapabilities(PolicySet capabilities)
+static void WriteIndentedList(string title, IReadOnlyCollection<string> values)
 {
-    var names = capabilities.List();
-    return names.Count == 0
-        ? "(none)"
-        : string.Join("|", names);
-}
+    Console.WriteLine(title);
 
-static string FormatCommandProcessingProviders(SshConnectionProfile profile)
-{
-    var providerNames = CommandProcessingProviderCatalog.CreateDefault()
-        .Where(provider => provider.Supports(profile))
-        .Select(provider => provider.GetType().Name)
-        .ToArray();
+    if (values.Count == 0)
+    {
+        Console.WriteLine("  (empty list)");
+        return;
+    }
 
-    return providerNames.Length == 0
-        ? "(none)"
-        : string.Join(", ", providerNames);
+    foreach (var value in values)
+    {
+        Console.WriteLine($"  {value}");
+    }
 }
 
 static string FormatConfiguredSecret(string? value)

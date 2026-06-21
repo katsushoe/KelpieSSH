@@ -1158,6 +1158,8 @@ kelpie profile show vps01
 処理内容:
 
 対象プロファイルを読み込み、接続先、OS family、command provider、mode、認証方式などの概要を表示します。
+`Command providers`、`Capabilities`、`Roles`、`Allowed roots`、`Special paths`、`Services`、`Users` などの複数値項目は、インデント付きで1行に1件ずつ表示します。
+空の複数値項目は `(empty list)` と表示します。2列表示の項目では、左側の列幅を揃えて右側の列を見やすくします。
 
 実行結果サンプル:
 
@@ -1169,10 +1171,22 @@ User: deploy
 OS family: alma
 Package manager: dnf
 Command OS family: rhel
-Command providers: CommonDiagnosticCommandProvider, RhelDnfCommandProvider
-Mode: Safe
-Capabilities: AllowListPackage
-Allowed roots: /var/www
+Command providers:
+  CommonDiagnosticCommandProvider
+  RhelDnfCommandProvider
+Capabilities:
+  AllowListPackage
+Roles:
+  Safe
+Effective mode: Safe
+Allowed roots:
+  /var/www  @Read|@List|@CD|@Write
+Special paths:
+  **/.env  Deny
+Services:
+  (empty list)
+Users:
+  deploy  Safe
 Authentication: privateKey
 Private key: (configured)
 ```
@@ -1217,8 +1231,22 @@ User: deploy
 OS family: alma
 Package manager: dnf
 Command OS family: rhel
-Command providers: CommonDiagnosticCommandProvider, RhelDnfCommandProvider
-Mode: Safe
+Command providers:
+  CommonDiagnosticCommandProvider
+  RhelDnfCommandProvider
+Capabilities:
+  AllowListPackage
+Roles:
+  Safe
+Effective mode: Safe
+Allowed roots:
+  /var/www  @Read|@List|@CD|@Write
+Special paths:
+  **/.env  Deny
+Services:
+  (empty list)
+Users:
+  deploy  Safe
 Authentication: privateKey
 
 KelpieMCPServer: running

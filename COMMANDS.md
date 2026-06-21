@@ -899,6 +899,8 @@ Return value:
 
 - Exit code `0` when the profile exists and the sanitized summary is printed.
 - Standard output contains profile metadata safe for terminal display. Secret values are not returned.
+- List-style fields such as `Command providers`, `Capabilities`, `Roles`, `Allowed roots`, `Special paths`, `Services`, and `Users` are printed one entry per indented line.
+- Empty list-style fields are printed as `(empty list)`. When a list has a second column, the first column is padded so the second column lines up.
 
 Return value sample:
 
