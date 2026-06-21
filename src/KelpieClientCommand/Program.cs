@@ -1757,7 +1757,7 @@ static void WriteAllowedRoots(SshConnectionProfile profile)
         var pathWidth = profile.AllowedRootRules.Max(rule => rule.Path.Length);
         foreach (var rule in profile.AllowedRootRules)
         {
-            Console.WriteLine($"  {rule.Path.PadRight(pathWidth)}  {AllowedRootAccessText.Format(rule.Access)}");
+            Console.WriteLine($"  {rule.Path.PadRight(pathWidth)}  => {AllowedRootAccessText.Format(rule.Access)}");
         }
 
         return;
@@ -1809,7 +1809,7 @@ static void WriteSpecialPaths(IReadOnlyCollection<SpecialPathRule> specialPaths)
     var patternWidth = specialPaths.Max(rule => rule.Pattern.Length);
     foreach (var rule in specialPaths)
     {
-        Console.WriteLine($"  {rule.Pattern.PadRight(patternWidth)}  {rule.Action}");
+        Console.WriteLine($"  {rule.Pattern.PadRight(patternWidth)}  => {rule.Action}");
     }
 }
 
@@ -1840,7 +1840,7 @@ static void WriteUsers(IReadOnlyCollection<SshConnectionUser> users)
         var roles = user.Roles.Count == 0
             ? "(empty list)"
             : string.Join("|", user.Roles);
-        Console.WriteLine($"  {user.UserName.PadRight(userNameWidth)}  {roles}");
+        Console.WriteLine($"  {user.UserName.PadRight(userNameWidth)}  => {roles}");
     }
 }
 

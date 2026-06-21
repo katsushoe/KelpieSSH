@@ -343,13 +343,13 @@ Roles:
   Safe
 Effective mode: Safe
 Allowed roots:
-  /var/www  @Read|@List|@Write|@CD
+  /var/www  => @Read|@List|@Write|@CD
 Special paths:
-  **/.env  Deny
+  **/.env  => Deny
 Services:
   (empty list)
 Users:
-  deploy  Safe
+  deploy  => Safe
 Authentication: privateKey
 Private key: (configured)
 ```
