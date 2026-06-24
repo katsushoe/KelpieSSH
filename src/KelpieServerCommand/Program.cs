@@ -1,6 +1,7 @@
 using KelpieServerCommand;
 using Kelpie.Core;
 using Microsoft.Extensions.Configuration;
+using System.Reflection;
 
 if (!KelpieRuntimePathOverrideParser.TryParse(args, out var commandArgs, out var runtimePathOverrides, out var runtimePathError))
 {
@@ -32,6 +33,12 @@ var command = args.Length > 0 ? args[0] : string.Empty;
 if (IsHelpCommand(command))
 {
     ShowUsage();
+    return;
+}
+
+if (IsVersionCommand(command))
+{
+    ShowVersion();
     return;
 }
 
@@ -178,6 +185,13 @@ static bool IsHelpCommand(string command)
         || string.Equals(command, "-h", StringComparison.OrdinalIgnoreCase);
 }
 
+static bool IsVersionCommand(string command)
+{
+    return string.Equals(command, "version", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(command, "--version", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(command, "-v", StringComparison.OrdinalIgnoreCase);
+}
+
 static KelpieMcpServerOptions CreateOptions(IConfiguration configuration)
 {
     return KelpieMcpServerOptions.FromConfiguration(configuration);
@@ -250,14 +264,24 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpiemcp profile-capabilities [profile]");
     writer.WriteLine("  kelpiemcp password <profile>");
     writer.WriteLine("  kelpiemcp forget <profile>");
+    writer.WriteLine("  kelpiemcp version");
+    writer.WriteLine("  kelpiemcp help");
     writer.WriteLine();
     writer.WriteLine("Options:");
+    writer.WriteLine("  --version, -v  Show version information.");
+    writer.WriteLine("  --help, -h     Show command help.");
     writer.WriteLine("  --config-dir <dir>    Override the config directory.");
     writer.WriteLine("  --profiles-dir <dir>  Override the SSH profile directory.");
     writer.WriteLine("  --logs-dir <dir>      Override the log directory.");
     writer.WriteLine("  --bin-dir <dir>       Override the binary directory.");
     writer.WriteLine("  --keys-dir <dir>      Override the key directory.");
     writer.WriteLine("  --dat-dir <dir>       Override the runtime data directory.");
+}
+
+static void ShowVersion()
+{
+    var version = Assembly.GetEntryAssembly()?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+    Console.WriteLine($"kelpiemcp {version ?? "unknown"}");
 }
 
 static void ShowServiceUsage(string serviceCommand)

@@ -1497,7 +1497,7 @@ cron 変更前に、対象、実行 user、cron 式、command、log path、確�
 ```json
 {
   "profileName": "vps01",
-  "path": "/etc/letsencrypt/live/example.com/fullchain.pem"
+  "path": "/etc/letsencrypt/live/example.invalid/fullchain.pem"
 }
 ```
 

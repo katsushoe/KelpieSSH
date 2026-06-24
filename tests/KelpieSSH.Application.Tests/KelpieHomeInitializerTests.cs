@@ -67,7 +67,7 @@ public sealed class KelpieHomeInitializerTests
                 homeDirectory,
                 "vps01",
                 new KelpieProfileTemplateOptions(
-                    HostAddress: "example.com",
+                    HostAddress: "example.invalid",
                     Port: 2222,
                     AuthMethod: "password",
                     PrivateKeyFile: null,
@@ -83,7 +83,7 @@ public sealed class KelpieHomeInitializerTests
             using var document = JsonDocument.Parse(File.ReadAllText(profilePath));
             var root = document.RootElement;
 
-            root.GetProperty("Host").GetProperty("Address").GetString().Should().Be("example.com");
+            root.GetProperty("Host").GetProperty("Address").GetString().Should().Be("example.invalid");
             root.GetProperty("Host").GetProperty("Port").GetInt32().Should().Be(2222);
             root.GetProperty("Auth").GetProperty("Method").GetString().Should().Be("password");
             root.GetProperty("Auth").GetProperty("PasswordSecretName").GetString().Should().Be("kelpie:vps01");
@@ -339,7 +339,7 @@ public sealed class KelpieHomeInitializerTests
                 homeDirectory,
                 "vps02",
                 new KelpieProfileTemplateOptions(
-                    HostAddress: "example.com",
+                    HostAddress: "example.invalid",
                     Port: 2222,
                     AuthMethod: "password",
                     PrivateKeyFile: null,
@@ -354,7 +354,7 @@ public sealed class KelpieHomeInitializerTests
             using var document = JsonDocument.Parse(File.ReadAllText(profilePath));
             var root = document.RootElement;
 
-            root.GetProperty("Host").GetProperty("Address").GetString().Should().Be("example.com");
+            root.GetProperty("Host").GetProperty("Address").GetString().Should().Be("example.invalid");
             root.GetProperty("Host").GetProperty("Port").GetInt32().Should().Be(2222);
             root.GetProperty("Auth").GetProperty("Method").GetString().Should().Be("password");
             root.GetProperty("Auth").GetProperty("PasswordSecretName").GetString().Should().Be("kelpie:vps02");

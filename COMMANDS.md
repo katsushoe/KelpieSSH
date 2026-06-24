@@ -1,6 +1,6 @@
 # KelpieSSH Commands
 
-Last updated: 2026-06-21
+Last updated: 2026-06-24
 
 This file is the English command reference for commands run directly from a terminal, such as `kelpie` and `kelpiemcp`.
 For Japanese documentation, see [docs/ja/COMMANDS.ja.md](docs/ja/COMMANDS.ja.md).
@@ -20,7 +20,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | [Mode/UI](#modeui) | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | Switch CLI/GUI mode or choose a temporary launch mode. |
 | [Diagnostics](#diagnostics) | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | Validate profiles, show profile information, MCP server status, SSH diagnostics, and service logs. |
 | [Environment](#environment) | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | List, read, temporarily set, or persist remote environment variables under profile policy. |
-| [Help/version](#helpversion) | `kelpie version`, `kelpie help`, `kelpie --help`, `kelpie --version` | Show version and help text. |
+| [Help/version](#helpversion) | `kelpie version`, `kelpie help`, `kelpie --help`, `kelpie --version`, `kelpiemcp version`, `kelpiemcp help` | Show version and help text. |
 
 ## Common Rules
 
@@ -1988,6 +1988,8 @@ Commands in this group:
 
 - [`kelpie version`](#kelpie-version)
 - [`kelpie help`](#kelpie-help)
+- [`kelpiemcp version`](#kelpiemcp-version)
+- [`kelpiemcp help`](#kelpiemcp-help)
 
 #### `kelpie version`
 
@@ -2034,6 +2036,74 @@ Return value:
 
 - Exit code `0` when help text is printed.
 - Standard output contains terminal help text for the available command set.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
+Execution result sample:
+
+The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
+#### `kelpiemcp version`
+
+Shows the `kelpiemcp` command version.
+
+```powershell
+kelpiemcp version
+kelpiemcp --version
+kelpiemcp -v
+```
+
+Return value:
+
+- Exit code `0` when the version is printed.
+- Standard output contains the `kelpiemcp` product version string.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "<command-specific terminal output>",
+  "stderr": ""
+}
+```
+
+Execution result sample:
+
+```text
+kelpiemcp 0.3.4.0
+```
+
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
+#### `kelpiemcp help`
+
+Shows `kelpiemcp` command help.
+
+```powershell
+kelpiemcp help
+kelpiemcp --help
+kelpiemcp -h
+```
+
+Return value:
+
+- Exit code `0` when help text is printed.
+- Standard output contains terminal help text for the available `kelpiemcp` command set.
 
 Return value sample:
 

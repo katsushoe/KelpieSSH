@@ -54,7 +54,7 @@ else {
 $filesRoot = Join-Path $outputRootPath "files"
 $binDir = Join-Path $filesRoot "bin"
 $mcpDir = Join-Path $binDir "mcp"
-$zipPath = Join-Path $outputRootPath ("KelpieSSH-" + $Version + "-x64.zip")
+$zipPath = Join-Path $outputRootPath ("KelpieSSH-" + $Version + "-win-x64.zip")
 
 $resolvedRepoRoot = [System.IO.Path]::GetFullPath($repoRoot).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
 $resolvedFilesRoot = [System.IO.Path]::GetFullPath($filesRoot)

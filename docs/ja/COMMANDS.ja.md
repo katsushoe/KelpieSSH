@@ -1,6 +1,6 @@
 # KelpieSSH Commands
 
-最終更新: 2026-06-21
+最終更新: 2026-06-24
 
 このファイルは、利用者が通常のターミナルから直接実行する `kelpie` / `kelpiemcp` CLI コマンドの正本です。
 コマンドラインオプションの詳細は [CLI_OPTIONS.md](../../CLI_OPTIONS.md) を参照してください。
@@ -20,7 +20,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | Mode/UI | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | CLI/GUI モードや一時的な起動方式を切り替える。 |
 | Diagnostics | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | プロファイル検証、プロファイル情報、MCP server 状態、SSH 診断、サービスログを表示する。 |
 | Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | profile policy に従って remote 環境変数の key 表示、値参照、一時設定、永続化を行う。 |
-| Help/version | `kelpie version`, `kelpie help` | バージョンとヘルプを表示する。 |
+| Help/version | `kelpie version`, `kelpie help`, `kelpiemcp version`, `kelpiemcp help` | バージョンとヘルプを表示する。 |
 | Candidates | `kelpie services`, `kelpie pkg ...` | 今後追加候補。 |
 
 ## Common Rules
@@ -2031,6 +2031,94 @@ Usage:
   kelpie env remove <profile> <key>
   kelpie version
   kelpie help
+
+Options:
+  --version, -v  Show version information.
+  --help, -h     Show command help.
+  --config-dir <dir>    Override the config directory.
+  --profiles-dir <dir>  Override the SSH profile directory.
+  --logs-dir <dir>      Override the log directory.
+  --bin-dir <dir>       Override the binary directory.
+  --keys-dir <dir>      Override the key directory.
+  --dat-dir <dir>       Override the runtime data directory.
+```
+
+### `kelpiemcp version`
+
+目的:
+
+`kelpiemcp` のバージョン情報を表示します。
+
+構文:
+
+```powershell
+kelpiemcp version
+kelpiemcp --version
+kelpiemcp -v
+```
+
+引数詳細:
+
+- なし。`--version` / `-v` は別名です。
+
+引数サンプル:
+
+- なし。
+
+処理内容:
+
+`kelpiemcp` のバージョン情報を表示します。
+
+実行結果サンプル:
+
+```text
+kelpiemcp 0.3.4.0
+```
+
+### `kelpiemcp help`
+
+目的:
+
+`kelpiemcp` のコマンドヘルプを表示します。
+
+構文:
+
+```powershell
+kelpiemcp help
+kelpiemcp --help
+kelpiemcp -h
+```
+
+引数詳細:
+
+- なし。`--help` / `-h` は別名です。
+
+引数サンプル:
+
+- なし。
+
+処理内容:
+
+利用可能な `kelpiemcp` コマンドと option を表示します。
+
+実行結果サンプル:
+
+```text
+Usage:
+  kelpiemcp start [--reload-config]
+  kelpiemcp stop
+  kelpiemcp status
+  kelpiemcp service register
+  kelpiemcp service unregister
+  kelpiemcp service status
+  kelpiemcp profile add <profile>
+  kelpiemcp profile reload <profile>
+  kelpiemcp profile revoke <profile>
+  kelpiemcp profile-capabilities [profile]
+  kelpiemcp password <profile>
+  kelpiemcp forget <profile>
+  kelpiemcp version
+  kelpiemcp help
 
 Options:
   --version, -v  Show version information.

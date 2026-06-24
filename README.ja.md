@@ -31,15 +31,17 @@ config_samples/
 
 ## はじめに
 
-KelpieSSH の使い方に合わせて導入方法を選んでください。
+KelpieSSH の使い方に合わせて導入方法を選んでください。Alpha リリースでは Windows ZIP を主なバイナリ配布物とします。MSI はリリースに添付される場合がありますが、任意であり、未署名の場合があります。
 
-### バイナリ利用者
+### Alpha バイナリ利用者
 
-#### 1. バイナリ（`.msi`）をインストールする
+#### 1. リリースバイナリをダウンロードする
 
-通常は、GitHub Releases から KelpieSSH の `.msi` インストーラーをダウンロードして実行します。
+Alpha リリースでは、GitHub Releases から `KelpieSSH-x.x.x.x-win-x64.zip` をダウンロードし、下の ZIP 配布版の手順に従ってください。
 
-インストール後、新しいターミナルを開いてください。
+同じリリースに MSI が添付されている場合は、MSI を使うこともできます。Alpha MSI は未署名の場合があるため、Windows が不明な発行元または SmartScreen 警告を表示することがあります。
+
+インストール後、または `PATH` 設定後に、新しいターミナルを開いてください。
 
 コマンドを実行できることを確認します。
 
@@ -50,7 +52,7 @@ kelpie version
 出力例:
 
 ```text
-kelpie 0.3.1.1
+kelpie 0.3.4.0
 ```
 
 #### 2. Kelpie home を初期化してプロファイルを作成する
@@ -125,19 +127,21 @@ kelpie open vps01
 kelpie login
 ```
 
-Windows が不明な発行元または SmartScreen 警告を表示した場合は、MSI が公式 GitHub Release からダウンロードしたものか確認してください。チェックサムが公開されている場合は、あわせて照合してください。
+MSI で Windows が不明な発行元または SmartScreen 警告を表示した場合は、MSI が公式 GitHub Release からダウンロードしたものか確認してください。チェックサムが公開されている場合は、あわせて照合してください。
 
 ### ZIP 配布版の利用者
 
 #### 1. ZIP バイナリを配置する
 
-`KelpieSSH-x.x.x.x-x64.zip` を `D:\Kelpie` に展開します。CLI 利用に関係する主なファイルは次の構成で配置されます。
+`KelpieSSH-x.x.x.x-win-x64.zip` を `D:\Kelpie` に展開します。CLI 利用に関係する主なファイルは次の構成で配置されます。
 
 ```text
 D:\Kelpie
 ├─ bin
 │  ├─ kelpie.exe
-│  └─ kelpiemcp.exe
+│  ├─ kelpiemcp.exe
+│  └─ mcp
+│     └─ KelpieMCPServer.exe
 ├─ config_samples
 ├─ docs
 ├─ README.md
@@ -172,7 +176,7 @@ kelpie version
 出力例:
 
 ```text
-kelpie 0.3.1.1
+kelpie 0.3.4.0
 ```
 
 `PATH` を更新したくない場合は、`D:\Kelpie\bin\kelpie.exe` のようにフルパスで実行してください。

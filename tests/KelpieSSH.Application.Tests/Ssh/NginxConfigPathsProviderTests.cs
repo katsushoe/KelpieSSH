@@ -199,7 +199,7 @@ public sealed class NginxConfigPathsProviderTests
         var profile = CreateProfile(KelpiePolicyMode.Expert);
         const string originalContent = """
             server {
-                server_name old.example.com;
+                server_name old.example.invalid;
             }
 
             """;
@@ -294,25 +294,25 @@ public sealed class NginxConfigPathsProviderTests
         var profile = CreateProfile(KelpiePolicyMode.Expert);
         const string originalContent = """
             server {
-                server_name one.example.com;
+                server_name one.example.invalid;
             }
 
             server {
-                server_name two.example.com;
+                server_name two.example.invalid;
             }
 
             server {
-                server_name three.example.com;
+                server_name three.example.invalid;
             }
 
             """;
         const string updatedContent = """
             server {
-                server_name one.example.com;
+                server_name one.example.invalid;
             }
 
             server {
-                server_name two.example.com;
+                server_name two.example.invalid;
             }
 
             server {
@@ -356,11 +356,11 @@ public sealed class NginxConfigPathsProviderTests
         var profile = CreateProfile(KelpiePolicyMode.Expert);
         const string originalContent = """
             server {
-                server_name one.example.com;
+                server_name one.example.invalid;
             }
 
             server {
-                server_name two.example.com;
+                server_name two.example.invalid;
             }
 
             """;
@@ -399,7 +399,7 @@ public sealed class NginxConfigPathsProviderTests
         const string originalContent = """
             server {
                 listen 80;
-                server_name old.example.com;
+                server_name old.example.invalid;
             }
 
             """;

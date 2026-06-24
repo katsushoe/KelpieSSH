@@ -31,15 +31,17 @@ config_samples/
 
 ## Getting Started
 
-Choose the setup path that matches how you want to use KelpieSSH.
+Choose the setup path that matches how you want to use KelpieSSH. For the Alpha release, the Windows zip is the primary binary distribution. An MSI may be attached to a release when it is available, but it is optional and may be unsigned.
 
-### Binary users
+### Alpha binary users
 
-#### 1. Installing binary (`.msi`)
+#### 1. Downloading a release binary
 
-For normal use, download the KelpieSSH `.msi` installer from GitHub Releases and run it.
+For the Alpha release, download `KelpieSSH-x.x.x.x-win-x64.zip` from GitHub Releases and follow the zip setup steps below.
 
-After installation, open a new terminal.
+If an MSI is attached to the same release, you may use it instead. The Alpha MSI can be unsigned, so Windows may show an unknown publisher or SmartScreen warning.
+
+After installation or `PATH` setup, open a new terminal.
 
 Verify that the command is available:
 
@@ -50,7 +52,7 @@ kelpie version
 Expected output:
 
 ```text
-kelpie 0.3.1.1
+kelpie 0.3.4.0
 ```
 
 #### 2. Initializing Kelpie home and creating a profile
@@ -125,19 +127,21 @@ For password-based profiles, sign in after opening the target:
 kelpie login
 ```
 
-If Windows shows an unknown publisher or SmartScreen warning, confirm that the MSI was downloaded from the official GitHub Release and compare the published checksum if one is provided.
+If Windows shows an unknown publisher or SmartScreen warning for an MSI, confirm that the MSI was downloaded from the official GitHub Release and compare the published checksum if one is provided.
 
 ### Zip distribution users
 
 #### 1. Placing the zip binaries
 
-Extract `KelpieSSH-x.x.x.x-x64.zip` to `D:\Kelpie`. The CLI-related files are placed like this:
+Extract `KelpieSSH-x.x.x.x-win-x64.zip` to `D:\Kelpie`. The CLI-related files are placed like this:
 
 ```text
 D:\Kelpie
 ├─ bin
 │  ├─ kelpie.exe
-│  └─ kelpiemcp.exe
+│  ├─ kelpiemcp.exe
+│  └─ mcp
+│     └─ KelpieMCPServer.exe
 ├─ config_samples
 ├─ docs
 ├─ README.md
@@ -172,7 +176,7 @@ kelpie version
 Expected output:
 
 ```text
-kelpie 0.3.1.1
+kelpie 0.3.4.0
 ```
 
 If you do not want to update `PATH`, keep using full paths such as `D:\Kelpie\bin\kelpie.exe`.

@@ -605,11 +605,11 @@ public sealed class KelpieToolsSshTests
             service,
             profiles,
             "vps01",
-            "/etc/letsencrypt/live/example.com/fullchain.pem");
+            "/etc/letsencrypt/live/example.invalid/fullchain.pem");
 
         result.CommandName.Should().Be("cert_inspect");
         result.CommandText.Should().Contain("openssl x509");
-        runner.LastRequest!.Arguments["path"].Should().Be("/etc/letsencrypt/live/example.com/fullchain.pem");
+        runner.LastRequest!.Arguments["path"].Should().Be("/etc/letsencrypt/live/example.invalid/fullchain.pem");
     }
 
     [Fact]
@@ -959,7 +959,7 @@ public sealed class KelpieToolsSshTests
             new FakeSshCommandOutput(
                 StandardOutput: """
                     server {
-                        server_name old.example.com;
+                        server_name old.example.invalid;
                     }
 
                     """,
@@ -1007,7 +1007,7 @@ public sealed class KelpieToolsSshTests
             new FakeSshCommandOutput(
                 StandardOutput: """
                     server {
-                        server_name old.example.com;
+                        server_name old.example.invalid;
                     }
 
                     """,
@@ -1056,7 +1056,7 @@ public sealed class KelpieToolsSshTests
             new FakeSshCommandOutput(
                 StandardOutput: """
                     server {
-                        server_name old.example.com;
+                        server_name old.example.invalid;
                     }
 
                     """,

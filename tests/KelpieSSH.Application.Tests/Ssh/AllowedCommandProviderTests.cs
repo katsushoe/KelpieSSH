@@ -785,10 +785,10 @@ public sealed class AllowedCommandProviderTests
 
         var commandText = command.BuildCommandText(new Dictionary<string, string>
         {
-            ["path"] = "/etc/letsencrypt/live/example.com/fullchain.pem",
+            ["path"] = "/etc/letsencrypt/live/example.invalid/fullchain.pem",
         });
 
-        commandText.Should().Be("openssl x509 -in '/etc/letsencrypt/live/example.com/fullchain.pem' -noout -issuer -subject -dates -ext subjectAltName");
+        commandText.Should().Be("openssl x509 -in '/etc/letsencrypt/live/example.invalid/fullchain.pem' -noout -issuer -subject -dates -ext subjectAltName");
     }
 
     [Fact]
