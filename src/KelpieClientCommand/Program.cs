@@ -3662,7 +3662,7 @@ static async Task ExecuteAndPrintAsync(
     {
         result = await service.ExecuteAsync(profile, commandName, arguments);
     }
-    catch (InvalidOperationException ex)
+    catch (Exception ex) when (ex is InvalidOperationException or SshException)
     {
         KpLog.Warn(ex.Message);
         Console.Error.WriteLine(ex.Message);

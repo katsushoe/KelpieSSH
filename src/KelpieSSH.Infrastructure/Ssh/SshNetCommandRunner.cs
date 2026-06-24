@@ -1,6 +1,8 @@
+using System.Net.Sockets;
 using Kelpie.Core;
 using KelpieSSH.Application.Ssh;
 using Renci.SshNet;
+using Renci.SshNet.Common;
 
 namespace KelpieSSH.Infrastructure.Ssh;
 
@@ -70,6 +72,19 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
                 startedAt,
                 completedAt,
                 TimedOut: true);
+        }
+        catch (Exception ex) when (ex is SocketException or SshOperationTimeoutException or SshException)
+        {
+            var completedAt = DateTimeOffset.UtcNow;
+            var message = ex switch
+            {
+                SocketException => $"SSH host is unreachable: {ex.Message}",
+                SshOperationTimeoutException => $"SSH connection timed out: {ex.Message}",
+                _ => $"SSH connection failed: {ex.Message}",
+            };
+            KpLog.Warn(
+                $"SSH command connection failed. profile={request.Profile.Name}, command={request.CommandName}, exceptionType={ex.GetType().FullName ?? "UnknownException"}, durationMs={(completedAt - startedAt).TotalMilliseconds:0.###}");
+            throw new SshConnectionException(message, ex);
         }
         catch (Exception ex)
         {
