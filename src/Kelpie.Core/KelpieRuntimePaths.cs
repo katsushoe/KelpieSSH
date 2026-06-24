@@ -7,6 +7,7 @@ namespace Kelpie.Core;
 /// </summary>
 public static class KelpieRuntimePaths
 {
+    private const string HomeEnvironmentVariableName = "KELPIE_HOME";
     private static readonly AsyncLocal<KelpieRuntimePathOverrides?> CurrentOverrides = new();
 
     /// <summary>
@@ -61,6 +62,14 @@ public static class KelpieRuntimePaths
             var binDirectory = new DirectoryInfo(
                 Path.GetFullPath(pathOverrides.BinDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
             return binDirectory.Parent?.FullName ?? binDirectory.FullName;
+        }
+
+        var environmentHomeDirectory = Environment.GetEnvironmentVariable(HomeEnvironmentVariableName);
+        if (!string.IsNullOrWhiteSpace(environmentHomeDirectory)
+            && Directory.Exists(environmentHomeDirectory))
+        {
+            return Path.GetFullPath(environmentHomeDirectory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         }
 
         return GetLayoutHomeDirectory(baseDirectory);

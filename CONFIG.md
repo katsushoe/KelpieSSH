@@ -1,6 +1,6 @@
 # KelpieSSH Configuration
 
-Last updated: 2026-06-21
+Last updated: 2026-06-24
 
 This file is the English reference for KelpieSSH configuration file locations and host-level settings.
 For Japanese documentation, see [docs/ja/CONFIG.ja.md](docs/ja/CONFIG.ja.md).
@@ -30,6 +30,14 @@ D:\Kelpie
 ├─ logs
 └─ bin
 ```
+
+Kelpie home is resolved in this order:
+
+1. If `--bin-dir <dir>` is specified as a runtime path override, the parent directory of `<dir>` is Kelpie home.
+2. If `KELPIE_HOME` is set and the directory exists, `KELPIE_HOME` is Kelpie home.
+3. Otherwise, the parent directory of the startup directory is Kelpie home.
+
+KelpieSSH does not read `KELPIEPRO_HOME`.
 
 ## File Generation
 

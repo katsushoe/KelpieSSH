@@ -152,6 +152,75 @@ public sealed class KelpieRuntimePathsTests
     }
 
     [Fact]
+    public void GetHomeDirectory_ShouldUseKelpieHomeEnvironmentVariableWhenDirectoryExists()
+    {
+        var homeDirectory = CreateHomeDirectory();
+        var baseDirectoryHome = CreateHomeDirectory();
+        var baseDirectory = Path.Combine(baseDirectoryHome, "bin");
+        var originalKelpieHome = Environment.GetEnvironmentVariable("KELPIE_HOME");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("KELPIE_HOME", homeDirectory);
+
+            var resolvedPath = KelpieRuntimePaths.GetHomeDirectory(baseDirectory);
+
+            resolvedPath.Should().Be(Path.GetFullPath(homeDirectory));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("KELPIE_HOME", originalKelpieHome);
+        }
+    }
+
+    [Fact]
+    public void GetHomeDirectory_ShouldIgnoreKelpieHomeEnvironmentVariableWhenDirectoryDoesNotExist()
+    {
+        var homeDirectory = CreateHomeDirectory();
+        var baseDirectory = Path.Combine(homeDirectory, "bin");
+        var missingHomeDirectory = Path.Combine(Path.GetTempPath(), "kelpie-missing-" + Guid.NewGuid().ToString("N"));
+        var originalKelpieHome = Environment.GetEnvironmentVariable("KELPIE_HOME");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("KELPIE_HOME", missingHomeDirectory);
+
+            var resolvedPath = KelpieRuntimePaths.GetHomeDirectory(baseDirectory);
+
+            resolvedPath.Should().Be(Path.GetFullPath(homeDirectory));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("KELPIE_HOME", originalKelpieHome);
+        }
+    }
+
+    [Fact]
+    public void GetHomeDirectory_ShouldPreferBinDirectoryOverrideBeforeKelpieHomeEnvironmentVariable()
+    {
+        var homeDirectory = CreateHomeDirectory();
+        var baseDirectory = Path.Combine(homeDirectory, "bin");
+        var overrideRoot = Path.Combine(Path.GetTempPath(), "kelpie-overrides-" + Guid.NewGuid().ToString("N"));
+        var environmentHomeDirectory = CreateHomeDirectory();
+        var originalKelpieHome = Environment.GetEnvironmentVariable("KELPIE_HOME");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("KELPIE_HOME", environmentHomeDirectory);
+            KelpieRuntimePaths.SetOverrides(new KelpieRuntimePathOverrides(BinDirectory: Path.Combine(overrideRoot, "bin")));
+
+            var resolvedPath = KelpieRuntimePaths.GetHomeDirectory(baseDirectory);
+
+            resolvedPath.Should().Be(Path.GetFullPath(overrideRoot));
+        }
+        finally
+        {
+            KelpieRuntimePaths.SetOverrides(KelpieRuntimePathOverrides.Empty);
+            Environment.SetEnvironmentVariable("KELPIE_HOME", originalKelpieHome);
+        }
+    }
+
+    [Fact]
     public void RuntimePathOverrides_ShouldOverrideIndividualDirectories()
     {
         var homeDirectory = CreateHomeDirectory();

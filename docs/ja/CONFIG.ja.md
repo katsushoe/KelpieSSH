@@ -1,6 +1,6 @@
 # KelpieSSH 設定
 
-最終更新: 2026-06-21
+最終更新: 2026-06-24
 
 この文書は、KelpieSSH の設定ファイル配置と host level settings をまとめる公開リファレンスです。
 Profile の詳細な設定ガイダンスは [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) を参照してください。
@@ -29,6 +29,14 @@ D:\Kelpie
 ├─ logs
 └─ bin
 ```
+
+Kelpie home は次の順で解決します。
+
+1. runtime path override として `--bin-dir <dir>` が指定されている場合、`<dir>` の親ディレクトリを Kelpie home とします。
+2. `KELPIE_HOME` が設定され、そのディレクトリが存在する場合、`KELPIE_HOME` を Kelpie home とします。
+3. それ以外の場合、startup directory の親ディレクトリを Kelpie home とします。
+
+KelpieSSH は `KELPIEPRO_HOME` を読みません。
 
 ## ファイル生成
 
