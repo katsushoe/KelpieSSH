@@ -3,6 +3,42 @@
 This document summarizes command-line options that are useful across common KelpieSSH CLI workflows.
 For complete command syntax and return values, see [COMMANDS.md](COMMANDS.md).
 
+## Local Check Commands
+
+Use `kelpie config check` and `kelpie profile check <profile>` before opening an SSH connection. These commands validate local JSON files, runtime directory settings, profile schema, authentication references, provider support, policy entries, users, and pending profile backups.
+
+Examples:
+
+```powershell
+kelpie config check
+kelpie config check --no-pager
+kelpie profile check vps01
+kelpie profile check vps01 --no-pager
+```
+
+`kelpie config --check` is accepted as a compatibility form of `kelpie config check`.
+
+Example `kelpie config check` output:
+
+```text
+Kelpie config file: OK
+Kelpie config JSON: OK
+Editor: OK
+MCP config file: OK
+MCP config JSON: OK
+Server: OK
+Server.ControlPipeName: OK
+Server.Port: OK
+Directories:
+  config: OK
+  profiles: OK
+  logs: OK
+  bin: OK
+  keys: OK
+  dat: OK
+Check summary: OK=14/14 NG=0/14
+```
+
 ## Silent Mode Options
 
 Use `--silent` when you want to create a profile template without interactive prompts.
