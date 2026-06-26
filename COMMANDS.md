@@ -1,6 +1,6 @@
 # KelpieSSH Commands
 
-Last updated: 2026-06-24
+Last updated: 2026-06-26
 
 This file is the English command reference for commands run directly from a terminal, such as `kelpie` and `kelpiemcp`.
 For Japanese documentation, see [docs/ja/COMMANDS.ja.md](docs/ja/COMMANDS.ja.md).
@@ -711,6 +711,7 @@ Safety notes:
 #### `kelpie config --check`
 
 Validates the local Kelpie CLI and MCP configuration files without opening an SSH connection.
+Use this as the first local health check after `kelpie init`, after editing `config/kelpie.json` or `config/kelpiemcp.json`, and before investigating SSH-side failures.
 
 ```powershell
 kelpie config --check
@@ -1202,6 +1203,7 @@ Processing:
 
 Validates one SSH profile file without opening an SSH connection.
 Wildcards are not supported.
+Use this before `kelpie open`, after profile edits, and before trusting or reloading an MCP profile baseline.
 
 ```powershell
 kelpie profile check vps01

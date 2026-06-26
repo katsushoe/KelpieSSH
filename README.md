@@ -113,6 +113,13 @@ For profile syntax and field details, see [PROFILE_GUIDE.md](PROFILE_GUIDE.md).
 
 Set the target host, SSH user, authentication method, and key or password secret reference in that file. For private key authentication, place the private key file under `<KelpieHome>\keys` and set `Auth.PrivateKeyFile` to that file name. The matching public key must already be registered on the server. For password authentication, set `Auth.Method` to `password` and set `Auth.PasswordSecretName`; do not store the plain text password in the profile.
 
+Before connecting, validate the local configuration and the profile without opening an SSH connection:
+
+```powershell
+kelpie config check
+kelpie profile check vps01
+```
+
 #### 3. Connecting to server
 
 After editing the profile, open the target server:
@@ -219,6 +226,13 @@ For profile syntax and field details, see [PROFILE_GUIDE.md](PROFILE_GUIDE.md).
 
 Set the target host, SSH user, authentication method, and key or password secret reference in that file. For private key authentication, place the private key file under `D:\Kelpie\keys` and set `Auth.PrivateKeyFile` to that file name. The matching public key must already be registered on the server. For password authentication, set `Auth.Method` to `password` and set `Auth.PasswordSecretName`; do not store the plain text password in the profile.
 
+Before connecting, validate the local configuration and the profile without opening an SSH connection:
+
+```powershell
+kelpie config check
+kelpie profile check vps01
+```
+
 #### 4. Connecting to server
 
 After editing the profile, open the target server:
@@ -268,6 +282,13 @@ For profile syntax and field details, see [PROFILE_GUIDE.md](PROFILE_GUIDE.md).
 
 Set the host, user, authentication method, and private key file name or password secret reference before running `kelpie open vps01`.
 
+Before opening the profile, validate the local configuration and the profile:
+
+```powershell
+D:\Kelpie\bin\kelpie.exe config check
+D:\Kelpie\bin\kelpie.exe profile check vps01
+```
+
 ### AI users
 
 When using Kelpie as an AI MCP server, configure and start the server by following [MCP_GUIDE.md](MCP_GUIDE.md).
@@ -298,11 +319,19 @@ kelpie version
 kelpie --version
 ```
 
+Validate local configuration and SSH profiles with:
+
+```powershell
+kelpie config check
+kelpie profile check vps01
+```
+
 Inspect configured SSH profiles with:
 
 ```powershell
 kelpie profiles
 kelpie status vps01
+kelpie profile show vps01
 ```
 
 Run an interactive SSH session with:
@@ -322,9 +351,46 @@ kelpie logs vps01 nginx.service 200
 
 `kelpie login`, `kelpie diag`, and `kelpie logs` run SSH operations directly from the CLI process. For password profiles, the CLI asks for the password at runtime and keeps it only in the current command process. `kelpie status` can also report whether the local MCP server is running, but the server is not required for the command-line tools above.
 
-## How to confirm profile
+## How to validate and inspect a profile
 
-Use `kelpie profile show <profile>` to inspect a sanitized summary of a configured SSH profile.
+Use `kelpie profile check <profile>` first during normal operation. It validates one profile file without opening an SSH connection and reports file, JSON, schema, authentication reference, provider, policy, user, and pending backup checks.
+
+```powershell
+kelpie config check
+kelpie profile check vps01
+```
+
+Example `kelpie profile check vps01` output:
+
+```text
+Profile file: OK
+Profile JSON: OK
+Profile schema: OK
+Host.Address: OK
+Host.Port: OK
+User: OK
+Auth.Method: OK
+Auth.PrivateKeyFile: OK
+Platform.OsFamily: OK
+Platform.PackageManager: OK
+Mode: OK
+Command providers:
+  DebianDiagnosticCommandProvider: OK
+Capabilities:
+  (empty list): OK
+Roles:
+  Safe: OK
+Allowed roots:
+  /var/www: OK
+Special paths:
+  **/.env: OK
+Users:
+  deploy: OK
+Pending backup: OK
+Check summary: OK=18/18 NG=0/18
+```
+
+Use `kelpie profile show <profile>` when you want to inspect the sanitized values that Kelpie resolved from the profile.
 
 ```powershell
 kelpie profile show vps01

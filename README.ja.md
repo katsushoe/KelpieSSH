@@ -113,6 +113,13 @@ Created files:
 
 このファイルに、接続先ホスト、SSH ユーザー、認証方式、秘密鍵またはパスワード参照を設定します。秘密鍵認証では、秘密鍵ファイルを `<KelpieHome>\keys` 配下に置き、`Auth.PrivateKeyFile` にそのファイル名を設定します。対応する公開鍵は、事前にサーバー側へ登録しておく必要があります。パスワード認証では、`Auth.Method` を `password` にし、`Auth.PasswordSecretName` を設定します。平文パスワードをプロファイルに保存してはいけません。
 
+接続前に、SSH 接続を行わずローカル設定とプロファイルを検証します。
+
+```powershell
+kelpie config check
+kelpie profile check vps01
+```
+
 #### 3. サーバーに接続する
 
 プロファイルを編集したら、対象サーバーを開きます。
@@ -219,6 +226,13 @@ D:\Kelpie\profiles\vps01.json
 
 このファイルに、接続先ホスト、SSH ユーザー、認証方式、秘密鍵またはパスワード参照を設定します。秘密鍵認証では、秘密鍵ファイルを `D:\Kelpie\keys` 配下に置き、`Auth.PrivateKeyFile` にそのファイル名を設定します。対応する公開鍵は、事前にサーバー側へ登録しておく必要があります。パスワード認証では、`Auth.Method` を `password` にし、`Auth.PasswordSecretName` を設定します。平文パスワードをプロファイルに保存してはいけません。
 
+接続前に、SSH 接続を行わずローカル設定とプロファイルを検証します。
+
+```powershell
+kelpie config check
+kelpie profile check vps01
+```
+
 #### 4. サーバーに接続する
 
 プロファイルを編集したら、対象サーバーを開きます。
@@ -268,6 +282,13 @@ D:\Kelpie\profiles\vps01.json
 
 `kelpie open vps01` を実行する前に、接続先ホスト、ユーザー、認証方式、秘密鍵ファイル名またはパスワード参照を設定します。
 
+プロファイルを開く前に、ローカル設定とプロファイルを検証します。
+
+```powershell
+D:\Kelpie\bin\kelpie.exe config check
+D:\Kelpie\bin\kelpie.exe profile check vps01
+```
+
 ### AI 利用者
 
 Kelpie を AI 用 MCP サーバーとして使う場合は、[docs/ja/MCP_GUIDE.ja.md](docs/ja/MCP_GUIDE.ja.md) にしたがってサーバーを設定、起動してください。
@@ -298,11 +319,19 @@ kelpie version
 kelpie --version
 ```
 
-設定済み SSH プロファイルを確認します。
+ローカル設定と SSH プロファイルを検証します。
+
+```powershell
+kelpie config check
+kelpie profile check vps01
+```
+
+設定済み SSH プロファイルを表示します。
 
 ```powershell
 kelpie profiles
 kelpie status vps01
+kelpie profile show vps01
 ```
 
 対話 SSH セッションを実行します。
@@ -322,9 +351,46 @@ kelpie logs vps01 nginx.service 200
 
 `kelpie login`、`kelpie diag`、`kelpie logs` は CLI プロセスから SSH 操作を直接実行します。パスワード認証のプロファイルでは、CLI が実行時にパスワードを尋ね、そのコマンドプロセス内だけに保持します。`kelpie status` はローカル MCP サーバーの状態も表示できますが、上記のコマンドラインツールを使うだけなら MCP サーバーは不要です。
 
-## プロファイルの確認方法
+## プロファイルの検証と確認方法
 
-設定済み SSH プロファイルの安全な概要を確認するには `kelpie profile show <profile>` を使います。
+通常運用では、まず `kelpie profile check <profile>` を使います。このコマンドは SSH 接続を行わず、profile file、JSON 構文、schema、認証参照、command provider、policy、user、pending backup を検証します。
+
+```powershell
+kelpie config check
+kelpie profile check vps01
+```
+
+`kelpie profile check vps01` の出力例:
+
+```text
+Profile file: OK
+Profile JSON: OK
+Profile schema: OK
+Host.Address: OK
+Host.Port: OK
+User: OK
+Auth.Method: OK
+Auth.PrivateKeyFile: OK
+Platform.OsFamily: OK
+Platform.PackageManager: OK
+Mode: OK
+Command providers:
+  DebianDiagnosticCommandProvider: OK
+Capabilities:
+  (empty list): OK
+Roles:
+  Safe: OK
+Allowed roots:
+  /var/www: OK
+Special paths:
+  **/.env: OK
+Users:
+  deploy: OK
+Pending backup: OK
+Check summary: OK=18/18 NG=0/18
+```
+
+解決済みのプロファイル概要を安全に確認するには `kelpie profile show <profile>` を使います。
 
 ```powershell
 kelpie profile show vps01

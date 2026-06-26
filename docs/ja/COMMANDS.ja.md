@@ -1,6 +1,6 @@
 # KelpieSSH Commands
 
-最終更新: 2026-06-24
+最終更新: 2026-06-26
 
 このファイルは、利用者が通常のターミナルから直接実行する `kelpie` / `kelpiemcp` CLI コマンドの正本です。
 コマンドラインオプションの詳細は [CLI_OPTIONS.md](../../CLI_OPTIONS.md) を参照してください。
@@ -670,6 +670,7 @@ Created files:
 目的:
 
 SSH 接続を行わず、Kelpie CLI と MCP のローカル設定ファイルを検証します。
+`kelpie init` 後、`config/kelpie.json` や `config/kelpiemcp.json` の編集後、SSH 側の問題を調べる前のローカル健全性確認として使います。
 
 構文:
 
@@ -1452,6 +1453,7 @@ kelpie profile rollback "vps-*" --dry-run
 目的:
 
 SSH 接続を行わず、単一 SSH profile file を検証します。wildcard は対応しません。
+`kelpie open` の前、profile 編集後、MCP profile baseline の信頼追加や再読み込み前の確認に使います。
 
 構文:
 
@@ -2021,6 +2023,7 @@ Usage:
   kelpie profile clean <profile-pattern> [--dry-run]
   kelpie profile commit <profile-pattern> [--dry-run]
   kelpie profile rollback <profile-pattern> [--dry-run]
+  kelpie profile check <profile>
   kelpie profile show <profile-pattern>
   kelpie status <profile>
   kelpie diag <profile>
