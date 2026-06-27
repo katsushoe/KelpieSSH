@@ -1,6 +1,6 @@
 # KelpieSSH Commands
 
-最終更新: 2026-06-26
+最終更新: 2026-06-28
 
 このファイルは、利用者が通常のターミナルから直接実行する `kelpie` / `kelpiemcp` CLI コマンドの正本です。
 コマンドラインオプションの詳細は [CLI_OPTIONS.md](../../CLI_OPTIONS.md) を参照してください。
@@ -19,9 +19,10 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | Profile/session | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイルひな形作成・編集・削除、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
 | Mode/UI | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | CLI/GUI モードや一時的な起動方式を切り替える。 |
 | Diagnostics | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | プロファイル検証、プロファイル情報、MCP server 状態、SSH 診断、サービスログを表示する。 |
+| Packages | `kelpie pkg check-updates`, `kelpie pkg info`, `kelpie pkg search`, `kelpie pkg list-installed`, `kelpie pkg simulate-install`, `kelpie pkg simulate-remove`, `kelpie pkg install`, `kelpie pkg remove` | SSH profile の package provider を使って package 確認と確認付き変更を行う。 |
 | Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | profile policy に従って remote 環境変数の key 表示、値参照、一時設定、永続化を行う。 |
 | Help/version | `kelpie version`, `kelpie help`, `kelpiemcp version`, `kelpiemcp help` | バージョンとヘルプを表示する。 |
-| Candidates | `kelpie services`, `kelpie pkg ...` | 今後追加候補。 |
+| Candidates | `kelpie services` | 今後追加候補。 |
 
 ## Common Rules
 
@@ -54,9 +55,9 @@ SSHプロファイルの認証設定は、同じ `profiles/<profile>.json` の�
 | Provider | OS family | Package manager | 未指定時の既定値 | 主な許可コマンド |
 | :--- | :--- | :--- | :--- | :--- |
 | `CommonDiagnosticCommandProvider` | `*` | 任意 | なし | `get_system_info`, `get_disk_usage`, `get_memory_usage`, `get_listening_ports`, `get_failed_services`, `tail_log` |
-| `DebianAptCommandProvider` | `debian` | `apt` | `apt` | `pkg_check_updates`, `pkg_simulate_install`, `pkg_install`, `pkg_simulate_remove`, `pkg_remove` |
+| `DebianAptCommandProvider` | `debian` | `apt` | `apt` | `pkg_check_updates`, `pkg_info`, `pkg_search`, `pkg_list_installed`, `pkg_simulate_install`, `pkg_install`, `pkg_simulate_remove`, `pkg_remove` |
 | `DebianNginxCommandProvider` | `debian` | any | systemd | `service_enable_now`, `service_reload`, `service_restart`, `service_stop`, `service_disable`, `http_get_local` |
-| `RhelDnfCommandProvider` | `rhel` | `dnf` | `dnf` | `pkg_check_updates`, `pkg_simulate_install`, `pkg_install`, `pkg_simulate_remove`, `pkg_remove` |
+| `RhelDnfCommandProvider` | `rhel` | `dnf` | `dnf` | `pkg_check_updates`, `pkg_info`, `pkg_search`, `pkg_list_installed`, `pkg_simulate_install`, `pkg_install`, `pkg_simulate_remove`, `pkg_remove` |
 
 ## Commands
 
@@ -2170,38 +2171,72 @@ Not implemented.
 
 目的:
 
-パッケージ操作系 CLI コマンドの候補です。現時点では未実装です。MCP tool としては `MCP_COMMANDS.ja.md` の package tools を正とします。
+SSH profile の package provider を使って、package 情報確認、dry-run、確認付き install / remove を行います。
 
 構文:
 
 ```powershell
 kelpie pkg check-updates vps01
+kelpie pkg info vps01 nginx
+kelpie pkg search vps01 nginx 20
+kelpie pkg list-installed vps01 nginx 50
 kelpie pkg simulate-install vps01 nginx
+kelpie pkg simulate-remove vps01 nginx
 kelpie pkg install vps01 nginx
+kelpie pkg install vps01 nginx --confirm pkg_install:nginx
+kelpie pkg remove vps01 nginx
+kelpie pkg remove vps01 nginx --confirm pkg_remove:nginx
 ```
 
 引数詳細:
 
-- `check-updates`: 更新可能な package を確認する候補。
-- `simulate-install <profile> <package>`: 対象 package の install dry-run 候補。
-- `install <profile> <package>`: 対象 package の確認付き install 候補。
+- `check-updates <profile>`: 更新可能な package を確認します。
+- `info <profile> <package>`: 対象 package の情報を表示します。
+- `search <profile> <query> [limit]`: package を検索します。`limit` 省略時は `20` です。
+- `list-installed <profile> <filter> [limit]`: installed package を絞り込み表示します。`limit` 省略時は `50` です。
+- `simulate-install <profile> <package>`: 対象 package の install dry-run を実行します。
+- `simulate-remove <profile> <package>`: 対象 package の remove dry-run を実行します。
+- `install <profile> <package>`: 確認 token を返し、package install は実行しません。
+- `install <profile> <package> --confirm <token>`: exact confirmation token が一致した場合だけ install を実行します。
+- `remove <profile> <package>`: 確認 token を返し、package remove は実行しません。
+- `remove <profile> <package> --confirm <token>`: exact confirmation token が一致した場合だけ remove を実行します。
 - `profile`: 操作対象のプロファイル名。
 - `package`: 操作対象の package 名。
+- `query`: package search の検索語。
+- `filter`: installed package list の絞り込み語。
+- `token`: `pkg_install:<package>` または `pkg_remove:<package>` の形式の確認 token。
 
 引数サンプル:
 
 - `profile`: `vps01`
 - `package`: `nginx`
+- `query`: `nginx`
+- `filter`: `nginx`
+- `token`: `pkg_install:nginx`
 
 処理内容:
 
-package 操作系 CLI コマンドの候補です。現時点では未実装です。
+read-only 系 command は remote package manager の出力を表示します。
+`install` / `remove` は、`--confirm` なしでは command preview と confirmation token を表示するだけで remote state を変更しません。
+`--confirm` 指定時も、profile mode / policy / provider / 入力値を実行直前に再評価します。
+token が空、不一致、別 operation 用の場合は実行せず non-zero exit で終了します。
 
 実行結果サンプル:
 
 ```text
-Not implemented.
+# pkg_install
+Requires confirmation: true
+Confirmation: pkg_install:nginx
+Command preview: sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y 'nginx'
+Not executed.
+Run after review: kelpie pkg install vps01 nginx --confirm pkg_install:nginx
 ```
+
+安全上の注意:
+
+- 確認付き変更の前に `simulate-install` / `simulate-remove` を実行してください。
+- 初回確認ではローカル Docker SSH コンテナなどの使い捨て target を使ってください。
+- package manager の raw log に host、repository、customer data が含まれる場合、公開 issue や公開ログへ貼り付けないでください。
 
 ## Safety Notes
 

@@ -1,6 +1,6 @@
 # KelpieSSH Commands
 
-Last updated: 2026-06-26
+Last updated: 2026-06-28
 
 This file is the English command reference for commands run directly from a terminal, such as `kelpie` and `kelpiemcp`.
 For Japanese documentation, see [docs/ja/COMMANDS.ja.md](docs/ja/COMMANDS.ja.md).
@@ -19,6 +19,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | [Profile/session](#profilesession) | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | Create, edit, and delete profile templates, select profiles, and manage interactive SSH sessions. |
 | [Mode/UI](#modeui) | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | Switch CLI/GUI mode or choose a temporary launch mode. |
 | [Diagnostics](#diagnostics) | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | Validate profiles, show profile information, MCP server status, SSH diagnostics, and service logs. |
+| [Packages](#packages) | `kelpie pkg check-updates`, `kelpie pkg info`, `kelpie pkg search`, `kelpie pkg list-installed`, `kelpie pkg simulate-install`, `kelpie pkg simulate-remove`, `kelpie pkg install`, `kelpie pkg remove` | Inspect packages and run confirmation-gated package operations through the selected SSH profile. |
 | [Environment](#environment) | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | List, read, temporarily set, or persist remote environment variables under profile policy. |
 | [Help/version](#helpversion) | `kelpie version`, `kelpie help`, `kelpie --help`, `kelpie --version`, `kelpiemcp version`, `kelpiemcp help` | Show version and help text. |
 
@@ -1716,6 +1717,102 @@ The terminal execution result is represented by the return value sample above: p
 Safety notes:
 
 - Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
+### Packages
+
+Inspect packages and run confirmation-gated package changes over SSH.
+
+Commands in this group:
+
+- [`kelpie pkg check-updates <profile>`](#kelpie-pkg-check-updates-profile)
+- [`kelpie pkg info <profile> <package>`](#kelpie-pkg-info-profile-package)
+- [`kelpie pkg search <profile> <query> [limit]`](#kelpie-pkg-search-profile-query-limit)
+- [`kelpie pkg list-installed <profile> <filter> [limit]`](#kelpie-pkg-list-installed-profile-filter-limit)
+- [`kelpie pkg simulate-install <profile> <package>`](#kelpie-pkg-simulate-install-profile-package)
+- [`kelpie pkg simulate-remove <profile> <package>`](#kelpie-pkg-simulate-remove-profile-package)
+- [`kelpie pkg install <profile> <package> [--confirm <token>]`](#kelpie-pkg-install-profile-package---confirm-token)
+- [`kelpie pkg remove <profile> <package> [--confirm <token>]`](#kelpie-pkg-remove-profile-package---confirm-token)
+
+#### `kelpie pkg check-updates <profile>`
+
+Checks available package updates through the profile's package provider.
+
+```powershell
+kelpie pkg check-updates vps01
+```
+
+#### `kelpie pkg info <profile> <package>`
+
+Shows package metadata through the profile's package provider.
+
+```powershell
+kelpie pkg info vps01 nginx
+```
+
+#### `kelpie pkg search <profile> <query> [limit]`
+
+Searches packages and prints at most `limit` rows. The default limit is `20`.
+
+```powershell
+kelpie pkg search vps01 nginx 20
+```
+
+#### `kelpie pkg list-installed <profile> <filter> [limit]`
+
+Lists installed packages matching `filter` and prints at most `limit` rows. The default limit is `50`.
+
+```powershell
+kelpie pkg list-installed vps01 nginx 50
+```
+
+#### `kelpie pkg simulate-install <profile> <package>`
+
+Runs the provider dry-run command for package installation.
+
+```powershell
+kelpie pkg simulate-install vps01 nginx
+```
+
+#### `kelpie pkg simulate-remove <profile> <package>`
+
+Runs the provider dry-run command for package removal.
+
+```powershell
+kelpie pkg simulate-remove vps01 nginx
+```
+
+#### `kelpie pkg install <profile> <package> [--confirm <token>]`
+
+Without `--confirm`, returns a confirmation token and does not install the package.
+With the exact token, runs the provider install command after profile policy is rechecked.
+
+```powershell
+kelpie pkg install vps01 nginx
+kelpie pkg install vps01 nginx --confirm pkg_install:nginx
+```
+
+#### `kelpie pkg remove <profile> <package> [--confirm <token>]`
+
+Without `--confirm`, returns a confirmation token and does not remove the package.
+With the exact token, runs the provider remove command after profile policy is rechecked.
+
+```powershell
+kelpie pkg remove vps01 nginx
+kelpie pkg remove vps01 nginx --confirm pkg_remove:nginx
+```
+
+Return value:
+
+- Read-only package commands return the remote package-manager output.
+- `install` and `remove` without `--confirm` return `Requires confirmation: true`, a `Confirmation` token, and the command preview without changing the target.
+- `install` and `remove` with an empty or mismatched token return non-zero and do not change the target.
+- `install` and `remove` with the exact token run only if profile mode and policy allow the operation.
+
+Safety notes:
+
+- Run `simulate-install` or `simulate-remove` before confirmed changes.
+- Use disposable SSH targets for first confirmation-gated package tests.
+- Do not paste package-manager raw logs containing host, repository, or customer details into public issues.
 
 ### Environment
 

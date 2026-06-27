@@ -396,6 +396,13 @@ if (string.Equals(command, "logs", StringComparison.OrdinalIgnoreCase))
     return;
 }
 
+if (string.Equals(command, "pkg", StringComparison.OrdinalIgnoreCase))
+{
+    KpLog.Info("Kelpie CLI pkg requested.");
+    await RunPackageAsync(LoadProfileCatalog(), args);
+    return;
+}
+
 if (string.Equals(command, "env", StringComparison.OrdinalIgnoreCase))
 {
     KpLog.Info("Kelpie CLI env requested.");
@@ -961,6 +968,14 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpie status <profile>");
     writer.WriteLine("  kelpie diag <profile>");
     writer.WriteLine("  kelpie logs <profile> <service> [lines]");
+    writer.WriteLine("  kelpie pkg check-updates <profile>");
+    writer.WriteLine("  kelpie pkg info <profile> <package>");
+    writer.WriteLine("  kelpie pkg search <profile> <query> [limit]");
+    writer.WriteLine("  kelpie pkg list-installed <profile> <filter> [limit]");
+    writer.WriteLine("  kelpie pkg simulate-install <profile> <package>");
+    writer.WriteLine("  kelpie pkg simulate-remove <profile> <package>");
+    writer.WriteLine("  kelpie pkg install <profile> <package> [--confirm <token>]");
+    writer.WriteLine("  kelpie pkg remove <profile> <package> [--confirm <token>]");
     writer.WriteLine("  kelpie env keys <profile>");
     writer.WriteLine("  kelpie env peek <profile> <key>");
     writer.WriteLine("  kelpie env set <profile> <key> <value> -- <command>");
@@ -3346,6 +3361,250 @@ static async Task RunLogsAsync(
         });
 }
 
+static async Task RunPackageAsync(SshConnectionProfileCatalog catalog, string[] args)
+{
+    var subcommand = args.Length > 1 ? args[1] : string.Empty;
+    if (IsHelpCommand(subcommand))
+    {
+        WritePackageUsage(Console.Out);
+        return;
+    }
+
+    if (string.Equals(subcommand, "check-updates", StringComparison.OrdinalIgnoreCase))
+    {
+        if (args.Length != 3)
+        {
+            WritePackageUsage(Console.Error);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        await ExecutePackageCommandAsync(catalog, args[2], "pkg_check_updates");
+        return;
+    }
+
+    if (string.Equals(subcommand, "info", StringComparison.OrdinalIgnoreCase))
+    {
+        if (args.Length != 4)
+        {
+            WritePackageUsage(Console.Error);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        await ExecutePackageCommandAsync(
+            catalog,
+            args[2],
+            "pkg_info",
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["package"] = args[3],
+            });
+        return;
+    }
+
+    if (string.Equals(subcommand, "search", StringComparison.OrdinalIgnoreCase))
+    {
+        if (args.Length is not 4 and not 5)
+        {
+            WritePackageUsage(Console.Error);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        await ExecutePackageCommandAsync(
+            catalog,
+            args[2],
+            "pkg_search",
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["query"] = args[3],
+                ["limit"] = args.Length == 5 ? args[4] : "20",
+            });
+        return;
+    }
+
+    if (string.Equals(subcommand, "list-installed", StringComparison.OrdinalIgnoreCase))
+    {
+        if (args.Length is not 4 and not 5)
+        {
+            WritePackageUsage(Console.Error);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        await ExecutePackageCommandAsync(
+            catalog,
+            args[2],
+            "pkg_list_installed",
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["filter"] = args[3],
+                ["limit"] = args.Length == 5 ? args[4] : "50",
+            });
+        return;
+    }
+
+    if (string.Equals(subcommand, "simulate-install", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(subcommand, "simulate-remove", StringComparison.OrdinalIgnoreCase))
+    {
+        if (args.Length != 4)
+        {
+            WritePackageUsage(Console.Error);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        await ExecutePackageCommandAsync(
+            catalog,
+            args[2],
+            string.Equals(subcommand, "simulate-install", StringComparison.OrdinalIgnoreCase)
+                ? "pkg_simulate_install"
+                : "pkg_simulate_remove",
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["package"] = args[3],
+            });
+        return;
+    }
+
+    if (string.Equals(subcommand, "install", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(subcommand, "remove", StringComparison.OrdinalIgnoreCase))
+    {
+        if (args.Length < 4
+            || !TryExtractConfirmationOption(args.Skip(4).ToArray(), out var confirmation))
+        {
+            WritePackageUsage(Console.Error);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var commandName = string.Equals(subcommand, "install", StringComparison.OrdinalIgnoreCase)
+            ? "pkg_install"
+            : "pkg_remove";
+
+        if (string.IsNullOrWhiteSpace(confirmation))
+        {
+            PreviewPackageConfirmation(catalog, args[2], commandName, args[3], subcommand);
+            return;
+        }
+
+        var requiredConfirmation = commandName + ":" + args[3];
+        if (!string.Equals(confirmation, requiredConfirmation, StringComparison.Ordinal))
+        {
+            Console.Error.WriteLine($"Confirmation is required: {requiredConfirmation}");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        await ExecutePackageCommandAsync(
+            catalog,
+            args[2],
+            commandName,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["package"] = args[3],
+            });
+        return;
+    }
+
+    WritePackageUsage(Console.Error);
+    Environment.ExitCode = 1;
+}
+
+static async Task ExecutePackageCommandAsync(
+    SshConnectionProfileCatalog catalog,
+    string profileName,
+    string commandName,
+    IReadOnlyDictionary<string, string>? arguments = null)
+{
+    KpLog.Info($"Kelpie CLI pkg command requested. command={commandName}, profile={profileName}");
+    if (!TryResolveProfile(catalog, profileName, out var profile))
+    {
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    await ExecuteAndPrintAsync(CreateSshCommandService(profile), profile, commandName, arguments);
+}
+
+static void PreviewPackageConfirmation(
+    SshConnectionProfileCatalog catalog,
+    string profileName,
+    string commandName,
+    string packageName,
+    string subcommand)
+{
+    if (!TryResolveProfile(catalog, profileName, out var profile))
+    {
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    SshCommandPreview preview;
+    try
+    {
+        preview = CreateSshCommandPreviewService().Preview(
+            profile,
+            commandName,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["package"] = packageName,
+            });
+    }
+    catch (Exception ex) when (ex is InvalidOperationException or KelpiePolicyError or SshException)
+    {
+        KpLog.Warn(ex.Message);
+        Console.Error.WriteLine(ex.Message);
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    var confirmation = commandName + ":" + packageName;
+    Console.WriteLine($"# {preview.CommandName}");
+    Console.WriteLine("Requires confirmation: true");
+    Console.WriteLine($"Confirmation: {confirmation}");
+    Console.WriteLine($"Command preview: {preview.CommandText}");
+    Console.WriteLine("Not executed.");
+    Console.WriteLine($"Run after review: kelpie pkg {subcommand} {profile.Name} {packageName} --confirm {confirmation}");
+}
+
+static bool TryExtractConfirmationOption(string[] args, out string? confirmation)
+{
+    confirmation = null;
+    if (args.Length == 0)
+    {
+        return true;
+    }
+
+    if (args.Length == 1 && args[0].StartsWith("--confirm=", StringComparison.OrdinalIgnoreCase))
+    {
+        confirmation = args[0]["--confirm=".Length..];
+        return !string.IsNullOrWhiteSpace(confirmation);
+    }
+
+    if (args.Length == 2 && string.Equals(args[0], "--confirm", StringComparison.OrdinalIgnoreCase))
+    {
+        confirmation = args[1];
+        return !string.IsNullOrWhiteSpace(confirmation);
+    }
+
+    return false;
+}
+
+static void WritePackageUsage(TextWriter writer)
+{
+    writer.WriteLine("Usage:");
+    writer.WriteLine("  kelpie pkg check-updates <profile>");
+    writer.WriteLine("  kelpie pkg info <profile> <package>");
+    writer.WriteLine("  kelpie pkg search <profile> <query> [limit]");
+    writer.WriteLine("  kelpie pkg list-installed <profile> <filter> [limit]");
+    writer.WriteLine("  kelpie pkg simulate-install <profile> <package>");
+    writer.WriteLine("  kelpie pkg simulate-remove <profile> <package>");
+    writer.WriteLine("  kelpie pkg install <profile> <package> [--confirm <token>]");
+    writer.WriteLine("  kelpie pkg remove <profile> <package> [--confirm <token>]");
+}
+
 static async Task RunEnvironmentAsync(SshConnectionProfileCatalog catalog, string[] args)
 {
     var subcommand = args.Length > 1 ? args[1] : string.Empty;
@@ -3650,6 +3909,13 @@ static SshCommandService CreateSshCommandService(SshConnectionProfile profile)
         passwordProvider is null ? new SshNetCommandRunner() : new SshNetCommandRunner(passwordProvider));
 }
 
+static SshCommandService CreateSshCommandPreviewService()
+{
+    return new SshCommandService(
+        CommandProcessingProviderCatalog.CreateDefault(),
+        new SshNetCommandRunner());
+}
+
 static async Task ExecuteAndPrintAsync(
     SshCommandService service,
     SshConnectionProfile profile,
@@ -3662,7 +3928,7 @@ static async Task ExecuteAndPrintAsync(
     {
         result = await service.ExecuteAsync(profile, commandName, arguments);
     }
-    catch (Exception ex) when (ex is InvalidOperationException or SshException)
+    catch (Exception ex) when (ex is InvalidOperationException or KelpiePolicyError or SshException)
     {
         KpLog.Warn(ex.Message);
         Console.Error.WriteLine(ex.Message);
