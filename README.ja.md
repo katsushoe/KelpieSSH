@@ -29,6 +29,8 @@ config_samples/
    └─ vps01.json
 ```
 
+公開サンプルはプレースホルダー値を使います。検証時は、サンプルプロファイルをローカルの `KelpieHome/profiles` へコピーし、ローカル Docker SSH コンテナなどの使い捨て SSH ターゲット向けに編集してから、接続前に check コマンドを実行してください。実ホスト名、実ユーザー名、秘密鍵、パスワード、raw log はこのリポジトリに入れないでください。
+
 ## はじめに
 
 KelpieSSH の使い方に合わせて導入方法を選んでください。Alpha リリースでは Windows ZIP を主なバイナリ配布物とします。MSI はリリースに添付される場合がありますが、任意であり、未署名の場合があります。
@@ -119,6 +121,8 @@ Created files:
 kelpie config check
 kelpie profile check vps01
 ```
+
+最初の確認には、ローカル Docker SSH コンテナなどの使い捨て SSH ターゲットを使うと安全です。`kelpie config check` と `kelpie profile check <profile>` は、SSH 接続を開始する前に、ローカルファイル、JSON、スキーマ、認証参照、プロバイダー、ポリシー、許可ルート、特別パス、ユーザー、保留中バックアップ状態を検証します。
 
 #### 3. サーバーに接続する
 
@@ -233,6 +237,8 @@ kelpie config check
 kelpie profile check vps01
 ```
 
+最初の確認には、ローカル Docker SSH コンテナなどの使い捨て SSH ターゲットを使うと安全です。`kelpie config check` と `kelpie profile check <profile>` は、SSH 接続を開始する前に、ローカルファイル、JSON、スキーマ、認証参照、プロバイダー、ポリシー、許可ルート、特別パス、ユーザー、保留中バックアップ状態を検証します。
+
 #### 4. サーバーに接続する
 
 プロファイルを編集したら、対象サーバーを開きます。
@@ -325,6 +331,8 @@ kelpie --version
 kelpie config check
 kelpie profile check vps01
 ```
+
+これらの check コマンドは、通常運用で `kelpie open`、`kelpie login`、`kelpie diag`、MCP 利用の前に実行する想定です。SSH 接続を開始しないため、ローカル Docker SSH コンテナなどの使い捨てテスト対象にも向いています。
 
 設定済み SSH プロファイルを表示します。
 

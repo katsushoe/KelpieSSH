@@ -1,6 +1,6 @@
 # KelpieSSH Configuration
 
-Last updated: 2026-06-24
+Last updated: 2026-06-28
 
 This file is the English reference for KelpieSSH configuration file locations and host-level settings.
 For Japanese documentation, see [docs/ja/CONFIG.ja.md](docs/ja/CONFIG.ja.md).
@@ -54,6 +54,15 @@ config_samples/
 └─ servers/
    └─ vps01.json
 ```
+
+For a safe validation workflow, copy `config_samples/servers/vps01.json` to `KelpieHome/profiles/vps01.json`, edit it for a disposable SSH target such as a local Docker SSH container, and run:
+
+```powershell
+kelpie config check
+kelpie profile check vps01
+```
+
+The check commands validate local configuration and profile files before opening an SSH connection. Do not copy real host names, real user names, private keys, passwords, passphrases, or raw operational logs into sample files.
 
 ## Main Settings
 
@@ -235,6 +244,8 @@ Common commands:
 
 ```powershell
 kelpie init vps01
+kelpie config check
+kelpie profile check vps01
 kelpie profile show vps01
 kelpie open vps01
 kelpie login

@@ -1,6 +1,6 @@
 # KelpieSSH 設定
 
-最終更新: 2026-06-24
+最終更新: 2026-06-28
 
 この文書は、KelpieSSH の設定ファイル配置と host level settings をまとめる公開リファレンスです。
 Profile の詳細な設定ガイダンスは [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) を参照してください。
@@ -53,6 +53,15 @@ config_samples/
 └─ servers/
    └─ vps01.json
 ```
+
+安全に検証する場合は、`config_samples/servers/vps01.json` を `KelpieHome/profiles/vps01.json` へコピーし、ローカル Docker SSH コンテナなどの使い捨て SSH ターゲット向けに編集してから、次を実行します。
+
+```powershell
+kelpie config check
+kelpie profile check vps01
+```
+
+check コマンドは、SSH 接続を開始する前にローカル設定とプロファイルファイルを検証します。実ホスト名、実ユーザー名、秘密鍵、パスワード、パスフレーズ、raw log をサンプルファイルへコピーしないでください。
 
 ## Main Settings
 
@@ -230,6 +239,8 @@ Profile 詳細は [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) を参照してく�
 
 ```powershell
 kelpie init vps01
+kelpie config check
+kelpie profile check vps01
 kelpie profile show vps01
 kelpie open vps01
 kelpie login

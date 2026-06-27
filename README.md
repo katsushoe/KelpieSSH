@@ -29,6 +29,8 @@ config_samples/
    └─ vps01.json
 ```
 
+The public samples use placeholder values. For validation, copy a sample profile into your local `KelpieHome/profiles` directory, edit it for a disposable SSH target such as a local Docker SSH container, and run the check commands before opening the profile. Keep real hosts, user names, private keys, passwords, and raw logs outside this repository.
+
 ## Getting Started
 
 Choose the setup path that matches how you want to use KelpieSSH. For the Alpha release, the Windows zip is the primary binary distribution. An MSI may be attached to a release when it is available, but it is optional and may be unsigned.
@@ -119,6 +121,8 @@ Before connecting, validate the local configuration and the profile without open
 kelpie config check
 kelpie profile check vps01
 ```
+
+For a safe first run, use a disposable SSH target such as a local Docker SSH container. `kelpie config check` and `kelpie profile check <profile>` validate local files, JSON, schema, authentication references, providers, policies, allowed roots, special paths, users, and pending backup state before any SSH connection is opened.
 
 #### 3. Connecting to server
 
@@ -233,6 +237,8 @@ kelpie config check
 kelpie profile check vps01
 ```
 
+For a safe first run, use a disposable SSH target such as a local Docker SSH container. `kelpie config check` and `kelpie profile check <profile>` validate local files, JSON, schema, authentication references, providers, policies, allowed roots, special paths, users, and pending backup state before any SSH connection is opened.
+
 #### 4. Connecting to server
 
 After editing the profile, open the target server:
@@ -325,6 +331,8 @@ Validate local configuration and SSH profiles with:
 kelpie config check
 kelpie profile check vps01
 ```
+
+These check commands are intended for normal operation before `kelpie open`, `kelpie login`, `kelpie diag`, or MCP use. They do not open an SSH connection, so they are also suitable for disposable test targets such as a local Docker SSH container.
 
 Inspect configured SSH profiles with:
 
