@@ -24,6 +24,42 @@ public sealed class KelpieToolsSshTests
     }
 
     [Fact]
+    public async Task ReloadProfiles_ShouldExposeUpdatedEnvironmentPolicyToEnvironmentTools()
+    {
+        var directory = CreateTempDirectory();
+        var profilePath = Path.Combine(directory, "vps01.json");
+        File.WriteAllText(profilePath, CreateProfileJson("deploy"));
+        var profiles = new ReloadingSshConnectionProfileCatalog(directory);
+        File.WriteAllText(profilePath, CreateProfileJsonWithEnvironmentPolicy("deploy"));
+        var runner = new FakeSshCommandRunner(
+        [
+            new FakeSshCommandOutput($"APP_ENV{Environment.NewLine}SECRET_TOKEN{Environment.NewLine}", string.Empty),
+            new FakeSshCommandOutput("production\n", string.Empty),
+        ]);
+        var service = CreateProviderBackedService(runner);
+
+        var reloadResult = KelpieTools.ReloadProfiles(profiles);
+        var keysResult = await KelpieTools.GetEnvironmentKeysAsync(service, profiles, "vps01");
+        var setResult = await KelpieTools.SetEnvironmentValueAsync(
+            service,
+            profiles,
+            "vps01",
+            "APP_ENV",
+            "production",
+            "uname -a");
+
+        reloadResult.Success.Should().BeTrue();
+        reloadResult.ProfileNames.Should().Equal("vps01");
+        keysResult.StandardOutput.Should().Be($"APP_ENV{Environment.NewLine}");
+        setResult.CommandText.Should().Be("env APP_ENV=(hidden) uname -a");
+        setResult.CommandText.Should().NotContain("production");
+        runner.Requests.Should().HaveCount(2);
+        runner.Requests[0].Profile.EnvironmentValues.Should().Contain(rule =>
+            rule.Key == "SECRET_TOKEN" && rule.IsHidden);
+        runner.Requests[1].CommandText.Should().Be("if [ -f ~/.kelpie/.env ]; then . ~/.kelpie/.env; fi; env APP_ENV='production' uname -a");
+    }
+
+    [Fact]
     public async Task CloseSshConnectionAsync_ShouldReturnNotFoundForMissingHandle()
     {
         var manager = new SshTerminalSessionManager(
@@ -3086,6 +3122,31 @@ public sealed class KelpieToolsSshTests
           "Platform": {
             "OsFamily": "debian",
             "PackageManager": "apt"
+          }
+        }
+        """;
+    }
+
+    private static string CreateProfileJsonWithEnvironmentPolicy(string userName)
+    {
+        return $$"""
+        {
+          "Host": {
+            "Address": "example.invalid"
+          },
+          "Auth": {
+            "UserName": "{{userName}}",
+            "Method": "privateKey",
+            "PrivateKeyFile": "id_ed25519"
+          },
+          "Platform": {
+            "OsFamily": "debian",
+            "PackageManager": "apt"
+          },
+          "Capabilities": "AllowPeekEnvironmentKeys|AllowSetEnvironmentValues",
+          "EnvironmentValues": {
+            "APP_ENV": "Common",
+            "SECRET_TOKEN": "Hidden"
           }
         }
         """;
