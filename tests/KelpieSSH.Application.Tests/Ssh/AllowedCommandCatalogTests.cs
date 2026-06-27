@@ -87,7 +87,7 @@ public sealed class AllowedCommandCatalogTests
         {
             ["package"] = "nginx",
         });
-        commandText.Should().Be("sudo -n dnf install --assumeno 'nginx'");
+        commandText.Should().Be("sudo -n dnf install -y --setopt=tsflags=test 'nginx'");
     }
 
     [Fact]

@@ -33,7 +33,7 @@ public sealed class SshCommandServiceTests
             });
 
         runner.LastRequest.Should().NotBeNull();
-        runner.LastRequest!.CommandText.Should().Be("sudo -n dnf install --assumeno 'nginx'");
+        runner.LastRequest!.CommandText.Should().Be("sudo -n dnf install -y --setopt=tsflags=test 'nginx'");
     }
 
     [Fact]

@@ -25,7 +25,7 @@ public sealed class RhelDnfCommandProvider : IAllowedCommandProvider
     [
         new(
             "pkg_check_updates",
-            "dnf check-update",
+            "sh -c 'dnf check-update; code=$?; if [ \"$code\" -eq 100 ]; then exit 0; fi; exit \"$code\"'",
             TimeSpan.FromSeconds(60)),
         new(
             "pkg_info",
@@ -44,7 +44,7 @@ public sealed class RhelDnfCommandProvider : IAllowedCommandProvider
             [FilterParameter, LimitParameter]),
         new(
             "pkg_simulate_install",
-            "sudo -n dnf install --assumeno {package}",
+            "sudo -n dnf install -y --setopt=tsflags=test {package}",
             TimeSpan.FromSeconds(60),
             [PackageParameter]),
         new(
@@ -55,7 +55,7 @@ public sealed class RhelDnfCommandProvider : IAllowedCommandProvider
             SshCommandRiskLevel.ConfirmRequired),
         new(
             "pkg_simulate_remove",
-            "sudo -n dnf remove --assumeno {package}",
+            "sudo -n dnf remove -y --setopt=tsflags=test {package}",
             TimeSpan.FromSeconds(60),
             [PackageParameter]),
         new(
