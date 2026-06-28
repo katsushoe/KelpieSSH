@@ -1347,7 +1347,7 @@ profile の `Capabilities` と `EnvironmentValues` policy に従って、remote 
 
 処理内容:
 
-`/etc/crontab`、`/etc/cron.d/*` の通常ファイル、現在 user の `crontab -l` を固定 Python wrapper で読み取り、コメント行と空行を除いて `limit` 件まで返します。
+固定 shell wrapper から `/etc/crontab`、`/etc/cron.d/*` の通常ファイル、現在 user の `crontab -l` を読み取り、コメント行と空行を除いて `limit` 件まで返します。`python3` は必要ありません。
 
 戻り値:
 
@@ -1390,7 +1390,7 @@ profile の `Capabilities` と `EnvironmentValues` policy に従って、remote 
 
 処理内容:
 
-固定 Python wrapper で引数形式を検証し、`valid=true` または `valid=false` を返します。cron file への書き込みは行いません。
+固定 shell wrapper で引数形式を検証し、`valid=true` または `valid=false` を返します。cron file への書き込みは行いません。`python3` は必要ありません。
 
 戻り値:
 
@@ -1556,7 +1556,7 @@ cron 変更前に、対象、実行 user、cron 式、command、log path、確�
 
 処理内容:
 
-`openssl x509 -checkend` を固定 Python wrapper から実行し、openssl の仕様どおり有効なら `ExitCode: 0`、期限不足なら非0を返します。
+固定 shell wrapper から `openssl x509 -checkend` を実行し、openssl の仕様どおり有効なら `ExitCode: 0`、期限不足なら非0を返します。`python3` は必要ありません。
 
 戻り値:
 
@@ -1593,7 +1593,7 @@ cron 変更前に、対象、実行 user、cron 式、command、log path、確�
 
 処理内容:
 
-Python の `pwd.getpwall()` でローカル user 情報を取得し、`limit` 件まで返します。
+固定 shell wrapper から `getent passwd` を読み取り、ローカル user 情報を `limit` 件まで返します。`python3` は必要ありません。
 
 戻り値:
 
@@ -1630,7 +1630,7 @@ Python の `pwd.getpwall()` でローカル user 情報を取得し、`limit` �
 
 処理内容:
 
-Python の `pwd.getpwall()` と `grp.getgrall()` を使い、指定 user の公開アカウント情報だけを返します。
+固定 shell wrapper から `getent passwd` / `getent group` を使い、指定 user の公開アカウント情報だけを返します。`python3` は必要ありません。
 
 戻り値:
 
@@ -1668,7 +1668,7 @@ Python の `pwd.getpwall()` と `grp.getgrall()` を使い、指定 user の公�
 
 処理内容:
 
-Python の `grp.getgrall()` で group 情報を取得し、`limit` 件まで返します。
+固定 shell wrapper から `getent group` を読み取り、group 情報を `limit` 件まで返します。`python3` は必要ありません。
 
 戻り値:
 
@@ -1705,7 +1705,7 @@ Python の `grp.getgrall()` で group 情報を取得し、`limit` 件まで返�
 
 処理内容:
 
-Python の `grp.getgrall()` から指定 group を検索し、GID と member 名を返します。
+固定 shell wrapper から `getent group` で指定 group を検索し、GID と member 名を返します。`python3` は必要ありません。
 
 戻り値:
 
@@ -1744,7 +1744,7 @@ Python の `grp.getgrall()` から指定 group を検索し、GID と member 名
 
 処理内容:
 
-`pwd` / `grp` の公開情報、一般的な admin group、読み取り可能な `/etc/sudoers` と `/etc/sudoers.d/*` の非コメント行を固定 Python wrapper で確認し、存在有無、admin group 該当、sudoers match 件数、match source path だけを返します。
+固定 shell wrapper から `getent` / `id` と、読み取り可能な `/etc/sudoers` / `/etc/sudoers.d/*` の非コメント行を確認し、存在有無、admin group 該当、sudoers match 件数、match source path だけを返します。`python3` は必要ありません。
 
 戻り値:
 
@@ -1786,7 +1786,7 @@ Python の `grp.getgrall()` から指定 group を検索し、GID と member 名
 
 処理内容:
 
-固定 Python wrapper で user / group の存在、systemd service の `User` / `Group` / `SupplementaryGroups`、system cron の実行 user、`/var/www` / `/var/log` / `/etc` 直下の owner/group 該当件数を bounded scan で確認します。
+固定 shell wrapper から `getent` / `systemctl` / `find` / `stat` を使い、user / group の存在、systemd service の `User` / `Group` / `SupplementaryGroups`、主要 root 配下の owner/group 該当件数を bounded scan で確認します。`python3` は必要ありません。
 
 戻り値:
 
@@ -2001,7 +2001,7 @@ Python の `grp.getgrall()` から指定 group を検索し、GID と member 名
 
 処理内容:
 
-固定 Python wrapper で `scanRoot` 配下を `depth` と `limit` の範囲で `lstat` し、owner / group が一致した path と owner/group 名を返します。
+固定 shell wrapper から `find` / `stat` / `getent` を使い、`scanRoot` 配下を `depth` と `limit` の範囲で確認し、owner / group が一致した path と owner/group 名を返します。`python3` は必要ありません。
 
 戻り値:
 
@@ -2381,7 +2381,7 @@ Kelpie audit log から support 向けの sanitized summary を出力します�
 
 処理内容:
 
-Python の `urllib.request` で `http://127.0.0.1:<port>/` だけを取得します。任意 host や任意 URL は受け付けません。
+固定 shell wrapper から `curl` または `wget` を使い、`http://127.0.0.1:<port>/` だけを確認します。任意 host や任意 URL は受け付けません。`python3` は必要ありません。
 
 戻り値:
 
@@ -2418,7 +2418,7 @@ Python の `urllib.request` で `http://127.0.0.1:<port>/` だけを取得しま
 
 処理内容:
 
-Python の `socket.create_connection` で `127.0.0.1:<port>` だけへ接続し、接続後すぐ close します。任意 host は受け付けません。
+固定 shell wrapper から `nc` または `bash` の `/dev/tcp` を使い、`127.0.0.1:<port>` だけへ接続確認します。任意 host は受け付けません。`python3` は必要ありません。
 
 戻り値:
 
