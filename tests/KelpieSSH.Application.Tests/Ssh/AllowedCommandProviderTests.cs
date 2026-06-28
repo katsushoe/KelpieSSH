@@ -984,9 +984,14 @@ public sealed class AllowedCommandProviderTests
             ["name"] = "deploy",
         });
 
-        commandText.Should().Contain("kind='user'");
-        commandText.Should().Contain("name='deploy'");
-        commandText.Should().Contain("sudoersMatches=");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- 'user' 'deploy'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("printf 'sudoersMatches=%s");
+        script.Should().Contain("getent passwd \"$name\"");
+        script.Should().Contain("/etc/sudoers");
     }
 
     [Fact]
@@ -1233,10 +1238,14 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "20",
         });
 
-        commandText.Should().Contain("systemctl");
-        commandText.Should().Contain("kind='group'");
-        commandText.Should().Contain("name='www-data'");
-        commandText.Should().Contain("limit=int('20')");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- 'group' 'www-data' '20'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("systemctl list-units");
+        script.Should().Contain("systemctl show \"$unit\"");
+        script.Should().Contain("printf 'matches=%s");
     }
 
     [Fact]

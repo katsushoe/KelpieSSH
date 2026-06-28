@@ -416,6 +416,132 @@ printf 'gid=%s\n' "$gid"
 printf 'members=%s\n' "$members"
 """;
 
+    private const string SudoersCheckScript = """
+kind="$1"
+name="$2"
+
+exists=false
+admin_groups=""
+if [ "$kind" = "user" ]; then
+    if getent passwd "$name" >/dev/null 2>&1; then
+        exists=true
+        for group in $(id -nG "$name" 2>/dev/null); do
+            case "$group" in
+                admin|sudo|wheel)
+                    if [ -z "$admin_groups" ]; then
+                        admin_groups="$group"
+                    else
+                        admin_groups="$admin_groups,$group"
+                    fi
+                    ;;
+            esac
+        done
+    fi
+else
+    if getent group "$name" >/dev/null 2>&1; then
+        exists=true
+    fi
+    case "$name" in
+        admin|sudo|wheel) admin_groups="$name" ;;
+    esac
+fi
+
+token="$name"
+if [ "$kind" = "group" ]; then
+    token="%$name"
+fi
+
+readable=0
+matches=0
+match_sources=""
+for path in /etc/sudoers /etc/sudoers.d/*; do
+    [ -f "$path" ] || continue
+    [ -r "$path" ] || continue
+    readable=$((readable + 1))
+    if awk -v token="$token" '
+        /^[[:space:]]*($|#)/ { next }
+        {
+            line = $0
+            pattern = "(^|[[:space:],])" token "([[:space:],=]|$)"
+            if (line ~ pattern) {
+                found = 1
+            }
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$path"; then
+        matches=$((matches + 1))
+        if [ -z "$match_sources" ]; then
+            match_sources="$path"
+        else
+            match_sources="$match_sources,$path"
+        fi
+    fi
+done
+
+printf 'principalType=%s\n' "$kind"
+printf 'name=%s\n' "$name"
+printf 'exists=%s\n' "$exists"
+printf 'adminGroups=%s\n' "$admin_groups"
+printf 'sudoersFilesReadable=%s\n' "$readable"
+printf 'sudoersMatches=%s\n' "$matches"
+printf 'sudoersMatchSources=%s\n' "$match_sources"
+""";
+
+    private const string UserServiceUsageCheckScript = """
+kind="$1"
+name="$2"
+limit="$3"
+
+units=""
+list_output=$(systemctl list-units --type=service --all --no-legend --plain 2>&1)
+list_code=$?
+if [ "$list_code" -eq 0 ] || [ "$list_code" -eq 1 ]; then
+    units=$(printf '%s\n' "$list_output" | awk -v limit="$limit" 'NF > 0 && count < limit { print $1; count++ }')
+else
+    printf '%s' "$list_output" >&2
+fi
+
+units_checked=0
+matches=0
+rows=""
+for unit in $units; do
+    units_checked=$((units_checked + 1))
+    for field in User Group SupplementaryGroups; do
+        value=$(systemctl show "$unit" -p "$field" --value 2>/dev/null | tr ',' ' ')
+        hit=false
+        if [ "$kind" = "user" ] && [ "$field" = "User" ] && [ "$value" = "$name" ]; then
+            hit=true
+        elif [ "$kind" = "group" ] && { [ "$field" = "Group" ] || [ "$field" = "SupplementaryGroups" ]; }; then
+            for part in $value; do
+                if [ "$part" = "$name" ]; then
+                    hit=true
+                    break
+                fi
+            done
+        fi
+
+        if [ "$hit" = true ]; then
+            matches=$((matches + 1))
+            if [ "$matches" -le "$limit" ]; then
+                row="$unit:$field=$value"
+                if [ -z "$rows" ]; then
+                    rows="$row"
+                else
+                    rows="$rows
+$row"
+                fi
+            fi
+        fi
+    done
+done
+
+printf 'principalType=%s\n' "$kind"
+printf 'name=%s\n' "$name"
+printf 'unitsChecked=%s\n' "$units_checked"
+printf 'matches=%s\n' "$matches"
+[ -n "$rows" ] && printf '%s\n' "$rows"
+""";
+
     private const string ServiceResidualConfigCheckScript = """
 service="$1"
 limit="$2"
@@ -692,7 +818,7 @@ exit "$tar_code"
             ]),
         new(
             "sudoers_check",
-            "python3 -c \"import glob,grp,os,pwd,re; kind={targetType}; name={name}; users=pwd.getpwall(); groups=grp.getgrall(); user=next((u for u in users if u.pw_name==name), None); group_names=[g.gr_name for g in groups]; exists=(user is not None) if kind=='user' else (name in group_names); member_groups=sorted(g.gr_name for g in groups if kind=='user' and (name in g.gr_mem or (user is not None and g.gr_gid==user.pw_gid))); admin=set(['wheel','sudo','admin']); admin_hits=sorted((set(member_groups) if kind=='user' else set([name])) & admin); files=[p for p in ['/etc/sudoers']+sorted(glob.glob('/etc/sudoers.d/*')) if os.path.isfile(p)]; readable=[p for p in files if os.access(p, os.R_OK)]; token=('%'+name) if kind=='group' else name; pattern=re.compile(r'(^|[\\s,])'+re.escape(token)+r'([\\s,=]|$)'); rows=[(p,line.strip()) for p in readable for line in open(p, errors='replace') if line.strip() and not line.lstrip().startswith('#')]; match_paths=sorted(set(p for p,line in rows if pattern.search(line))); print('principalType=' + kind); print('name=' + name); print('exists=' + str(exists).lower()); print('adminGroups=' + ','.join(admin_hits)); print('sudoersFilesReadable=' + str(len(readable))); print('sudoersMatches=' + str(len(match_paths))); print('sudoersMatchSources=' + ','.join(match_paths))\"",
+            CreateEncodedShellCommand(SudoersCheckScript, "{targetType} {name}"),
             TimeSpan.FromSeconds(10),
             [
                 new AllowedCommandParameterDefinition("targetType", Pattern: PrincipalTypePattern),
@@ -700,7 +826,7 @@ exit "$tar_code"
             ]),
         new(
             "user_service_usage_check",
-            "python3 -c \"import subprocess,sys; kind={targetType}; name={name}; limit=int({limit}); result=subprocess.run(['systemctl','list-units','--type=service','--all','--no-legend','--plain'], text=True, capture_output=True); units=[line.split()[0] for line in result.stdout.splitlines() if line.strip()][:limit]; matches=[]; fields=['User','Group','SupplementaryGroups']; [matches.append(unit+':'+field+'='+value) for unit in units for field in fields for value in [subprocess.run(['systemctl','show',unit,'-p',field,'--value'], text=True, capture_output=True).stdout.strip()] if (kind=='user' and field=='User' and value==name) or (kind=='group' and field in ('Group','SupplementaryGroups') and name in [part for part in value.replace(',', ' ').split() if part])]; print('principalType=' + kind); print('name=' + name); print('unitsChecked=' + str(len(units))); print('matches=' + str(len(matches))); print('\\n'.join(matches[:limit])); print(result.stderr, end='', file=sys.stderr) if result.returncode not in (0,1) else None\"",
+            CreateEncodedShellCommand(UserServiceUsageCheckScript, "{targetType} {name} {limit}"),
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("targetType", Pattern: PrincipalTypePattern),

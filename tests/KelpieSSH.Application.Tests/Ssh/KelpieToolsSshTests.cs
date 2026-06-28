@@ -799,8 +799,8 @@ public sealed class KelpieToolsSshTests
             "deploy");
 
         result.CommandName.Should().Be("sudoers_check");
-        result.CommandText.Should().Contain("kind='user'");
-        result.CommandText.Should().Contain("name='deploy'");
+        result.CommandText.Should().Contain("sh -s -- 'user' 'deploy'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["targetType"].Should().Be("user");
         runner.LastRequest.Arguments["name"].Should().Be("deploy");
     }
@@ -870,6 +870,8 @@ public sealed class KelpieToolsSshTests
             "20");
 
         result.CommandName.Should().Be("user_service_usage_check");
+        result.CommandText.Should().Contain("sh -s -- 'group' 'www-data' '20'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["targetType"].Should().Be("group");
         runner.LastRequest.Arguments["name"].Should().Be("www-data");
         runner.LastRequest.Arguments["limit"].Should().Be("20");
