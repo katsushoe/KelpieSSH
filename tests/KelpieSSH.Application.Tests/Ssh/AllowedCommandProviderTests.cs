@@ -1180,8 +1180,14 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "20",
         });
 
-        commandText.Should().Contain("base64.b64decode");
-        commandText.Should().Contain("'user' 'deploy' '20'");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- 'user' 'deploy' '20'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("systemctl list-units");
+        script.Should().Contain("find \"$root\" -maxdepth 2");
+        script.Should().Contain("printf 'fileOwnershipMatches=%s");
     }
 
     [Fact]

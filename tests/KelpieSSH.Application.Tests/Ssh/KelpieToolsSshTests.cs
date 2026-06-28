@@ -822,6 +822,8 @@ public sealed class KelpieToolsSshTests
             "20");
 
         result.CommandName.Should().Be("user_usage_check");
+        result.CommandText.Should().Contain("sh -s -- 'user' 'deploy' '20'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["targetType"].Should().Be("user");
         runner.LastRequest.Arguments["name"].Should().Be("deploy");
         runner.LastRequest.Arguments["limit"].Should().Be("20");

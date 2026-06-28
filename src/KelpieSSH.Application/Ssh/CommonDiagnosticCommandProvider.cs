@@ -611,6 +611,128 @@ printf 'matches=%s\n' "$matches"
 [ -n "$rows" ] && printf '%s\n' "$rows"
 """;
 
+    private const string UserUsageCheckScript = """
+kind="$1"
+name="$2"
+limit="$3"
+
+exists=false
+target_id=""
+if [ "$kind" = "user" ]; then
+    target_id=$(getent passwd "$name" | awk -F: '{ print $3 }')
+else
+    target_id=$(getent group "$name" | awk -F: '{ print $3 }')
+fi
+
+if [ -n "$target_id" ]; then
+    exists=true
+fi
+
+service_units=""
+list_output=$(systemctl list-units --type=service --all --no-legend --plain 2>&1)
+list_code=$?
+if [ "$list_code" -eq 0 ] || [ "$list_code" -eq 1 ]; then
+    service_units=$(printf '%s\n' "$list_output" | awk -v limit="$limit" 'NF > 0 && count < limit { print $1; count++ }')
+else
+    printf '%s' "$list_output" >&2
+fi
+
+service_units_checked=0
+service_matches=0
+service_sources=""
+for unit in $service_units; do
+    service_units_checked=$((service_units_checked + 1))
+    for field in User Group SupplementaryGroups; do
+        value=$(systemctl show "$unit" -p "$field" --value 2>/dev/null | tr ',' ' ')
+        hit=false
+        if [ "$kind" = "user" ] && [ "$field" = "User" ] && [ "$value" = "$name" ]; then
+            hit=true
+        elif [ "$kind" = "group" ] && { [ "$field" = "Group" ] || [ "$field" = "SupplementaryGroups" ]; }; then
+            for part in $value; do
+                if [ "$part" = "$name" ]; then
+                    hit=true
+                    break
+                fi
+            done
+        fi
+
+        if [ "$hit" = true ]; then
+            service_matches=$((service_matches + 1))
+            if [ "$service_matches" -le "$limit" ]; then
+                row="$unit:$field"
+                if [ -z "$service_sources" ]; then
+                    service_sources="$row"
+                else
+                    service_sources="$service_sources,$row"
+                fi
+            fi
+        fi
+    done
+done
+
+cron_sources=""
+if [ "$kind" = "user" ]; then
+    for path in /etc/crontab /etc/cron.d/*; do
+        [ -f "$path" ] || continue
+        if awk -v user="$name" '
+            /^[[:space:]]*($|#)/ { next }
+            NF >= 7 && $6 == user { found = 1 }
+            END { exit(found ? 0 : 1) }
+        ' "$path"; then
+            if [ -z "$cron_sources" ]; then
+                cron_sources="$path"
+            else
+                case ",$cron_sources," in
+                    *",$path,"*) ;;
+                    *) cron_sources="$cron_sources,$path" ;;
+                esac
+            fi
+        fi
+    done
+fi
+
+cron_owner_matches=0
+if [ -n "$cron_sources" ]; then
+    cron_owner_matches=$(printf '%s\n' "$cron_sources" | awk -F, '{ print NF }')
+fi
+
+file_matches=0
+scanned=0
+scan_limit=$((limit * 20))
+if [ -n "$target_id" ]; then
+    for root in /var/www /var/log /etc; do
+        [ -d "$root" ] || continue
+        while IFS= read -r path; do
+            [ "$scanned" -ge "$scan_limit" ] && break
+
+            ids=$(stat -c '%u:%g' "$path" 2>/dev/null) || continue
+            owner_id=${ids%%:*}
+            group_id=${ids#*:}
+            scanned=$((scanned + 1))
+
+            if [ "$kind" = "user" ] && [ "$owner_id" = "$target_id" ]; then
+                file_matches=$((file_matches + 1))
+            elif [ "$kind" = "group" ] && [ "$group_id" = "$target_id" ]; then
+                file_matches=$((file_matches + 1))
+            fi
+        done <<EOF
+$(find "$root" -maxdepth 2 -xdev -print 2>/dev/null)
+EOF
+        [ "$scanned" -ge "$scan_limit" ] && break
+    done
+fi
+
+printf 'principalType=%s\n' "$kind"
+printf 'name=%s\n' "$name"
+printf 'exists=%s\n' "$exists"
+printf 'serviceUnitsChecked=%s\n' "$service_units_checked"
+printf 'serviceMatches=%s\n' "$service_matches"
+printf 'cronOwnerMatches=%s\n' "$cron_owner_matches"
+printf 'fileOwnershipMatches=%s\n' "$file_matches"
+printf 'serviceMatchSources=%s\n' "$service_sources"
+printf 'cronMatchSources=%s\n' "$cron_sources"
+""";
+
     private const string ServiceResidualConfigCheckScript = """
 service="$1"
 limit="$2"
@@ -915,7 +1037,7 @@ exit "$tar_code"
             ]),
         new(
             "user_usage_check",
-            "python3 -c \"import base64,sys; exec(base64.b64decode('aW1wb3J0IGdsb2IsIGdycCwgb3MsIHB3ZCwgc3VicHJvY2Vzcywgc3lzCmtpbmQgPSBzeXMuYXJndlsxXQpuYW1lID0gc3lzLmFyZ3ZbMl0KbGltaXQgPSBpbnQoc3lzLmFyZ3ZbM10pCnVzZXJzID0gcHdkLmdldHB3YWxsKCkKZ3JvdXBzID0gZ3JwLmdldGdyYWxsKCkKdXNlciA9IG5leHQoKHUgZm9yIHUgaW4gdXNlcnMgaWYgdS5wd19uYW1lID09IG5hbWUpLCBOb25lKQpncm91cCA9IG5leHQoKGcgZm9yIGcgaW4gZ3JvdXBzIGlmIGcuZ3JfbmFtZSA9PSBuYW1lKSwgTm9uZSkKZXhpc3RzID0gKHVzZXIgaXMgbm90IE5vbmUpIGlmIGtpbmQgPT0gJ3VzZXInIGVsc2UgKGdyb3VwIGlzIG5vdCBOb25lKQpwcmludCgncHJpbmNpcGFsVHlwZT0nICsga2luZCkKcHJpbnQoJ25hbWU9JyArIG5hbWUpCnByaW50KCdleGlzdHM9JyArIHN0cihleGlzdHMpLmxvd2VyKCkpCnNlcnZpY2UgPSBzdWJwcm9jZXNzLnJ1bihbJ3N5c3RlbWN0bCcsICdsaXN0LXVuaXRzJywgJy0tdHlwZT1zZXJ2aWNlJywgJy0tYWxsJywgJy0tbm8tbGVnZW5kJywgJy0tcGxhaW4nXSwgdGV4dD1UcnVlLCBjYXB0dXJlX291dHB1dD1UcnVlKQp1bml0cyA9IFtsaW5lLnNwbGl0KClbMF0gZm9yIGxpbmUgaW4gc2VydmljZS5zdGRvdXQuc3BsaXRsaW5lcygpIGlmIGxpbmUuc3RyaXAoKV1bOmxpbWl0XQpzZXJ2aWNlX21hdGNoZXMgPSBbXQpmaWVsZHMgPSBbJ1VzZXInLCAnR3JvdXAnLCAnU3VwcGxlbWVudGFyeUdyb3VwcyddCmZvciB1bml0IGluIHVuaXRzOgogICAgZm9yIGZpZWxkIGluIGZpZWxkczoKICAgICAgICB2YWx1ZSA9IHN1YnByb2Nlc3MucnVuKFsnc3lzdGVtY3RsJywgJ3Nob3cnLCB1bml0LCAnLXAnLCBmaWVsZCwgJy0tdmFsdWUnXSwgdGV4dD1UcnVlLCBjYXB0dXJlX291dHB1dD1UcnVlKS5zdGRvdXQuc3RyaXAoKQogICAgICAgIHBhcnRzID0gW3BhcnQgZm9yIHBhcnQgaW4gdmFsdWUucmVwbGFjZSgnLCcsICcgJykuc3BsaXQoKSBpZiBwYXJ0XQogICAgICAgIGlmIChraW5kID09ICd1c2VyJyBhbmQgZmllbGQgPT0gJ1VzZXInIGFuZCB2YWx1ZSA9PSBuYW1lKSBvciAoa2luZCA9PSAnZ3JvdXAnIGFuZCBmaWVsZCBpbiAoJ0dyb3VwJywgJ1N1cHBsZW1lbnRhcnlHcm91cHMnKSBhbmQgbmFtZSBpbiBwYXJ0cyk6CiAgICAgICAgICAgIHNlcnZpY2VfbWF0Y2hlcy5hcHBlbmQodW5pdCArICc6JyArIGZpZWxkKQpjcm9uX2ZpbGVzID0gW3AgZm9yIHAgaW4gWycvZXRjL2Nyb250YWInXSArIHNvcnRlZChnbG9iLmdsb2IoJy9ldGMvY3Jvbi5kLyonKSkgaWYgb3MucGF0aC5pc2ZpbGUocCldCmNyb25fbWF0Y2hlcyA9IFtdCmZvciBwYXRoIGluIGNyb25fZmlsZXM6CiAgICBmb3IgbGluZSBpbiBvcGVuKHBhdGgsIGVycm9ycz0ncmVwbGFjZScpOgogICAgICAgIHBhcnRzID0gbGluZS5zcGxpdCgpCiAgICAgICAgaWYga2luZCA9PSAndXNlcicgYW5kIHBhcnRzIGFuZCBub3QgbGluZS5sc3RyaXAoKS5zdGFydHN3aXRoKCcjJykgYW5kIGxlbihwYXJ0cykgPj0gNyBhbmQgcGFydHNbNV0gPT0gbmFtZToKICAgICAgICAgICAgY3Jvbl9tYXRjaGVzLmFwcGVuZChwYXRoKQpyb290cyA9IFsnL3Zhci93d3cnLCAnL3Zhci9sb2cnLCAnL2V0YyddCnRhcmdldF91aWQgPSB1c2VyLnB3X3VpZCBpZiB1c2VyIGlzIG5vdCBOb25lIGVsc2UgTm9uZQp0YXJnZXRfZ2lkID0gZ3JvdXAuZ3JfZ2lkIGlmIGdyb3VwIGlzIG5vdCBOb25lIGVsc2UgTm9uZQpmaWxlX2NvdW50ID0gMApzY2FubmVkID0gMApmb3Igcm9vdCBpbiByb290czoKICAgIGlmIG5vdCBvcy5wYXRoLmlzZGlyKHJvb3QpOgogICAgICAgIGNvbnRpbnVlCiAgICBzdGFydF9kZXB0aCA9IHJvb3QucnN0cmlwKCcvJykuY291bnQoJy8nKQogICAgZm9yIGN1cnJlbnQsIGRpcnMsIGZpbGVzIGluIG9zLndhbGsocm9vdCwgdG9wZG93bj1UcnVlLCBmb2xsb3dsaW5rcz1GYWxzZSk6CiAgICAgICAgaWYgY3VycmVudC5yc3RyaXAoJy8nKS5jb3VudCgnLycpIC0gc3RhcnRfZGVwdGggPj0gMToKICAgICAgICAgICAgZGlyc1s6XSA9IFtdCiAgICAgICAgZm9yIHBhdGggaW4gW2N1cnJlbnRdICsgW29zLnBhdGguam9pbihjdXJyZW50LCBlbnRyeSkgZm9yIGVudHJ5IGluIGRpcnMgKyBmaWxlc106CiAgICAgICAgICAgIGlmIHNjYW5uZWQgPj0gbGltaXQgKiAyMDoKICAgICAgICAgICAgICAgIGJyZWFrCiAgICAgICAgICAgIHRyeToKICAgICAgICAgICAgICAgIHN0ID0gb3MubHN0YXQocGF0aCkKICAgICAgICAgICAgZXhjZXB0IE9TRXJyb3I6CiAgICAgICAgICAgICAgICBjb250aW51ZQogICAgICAgICAgICBzY2FubmVkICs9IDEKICAgICAgICAgICAgaWYgKGtpbmQgPT0gJ3VzZXInIGFuZCB0YXJnZXRfdWlkIGlzIG5vdCBOb25lIGFuZCBzdC5zdF91aWQgPT0gdGFyZ2V0X3VpZCkgb3IgKGtpbmQgPT0gJ2dyb3VwJyBhbmQgdGFyZ2V0X2dpZCBpcyBub3QgTm9uZSBhbmQgc3Quc3RfZ2lkID09IHRhcmdldF9naWQpOgogICAgICAgICAgICAgICAgZmlsZV9jb3VudCArPSAxCiAgICAgICAgaWYgc2Nhbm5lZCA+PSBsaW1pdCAqIDIwOgogICAgICAgICAgICBicmVhawpwcmludCgnc2VydmljZVVuaXRzQ2hlY2tlZD0nICsgc3RyKGxlbih1bml0cykpKQpwcmludCgnc2VydmljZU1hdGNoZXM9JyArIHN0cihsZW4oc2VydmljZV9tYXRjaGVzKSkpCnByaW50KCdjcm9uT3duZXJNYXRjaGVzPScgKyBzdHIobGVuKHNldChjcm9uX21hdGNoZXMpKSkpCnByaW50KCdmaWxlT3duZXJzaGlwTWF0Y2hlcz0nICsgc3RyKGZpbGVfY291bnQpKQpwcmludCgnc2VydmljZU1hdGNoU291cmNlcz0nICsgJywnLmpvaW4oc2VydmljZV9tYXRjaGVzWzpsaW1pdF0pKQpwcmludCgnY3Jvbk1hdGNoU291cmNlcz0nICsgJywnLmpvaW4oc29ydGVkKHNldChjcm9uX21hdGNoZXMpKVs6bGltaXRdKSk='))\" {targetType} {name} {limit}",
+            CreateEncodedShellCommand(UserUsageCheckScript, "{targetType} {name} {limit}"),
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("targetType", Pattern: PrincipalTypePattern),
