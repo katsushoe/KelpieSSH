@@ -2435,6 +2435,8 @@ public sealed class KelpieToolsSshTests
             "replace");
 
         result.CommandName.Should().Be("user_check_group_change");
+        result.CommandText.Should().Contain("sh -s -- 'deploy' 'nginx,wheel' 'replace'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["user"].Should().Be("deploy");
         runner.LastRequest.Arguments["groups"].Should().Be("nginx,wheel");
         runner.LastRequest.Arguments["mode"].Should().Be("replace");
@@ -2523,6 +2525,8 @@ public sealed class KelpieToolsSshTests
             "absent");
 
         result.CommandName.Should().Be("user_check_permission_change");
+        result.CommandText.Should().Contain("sh -s -- 'deploy' '/bin/bash' 'disabled' 'absent'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["user"].Should().Be("deploy");
         runner.LastRequest.Arguments["shell"].Should().Be("/bin/bash");
         runner.LastRequest.Arguments["login"].Should().Be("disabled");

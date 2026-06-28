@@ -733,6 +733,180 @@ printf 'serviceMatchSources=%s\n' "$service_sources"
 printf 'cronMatchSources=%s\n' "$cron_sources"
 """;
 
+    private const string UserCheckGroupChangeScript = """
+user="$1"
+groups="$2"
+mode="$3"
+
+exists=false
+if getent passwd "$user" >/dev/null 2>&1; then
+    exists=true
+fi
+
+requested=""
+missing=""
+current=$(getent group | awk -F: -v user="$user" '
+{
+    count = split($4, members, ",")
+    for (i = 1; i <= count; i++) {
+        if (members[i] == user) {
+            print $1
+        }
+    }
+}' | sort | paste -sd, -)
+
+groups_to_add=""
+old_ifs=$IFS
+IFS=,
+for group in $groups; do
+    [ -n "$group" ] || continue
+    if [ -z "$requested" ]; then
+        requested="$group"
+    else
+        requested="$requested,$group"
+    fi
+
+    if ! getent group "$group" >/dev/null 2>&1; then
+        if [ -z "$missing" ]; then
+            missing="$group"
+        else
+            missing="$missing,$group"
+        fi
+    fi
+
+    found=false
+    IFS=,
+    for current_group in $current; do
+        if [ "$current_group" = "$group" ]; then
+            found=true
+            break
+        fi
+    done
+
+    if [ "$found" = false ]; then
+        if [ -z "$groups_to_add" ]; then
+            groups_to_add="$group"
+        else
+            groups_to_add="$groups_to_add,$group"
+        fi
+    fi
+done
+IFS=$old_ifs
+
+groups_to_remove=""
+if [ "$mode" = "replace" ]; then
+    old_ifs=$IFS
+    IFS=,
+    for current_group in $current; do
+        [ -n "$current_group" ] || continue
+        keep=false
+        IFS=,
+        for requested_group in $requested; do
+            if [ "$requested_group" = "$current_group" ]; then
+                keep=true
+                break
+            fi
+        done
+
+        if [ "$keep" = false ]; then
+            if [ -z "$groups_to_remove" ]; then
+                groups_to_remove="$current_group"
+            else
+                groups_to_remove="$groups_to_remove,$current_group"
+            fi
+        fi
+    done
+    IFS=$old_ifs
+fi
+
+printf 'user=%s\n' "$user"
+printf 'exists=%s\n' "$exists"
+printf 'mode=%s\n' "$mode"
+printf 'requestedGroups=%s\n' "$requested"
+printf 'missingGroups=%s\n' "$missing"
+printf 'groupsToAdd=%s\n' "$groups_to_add"
+printf 'groupsToRemove=%s\n' "$groups_to_remove"
+printf 'requiresConfirmation=true\n'
+printf 'confirmation=user_apply_group_change:%s:%s:%s\n' "$user" "$mode" "$requested"
+printf 'rollbackSupported=true\n'
+
+if [ "$exists" = true ] && [ -z "$missing" ]; then
+    exit 0
+fi
+
+exit 2
+""";
+
+    private const string UserCheckPermissionChangeScript = """
+user="$1"
+shell_path="$2"
+login="$3"
+sudo="$4"
+
+exists=false
+current_shell=""
+row=$(getent passwd "$user")
+if [ -n "$row" ]; then
+    exists=true
+    current_shell=$(printf '%s\n' "$row" | awk -F: '{ print $7 }')
+fi
+
+shell_exists=false
+if [ -e "$shell_path" ]; then
+    shell_exists=true
+fi
+
+sudoers_readable=0
+sudoers_matches=0
+sudoers_sources=""
+for path in /etc/sudoers /etc/sudoers.d/*; do
+    [ -f "$path" ] || continue
+    [ -r "$path" ] || continue
+    sudoers_readable=$((sudoers_readable + 1))
+    if awk -v token="$user" '
+        /^[[:space:]]*($|#)/ { next }
+        {
+            pattern = "(^|[[:space:],])" token "([[:space:],=]|$)"
+            if ($0 ~ pattern) {
+                found = 1
+            }
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$path"; then
+        case ",$sudoers_sources," in
+            *",$path,"*) ;;
+            *)
+                sudoers_matches=$((sudoers_matches + 1))
+                if [ -z "$sudoers_sources" ]; then
+                    sudoers_sources="$path"
+                else
+                    sudoers_sources="$sudoers_sources,$path"
+                fi
+                ;;
+        esac
+    fi
+done
+
+printf 'user=%s\n' "$user"
+printf 'exists=%s\n' "$exists"
+printf 'currentShell=%s\n' "$current_shell"
+printf 'requestedShell=%s\n' "$shell_path"
+printf 'shellExists=%s\n' "$shell_exists"
+printf 'loginTarget=%s\n' "$login"
+printf 'sudoTarget=%s\n' "$sudo"
+printf 'sudoersFilesReadable=%s\n' "$sudoers_readable"
+printf 'sudoersMatches=%s\n' "$sudoers_matches"
+printf 'requiresConfirmation=true\n'
+printf 'confirmation=user_apply_permission_change:%s:%s:%s:%s\n' "$user" "$shell_path" "$login" "$sudo"
+printf 'rollbackSupported=partial\n'
+
+if [ "$exists" = true ] && [ "$shell_exists" = true ]; then
+    exit 0
+fi
+
+exit 2
+""";
+
     private const string ServiceResidualConfigCheckScript = """
 service="$1"
 limit="$2"
@@ -1046,7 +1220,7 @@ exit "$tar_code"
             ]),
         new(
             "user_check_group_change",
-            "python3 -c \"import grp,pwd,sys; user={user}; groups={groups}; mode={mode}; u=next((x for x in pwd.getpwall() if x.pw_name==user), None); group_rows=grp.getgrall(); requested=[g for g in groups.split(',') if g]; existing=set(g.gr_name for g in group_rows); current=sorted(g.gr_name for g in group_rows if user in g.gr_mem); missing=[g for g in requested if g not in existing]; add=sorted(set(requested)-set(current)); remove=sorted(set(current)-set(requested)) if mode=='replace' else []; print('user=' + user); print('exists=' + str(u is not None).lower()); print('mode=' + mode); print('requestedGroups=' + ','.join(requested)); print('missingGroups=' + ','.join(missing)); print('groupsToAdd=' + ','.join(add)); print('groupsToRemove=' + ','.join(remove)); print('requiresConfirmation=true'); print('confirmation=user_apply_group_change:' + user + ':' + mode + ':' + ','.join(requested)); print('rollbackSupported=true'); raise SystemExit(0 if u is not None and not missing else 2)\"",
+            CreateEncodedShellCommand(UserCheckGroupChangeScript, "{user} {groups} {mode}"),
             TimeSpan.FromSeconds(10),
             [
                 new AllowedCommandParameterDefinition("user", Pattern: UserNamePattern),
@@ -1073,7 +1247,7 @@ exit "$tar_code"
             SshCommandRiskLevel.ConfirmRequired),
         new(
             "user_check_permission_change",
-            "python3 -c \"import glob,os,pwd,re,sys; user={user}; shell={shell}; login={login}; sudo={sudo}; u=next((x for x in pwd.getpwall() if x.pw_name==user), None); current_shell=u.pw_shell if u else ''; shell_exists=os.path.exists(shell); files=[p for p in ['/etc/sudoers']+sorted(glob.glob('/etc/sudoers.d/*')) if os.path.isfile(p) and os.access(p, os.R_OK)]; pattern=re.compile(r'(^|[\\s,])' + re.escape(user) + r'([\\s,=]|$)'); rows=[p for p in files for line in open(p, errors='replace') if line.strip() and not line.lstrip().startswith('#') and pattern.search(line)]; print('user=' + user); print('exists=' + str(u is not None).lower()); print('currentShell=' + current_shell); print('requestedShell=' + shell); print('shellExists=' + str(shell_exists).lower()); print('loginTarget=' + login); print('sudoTarget=' + sudo); print('sudoersFilesReadable=' + str(len(files))); print('sudoersMatches=' + str(len(set(rows)))); print('requiresConfirmation=true'); print('confirmation=user_apply_permission_change:' + user + ':' + shell + ':' + login + ':' + sudo); print('rollbackSupported=partial'); raise SystemExit(0 if u is not None and shell_exists else 2)\"",
+            CreateEncodedShellCommand(UserCheckPermissionChangeScript, "{user} {shell} {login} {sudo}"),
             TimeSpan.FromSeconds(10),
             [
                 new AllowedCommandParameterDefinition("user", Pattern: UserNamePattern),

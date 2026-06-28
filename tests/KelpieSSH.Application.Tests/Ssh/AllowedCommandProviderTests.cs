@@ -1008,10 +1008,14 @@ public sealed class AllowedCommandProviderTests
             ["mode"] = "append",
         });
 
-        commandText.Should().Contain("user='deploy'");
-        commandText.Should().Contain("groups='nginx,wheel'");
-        commandText.Should().Contain("mode='append'");
-        commandText.Should().Contain("confirmation=user_apply_group_change:");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- 'deploy' 'nginx,wheel' 'append'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("getent passwd \"$user\"");
+        script.Should().Contain("getent group \"$group\"");
+        script.Should().Contain("confirmation=user_apply_group_change:%s:%s:%s");
     }
 
     [Fact]
@@ -1085,10 +1089,14 @@ public sealed class AllowedCommandProviderTests
             ["sudo"] = "present",
         });
 
-        commandText.Should().Contain("user='deploy'");
-        commandText.Should().Contain("shell='/bin/bash'");
-        commandText.Should().Contain("sudo='present'");
-        commandText.Should().Contain("confirmation=user_apply_permission_change:");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- 'deploy' '/bin/bash' 'unchanged' 'present'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("getent passwd \"$user\"");
+        script.Should().Contain("/etc/sudoers");
+        script.Should().Contain("confirmation=user_apply_permission_change:%s:%s:%s:%s");
     }
 
     [Fact]
