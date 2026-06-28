@@ -207,6 +207,137 @@ run_item software nginx nginx -v
 run_item software firewall-cmd firewall-cmd --version
 """;
 
+    private const string CronListScript = """
+limit="$1"
+count=0
+
+print_entry() {
+    source_path="$1"
+    line="$2"
+
+    trimmed=$(printf '%s' "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    case "$trimmed" in
+        ''|\#*) return ;;
+    esac
+
+    if [ "$count" -lt "$limit" ]; then
+        printf '%s:%s\n' "$source_path" "$trimmed"
+        count=$((count + 1))
+    fi
+}
+
+for path in /etc/crontab /etc/cron.d/*; do
+    [ -f "$path" ] || continue
+    while IFS= read -r line || [ -n "$line" ]; do
+        print_entry "$path" "$line"
+        [ "$count" -ge "$limit" ] && exit 0
+    done < "$path"
+done
+
+if [ "$count" -lt "$limit" ] && command -v crontab >/dev/null 2>&1; then
+    crontab_output=$(crontab -l 2>&1)
+    crontab_code=$?
+    if [ "$crontab_code" -eq 0 ]; then
+        printf '%s\n' "$crontab_output" | while IFS= read -r line || [ -n "$line" ]; do
+            print_entry "user-crontab" "$line"
+            [ "$count" -ge "$limit" ] && exit 0
+        done
+    elif [ "$crontab_code" -ne 1 ]; then
+        printf '%s' "$crontab_output" >&2
+    fi
+fi
+""";
+
+    private const string CronValidateScript = """
+expr="$1"
+run_user="$2"
+command_text="$3"
+log_path="$4"
+
+cron_ok=true
+set -- $expr
+if [ "$#" -ne 5 ]; then
+    cron_ok=false
+else
+    for part in "$@"; do
+        case "$part" in
+            ''|*[!0-9A-Za-z*/?,#LW.-]*) cron_ok=false ;;
+        esac
+    done
+fi
+
+base_user="$run_user"
+case "$base_user" in
+    *'$') base_user=${base_user%?} ;;
+esac
+
+user_ok=false
+case "$base_user" in
+    [a-z_]*)
+        case "$base_user" in
+            *[!a-z0-9_-]*) ;;
+            *) user_ok=true ;;
+        esac
+        ;;
+esac
+
+trimmed_command=$(printf '%s' "$command_text" | sed 's/[[:space:]]//g')
+command_ok=false
+[ -n "$trimmed_command" ] && command_ok=true
+
+log_ok=false
+case "$log_path" in
+    /var/log/*)
+        case "$log_path" in
+            *..*) ;;
+            *) log_ok=true ;;
+        esac
+        ;;
+esac
+
+ok=false
+if [ "$cron_ok" = true ] && [ "$user_ok" = true ] && [ "$command_ok" = true ] && [ "$log_ok" = true ]; then
+    ok=true
+fi
+
+printf 'valid=%s\n' "$ok"
+printf 'cronExpression=%s\n' "$expr"
+printf 'runUser=%s\n' "$run_user"
+printf 'logPath=%s\n' "$log_path"
+
+[ "$ok" = true ] || exit 1
+""";
+
+    private const string CronCheckWriteScript = """
+target="$1"
+run_user="$2"
+expr="$3"
+command_text="$4"
+log_path="$5"
+
+exists=false
+if getent passwd "$run_user" >/dev/null 2>&1; then
+    exists=true
+fi
+
+target_path="/etc/cron.d/kelpie-managed"
+if [ "$target" = "user" ]; then
+    target_path="user-crontab"
+fi
+
+printf 'targetType=%s\n' "$target"
+printf 'target=%s\n' "$target_path"
+printf 'runUser=%s\n' "$run_user"
+printf 'userExists=%s\n' "$exists"
+printf 'cronExpression=%s\n' "$expr"
+printf 'logPath=%s\n' "$log_path"
+printf 'requiresConfirmation=true\n'
+printf 'confirmation=cron_write:%s:%s\n' "$target" "$run_user"
+printf 'rollbackSupported=true\n'
+
+[ "$exists" = true ] || exit 2
+""";
+
     private const string CertificateExpiryCheckScript = """
 path="$1"
 days="$2"
@@ -469,14 +600,14 @@ exit "$tar_code"
         new("get_dns_config", "cat /etc/resolv.conf", TimeSpan.FromSeconds(10)),
         new(
             "cron_list",
-            "python3 -c \"import glob,os,subprocess,sys; limit=int({limit}); rows=[]; files=[p for p in ['/etc/crontab']+sorted(glob.glob('/etc/cron.d/*')) if os.path.isfile(p)]; [rows.append(path+':'+line.strip()) for path in files for line in open(path, errors='replace') if line.strip() and not line.lstrip().startswith('#')]; result=subprocess.run(['crontab','-l'], text=True, capture_output=True); [rows.append('user-crontab:'+line.strip()) for line in result.stdout.splitlines() if line.strip() and not line.lstrip().startswith('#')]; print('\\n'.join(rows[:limit])); print(result.stderr, end='', file=sys.stderr) if result.returncode not in (0,1) else None\"",
+            CreateEncodedShellCommand(CronListScript, "{limit}"),
             TimeSpan.FromSeconds(20),
             [
                 new AllowedCommandParameterDefinition("limit", Pattern: BoundedListLimitPattern),
             ]),
         new(
             "cron_validate",
-            "python3 -c \"import re,sys; expr={cronExpression}; run_user={runUser}; command={command}; log_path={logPath}; parts=expr.split(); base_user=run_user[:-1] if run_user.endswith('$') else run_user; cron_ok=len(parts)==5 and all(re.match('^[0-9A-Za-z*/?,#LW.-]+$', part) for part in parts); user_ok=len(run_user)<=32 and bool(re.match('^[a-z_][a-z0-9_-]*$', base_user)); command_ok=bool(command.strip()); log_ok=log_path.startswith('/var/log/') and '..' not in log_path; ok=cron_ok and user_ok and command_ok and log_ok; print('valid=' + str(ok).lower()); print('cronExpression=' + expr); print('runUser=' + run_user); print('logPath=' + log_path); raise SystemExit(0 if ok else 1)\"",
+            CreateEncodedShellCommand(CronValidateScript, "{cronExpression} {runUser} {command} {logPath}"),
             TimeSpan.FromSeconds(10),
             [
                 new AllowedCommandParameterDefinition("cronExpression", MaxLength: 128, Pattern: CronExpressionPattern),
@@ -486,7 +617,7 @@ exit "$tar_code"
             ]),
         new(
             "cron_check_write",
-            "python3 -c \"import pwd,sys; target={targetType}; run_user={runUser}; expr={cronExpression}; command={command}; log_path={logPath}; users=[u.pw_name for u in pwd.getpwall()]; exists=run_user in users; target_path='user-crontab' if target=='user' else '/etc/cron.d/kelpie-managed'; print('targetType=' + target); print('target=' + target_path); print('runUser=' + run_user); print('userExists=' + str(exists).lower()); print('cronExpression=' + expr); print('logPath=' + log_path); print('requiresConfirmation=true'); print('confirmation=cron_write:' + target + ':' + run_user); print('rollbackSupported=true'); raise SystemExit(0 if exists else 2)\"",
+            CreateEncodedShellCommand(CronCheckWriteScript, "{targetType} {runUser} {cronExpression} {command} {logPath}"),
             TimeSpan.FromSeconds(10),
             [
                 new AllowedCommandParameterDefinition("targetType", Pattern: CronTargetTypePattern),

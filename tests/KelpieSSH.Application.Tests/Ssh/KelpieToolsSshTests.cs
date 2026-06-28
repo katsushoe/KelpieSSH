@@ -631,8 +631,8 @@ public sealed class KelpieToolsSshTests
             "20");
 
         result.CommandName.Should().Be("cron_list");
-        result.CommandText.Should().Contain("crontab");
-        result.CommandText.Should().Contain("limit=int('20')");
+        result.CommandText.Should().Contain("sh -s -- '20'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["limit"].Should().Be("20");
     }
 
@@ -654,7 +654,8 @@ public sealed class KelpieToolsSshTests
             "/var/log/kelpie/job.log");
 
         result.CommandName.Should().Be("cron_validate");
-        result.CommandText.Should().Contain("expr='*/5 * * * *'");
+        result.CommandText.Should().Contain("sh -s -- '*/5 * * * *' 'deploy' '/usr/local/bin/job --once' '/var/log/kelpie/job.log'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["cronExpression"].Should().Be("*/5 * * * *");
         runner.LastRequest.Arguments["runUser"].Should().Be("deploy");
         runner.LastRequest.Arguments["command"].Should().Be("/usr/local/bin/job --once");

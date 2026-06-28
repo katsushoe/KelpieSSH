@@ -718,8 +718,14 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "20",
         });
 
-        commandText.Should().Contain("crontab");
-        commandText.Should().Contain("limit=int('20')");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- '20'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("/etc/crontab");
+        script.Should().Contain("/etc/cron.d/*");
+        script.Should().Contain("crontab -l");
     }
 
     [Fact]
@@ -737,10 +743,14 @@ public sealed class AllowedCommandProviderTests
             ["logPath"] = "/var/log/kelpie/job.log",
         });
 
-        commandText.Should().Contain("expr='*/5 * * * *'");
-        commandText.Should().Contain("run_user='deploy'");
-        commandText.Should().Contain("command='/usr/local/bin/job --once'");
-        commandText.Should().Contain("log_path='/var/log/kelpie/job.log'");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- '*/5 * * * *' 'deploy' '/usr/local/bin/job --once' '/var/log/kelpie/job.log'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("printf 'valid=%s");
+        script.Should().Contain("printf 'cronExpression=%s");
+        script.Should().Contain("printf 'logPath=%s");
     }
 
     [Fact]
@@ -759,10 +769,14 @@ public sealed class AllowedCommandProviderTests
             ["logPath"] = "/var/log/kelpie/job.log",
         });
 
-        commandText.Should().Contain("target='user'");
-        commandText.Should().Contain("confirmation=cron_write:");
-        commandText.Should().Contain("run_user='deploy'");
-        commandText.Should().Contain("log_path='/var/log/kelpie/job.log'");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- 'user' 'deploy' '*/5 * * * *' '/usr/local/bin/job --once' '/var/log/kelpie/job.log'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("getent passwd \"$run_user\"");
+        script.Should().Contain("printf 'confirmation=cron_write:%s:%s");
+        script.Should().Contain("printf 'rollbackSupported=true");
     }
 
     [Fact]
