@@ -39,102 +39,6 @@ public sealed class CommonDiagnosticCommandProvider : IAllowedCommandProvider
     private static readonly AllowedCommandParameterDefinition ServiceParameter =
         new("service", Pattern: ServiceNamePattern);
 
-    private const string UserApplyPermissionChangeScript = """
-import base64, os, pwd, shutil, subprocess, sys
-user = sys.argv[1]
-shell = sys.argv[2]
-login = sys.argv[3]
-sudo = sys.argv[4]
-u = next((x for x in pwd.getpwall() if x.pw_name == user), None)
-if u is None:
-    print('exists=false')
-    raise SystemExit(2)
-if not os.path.exists(shell):
-    print('exists=true')
-    print('shellExists=false')
-    raise SystemExit(2)
-visudo = shutil.which('visudo') or '/usr/sbin/visudo'
-if sudo != 'unchanged' and not os.path.exists(visudo):
-    print('exists=true')
-    print('visudoExists=false')
-    raise SystemExit(2)
-managed_name = user.replace('$', '_dollar')
-sudo_path = '/etc/sudoers.d/kelpie-' + managed_name
-backup_dir = '/var/backups/kelpie/users'
-os.makedirs(backup_dir, exist_ok=True)
-backup_path = backup_dir + '/' + user + '-permissions-latest.meta'
-locked = 'unknown'
-passwd = shutil.which('passwd') or '/usr/bin/passwd'
-status = subprocess.run([passwd, '-S', user], text=True, capture_output=True) if os.path.exists(passwd) else subprocess.CompletedProcess(args=[], returncode=127, stdout='', stderr='')
-if status.returncode == 0:
-    parts = status.stdout.split()
-    locked = 'true' if len(parts) > 1 and parts[1] in ('L', 'LK', 'NP') else 'false'
-elif os.path.isfile('/etc/shadow') and os.access('/etc/shadow', os.R_OK):
-    for line in open('/etc/shadow', errors='replace'):
-        if line.startswith(user + ':'):
-            secret = line.split(':', 2)[1]
-            locked = 'true' if secret.startswith('!') or secret.startswith('*') else 'false'
-            break
-sudo_exists = os.path.isfile(sudo_path)
-sudo_payload = ''
-if sudo_exists:
-    sudo_payload = base64.b64encode(open(sudo_path, 'rb').read()).decode('ascii')
-with open(backup_path, 'w') as backup:
-    backup.write('shell=' + u.pw_shell + '\n')
-    backup.write('locked=' + locked + '\n')
-    backup.write('sudoExists=' + str(sudo_exists).lower() + '\n')
-    backup.write('sudoBase64=' + sudo_payload + '\n')
-changed_shell = False
-changed_login = False
-changed_sudo = False
-result = subprocess.CompletedProcess(args=[], returncode=0, stdout='', stderr='')
-if u.pw_shell != shell:
-    result = subprocess.run(['usermod', '-s', shell, user], text=True, capture_output=True)
-    changed_shell = result.returncode == 0
-    if result.returncode != 0:
-        print('user=' + user)
-        print('changed=false')
-        print('standardErrorSummary=' + (result.stderr.splitlines()[0][:120] if result.stderr.splitlines() else ''))
-        raise SystemExit(result.returncode)
-if login == 'disabled':
-    result = subprocess.run(['usermod', '-L', user], text=True, capture_output=True)
-    changed_login = result.returncode == 0
-elif login == 'enabled':
-    result = subprocess.run(['usermod', '-U', user], text=True, capture_output=True)
-    changed_login = result.returncode == 0
-if result.returncode != 0:
-    print('user=' + user)
-    print('changed=false')
-    print('standardErrorSummary=' + (result.stderr.splitlines()[0][:120] if result.stderr.splitlines() else ''))
-    raise SystemExit(result.returncode)
-if sudo == 'present':
-    content = user + ' ALL=(ALL) NOPASSWD:ALL\n'
-    tmp = sudo_path + '.tmp'
-    with open(tmp, 'w') as handle:
-        handle.write(content)
-    os.chmod(tmp, 0o440)
-    check = subprocess.run([visudo, '-cf', tmp], text=True, capture_output=True)
-    if check.returncode != 0:
-        os.remove(tmp)
-        print('user=' + user)
-        print('changed=false')
-        print('standardErrorSummary=' + (check.stderr.splitlines()[0][:120] if check.stderr.splitlines() else ''))
-        raise SystemExit(check.returncode)
-    os.replace(tmp, sudo_path)
-    changed_sudo = True
-elif sudo == 'absent':
-    if os.path.exists(sudo_path):
-        os.remove(sudo_path)
-        changed_sudo = True
-print('user=' + user)
-print('shellChanged=' + str(changed_shell).lower())
-print('loginChanged=' + str(changed_login).lower())
-print('sudoChanged=' + str(changed_sudo).lower())
-print('backupPath=' + backup_path)
-print('rollbackConfirmation=user_rollback_permission_change:' + user)
-print('standardErrorSummary=' + (result.stderr.splitlines()[0][:120] if result.stderr.splitlines() else ''))
-""";
-
     private const string TargetInventoryScript = """
 if [ ! -r /etc/os-release ]; then
     echo "ERROR	os-release not readable"
@@ -336,6 +240,131 @@ printf 'confirmation=cron_write:%s:%s\n' "$target" "$run_user"
 printf 'rollbackSupported=true\n'
 
 [ "$exists" = true ] || exit 2
+""";
+
+    private const string CronWriteScript = """
+target="$1"
+run_user="$2"
+expr="$3"
+command_text="$4"
+log_path="$5"
+
+backup_dir="/var/backups/kelpie/cron"
+mkdir -p "$backup_dir"
+marker="# kelpie-managed:$target:$run_user"
+
+if [ "$target" = "user" ]; then
+    list_output=$(crontab -u "$run_user" -l 2>&1)
+    list_code=$?
+    if [ "$list_code" -eq 0 ]; then
+        existed=true
+        current="$list_output"
+    elif [ "$list_code" -eq 1 ]; then
+        existed=false
+        current=""
+    else
+        printf '%s\n' "$list_output" >&2
+        exit "$list_code"
+    fi
+    backup_path="$backup_dir/user-$run_user-latest.cron"
+    target_path="user-crontab"
+else
+    target_path="/etc/cron.d/kelpie-managed"
+    if [ -e "$target_path" ]; then
+        existed=true
+        current=$(cat "$target_path" 2>/dev/null)
+    else
+        existed=false
+        current=""
+    fi
+    backup_path="$backup_dir/system-$run_user-latest.cron"
+fi
+
+printf '%s\n' "$current" > "$backup_path"
+printf 'existed=%s\n' "$existed" > "$backup_path.meta"
+
+filtered=$(printf '%s\n' "$current" | awk -v marker="$marker" 'index($0, marker) == 0')
+if [ "$target" = "user" ]; then
+    new_line="$expr $command_text >> $log_path 2>&1 $marker"
+else
+    new_line="$expr $run_user $command_text >> $log_path 2>&1 $marker"
+fi
+
+payload=$(printf '%s\n%s\n' "$filtered" "$new_line" | sed '/^[[:space:]]*$/d')
+if [ "$target" = "user" ]; then
+    result_output=$(printf '%s\n' "$payload" | crontab -u "$run_user" - 2>&1)
+    result_code=$?
+else
+    printf '%s\n' "$payload" > "$target_path"
+    chmod 0644 "$target_path"
+    result_output=""
+    result_code=0
+fi
+
+printf 'targetType=%s\n' "$target"
+printf 'target=%s\n' "$target_path"
+printf 'runUser=%s\n' "$run_user"
+printf 'changed=%s\n' "$([ "$result_code" -eq 0 ] && printf true || printf false)"
+printf 'backupPath=%s\n' "$backup_path"
+printf 'rollbackConfirmation=cron_rollback:%s:%s\n' "$target" "$run_user"
+printf 'standardErrorSummary=%s\n' "$(printf '%s\n' "$result_output" | sed -n '1{s/[[:cntrl:]]//g;s/^\(.\{0,120\}\).*/\1/;p;}')"
+exit "$result_code"
+""";
+
+    private const string CronRollbackScript = """
+target="$1"
+run_user="$2"
+
+backup_dir="/var/backups/kelpie/cron"
+if [ "$target" = "user" ]; then
+    backup_path="$backup_dir/user-$run_user-latest.cron"
+    target_path="user-crontab"
+else
+    backup_path="$backup_dir/system-$run_user-latest.cron"
+    target_path="/etc/cron.d/kelpie-managed"
+fi
+
+meta_path="$backup_path.meta"
+if [ ! -f "$backup_path" ] || [ ! -f "$meta_path" ]; then
+    printf 'backupPath=%s\n' "$backup_path"
+    printf 'backupExists=false\n'
+    exit 2
+fi
+
+if grep -qx 'existed=true' "$meta_path"; then
+    existed=true
+else
+    existed=false
+fi
+
+payload=$(cat "$backup_path")
+if [ "$target" = "user" ]; then
+    if [ "$existed" = true ]; then
+        result_output=$(printf '%s\n' "$payload" | crontab -u "$run_user" - 2>&1)
+        result_code=$?
+    else
+        result_output=$(crontab -u "$run_user" -r 2>&1)
+        result_code=$?
+        [ "$result_code" -eq 1 ] && result_code=0
+    fi
+else
+    if [ "$existed" = true ]; then
+        printf '%s\n' "$payload" > "$target_path"
+        chmod 0644 "$target_path"
+    elif [ -e "$target_path" ]; then
+        rm -f "$target_path"
+    fi
+    result_output=""
+    result_code=0
+fi
+
+printf 'targetType=%s\n' "$target"
+printf 'target=%s\n' "$target_path"
+printf 'runUser=%s\n' "$run_user"
+printf 'backupExists=true\n'
+printf 'restored=%s\n' "$([ "$result_code" -eq 0 ] && printf true || printf false)"
+printf 'standardErrorSummary=%s\n' "$(printf '%s\n' "$result_output" | sed -n '1{s/[[:cntrl:]]//g;s/^\(.\{0,120\}\).*/\1/;p;}')"
+exit "$result_code"
 """;
 
     private const string CertificateExpiryCheckScript = """
@@ -907,6 +936,283 @@ fi
 exit 2
 """;
 
+    private const string UserApplyGroupChangeScript = """
+user="$1"
+groups="$2"
+mode="$3"
+
+if ! getent passwd "$user" >/dev/null 2>&1; then
+    printf 'exists=false\n'
+    exit 2
+fi
+
+missing=""
+old_ifs=$IFS
+IFS=,
+for group in $groups; do
+    [ -n "$group" ] || continue
+    if ! getent group "$group" >/dev/null 2>&1; then
+        if [ -z "$missing" ]; then
+            missing="$group"
+        else
+            missing="$missing,$group"
+        fi
+    fi
+done
+IFS=$old_ifs
+
+if [ -n "$missing" ]; then
+    printf 'exists=true\n'
+    printf 'missingGroups=%s\n' "$missing"
+    exit 2
+fi
+
+current=$(awk -F: -v user="$user" '
+{
+    split($4, members, ",")
+    for (i in members) {
+        if (members[i] == user) {
+            print $1
+            break
+        }
+    }
+}
+' /etc/group | paste -sd, -)
+backup_dir="/var/backups/kelpie/users"
+mkdir -p "$backup_dir"
+backup_path="$backup_dir/$user-groups-latest.txt"
+printf '%s\n' "$current" > "$backup_path"
+
+if [ "$mode" = "append" ]; then
+    result_output=$(usermod -aG "$groups" "$user" 2>&1)
+else
+    result_output=$(usermod -G "$groups" "$user" 2>&1)
+fi
+result_code=$?
+
+printf 'user=%s\n' "$user"
+printf 'mode=%s\n' "$mode"
+printf 'currentGroupCount=%s\n' "$(printf '%s' "$current" | awk -F, '{ print ($0 == "" ? 0 : NF) }')"
+printf 'requestedGroupCount=%s\n' "$(printf '%s' "$groups" | awk -F, '{ print ($0 == "" ? 0 : NF) }')"
+printf 'missingGroups=\n'
+printf 'changed=%s\n' "$([ "$result_code" -eq 0 ] && printf true || printf false)"
+printf 'backupPath=%s\n' "$backup_path"
+printf 'rollbackConfirmation=user_rollback_group_change:%s\n' "$user"
+printf 'standardErrorSummary=%s\n' "$(printf '%s\n' "$result_output" | sed -n '1{s/[[:cntrl:]]//g;s/^\(.\{0,120\}\).*/\1/;p;}')"
+exit "$result_code"
+""";
+
+    private const string UserRollbackGroupChangeScript = """
+user="$1"
+backup_path="/var/backups/kelpie/users/$user-groups-latest.txt"
+
+if [ ! -f "$backup_path" ]; then
+    printf 'user=%s\n' "$user"
+    printf 'backupExists=false\n'
+    exit 2
+fi
+
+groups=$(cat "$backup_path" | tr -d '\r\n')
+result_output=$(usermod -G "$groups" "$user" 2>&1)
+result_code=$?
+
+printf 'user=%s\n' "$user"
+printf 'backupExists=true\n'
+printf 'restoredGroupCount=%s\n' "$(printf '%s' "$groups" | awk -F, '{ print ($0 == "" ? 0 : NF) }')"
+printf 'restored=%s\n' "$([ "$result_code" -eq 0 ] && printf true || printf false)"
+printf 'standardErrorSummary=%s\n' "$(printf '%s\n' "$result_output" | sed -n '1{s/[[:cntrl:]]//g;s/^\(.\{0,120\}\).*/\1/;p;}')"
+exit "$result_code"
+""";
+
+    private const string UserApplyPermissionChangeScript = """
+user="$1"
+shell_path="$2"
+login="$3"
+sudo_state="$4"
+
+row=$(getent passwd "$user")
+if [ -z "$row" ]; then
+    printf 'exists=false\n'
+    exit 2
+fi
+
+current_shell=$(printf '%s\n' "$row" | awk -F: '{ print $7 }')
+if [ ! -e "$shell_path" ]; then
+    printf 'exists=true\n'
+    printf 'shellExists=false\n'
+    exit 2
+fi
+
+visudo_path=$(command -v visudo 2>/dev/null)
+[ -n "$visudo_path" ] || visudo_path="/usr/sbin/visudo"
+if [ "$sudo_state" != "unchanged" ] && [ ! -e "$visudo_path" ]; then
+    printf 'exists=true\n'
+    printf 'visudoExists=false\n'
+    exit 2
+fi
+
+managed_name=$(printf '%s' "$user" | sed 's/\$/_dollar/g')
+sudo_path="/etc/sudoers.d/kelpie-$managed_name"
+backup_dir="/var/backups/kelpie/users"
+mkdir -p "$backup_dir"
+backup_path="$backup_dir/$user-permissions-latest.meta"
+
+locked="unknown"
+passwd_path=$(command -v passwd 2>/dev/null)
+[ -n "$passwd_path" ] || passwd_path="/usr/bin/passwd"
+status_output=$("$passwd_path" -S "$user" 2>/dev/null)
+status_code=$?
+if [ "$status_code" -eq 0 ]; then
+    state=$(printf '%s\n' "$status_output" | awk '{ print $2 }')
+    case "$state" in
+        L|LK|NP) locked=true ;;
+        *) locked=false ;;
+    esac
+elif [ -r /etc/shadow ]; then
+    secret=$(awk -F: -v user="$user" '$1 == user { print $2; exit }' /etc/shadow)
+    case "$secret" in
+        '!'*|'*'*) locked=true ;;
+        '') ;;
+        *) locked=false ;;
+    esac
+fi
+
+if [ -f "$sudo_path" ]; then
+    sudo_exists=true
+    sudo_payload=$(base64 "$sudo_path" | tr -d '\n')
+else
+    sudo_exists=false
+    sudo_payload=""
+fi
+
+{
+    printf 'shell=%s\n' "$current_shell"
+    printf 'locked=%s\n' "$locked"
+    printf 'sudoExists=%s\n' "$sudo_exists"
+    printf 'sudoBase64=%s\n' "$sudo_payload"
+} > "$backup_path"
+
+shell_changed=false
+login_changed=false
+sudo_changed=false
+result_output=""
+result_code=0
+
+if [ "$current_shell" != "$shell_path" ]; then
+    result_output=$(usermod -s "$shell_path" "$user" 2>&1)
+    result_code=$?
+    [ "$result_code" -eq 0 ] && shell_changed=true
+fi
+
+if [ "$result_code" -eq 0 ]; then
+    if [ "$login" = "disabled" ]; then
+        result_output=$(usermod -L "$user" 2>&1)
+        result_code=$?
+        [ "$result_code" -eq 0 ] && login_changed=true
+    elif [ "$login" = "enabled" ]; then
+        result_output=$(usermod -U "$user" 2>&1)
+        result_code=$?
+        [ "$result_code" -eq 0 ] && login_changed=true
+    fi
+fi
+
+if [ "$result_code" -eq 0 ]; then
+    if [ "$sudo_state" = "present" ]; then
+        tmp="$sudo_path.tmp"
+        printf '%s ALL=(ALL) NOPASSWD:ALL\n' "$user" > "$tmp"
+        chmod 0440 "$tmp"
+        result_output=$("$visudo_path" -cf "$tmp" 2>&1)
+        result_code=$?
+        if [ "$result_code" -eq 0 ]; then
+            mv "$tmp" "$sudo_path"
+            sudo_changed=true
+        else
+            rm -f "$tmp"
+        fi
+    elif [ "$sudo_state" = "absent" ] && [ -e "$sudo_path" ]; then
+        result_output=$(rm -f "$sudo_path" 2>&1)
+        result_code=$?
+        [ "$result_code" -eq 0 ] && sudo_changed=true
+    fi
+fi
+
+printf 'user=%s\n' "$user"
+printf 'shellChanged=%s\n' "$shell_changed"
+printf 'loginChanged=%s\n' "$login_changed"
+printf 'sudoChanged=%s\n' "$sudo_changed"
+printf 'backupPath=%s\n' "$backup_path"
+printf 'rollbackConfirmation=user_rollback_permission_change:%s\n' "$user"
+printf 'standardErrorSummary=%s\n' "$(printf '%s\n' "$result_output" | sed -n '1{s/[[:cntrl:]]//g;s/^\(.\{0,120\}\).*/\1/;p;}')"
+exit "$result_code"
+""";
+
+    private const string UserRollbackPermissionChangeScript = """
+user="$1"
+managed_name=$(printf '%s' "$user" | sed 's/\$/_dollar/g')
+sudo_path="/etc/sudoers.d/kelpie-$managed_name"
+backup_path="/var/backups/kelpie/users/$user-permissions-latest.meta"
+
+if [ ! -f "$backup_path" ]; then
+    printf 'user=%s\n' "$user"
+    printf 'backupExists=false\n'
+    exit 2
+fi
+
+get_meta() {
+    key="$1"
+    awk -F= -v key="$key" '$1 == key { sub("^[^=]*=", ""); print; exit }' "$backup_path"
+}
+
+shell_path=$(get_meta shell)
+locked=$(get_meta locked)
+sudo_exists=$(get_meta sudoExists)
+sudo_payload=$(get_meta sudoBase64)
+
+result_output=""
+result_code=0
+shell_restored=false
+login_restored=false
+sudo_restored=false
+
+if [ -n "$shell_path" ] && [ -e "$shell_path" ]; then
+    result_output=$(usermod -s "$shell_path" "$user" 2>&1)
+    result_code=$?
+    [ "$result_code" -eq 0 ] && shell_restored=true
+fi
+
+if [ "$result_code" -eq 0 ]; then
+    if [ "$locked" = "true" ]; then
+        result_output=$(usermod -L "$user" 2>&1)
+        result_code=$?
+        [ "$result_code" -eq 0 ] && login_restored=true
+    elif [ "$locked" = "false" ]; then
+        result_output=$(usermod -U "$user" 2>&1)
+        result_code=$?
+        [ "$result_code" -eq 0 ] && login_restored=true
+    fi
+fi
+
+if [ "$result_code" -eq 0 ]; then
+    if [ "$sudo_exists" = "true" ]; then
+        printf '%s' "$sudo_payload" | base64 -d > "$sudo_path"
+        chmod 0440 "$sudo_path"
+        sudo_restored=true
+    else
+        rm -f "$sudo_path"
+        sudo_restored=true
+    fi
+fi
+
+printf 'user=%s\n' "$user"
+printf 'backupExists=true\n'
+printf 'shellRestored=%s\n' "$shell_restored"
+printf 'loginRestored=%s\n' "$login_restored"
+printf 'sudoRestored=%s\n' "$sudo_restored"
+printf 'restored=%s\n' "$([ "$result_code" -eq 0 ] && printf true || printf false)"
+printf 'standardErrorSummary=%s\n' "$(printf '%s\n' "$result_output" | sed -n '1{s/[[:cntrl:]]//g;s/^\(.\{0,120\}\).*/\1/;p;}')"
+exit "$result_code"
+""";
+
     private const string ServiceResidualConfigCheckScript = """
 service="$1"
 limit="$2"
@@ -1106,6 +1412,53 @@ printf 'requiresConfirmation=true\n'
 printf 'confirmation=firewall_apply_rule:%s:%s:%s:%s:%s\n' "$action" "$target" "$value" "$zone" "$permanent"
 """;
 
+    private const string FirewallApplyRuleScript = """
+action="$1"
+target="$2"
+value="$3"
+zone="$4"
+permanent="$5"
+
+firewall_cmd=$(command -v firewall-cmd 2>/dev/null)
+
+printf 'action=%s\n' "$action"
+printf 'target=%s\n' "$target"
+printf 'value=%s\n' "$value"
+printf 'zone=%s\n' "$zone"
+printf 'permanent=%s\n' "$permanent"
+
+valid=true
+case "$target:$value" in
+    port:*/*) ;;
+    port:*) valid=false ;;
+    service:*/*) valid=false ;;
+esac
+
+printf 'valid=%s\n' "$valid"
+[ "$valid" = true ] || exit 2
+
+if [ -z "$firewall_cmd" ]; then
+    printf 'firewalldAvailable=false\n'
+    exit 127
+fi
+
+printf 'firewalldAvailable=true\n'
+operation="--add-$target"
+[ "$action" = "remove" ] && operation="--remove-$target"
+
+if [ "$permanent" = true ]; then
+    result_output=$("$firewall_cmd" --permanent --zone "$zone" "$operation" "$value" 2>&1)
+else
+    result_output=$("$firewall_cmd" --zone "$zone" "$operation" "$value" 2>&1)
+fi
+result_code=$?
+
+printf 'applyExitCode=%s\n' "$result_code"
+printf 'changed=%s\n' "$([ "$result_code" -eq 0 ] && printf true || printf false)"
+printf 'standardErrorSummary=%s\n' "$(printf '%s\n' "$result_output" | sed -n '1{s/[[:cntrl:]]//g;s/^\(.\{0,120\}\).*/\1/;p;}')"
+exit "$result_code"
+""";
+
     private const string BackupPlanCheckScript = """
 root="$1"
 depth="$2"
@@ -1156,6 +1509,64 @@ printf 'requiresConfirmation=true\n'
 printf 'confirmation=backup_run:%s\n' "$root"
 
 [ "$exists" = true ] || exit 2
+""";
+
+    private const string BackupRunScript = """
+root="$1"
+depth="$2"
+limit="$3"
+
+backup_dir="/var/backups/kelpie/run"
+mkdir -p "$backup_dir"
+backup_path="$backup_dir/kelpie-backup-$(date +%Y%m%d%H%M%S).tar.gz"
+list_path="$backup_path.list"
+
+printf 'scanRoot=%s\n' "$root"
+printf 'exists=%s\n' "$([ -e "$root" ] && printf true || printf false)"
+printf 'depth=%s\n' "$depth"
+
+if [ ! -e "$root" ]; then
+    printf 'backupCreated=false\n'
+    exit 2
+fi
+
+find_depth=$((depth + 1))
+entries=0
+bytes_total=0
+: > "$list_path"
+
+while IFS= read -r path; do
+    [ "$entries" -ge "$limit" ] && break
+    [ -f "$path" ] || continue
+    [ -L "$path" ] && continue
+
+    size=$(stat -c '%s' "$path" 2>/dev/null || printf '0')
+    bytes_total=$((bytes_total + size))
+    rel=${path#"$root"/}
+    printf '%s\n' "$rel" >> "$list_path"
+    entries=$((entries + 1))
+done <<EOF
+$(find "$root" -mindepth 1 -maxdepth "$find_depth" -xdev -type f -print 2>/dev/null)
+EOF
+
+tar_output=$(tar -C "$root" -czf "$backup_path" -T "$list_path" 2>&1)
+tar_code=$?
+rm -f "$list_path"
+
+if [ "$tar_code" -eq 0 ]; then
+    tar -tf "$backup_path" >/dev/null 2>&1
+    readable_code=$?
+else
+    readable_code=$tar_code
+fi
+
+printf 'backupCreated=%s\n' "$([ "$tar_code" -eq 0 ] && printf true || printf false)"
+printf 'backupPath=%s\n' "$backup_path"
+printf 'entriesAdded=%s\n' "$entries"
+printf 'bytesAdded=%s\n' "$bytes_total"
+printf 'archiveReadable=%s\n' "$([ "$readable_code" -eq 0 ] && printf true || printf false)"
+printf 'standardErrorSummary=%s\n' "$(printf '%s\n' "$tar_output" | sed -n '1{s/[[:cntrl:]]//g;s/^\(.\{0,120\}\).*/\1/;p;}')"
+exit "$tar_code"
 """;
 
     private const string BackupVerifyScript = """
@@ -1392,7 +1803,7 @@ exit "$code"
             ]),
         new(
             "cron_write",
-            "sudo -n python3 -c \"import base64,sys; exec(base64.b64decode('aW1wb3J0IG9zLCBzdWJwcm9jZXNzLCBzeXMKdGFyZ2V0PXN5cy5hcmd2WzFdCnJ1bl91c2VyPXN5cy5hcmd2WzJdCmV4cHI9c3lzLmFyZ3ZbM10KY29tbWFuZD1zeXMuYXJndls0XQpsb2dfcGF0aD1zeXMuYXJndls1XQpiYWNrdXBfZGlyPScvdmFyL2JhY2t1cHMva2VscGllL2Nyb24nCm9zLm1ha2VkaXJzKGJhY2t1cF9kaXIsIGV4aXN0X29rPVRydWUpCm1hcmtlcj0nIyBrZWxwaWUtbWFuYWdlZDonICsgdGFyZ2V0ICsgJzonICsgcnVuX3VzZXIKaWYgdGFyZ2V0ID09ICd1c2VyJzoKICAgIGxpc3RfcmVzdWx0PXN1YnByb2Nlc3MucnVuKFsnY3JvbnRhYicsJy11JyxydW5fdXNlciwnLWwnXSwgdGV4dD1UcnVlLCBjYXB0dXJlX291dHB1dD1UcnVlKQogICAgZXhpc3RlZD1saXN0X3Jlc3VsdC5yZXR1cm5jb2RlID09IDAKICAgIGN1cnJlbnQ9bGlzdF9yZXN1bHQuc3Rkb3V0IGlmIGV4aXN0ZWQgZWxzZSAnJwogICAgYmFja3VwX3BhdGg9YmFja3VwX2RpciArICcvdXNlci0nICsgcnVuX3VzZXIgKyAnLWxhdGVzdC5jcm9uJwogICAgdGFyZ2V0X3BhdGg9J3VzZXItY3JvbnRhYicKZWxzZToKICAgIHRhcmdldF9wYXRoPScvZXRjL2Nyb24uZC9rZWxwaWUtbWFuYWdlZCcKICAgIGV4aXN0ZWQ9b3MucGF0aC5leGlzdHModGFyZ2V0X3BhdGgpCiAgICBjdXJyZW50PW9wZW4odGFyZ2V0X3BhdGgsIGVycm9ycz0ncmVwbGFjZScpLnJlYWQoKSBpZiBleGlzdGVkIGVsc2UgJycKICAgIGJhY2t1cF9wYXRoPWJhY2t1cF9kaXIgKyAnL3N5c3RlbS0nICsgcnVuX3VzZXIgKyAnLWxhdGVzdC5jcm9uJwpvcGVuKGJhY2t1cF9wYXRoLCAndycpLndyaXRlKGN1cnJlbnQpCm9wZW4oYmFja3VwX3BhdGggKyAnLm1ldGEnLCAndycpLndyaXRlKCdleGlzdGVkPScgKyBzdHIoZXhpc3RlZCkubG93ZXIoKSArICdcbicpCmxpbmVzPVtsaW5lIGZvciBsaW5lIGluIGN1cnJlbnQuc3BsaXRsaW5lcygpIGlmIG1hcmtlciBub3QgaW4gbGluZV0KaWYgdGFyZ2V0ID09ICd1c2VyJzoKICAgIGxpbmVzLmFwcGVuZChleHByICsgJyAnICsgY29tbWFuZCArICcgPj4gJyArIGxvZ19wYXRoICsgJyAyPiYxICcgKyBtYXJrZXIpCiAgICBwYXlsb2FkPSdcbicuam9pbihsaW5lcykucnN0cmlwKCkgKyAnXG4nCiAgICByZXN1bHQ9c3VicHJvY2Vzcy5ydW4oWydjcm9udGFiJywnLXUnLHJ1bl91c2VyLCctJ10sIGlucHV0PXBheWxvYWQsIHRleHQ9VHJ1ZSwgY2FwdHVyZV9vdXRwdXQ9VHJ1ZSkKZWxzZToKICAgIGxpbmVzLmFwcGVuZChleHByICsgJyAnICsgcnVuX3VzZXIgKyAnICcgKyBjb21tYW5kICsgJyA+PiAnICsgbG9nX3BhdGggKyAnIDI+JjEgJyArIG1hcmtlcikKICAgIHBheWxvYWQ9J1xuJy5qb2luKGxpbmVzKS5yc3RyaXAoKSArICdcbicKICAgIG9wZW4odGFyZ2V0X3BhdGgsICd3Jykud3JpdGUocGF5bG9hZCkKICAgIG9zLmNobW9kKHRhcmdldF9wYXRoLCAwbzY0NCkKICAgIHJlc3VsdD1zdWJwcm9jZXNzLkNvbXBsZXRlZFByb2Nlc3MoYXJncz1bXSwgcmV0dXJuY29kZT0wLCBzdGRvdXQ9JycsIHN0ZGVycj0nJykKcHJpbnQoJ3RhcmdldFR5cGU9JyArIHRhcmdldCkKcHJpbnQoJ3RhcmdldD0nICsgdGFyZ2V0X3BhdGgpCnByaW50KCdydW5Vc2VyPScgKyBydW5fdXNlcikKcHJpbnQoJ2NoYW5nZWQ9JyArIHN0cihyZXN1bHQucmV0dXJuY29kZSA9PSAwKS5sb3dlcigpKQpwcmludCgnYmFja3VwUGF0aD0nICsgYmFja3VwX3BhdGgpCnByaW50KCdyb2xsYmFja0NvbmZpcm1hdGlvbj1jcm9uX3JvbGxiYWNrOicgKyB0YXJnZXQgKyAnOicgKyBydW5fdXNlcikKcHJpbnQoJ3N0YW5kYXJkRXJyb3JTdW1tYXJ5PScgKyAocmVzdWx0LnN0ZGVyci5zcGxpdGxpbmVzKClbMF1bOjEyMF0gaWYgcmVzdWx0LnN0ZGVyci5zcGxpdGxpbmVzKCkgZWxzZSAnJykpCnJhaXNlIFN5c3RlbUV4aXQocmVzdWx0LnJldHVybmNvZGUp'))\" {targetType} {runUser} {cronExpression} {command} {logPath}",
+            CreateEncodedSudoShellCommand(CronWriteScript, "{targetType} {runUser} {cronExpression} {command} {logPath}"),
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("targetType", Pattern: CronTargetTypePattern),
@@ -1404,7 +1815,7 @@ exit "$code"
             SshCommandRiskLevel.ConfirmRequired),
         new(
             "cron_rollback",
-            "sudo -n python3 -c \"import base64,sys; exec(base64.b64decode('aW1wb3J0IG9zLCBzdWJwcm9jZXNzLCBzeXMKdGFyZ2V0PXN5cy5hcmd2WzFdCnJ1bl91c2VyPXN5cy5hcmd2WzJdCmJhY2t1cF9kaXI9Jy92YXIvYmFja3Vwcy9rZWxwaWUvY3JvbicKYmFja3VwX3BhdGg9YmFja3VwX2RpciArICgnL3VzZXItJyArIHJ1bl91c2VyICsgJy1sYXRlc3QuY3JvbicgaWYgdGFyZ2V0ID09ICd1c2VyJyBlbHNlICcvc3lzdGVtLScgKyBydW5fdXNlciArICctbGF0ZXN0LmNyb24nKQptZXRhX3BhdGg9YmFja3VwX3BhdGggKyAnLm1ldGEnCmlmIG5vdCBvcy5wYXRoLmlzZmlsZShiYWNrdXBfcGF0aCkgb3Igbm90IG9zLnBhdGguaXNmaWxlKG1ldGFfcGF0aCk6CiAgICBwcmludCgnYmFja3VwUGF0aD0nICsgYmFja3VwX3BhdGgpCiAgICBwcmludCgnYmFja3VwRXhpc3RzPWZhbHNlJykKICAgIHJhaXNlIFN5c3RlbUV4aXQoMikKbWV0YT1vcGVuKG1ldGFfcGF0aCwgZXJyb3JzPSdyZXBsYWNlJykucmVhZCgpCmV4aXN0ZWQ9J2V4aXN0ZWQ9dHJ1ZScgaW4gbWV0YQpwYXlsb2FkPW9wZW4oYmFja3VwX3BhdGgsIGVycm9ycz0ncmVwbGFjZScpLnJlYWQoKQppZiB0YXJnZXQgPT0gJ3VzZXInOgogICAgaWYgZXhpc3RlZDoKICAgICAgICByZXN1bHQ9c3VicHJvY2Vzcy5ydW4oWydjcm9udGFiJywnLXUnLHJ1bl91c2VyLCctJ10sIGlucHV0PXBheWxvYWQsIHRleHQ9VHJ1ZSwgY2FwdHVyZV9vdXRwdXQ9VHJ1ZSkKICAgIGVsc2U6CiAgICAgICAgcmVzdWx0PXN1YnByb2Nlc3MucnVuKFsnY3JvbnRhYicsJy11JyxydW5fdXNlciwnLXInXSwgdGV4dD1UcnVlLCBjYXB0dXJlX291dHB1dD1UcnVlKQogICAgdGFyZ2V0X3BhdGg9J3VzZXItY3JvbnRhYicKZWxzZToKICAgIHRhcmdldF9wYXRoPScvZXRjL2Nyb24uZC9rZWxwaWUtbWFuYWdlZCcKICAgIGlmIGV4aXN0ZWQ6CiAgICAgICAgb3Blbih0YXJnZXRfcGF0aCwgJ3cnKS53cml0ZShwYXlsb2FkKQogICAgICAgIG9zLmNobW9kKHRhcmdldF9wYXRoLCAwbzY0NCkKICAgIGVsaWYgb3MucGF0aC5leGlzdHModGFyZ2V0X3BhdGgpOgogICAgICAgIG9zLnJlbW92ZSh0YXJnZXRfcGF0aCkKICAgIHJlc3VsdD1zdWJwcm9jZXNzLkNvbXBsZXRlZFByb2Nlc3MoYXJncz1bXSwgcmV0dXJuY29kZT0wLCBzdGRvdXQ9JycsIHN0ZGVycj0nJykKcHJpbnQoJ3RhcmdldFR5cGU9JyArIHRhcmdldCkKcHJpbnQoJ3RhcmdldD0nICsgdGFyZ2V0X3BhdGgpCnByaW50KCdydW5Vc2VyPScgKyBydW5fdXNlcikKcHJpbnQoJ2JhY2t1cEV4aXN0cz10cnVlJykKcHJpbnQoJ3Jlc3RvcmVkPScgKyBzdHIocmVzdWx0LnJldHVybmNvZGUgPT0gMCkubG93ZXIoKSkKcHJpbnQoJ3N0YW5kYXJkRXJyb3JTdW1tYXJ5PScgKyAocmVzdWx0LnN0ZGVyci5zcGxpdGxpbmVzKClbMF1bOjEyMF0gaWYgcmVzdWx0LnN0ZGVyci5zcGxpdGxpbmVzKCkgZWxzZSAnJykpCnJhaXNlIFN5c3RlbUV4aXQocmVzdWx0LnJldHVybmNvZGUp'))\" {targetType} {runUser}",
+            CreateEncodedSudoShellCommand(CronRollbackScript, "{targetType} {runUser}"),
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("targetType", Pattern: CronTargetTypePattern),
@@ -1502,7 +1913,7 @@ exit "$code"
             ]),
         new(
             "user_apply_group_change",
-            "sudo -n python3 -c \"import base64,sys; exec(base64.b64decode('aW1wb3J0IGdycCwgb3MsIHB3ZCwgc3VicHJvY2Vzcywgc3lzCnVzZXI9c3lzLmFyZ3ZbMV0KZ3JvdXBzPXN5cy5hcmd2WzJdCm1vZGU9c3lzLmFyZ3ZbM10KdT1uZXh0KCh4IGZvciB4IGluIHB3ZC5nZXRwd2FsbCgpIGlmIHgucHdfbmFtZSA9PSB1c2VyKSwgTm9uZSkKaWYgdSBpcyBOb25lOgogICAgcHJpbnQoJ2V4aXN0cz1mYWxzZScpCiAgICByYWlzZSBTeXN0ZW1FeGl0KDIpCmdyb3VwX3Jvd3M9Z3JwLmdldGdyYWxsKCkKcmVxdWVzdGVkPVtnIGZvciBnIGluIGdyb3Vwcy5zcGxpdCgnLCcpIGlmIGddCmV4aXN0aW5nPXNldChnLmdyX25hbWUgZm9yIGcgaW4gZ3JvdXBfcm93cykKbWlzc2luZz1bZyBmb3IgZyBpbiByZXF1ZXN0ZWQgaWYgZyBub3QgaW4gZXhpc3RpbmddCmlmIG1pc3Npbmc6CiAgICBwcmludCgnZXhpc3RzPXRydWUnKQogICAgcHJpbnQoJ21pc3NpbmdHcm91cHM9JyArICcsJy5qb2luKG1pc3NpbmcpKQogICAgcmFpc2UgU3lzdGVtRXhpdCgyKQpjdXJyZW50PXNvcnRlZChnLmdyX25hbWUgZm9yIGcgaW4gZ3JvdXBfcm93cyBpZiB1c2VyIGluIGcuZ3JfbWVtKQpiYWNrdXBfZGlyPScvdmFyL2JhY2t1cHMva2VscGllL3VzZXJzJwpvcy5tYWtlZGlycyhiYWNrdXBfZGlyLCBleGlzdF9vaz1UcnVlKQpiYWNrdXBfcGF0aD1iYWNrdXBfZGlyICsgJy8nICsgdXNlciArICctZ3JvdXBzLWxhdGVzdC50eHQnCm9wZW4oYmFja3VwX3BhdGgsICd3Jykud3JpdGUoJywnLmpvaW4oY3VycmVudCkgKyAnXG4nKQphcmdzPVsndXNlcm1vZCddCmFyZ3MuYXBwZW5kKCctYUcnIGlmIG1vZGUgPT0gJ2FwcGVuZCcgZWxzZSAnLUcnKQphcmdzLmV4dGVuZChbJywnLmpvaW4ocmVxdWVzdGVkKSwgdXNlcl0pCnJlc3VsdD1zdWJwcm9jZXNzLnJ1bihhcmdzLCB0ZXh0PVRydWUsIGNhcHR1cmVfb3V0cHV0PVRydWUpCnByaW50KCd1c2VyPScgKyB1c2VyKQpwcmludCgnbW9kZT0nICsgbW9kZSkKcHJpbnQoJ2N1cnJlbnRHcm91cENvdW50PScgKyBzdHIobGVuKGN1cnJlbnQpKSkKcHJpbnQoJ3JlcXVlc3RlZEdyb3VwQ291bnQ9JyArIHN0cihsZW4ocmVxdWVzdGVkKSkpCnByaW50KCdtaXNzaW5nR3JvdXBzPScpCnByaW50KCdjaGFuZ2VkPScgKyBzdHIocmVzdWx0LnJldHVybmNvZGUgPT0gMCkubG93ZXIoKSkKcHJpbnQoJ2JhY2t1cFBhdGg9JyArIGJhY2t1cF9wYXRoKQpwcmludCgncm9sbGJhY2tDb25maXJtYXRpb249dXNlcl9yb2xsYmFja19ncm91cF9jaGFuZ2U6JyArIHVzZXIpCnByaW50KCdzdGFuZGFyZEVycm9yU3VtbWFyeT0nICsgKHJlc3VsdC5zdGRlcnIuc3BsaXRsaW5lcygpWzBdWzoxMjBdIGlmIHJlc3VsdC5zdGRlcnIuc3BsaXRsaW5lcygpIGVsc2UgJycpKQpyYWlzZSBTeXN0ZW1FeGl0KHJlc3VsdC5yZXR1cm5jb2RlKQ=='))\" {user} {groups} {mode}",
+            CreateEncodedSudoShellCommand(UserApplyGroupChangeScript, "{user} {groups} {mode}"),
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("user", Pattern: UserNamePattern),
@@ -1512,7 +1923,7 @@ exit "$code"
             SshCommandRiskLevel.ConfirmRequired),
         new(
             "user_rollback_group_change",
-            "sudo -n python3 -c \"import base64,sys; exec(base64.b64decode('aW1wb3J0IG9zLCBzdWJwcm9jZXNzLCBzeXMKdXNlcj1zeXMuYXJndlsxXQpiYWNrdXBfcGF0aD0nL3Zhci9iYWNrdXBzL2tlbHBpZS91c2Vycy8nICsgdXNlciArICctZ3JvdXBzLWxhdGVzdC50eHQnCmlmIG5vdCBvcy5wYXRoLmlzZmlsZShiYWNrdXBfcGF0aCk6CiAgICBwcmludCgndXNlcj0nICsgdXNlcikKICAgIHByaW50KCdiYWNrdXBFeGlzdHM9ZmFsc2UnKQogICAgcmFpc2UgU3lzdGVtRXhpdCgyKQpncm91cHM9b3BlbihiYWNrdXBfcGF0aCwgZXJyb3JzPSdyZXBsYWNlJykucmVhZCgpLnN0cmlwKCkKcmVzdWx0PXN1YnByb2Nlc3MucnVuKFsndXNlcm1vZCcsJy1HJyxncm91cHMsdXNlcl0sIHRleHQ9VHJ1ZSwgY2FwdHVyZV9vdXRwdXQ9VHJ1ZSkKcHJpbnQoJ3VzZXI9JyArIHVzZXIpCnByaW50KCdiYWNrdXBFeGlzdHM9dHJ1ZScpCnByaW50KCdyZXN0b3JlZEdyb3VwQ291bnQ9JyArIHN0cihsZW4oW2cgZm9yIGcgaW4gZ3JvdXBzLnNwbGl0KCcsJykgaWYgZ10pKSkKcHJpbnQoJ3Jlc3RvcmVkPScgKyBzdHIocmVzdWx0LnJldHVybmNvZGUgPT0gMCkubG93ZXIoKSkKcHJpbnQoJ3N0YW5kYXJkRXJyb3JTdW1tYXJ5PScgKyAocmVzdWx0LnN0ZGVyci5zcGxpdGxpbmVzKClbMF1bOjEyMF0gaWYgcmVzdWx0LnN0ZGVyci5zcGxpdGxpbmVzKCkgZWxzZSAnJykpCnJhaXNlIFN5c3RlbUV4aXQocmVzdWx0LnJldHVybmNvZGUp'))\" {user}",
+            CreateEncodedSudoShellCommand(UserRollbackGroupChangeScript, "{user}"),
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("user", Pattern: UserNamePattern),
@@ -1530,7 +1941,7 @@ exit "$code"
             ]),
         new(
             "user_apply_permission_change",
-            CreateEncodedPythonCommand(UserApplyPermissionChangeScript, "{user} {shell} {login} {sudo}"),
+            CreateEncodedSudoShellCommand(UserApplyPermissionChangeScript, "{user} {shell} {login} {sudo}"),
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("user", Pattern: UserNamePattern),
@@ -1541,7 +1952,7 @@ exit "$code"
             SshCommandRiskLevel.ConfirmRequired),
         new(
             "user_rollback_permission_change",
-            "sudo -n python3 -c \"import base64,sys; exec(base64.b64decode('aW1wb3J0IGJhc2U2NCwgb3MsIHN1YnByb2Nlc3MsIHN5cwp1c2VyID0gc3lzLmFyZ3ZbMV0KbWFuYWdlZF9uYW1lID0gdXNlci5yZXBsYWNlKCckJywgJ19kb2xsYXInKQpzdWRvX3BhdGggPSAnL2V0Yy9zdWRvZXJzLmQva2VscGllLScgKyBtYW5hZ2VkX25hbWUKYmFja3VwX3BhdGggPSAnL3Zhci9iYWNrdXBzL2tlbHBpZS91c2Vycy8nICsgdXNlciArICctcGVybWlzc2lvbnMtbGF0ZXN0Lm1ldGEnCmlmIG5vdCBvcy5wYXRoLmlzZmlsZShiYWNrdXBfcGF0aCk6CiAgICBwcmludCgndXNlcj0nICsgdXNlcikKICAgIHByaW50KCdiYWNrdXBFeGlzdHM9ZmFsc2UnKQogICAgcmFpc2UgU3lzdGVtRXhpdCgyKQptZXRhID0ge30KZm9yIGxpbmUgaW4gb3BlbihiYWNrdXBfcGF0aCwgZXJyb3JzPSdyZXBsYWNlJyk6CiAgICBpZiAnPScgaW4gbGluZToKICAgICAgICBrZXksIHZhbHVlID0gbGluZS5yc3RyaXAoJ1xuJykuc3BsaXQoJz0nLCAxKQogICAgICAgIG1ldGFba2V5XSA9IHZhbHVlCnNoZWxsID0gbWV0YS5nZXQoJ3NoZWxsJywgJycpCmxvY2tlZCA9IG1ldGEuZ2V0KCdsb2NrZWQnLCAndW5rbm93bicpCnN1ZG9fZXhpc3RzID0gbWV0YS5nZXQoJ3N1ZG9FeGlzdHMnLCAnZmFsc2UnKSA9PSAndHJ1ZScKc3Vkb19wYXlsb2FkID0gbWV0YS5nZXQoJ3N1ZG9CYXNlNjQnLCAnJykKcmVzdWx0ID0gc3VicHJvY2Vzcy5Db21wbGV0ZWRQcm9jZXNzKGFyZ3M9W10sIHJldHVybmNvZGU9MCwgc3Rkb3V0PScnLCBzdGRlcnI9JycpCnNoZWxsX3Jlc3RvcmVkID0gRmFsc2UKbG9naW5fcmVzdG9yZWQgPSBGYWxzZQpzdWRvX3Jlc3RvcmVkID0gRmFsc2UKaWYgc2hlbGwgYW5kIG9zLnBhdGguZXhpc3RzKHNoZWxsKToKICAgIHJlc3VsdCA9IHN1YnByb2Nlc3MucnVuKFsndXNlcm1vZCcsICctcycsIHNoZWxsLCB1c2VyXSwgdGV4dD1UcnVlLCBjYXB0dXJlX291dHB1dD1UcnVlKQogICAgc2hlbGxfcmVzdG9yZWQgPSByZXN1bHQucmV0dXJuY29kZSA9PSAwCiAgICBpZiByZXN1bHQucmV0dXJuY29kZSAhPSAwOgogICAgICAgIHByaW50KCd1c2VyPScgKyB1c2VyKQogICAgICAgIHByaW50KCdiYWNrdXBFeGlzdHM9dHJ1ZScpCiAgICAgICAgcHJpbnQoJ3Jlc3RvcmVkPWZhbHNlJykKICAgICAgICBwcmludCgnc3RhbmRhcmRFcnJvclN1bW1hcnk9JyArIChyZXN1bHQuc3RkZXJyLnNwbGl0bGluZXMoKVswXVs6MTIwXSBpZiByZXN1bHQuc3RkZXJyLnNwbGl0bGluZXMoKSBlbHNlICcnKSkKICAgICAgICByYWlzZSBTeXN0ZW1FeGl0KHJlc3VsdC5yZXR1cm5jb2RlKQppZiBsb2NrZWQgPT0gJ3RydWUnOgogICAgcmVzdWx0ID0gc3VicHJvY2Vzcy5ydW4oWyd1c2VybW9kJywgJy1MJywgdXNlcl0sIHRleHQ9VHJ1ZSwgY2FwdHVyZV9vdXRwdXQ9VHJ1ZSkKICAgIGxvZ2luX3Jlc3RvcmVkID0gcmVzdWx0LnJldHVybmNvZGUgPT0gMAplbGlmIGxvY2tlZCA9PSAnZmFsc2UnOgogICAgcmVzdWx0ID0gc3VicHJvY2Vzcy5ydW4oWyd1c2VybW9kJywgJy1VJywgdXNlcl0sIHRleHQ9VHJ1ZSwgY2FwdHVyZV9vdXRwdXQ9VHJ1ZSkKICAgIGxvZ2luX3Jlc3RvcmVkID0gcmVzdWx0LnJldHVybmNvZGUgPT0gMAppZiByZXN1bHQucmV0dXJuY29kZSAhPSAwOgogICAgcHJpbnQoJ3VzZXI9JyArIHVzZXIpCiAgICBwcmludCgnYmFja3VwRXhpc3RzPXRydWUnKQogICAgcHJpbnQoJ3Jlc3RvcmVkPWZhbHNlJykKICAgIHByaW50KCdzdGFuZGFyZEVycm9yU3VtbWFyeT0nICsgKHJlc3VsdC5zdGRlcnIuc3BsaXRsaW5lcygpWzBdWzoxMjBdIGlmIHJlc3VsdC5zdGRlcnIuc3BsaXRsaW5lcygpIGVsc2UgJycpKQogICAgcmFpc2UgU3lzdGVtRXhpdChyZXN1bHQucmV0dXJuY29kZSkKaWYgc3Vkb19leGlzdHM6CiAgICB3aXRoIG9wZW4oc3Vkb19wYXRoLCAnd2InKSBhcyBoYW5kbGU6CiAgICAgICAgaGFuZGxlLndyaXRlKGJhc2U2NC5iNjRkZWNvZGUoc3Vkb19wYXlsb2FkKSkKICAgIG9zLmNobW9kKHN1ZG9fcGF0aCwgMG80NDApCiAgICBzdWRvX3Jlc3RvcmVkID0gVHJ1ZQplbHNlOgogICAgaWYgb3MucGF0aC5leGlzdHMoc3Vkb19wYXRoKToKICAgICAgICBvcy5yZW1vdmUoc3Vkb19wYXRoKQogICAgc3Vkb19yZXN0b3JlZCA9IFRydWUKcHJpbnQoJ3VzZXI9JyArIHVzZXIpCnByaW50KCdiYWNrdXBFeGlzdHM9dHJ1ZScpCnByaW50KCdzaGVsbFJlc3RvcmVkPScgKyBzdHIoc2hlbGxfcmVzdG9yZWQpLmxvd2VyKCkpCnByaW50KCdsb2dpblJlc3RvcmVkPScgKyBzdHIobG9naW5fcmVzdG9yZWQpLmxvd2VyKCkpCnByaW50KCdzdWRvUmVzdG9yZWQ9JyArIHN0cihzdWRvX3Jlc3RvcmVkKS5sb3dlcigpKQpwcmludCgncmVzdG9yZWQ9dHJ1ZScpCnByaW50KCdzdGFuZGFyZEVycm9yU3VtbWFyeT0nICsgKHJlc3VsdC5zdGRlcnIuc3BsaXRsaW5lcygpWzBdWzoxMjBdIGlmIHJlc3VsdC5zdGRlcnIuc3BsaXRsaW5lcygpIGVsc2UgJycpKQ=='))\" {user}",
+            CreateEncodedSudoShellCommand(UserRollbackPermissionChangeScript, "{user}"),
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("user", Pattern: UserNamePattern),
@@ -1579,7 +1990,7 @@ exit "$code"
             ]),
         new(
             "firewall_apply_rule",
-            "sudo -n python3 -c \"import shutil,subprocess,sys; action=sys.argv[1]; target=sys.argv[2]; value=sys.argv[3]; zone=sys.argv[4]; permanent=sys.argv[5]; fw=shutil.which('firewall-cmd'); print('action=' + action); print('target=' + target); print('value=' + value); print('zone=' + zone); print('permanent=' + permanent); invalid=(target=='port' and '/' not in value) or (target=='service' and '/' in value); print('valid=' + str(not invalid).lower()); sys.exit(2) if invalid else None; print('firewalldAvailable=' + str(fw is not None).lower()); sys.exit(127) if not fw else None; operation='--add-' + target if action == 'add' else '--remove-' + target; args=[fw,'--zone',zone,operation,value]; args.insert(1,'--permanent') if permanent == 'true' else None; result=subprocess.run(args, text=True, capture_output=True); print('applyExitCode=' + str(result.returncode)); print('changed=' + str(result.returncode == 0).lower()); print('standardErrorSummary=' + (result.stderr.splitlines()[0][:120] if result.stderr.splitlines() else '')); raise SystemExit(result.returncode)\" {action} {target} {value} {zone} {permanent}",
+            CreateEncodedSudoShellCommand(FirewallApplyRuleScript, "{action} {target} {value} {zone} {permanent}"),
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("action", Pattern: FirewallActionPattern),
@@ -1600,7 +2011,7 @@ exit "$code"
             ]),
         new(
             "backup_run",
-            "sudo -n python3 -c \"import sys; exec('import os,tarfile,time,sys\\nroot=os.path.abspath(sys.argv[1])\\ndepth=int(sys.argv[2])\\nlimit=int(sys.argv[3])\\nexists=os.path.exists(root)\\nbackup_dir=\\\"/var/backups/kelpie/run\\\"\\nos.makedirs(backup_dir, exist_ok=True)\\nbackup_path=os.path.join(backup_dir, \\\"kelpie-backup-\\\" + time.strftime(\\\"%Y%m%d%H%M%S\\\") + \\\".tar.gz\\\")\\nprint(\\\"scanRoot=\\\" + root)\\nprint(\\\"exists=\\\" + str(exists).lower())\\nprint(\\\"depth=\\\" + str(depth))\\nif not exists:\\n    print(\\\"backupCreated=false\\\")\\n    raise SystemExit(2)\\nstart=root.rstrip(\\\"/\\\").count(\\\"/\\\")\\nentries=0\\nbytes_total=0\\nwith tarfile.open(backup_path, \\\"w:gz\\\") as archive:\\n    for current, dirnames, filenames in os.walk(root, topdown=True, followlinks=False):\\n        current_depth=current.rstrip(\\\"/\\\").count(\\\"/\\\")-start\\n        if current_depth >= depth:\\n            dirnames[:] = []\\n        for name in filenames:\\n            if entries >= limit:\\n                break\\n            path=os.path.join(current, name)\\n            try:\\n                st=os.lstat(path)\\n            except OSError:\\n                continue\\n            if os.path.islink(path) or not os.path.isfile(path):\\n                continue\\n            archive.add(path, arcname=os.path.relpath(path, root), recursive=False)\\n            entries += 1\\n            bytes_total += st.st_size\\n        if entries >= limit:\\n            break\\nprint(\\\"backupCreated=true\\\")\\nprint(\\\"backupPath=\\\" + backup_path)\\nprint(\\\"entriesAdded=\\\" + str(entries))\\nprint(\\\"bytesAdded=\\\" + str(bytes_total))\\nprint(\\\"archiveReadable=\\\" + str(tarfile.is_tarfile(backup_path)).lower())')\" {scanRoot} {depth} {limit}",
+            CreateEncodedSudoShellCommand(BackupRunScript, "{scanRoot} {depth} {limit}"),
             TimeSpan.FromSeconds(120),
             [
                 new AllowedCommandParameterDefinition("scanRoot", MaxLength: 128, Pattern: BackupScanRootPattern),
@@ -1704,12 +2115,6 @@ exit "$code"
         return Commands;
     }
 
-    private static string CreateEncodedPythonCommand(string script, string arguments)
-    {
-        var encoded = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(script));
-        return $"sudo -n python3 -c \"import base64,sys; exec(base64.b64decode('{encoded}'))\" {arguments}";
-    }
-
     private static string CreateEncodedShellCommand(string script)
     {
         var encoded = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(script));
@@ -1720,5 +2125,11 @@ exit "$code"
     {
         var encoded = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(script));
         return $"sh -c \"printf %s '{encoded}' | base64 -d | sh -s -- {arguments}\"";
+    }
+
+    private static string CreateEncodedSudoShellCommand(string script, string arguments)
+    {
+        var encoded = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(script));
+        return $"sudo -n sh -c \"printf %s '{encoded}' | base64 -d | sh -s -- {arguments}\"";
     }
 }

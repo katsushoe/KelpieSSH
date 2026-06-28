@@ -795,9 +795,12 @@ public sealed class AllowedCommandProviderTests
             ["logPath"] = "/var/log/kelpie/job.log",
         });
 
-        commandText.Should().StartWith("sudo -n python3");
-        commandText.Should().Contain("base64.b64decode");
+        commandText.Should().StartWith("sudo -n sh -c");
         commandText.Should().Contain("'user' 'deploy' '*/5 * * * *' '/usr/local/bin/job --once' '/var/log/kelpie/job.log'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("crontab -u \"$run_user\"");
+        script.Should().Contain("rollbackConfirmation=cron_rollback:%s:%s");
         command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
     }
 
@@ -814,9 +817,12 @@ public sealed class AllowedCommandProviderTests
             ["runUser"] = "deploy",
         });
 
-        commandText.Should().StartWith("sudo -n python3");
-        commandText.Should().Contain("base64.b64decode");
+        commandText.Should().StartWith("sudo -n sh -c");
         commandText.Should().Contain("'user' 'deploy'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("backupExists=false");
+        script.Should().Contain("crontab -u \"$run_user\"");
         command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
     }
 
@@ -1032,9 +1038,12 @@ public sealed class AllowedCommandProviderTests
             ["mode"] = "append",
         });
 
-        commandText.Should().StartWith("sudo -n python3");
-        commandText.Should().Contain("base64.b64decode");
+        commandText.Should().StartWith("sudo -n sh -c");
         commandText.Should().Contain("'deploy' 'nginx,wheel' 'append'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("usermod -aG \"$groups\" \"$user\"");
+        script.Should().Contain("rollbackConfirmation=user_rollback_group_change:%s");
         command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
     }
 
@@ -1050,9 +1059,12 @@ public sealed class AllowedCommandProviderTests
             ["user"] = "deploy",
         });
 
-        commandText.Should().StartWith("sudo -n python3");
-        commandText.Should().Contain("base64.b64decode");
+        commandText.Should().StartWith("sudo -n sh -c");
         commandText.Should().Contain("'deploy'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("backupExists=false");
+        script.Should().Contain("usermod -G \"$groups\" \"$user\"");
         command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
     }
 
@@ -1114,9 +1126,12 @@ public sealed class AllowedCommandProviderTests
             ["sudo"] = "absent",
         });
 
-        commandText.Should().StartWith("sudo -n python3");
-        commandText.Should().Contain("base64.b64decode");
+        commandText.Should().StartWith("sudo -n sh -c");
         commandText.Should().Contain("'deploy' '/bin/bash' 'disabled' 'absent'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("usermod -s \"$shell_path\" \"$user\"");
+        script.Should().Contain("rollbackConfirmation=user_rollback_permission_change:%s");
         command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
     }
 
@@ -1132,9 +1147,12 @@ public sealed class AllowedCommandProviderTests
             ["user"] = "deploy",
         });
 
-        commandText.Should().StartWith("sudo -n python3");
-        commandText.Should().Contain("base64.b64decode");
+        commandText.Should().StartWith("sudo -n sh -c");
         commandText.Should().Contain("'deploy'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("backupExists=false");
+        script.Should().Contain("sudoRestored=%s");
         command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
     }
 
@@ -1372,8 +1390,12 @@ public sealed class AllowedCommandProviderTests
             ["permanent"] = "true",
         });
 
-        commandText.Should().StartWith("sudo -n python3");
+        commandText.Should().StartWith("sudo -n sh -c");
         commandText.Should().Contain("'remove' 'service' 'https' 'public' 'true'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("firewall-cmd");
+        script.Should().Contain("applyExitCode=%s");
         command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
     }
 
@@ -1456,9 +1478,12 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "20",
         });
 
-        commandText.Should().StartWith("sudo -n python3");
-        commandText.Should().Contain("backupCreated=true");
+        commandText.Should().StartWith("sudo -n sh -c");
         commandText.Should().Contain("'/var/www' '2' '20'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("backupCreated=%s");
+        script.Should().Contain("tar -C \"$root\" -czf \"$backup_path\" -T \"$list_path\"");
         command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
     }
 
