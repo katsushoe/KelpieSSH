@@ -2106,6 +2106,51 @@ public sealed class KelpieToolsSshTests
     }
 
     [Fact]
+    public async Task GetSshServiceStatusAsync_ShouldReturnRemoteFailureResult()
+    {
+        var profile = CreateProfile("vps01");
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput("inactive\n", "Unit nginx.service could not be found.\n", 3),
+        ]);
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var result = await KelpieTools.GetSshServiceStatusAsync(
+            service,
+            profiles,
+            "nginx.service",
+            "vps01");
+
+        result.CommandName.Should().Be("service_status");
+        result.ExitCode.Should().Be(3);
+        result.StandardOutput.Should().Be("inactive\n");
+        result.StandardError.Should().Be("Unit nginx.service could not be found.\n");
+        result.Stdout.Should().Equal("inactive", string.Empty);
+        result.Stderr.Should().Equal("Unit nginx.service could not be found.", string.Empty);
+        result.Error.Should().BeNull();
+        runner.LastRequest!.Arguments["service"].Should().Be("nginx.service");
+    }
+
+    [Fact]
+    public async Task GetSshServiceStatusAsync_ShouldRejectUnsafeServiceArgumentBeforeExecution()
+    {
+        var profile = CreateProfile("vps01");
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var action = async () => await KelpieTools.GetSshServiceStatusAsync(
+            service,
+            profiles,
+            "nginx.service;whoami",
+            "vps01");
+
+        await action.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("SSH command argument contains a dangerous fragment: service");
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
     public async Task GetSshServiceIsActiveAsync_ShouldPassSafeServiceArgument()
     {
         var profile = CreateProfile("vps01");
@@ -2940,6 +2985,26 @@ public sealed class KelpieToolsSshTests
         result.ExitCode.Should().Be(-1);
         result.Error.Should().Be("Confirmation is required: pkg_install:nginx");
         result.StandardError.Should().Be("Confirmation is required: pkg_install:nginx");
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task InstallSshPackageConfirmedAsync_ShouldRejectSafeModePolicyBeforeExecution()
+    {
+        var profile = CreateProfile("vps01", KelpiePolicyMode.Safe);
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var action = async () => await KelpieTools.InstallSshPackageConfirmedAsync(
+            service,
+            profiles,
+            "nginx",
+            "vps01",
+            "pkg_install:nginx");
+
+        await action.Should().ThrowAsync<KelpiePolicyError>()
+            .WithMessage("KelpiePolicyError: AllowSudo is required for command: pkg_install");
         runner.LastRequest.Should().BeNull();
     }
 
