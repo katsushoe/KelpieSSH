@@ -542,6 +542,75 @@ printf 'matches=%s\n' "$matches"
 [ -n "$rows" ] && printf '%s\n' "$rows"
 """;
 
+    private const string UserFileOwnershipCheckScript = """
+kind="$1"
+name="$2"
+root="$3"
+depth="$4"
+limit="$5"
+
+printf 'scanRoot=%s\n' "$root"
+printf 'principalType=%s\n' "$kind"
+printf 'name=%s\n' "$name"
+printf 'depth=%s\n' "$depth"
+
+target_id=""
+if [ "$kind" = "user" ]; then
+    target_id=$(getent passwd "$name" | awk -F: '{ print $3 }')
+else
+    target_id=$(getent group "$name" | awk -F: '{ print $3 }')
+fi
+
+if [ -z "$target_id" ]; then
+    echo "principal not found" >&2
+    exit 2
+fi
+
+scanned=0
+matches=0
+rows=""
+scan_limit=$((limit * 20))
+find_depth=$((depth + 1))
+
+if [ -d "$root" ]; then
+    while IFS= read -r path; do
+        [ "$scanned" -ge "$scan_limit" ] && break
+        [ "$matches" -ge "$limit" ] && break
+
+        ids=$(stat -c '%u:%g' "$path" 2>/dev/null) || continue
+        owner_id=${ids%%:*}
+        group_id=${ids#*:}
+        scanned=$((scanned + 1))
+
+        hit=false
+        if [ "$kind" = "user" ] && [ "$owner_id" = "$target_id" ]; then
+            hit=true
+        elif [ "$kind" = "group" ] && [ "$group_id" = "$target_id" ]; then
+            hit=true
+        fi
+
+        if [ "$hit" = true ]; then
+            owner=$(stat -c '%U' "$path" 2>/dev/null)
+            group=$(stat -c '%G' "$path" 2>/dev/null)
+            row="$path:owner=$owner:group=$group"
+            matches=$((matches + 1))
+            if [ -z "$rows" ]; then
+                rows="$row"
+            else
+                rows="$rows
+$row"
+            fi
+        fi
+    done <<EOF
+$(find "$root" -maxdepth "$find_depth" -xdev -print 2>/dev/null)
+EOF
+fi
+
+printf 'entriesScanned=%s\n' "$scanned"
+printf 'matches=%s\n' "$matches"
+[ -n "$rows" ] && printf '%s\n' "$rows"
+""";
+
     private const string ServiceResidualConfigCheckScript = """
 service="$1"
 limit="$2"
@@ -835,7 +904,7 @@ exit "$tar_code"
             ]),
         new(
             "user_file_ownership_check",
-            "python3 -c \"import base64,sys; exec(base64.b64decode('aW1wb3J0IGdycCwgb3MsIHB3ZCwgc3lzCmtpbmQgPSBzeXMuYXJndlsxXQpuYW1lID0gc3lzLmFyZ3ZbMl0Kcm9vdCA9IG9zLnBhdGguYWJzcGF0aChzeXMuYXJndlszXSkKZGVwdGggPSBpbnQoc3lzLmFyZ3ZbNF0pCmxpbWl0ID0gaW50KHN5cy5hcmd2WzVdKQp1c2VycyA9IHB3ZC5nZXRwd2FsbCgpCmdyb3VwcyA9IGdycC5nZXRncmFsbCgpCnRhcmdldF91aWQgPSBuZXh0KCh1LnB3X3VpZCBmb3IgdSBpbiB1c2VycyBpZiB1LnB3X25hbWUgPT0gbmFtZSksIE5vbmUpCnRhcmdldF9naWQgPSBuZXh0KChnLmdyX2dpZCBmb3IgZyBpbiBncm91cHMgaWYgZy5ncl9uYW1lID09IG5hbWUpLCBOb25lKQpwcmludCgnc2NhblJvb3Q9JyArIHJvb3QpCnByaW50KCdwcmluY2lwYWxUeXBlPScgKyBraW5kKQpwcmludCgnbmFtZT0nICsgbmFtZSkKcHJpbnQoJ2RlcHRoPScgKyBzdHIoZGVwdGgpKQppZiAoa2luZCA9PSAndXNlcicgYW5kIHRhcmdldF91aWQgaXMgTm9uZSkgb3IgKGtpbmQgPT0gJ2dyb3VwJyBhbmQgdGFyZ2V0X2dpZCBpcyBOb25lKToKICAgIHByaW50KCdwcmluY2lwYWwgbm90IGZvdW5kJywgZmlsZT1zeXMuc3RkZXJyKQogICAgcmFpc2UgU3lzdGVtRXhpdCgyKQpzdGFydF9kZXB0aCA9IHJvb3QucnN0cmlwKCcvJykuY291bnQoJy8nKQptYXRjaGVzID0gW10Kc2Nhbm5lZCA9IDAKaWYgb3MucGF0aC5pc2Rpcihyb290KToKICAgIGZvciBjdXJyZW50LCBkaXJzLCBmaWxlcyBpbiBvcy53YWxrKHJvb3QsIHRvcGRvd249VHJ1ZSwgZm9sbG93bGlua3M9RmFsc2UpOgogICAgICAgIGN1cnJlbnRfZGVwdGggPSBjdXJyZW50LnJzdHJpcCgnLycpLmNvdW50KCcvJykgLSBzdGFydF9kZXB0aAogICAgICAgIGlmIGN1cnJlbnRfZGVwdGggPj0gZGVwdGg6CiAgICAgICAgICAgIGRpcnNbOl0gPSBbXQogICAgICAgIGVudHJpZXMgPSBbY3VycmVudF0gKyBbb3MucGF0aC5qb2luKGN1cnJlbnQsIGVudHJ5KSBmb3IgZW50cnkgaW4gZGlycyArIGZpbGVzXQogICAgICAgIGZvciBwYXRoIGluIGVudHJpZXM6CiAgICAgICAgICAgIGlmIHNjYW5uZWQgPj0gbGltaXQgKiAyMCBvciBsZW4obWF0Y2hlcykgPj0gbGltaXQ6CiAgICAgICAgICAgICAgICBicmVhawogICAgICAgICAgICB0cnk6CiAgICAgICAgICAgICAgICBzdCA9IG9zLmxzdGF0KHBhdGgpCiAgICAgICAgICAgIGV4Y2VwdCBPU0Vycm9yOgogICAgICAgICAgICAgICAgY29udGludWUKICAgICAgICAgICAgc2Nhbm5lZCArPSAxCiAgICAgICAgICAgIGlmIChraW5kID09ICd1c2VyJyBhbmQgc3Quc3RfdWlkID09IHRhcmdldF91aWQpIG9yIChraW5kID09ICdncm91cCcgYW5kIHN0LnN0X2dpZCA9PSB0YXJnZXRfZ2lkKToKICAgICAgICAgICAgICAgIG93bmVyID0gbmV4dCgodS5wd19uYW1lIGZvciB1IGluIHVzZXJzIGlmIHUucHdfdWlkID09IHN0LnN0X3VpZCksIHN0cihzdC5zdF91aWQpKQogICAgICAgICAgICAgICAgZ3JvdXAgPSBuZXh0KChnLmdyX25hbWUgZm9yIGcgaW4gZ3JvdXBzIGlmIGcuZ3JfZ2lkID09IHN0LnN0X2dpZCksIHN0cihzdC5zdF9naWQpKQogICAgICAgICAgICAgICAgbWF0Y2hlcy5hcHBlbmQocGF0aCArICc6b3duZXI9JyArIG93bmVyICsgJzpncm91cD0nICsgZ3JvdXApCiAgICAgICAgaWYgbGVuKG1hdGNoZXMpID49IGxpbWl0OgogICAgICAgICAgICBicmVhawpwcmludCgnZW50cmllc1NjYW5uZWQ9JyArIHN0cihzY2FubmVkKSkKcHJpbnQoJ21hdGNoZXM9JyArIHN0cihsZW4obWF0Y2hlcykpKQpwcmludCgnXG4nLmpvaW4obWF0Y2hlc1s6bGltaXRdKSk='))\" {targetType} {name} {scanRoot} {depth} {limit}",
+            CreateEncodedShellCommand(UserFileOwnershipCheckScript, "{targetType} {name} {scanRoot} {depth} {limit}"),
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("targetType", Pattern: PrincipalTypePattern),

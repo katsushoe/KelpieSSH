@@ -1200,8 +1200,14 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "20",
         });
 
-        commandText.Should().Contain("base64.b64decode");
-        commandText.Should().Contain("'group' 'www-data' '/var/www' '2' '20'");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- 'group' 'www-data' '/var/www' '2' '20'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("find \"$root\"");
+        script.Should().Contain("stat -c '%u:%g'");
+        script.Should().Contain("printf 'entriesScanned=%s");
     }
 
     [Fact]

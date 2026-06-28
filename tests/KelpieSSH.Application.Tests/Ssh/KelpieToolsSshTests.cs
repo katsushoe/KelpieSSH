@@ -846,6 +846,8 @@ public sealed class KelpieToolsSshTests
             "20");
 
         result.CommandName.Should().Be("user_file_ownership_check");
+        result.CommandText.Should().Contain("sh -s -- 'group' 'www-data' '/var/www' '2' '20'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["targetType"].Should().Be("group");
         runner.LastRequest.Arguments["name"].Should().Be("www-data");
         runner.LastRequest.Arguments["scanRoot"].Should().Be("/var/www");
