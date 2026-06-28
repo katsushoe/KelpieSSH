@@ -34,12 +34,12 @@ public sealed class DebianAptCommandProvider : IAllowedCommandProvider
             [PackageParameter]),
         new(
             "pkg_search",
-            "python3 -c \"import subprocess,sys; query={query}; limit=int({limit}); result=subprocess.run(['apt-cache','search',query], text=True, capture_output=True); print('\\n'.join(result.stdout.splitlines()[:limit])); print(result.stderr, end='', file=sys.stderr); raise SystemExit(result.returncode)\"",
+            "sh -c \"output=$(apt-cache search \\\"$1\\\"); code=$?; printf '%s\\n' \\\"$output\\\" | head -n \\\"$2\\\"; exit \\\"$code\\\"\" -- {query} {limit}",
             TimeSpan.FromSeconds(30),
             [QueryParameter, LimitParameter]),
         new(
             "pkg_list_installed",
-            "python3 -c \"import subprocess,sys; filter_text={filter}.lower(); limit=int({limit}); result=subprocess.run(['apt','list','--installed'], text=True, capture_output=True); lines=[line for line in result.stdout.splitlines() if filter_text in line.lower()]; print('\\n'.join(lines[:limit])); print(result.stderr, end='', file=sys.stderr); raise SystemExit(result.returncode)\"",
+            "sh -c \"output=$(apt list --installed); code=$?; printf '%s\\n' \\\"$output\\\" | grep -i -- \\\"$1\\\" | head -n \\\"$2\\\"; exit \\\"$code\\\"\" -- {filter} {limit}",
             TimeSpan.FromSeconds(30),
             [FilterParameter, LimitParameter]),
         new(

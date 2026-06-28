@@ -131,13 +131,11 @@ public sealed class AllowedCommandProviderTests
             ["lines"] = "500",
             ["sinceMinutes"] = "10",
         });
-        var scriptBase64 = Regex.Match(commandText, "b64decode\\('(?<script>[^']+)'\\)")
-            .Groups["script"]
-            .Value;
-        var script = Encoding.UTF8.GetString(Convert.FromBase64String(scriptBase64));
+        var script = DecodeEmbeddedShellScript(commandText);
 
         script.Should().Contain("tz = m.group(7)");
         script.Should().NotContain("tz = m.group(8)");
+        commandText.Should().NotContain("python3 -c");
     }
 
     [Fact]
@@ -161,13 +159,20 @@ public sealed class AllowedCommandProviderTests
         var checkCommand = commands.Single(command => command.Name == "service_config_nginx_check_write_config").BuildCommandText(baseArguments);
         var rollbackCommand = commands.Single(command => command.Name == "service_config_nginx_rollback_config").BuildCommandText(baseArguments);
 
-        writeCommand.Should().Contain("KELPIE_CREATED_CONFIG_FILE_BACKUP_V1");
-        writeCommand.Should().Contain("exists=os.path.exists(rp)");
-        writeCommand.Should().Contain("exists and not os.path.isfile(rp)");
-        checkCommand.Should().Contain("exists=os.path.exists(rp)");
-        checkCommand.Should().Contain("exists and not os.path.isfile(rp)");
-        rollbackCommand.Should().Contain("KELPIE_CREATED_CONFIG_FILE_BACKUP_V1");
-        rollbackCommand.Should().Contain("os.remove(p)");
+        var writeScript = DecodeEmbeddedShellScript(writeCommand);
+        var checkScript = DecodeEmbeddedShellScript(checkCommand);
+        var rollbackScript = DecodeEmbeddedShellScript(rollbackCommand);
+
+        writeCommand.Should().NotContain("python3 -c");
+        checkCommand.Should().NotContain("python3 -c");
+        rollbackCommand.Should().NotContain("python3 -c");
+        writeScript.Should().Contain("KELPIE_CREATED_CONFIG_FILE_BACKUP_V1");
+        writeScript.Should().Contain("exists=os.path.exists(rp)");
+        writeScript.Should().Contain("exists and not os.path.isfile(rp)");
+        checkScript.Should().Contain("exists=os.path.exists(rp)");
+        checkScript.Should().Contain("exists and not os.path.isfile(rp)");
+        rollbackScript.Should().Contain("KELPIE_CREATED_CONFIG_FILE_BACKUP_V1");
+        rollbackScript.Should().Contain("os.remove(p)");
     }
 
     [Fact]
@@ -184,8 +189,8 @@ public sealed class AllowedCommandProviderTests
             {
                 ["disabledPathsBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("/etc/nginx/sites-enabled/default\n")),
             });
-        var disableScript = DecodeEmbeddedPythonScript(disableCommand);
-        var rollbackScript = DecodeEmbeddedPythonScript(rollbackCommand);
+        var disableScript = DecodeEmbeddedShellScript(disableCommand);
+        var rollbackScript = DecodeEmbeddedShellScript(rollbackCommand);
 
         disableScript.Should().Contain("/etc/nginx/sites-enabled");
         disableScript.Should().Contain("/etc/nginx/.kelpie-disabled-sites");
@@ -197,6 +202,8 @@ public sealed class AllowedCommandProviderTests
         rollbackScript.Should().Contain("os.symlink(target,p)");
         rollbackScript.Should().Contain("os.remove(marker)");
         rollbackCommand.Should().Contain(Convert.ToBase64String(Encoding.UTF8.GetBytes("/etc/nginx/sites-enabled/default\n")));
+        disableCommand.Should().NotContain("python3 -c");
+        rollbackCommand.Should().NotContain("python3 -c");
     }
 
     [Theory]
@@ -470,8 +477,9 @@ public sealed class AllowedCommandProviderTests
 
         commandText.Should().Contain("dnf");
         commandText.Should().Contain("search");
-        commandText.Should().Contain("query='nginx'");
-        commandText.Should().Contain("limit=int('20')");
+        commandText.Should().Contain("'nginx'");
+        commandText.Should().Contain("'20'");
+        commandText.Should().NotContain("python3 -c");
     }
 
     [Fact]
@@ -490,8 +498,10 @@ public sealed class AllowedCommandProviderTests
         commandText.Should().Contain("dnf");
         commandText.Should().Contain("list");
         commandText.Should().Contain("installed");
-        commandText.Should().Contain("filter_text='nginx'.lower()");
-        commandText.Should().Contain("limit=int('20')");
+        commandText.Should().Contain("grep -i");
+        commandText.Should().Contain("'nginx'");
+        commandText.Should().Contain("'20'");
+        commandText.Should().NotContain("python3 -c");
     }
 
     [Fact]
@@ -1620,14 +1630,6 @@ public sealed class AllowedCommandProviderTests
             PackageManager = packageManager,
             Capabilities = PolicySet.Empty,
         };
-    }
-
-    private static string DecodeEmbeddedPythonScript(string commandText)
-    {
-        var scriptBase64 = Regex.Match(commandText, "b64decode\\('(?<script>[^']+)'\\)")
-            .Groups["script"]
-            .Value;
-        return Encoding.UTF8.GetString(Convert.FromBase64String(scriptBase64));
     }
 
     private static string DecodeEmbeddedShellScript(string commandText)

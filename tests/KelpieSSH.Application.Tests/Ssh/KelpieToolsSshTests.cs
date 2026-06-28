@@ -2948,8 +2948,9 @@ public sealed class KelpieToolsSshTests
 
         result.CommandName.Should().Be("pkg_search");
         result.CommandText.Should().Contain("apt-cache");
-        result.CommandText.Should().Contain("query='nginx'");
-        result.CommandText.Should().Contain("limit=int('20')");
+        result.CommandText.Should().Contain("'nginx'");
+        result.CommandText.Should().Contain("'20'");
+        result.CommandText.Should().NotContain("python3 -c");
         runner.LastRequest!.Arguments["query"].Should().Be("nginx");
         runner.LastRequest.Arguments["limit"].Should().Be("20");
     }
@@ -2971,8 +2972,10 @@ public sealed class KelpieToolsSshTests
 
         result.CommandName.Should().Be("pkg_list_installed");
         result.CommandText.Should().Contain("dnf");
-        result.CommandText.Should().Contain("filter_text='nginx'.lower()");
-        result.CommandText.Should().Contain("limit=int('20')");
+        result.CommandText.Should().Contain("grep -i");
+        result.CommandText.Should().Contain("'nginx'");
+        result.CommandText.Should().Contain("'20'");
+        result.CommandText.Should().NotContain("python3 -c");
         runner.LastRequest!.Arguments["filter"].Should().Be("nginx");
         runner.LastRequest.Arguments["limit"].Should().Be("20");
     }

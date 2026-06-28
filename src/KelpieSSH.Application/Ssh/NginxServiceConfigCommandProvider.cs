@@ -24,12 +24,12 @@ public sealed class NginxServiceConfigCommandProvider : IAllowedCommandProvider
             RiskLevel: SshCommandRiskLevel.ConfirmRequired),
         new(
             "service_config_nginx_disable_default_sites",
-            "sudo -n python3 -c \"import base64; exec(base64.b64decode('" + DisableDefaultSitesScriptBase64 + "'))\"",
+            CreateEncodedPythonStdinCommand(DisableDefaultSitesScriptBase64, string.Empty, sudo: true),
             TimeSpan.FromSeconds(30),
             RiskLevel: SshCommandRiskLevel.ConfirmRequired),
         new(
             "service_config_nginx_rollback_default_sites",
-            "sudo -n python3 -c \"import base64; exec(base64.b64decode('" + RollbackDefaultSitesScriptBase64 + "'))\" {disabledPathsBase64}",
+            CreateEncodedPythonStdinCommand(RollbackDefaultSitesScriptBase64, "{disabledPathsBase64}", sudo: true),
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("disabledPathsBase64", MaxLength: 4096, Pattern: Base64PathPattern),
@@ -37,7 +37,7 @@ public sealed class NginxServiceConfigCommandProvider : IAllowedCommandProvider
             SshCommandRiskLevel.ConfirmRequired),
         new(
             "service_config_nginx_read_config",
-            "python3 -c \"import base64,os,sys; p=base64.b64decode({pathBase64}).decode('utf-8'); allowed=base64.b64decode({allowedPathsBase64}).decode('utf-8').splitlines(); dirs=base64.b64decode({allowedDirsBase64}).decode('utf-8').splitlines(); rp=os.path.realpath(p); parent=os.path.realpath(os.path.dirname(p)); allowed_real=list(map(os.path.realpath,[x for x in allowed if x])); dir_real=list(map(os.path.realpath,[x for x in dirs if x])); ok=(rp in allowed_real) or (parent in dir_real and os.path.dirname(rp)==parent); sys.exit('ERROR: path is not an allowed service config file') if not ok else None; sys.exit('ERROR: config path is not a regular file') if not os.path.isfile(rp) else None; maxb=int({maxBytes}); data=open(rp,'rb').read(maxb+1); sys.exit('ERROR: binary config file is not allowed') if b'\\x00' in data else None; text=data[:maxb].decode('utf-8'); sys.stderr.write('KELPIE_TRUNCATED=1\\n') if len(data) > maxb else None; sys.stdout.write(text)\"",
+            CreateEncodedPythonScriptCommand("import base64,os,sys; p=base64.b64decode(sys.argv[1]).decode('utf-8'); allowed=base64.b64decode(sys.argv[2]).decode('utf-8').splitlines(); dirs=base64.b64decode(sys.argv[3]).decode('utf-8').splitlines(); rp=os.path.realpath(p); parent=os.path.realpath(os.path.dirname(p)); allowed_real=list(map(os.path.realpath,[x for x in allowed if x])); dir_real=list(map(os.path.realpath,[x for x in dirs if x])); ok=(rp in allowed_real) or (parent in dir_real and os.path.dirname(rp)==parent); sys.exit('ERROR: path is not an allowed service config file') if not ok else None; sys.exit('ERROR: config path is not a regular file') if not os.path.isfile(rp) else None; maxb=int(sys.argv[4]); data=open(rp,'rb').read(maxb+1); sys.exit('ERROR: binary config file is not allowed') if b'\\x00' in data else None; text=data[:maxb].decode('utf-8'); sys.stderr.write('KELPIE_TRUNCATED=1\\n') if len(data) > maxb else None; sys.stdout.write(text)", "{pathBase64} {allowedPathsBase64} {allowedDirsBase64} {maxBytes}", sudo: false),
             TimeSpan.FromSeconds(10),
             [
                 new AllowedCommandParameterDefinition("pathBase64", MaxLength: 4096, Pattern: Base64PathPattern),
@@ -47,7 +47,7 @@ public sealed class NginxServiceConfigCommandProvider : IAllowedCommandProvider
             ]),
         new(
             "service_config_nginx_write_config",
-            "sudo -n python3 -c \"import base64,os,shutil,sys; marker='KELPIE_CREATED_CONFIG_FILE_BACKUP_V1\\n'; p=base64.b64decode({pathBase64}).decode('utf-8'); allowed=base64.b64decode({allowedPathsBase64}).decode('utf-8').splitlines(); dirs=base64.b64decode({allowedDirsBase64}).decode('utf-8').splitlines(); rp=os.path.realpath(p); parent=os.path.realpath(os.path.dirname(p)); allowed_real=list(map(os.path.realpath,[x for x in allowed if x])); dir_real=list(map(os.path.realpath,[x for x in dirs if x])); ok=(rp in allowed_real) or (parent in dir_real and os.path.dirname(rp)==parent); sys.exit('ERROR: path is not an allowed service config file') if not ok else None; exists=os.path.exists(rp); sys.exit('ERROR: config path is not a regular file') if exists and not os.path.isfile(rp) else None; sys.exit('ERROR: config parent directory is not available') if not os.path.isdir(parent) else None; bak=p+'.kelpiebakup'; bak_parent=os.path.realpath(os.path.dirname(bak)); sys.exit('ERROR: backup path is not in config parent directory') if bak_parent != parent else None; data=base64.b64decode({contentBase64}, validate=True); text=data.decode('utf-8'); sys.exit('ERROR: binary config file is not allowed') if '\\x00' in text else None; (shutil.copy2(rp,bak) if exists else open(bak,'w',encoding='utf-8',newline='').write(marker)) if not os.path.exists(bak) else None; open(p,'w',encoding='utf-8',newline='').write(text); sys.stdout.write(str(len(data)))\"",
+            CreateEncodedPythonScriptCommand("import base64,os,shutil,sys; marker='KELPIE_CREATED_CONFIG_FILE_BACKUP_V1\\n'; p=base64.b64decode(sys.argv[1]).decode('utf-8'); allowed=base64.b64decode(sys.argv[2]).decode('utf-8').splitlines(); dirs=base64.b64decode(sys.argv[3]).decode('utf-8').splitlines(); rp=os.path.realpath(p); parent=os.path.realpath(os.path.dirname(p)); allowed_real=list(map(os.path.realpath,[x for x in allowed if x])); dir_real=list(map(os.path.realpath,[x for x in dirs if x])); ok=(rp in allowed_real) or (parent in dir_real and os.path.dirname(rp)==parent); sys.exit('ERROR: path is not an allowed service config file') if not ok else None; exists=os.path.exists(rp); sys.exit('ERROR: config path is not a regular file') if exists and not os.path.isfile(rp) else None; sys.exit('ERROR: config parent directory is not available') if not os.path.isdir(parent) else None; bak=p+'.kelpiebakup'; bak_parent=os.path.realpath(os.path.dirname(bak)); sys.exit('ERROR: backup path is not in config parent directory') if bak_parent != parent else None; data=base64.b64decode(sys.argv[4], validate=True); text=data.decode('utf-8'); sys.exit('ERROR: binary config file is not allowed') if '\\x00' in text else None; (shutil.copy2(rp,bak) if exists else open(bak,'w',encoding='utf-8',newline='').write(marker)) if not os.path.exists(bak) else None; open(p,'w',encoding='utf-8',newline='').write(text); sys.stdout.write(str(len(data)))", "{pathBase64} {allowedPathsBase64} {allowedDirsBase64} {contentBase64}", sudo: true),
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("pathBase64", MaxLength: 4096, Pattern: Base64PathPattern),
@@ -58,7 +58,7 @@ public sealed class NginxServiceConfigCommandProvider : IAllowedCommandProvider
             SshCommandRiskLevel.ConfirmRequired),
         new(
             "service_config_nginx_check_write_config",
-            "sudo -n python3 -c \"import base64,os,sys; p=base64.b64decode({pathBase64}).decode('utf-8'); allowed=base64.b64decode({allowedPathsBase64}).decode('utf-8').splitlines(); dirs=base64.b64decode({allowedDirsBase64}).decode('utf-8').splitlines(); rp=os.path.realpath(p); parent=os.path.realpath(os.path.dirname(p)); allowed_real=list(map(os.path.realpath,[x for x in allowed if x])); dir_real=list(map(os.path.realpath,[x for x in dirs if x])); ok=(rp in allowed_real) or (parent in dir_real and os.path.dirname(rp)==parent); sys.exit('ERROR: path is not an allowed service config file') if not ok else None; exists=os.path.exists(rp); sys.exit('ERROR: config path is not a regular file') if exists and not os.path.isfile(rp) else None; sys.exit('ERROR: config parent directory is not available') if not os.path.isdir(parent) else None; bak=p+'.kelpiebakup'; bak_parent=os.path.realpath(os.path.dirname(bak)); sys.exit('ERROR: backup path is not in config parent directory') if bak_parent != parent else None; sys.exit('ERROR: config backup path exists but is not a regular file') if os.path.exists(bak) and not os.path.isfile(bak) else None; (open(rp,'r+b').close() if exists else None); sys.exit('ERROR: config parent directory is not writable') if not os.path.exists(bak) and not os.access(parent, os.W_OK) else None; sys.stdout.write('1')\"",
+            CreateEncodedPythonScriptCommand("import base64,os,sys; p=base64.b64decode(sys.argv[1]).decode('utf-8'); allowed=base64.b64decode(sys.argv[2]).decode('utf-8').splitlines(); dirs=base64.b64decode(sys.argv[3]).decode('utf-8').splitlines(); rp=os.path.realpath(p); parent=os.path.realpath(os.path.dirname(p)); allowed_real=list(map(os.path.realpath,[x for x in allowed if x])); dir_real=list(map(os.path.realpath,[x for x in dirs if x])); ok=(rp in allowed_real) or (parent in dir_real and os.path.dirname(rp)==parent); sys.exit('ERROR: path is not an allowed service config file') if not ok else None; exists=os.path.exists(rp); sys.exit('ERROR: config path is not a regular file') if exists and not os.path.isfile(rp) else None; sys.exit('ERROR: config parent directory is not available') if not os.path.isdir(parent) else None; bak=p+'.kelpiebakup'; bak_parent=os.path.realpath(os.path.dirname(bak)); sys.exit('ERROR: backup path is not in config parent directory') if bak_parent != parent else None; sys.exit('ERROR: config backup path exists but is not a regular file') if os.path.exists(bak) and not os.path.isfile(bak) else None; (open(rp,'r+b').close() if exists else None); sys.exit('ERROR: config parent directory is not writable') if not os.path.exists(bak) and not os.access(parent, os.W_OK) else None; sys.stdout.write('1')", "{pathBase64} {allowedPathsBase64} {allowedDirsBase64}", sudo: true),
             TimeSpan.FromSeconds(10),
             [
                 new AllowedCommandParameterDefinition("pathBase64", MaxLength: 4096, Pattern: Base64PathPattern),
@@ -67,7 +67,7 @@ public sealed class NginxServiceConfigCommandProvider : IAllowedCommandProvider
             ]),
         new(
             "service_config_nginx_rollback_config",
-            "sudo -n python3 -c \"import base64,os,sys; marker=b'KELPIE_CREATED_CONFIG_FILE_BACKUP_V1\\n'; p=base64.b64decode({pathBase64}).decode('utf-8'); allowed=base64.b64decode({allowedPathsBase64}).decode('utf-8').splitlines(); dirs=base64.b64decode({allowedDirsBase64}).decode('utf-8').splitlines(); rp=os.path.realpath(p); parent=os.path.realpath(os.path.dirname(p)); allowed_real=list(map(os.path.realpath,[x for x in allowed if x])); dir_real=list(map(os.path.realpath,[x for x in dirs if x])); ok=(rp in allowed_real) or (parent in dir_real and os.path.dirname(rp)==parent); sys.exit('ERROR: path is not an allowed service config file') if not ok else None; bak=p+'.kelpiebakup'; bak_parent=os.path.realpath(os.path.dirname(bak)); sys.exit('ERROR: backup path is not in config parent directory') if bak_parent != parent else None; sys.exit('ERROR: config backup file is not available') if not os.path.isfile(bak) else None; data=open(bak,'rb').read(); sys.exit('ERROR: binary config backup file is not allowed') if b'\\x00' in data else None; data.decode('utf-8'); (os.remove(p) if os.path.exists(p) else None) if data == marker else os.replace(bak,p); os.remove(bak) if data == marker and os.path.exists(bak) else None; sys.stdout.write(str(len(data)))\"",
+            CreateEncodedPythonScriptCommand("import base64,os,sys; marker=b'KELPIE_CREATED_CONFIG_FILE_BACKUP_V1\\n'; p=base64.b64decode(sys.argv[1]).decode('utf-8'); allowed=base64.b64decode(sys.argv[2]).decode('utf-8').splitlines(); dirs=base64.b64decode(sys.argv[3]).decode('utf-8').splitlines(); rp=os.path.realpath(p); parent=os.path.realpath(os.path.dirname(p)); allowed_real=list(map(os.path.realpath,[x for x in allowed if x])); dir_real=list(map(os.path.realpath,[x for x in dirs if x])); ok=(rp in allowed_real) or (parent in dir_real and os.path.dirname(rp)==parent); sys.exit('ERROR: path is not an allowed service config file') if not ok else None; bak=p+'.kelpiebakup'; bak_parent=os.path.realpath(os.path.dirname(bak)); sys.exit('ERROR: backup path is not in config parent directory') if bak_parent != parent else None; sys.exit('ERROR: config backup file is not available') if not os.path.isfile(bak) else None; data=open(bak,'rb').read(); sys.exit('ERROR: binary config backup file is not allowed') if b'\\x00' in data else None; data.decode('utf-8'); (os.remove(p) if os.path.exists(p) else None) if data == marker else os.replace(bak,p); os.remove(bak) if data == marker and os.path.exists(bak) else None; sys.stdout.write(str(len(data)))", "{pathBase64} {allowedPathsBase64} {allowedDirsBase64}", sudo: true),
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("pathBase64", MaxLength: 4096, Pattern: Base64PathPattern),
@@ -77,7 +77,7 @@ public sealed class NginxServiceConfigCommandProvider : IAllowedCommandProvider
             SshCommandRiskLevel.ConfirmRequired),
         new(
             "service_config_nginx_commit_config",
-            "sudo -n python3 -c \"import base64,os,sys; p=base64.b64decode({pathBase64}).decode('utf-8'); allowed=base64.b64decode({allowedPathsBase64}).decode('utf-8').splitlines(); dirs=base64.b64decode({allowedDirsBase64}).decode('utf-8').splitlines(); rp=os.path.realpath(p); parent=os.path.realpath(os.path.dirname(p)); allowed_real=list(map(os.path.realpath,[x for x in allowed if x])); dir_real=list(map(os.path.realpath,[x for x in dirs if x])); ok=(rp in allowed_real) or (parent in dir_real and os.path.dirname(rp)==parent); sys.exit('ERROR: path is not an allowed service config file') if not ok else None; bak=p+'.kelpiebakup'; bak_parent=os.path.realpath(os.path.dirname(bak)); sys.exit('ERROR: backup path is not in config parent directory') if bak_parent != parent else None; sys.exit('ERROR: config backup file is not available') if not os.path.isfile(bak) else None; os.remove(bak); sys.stdout.write('1')\"",
+            CreateEncodedPythonScriptCommand("import base64,os,sys; p=base64.b64decode(sys.argv[1]).decode('utf-8'); allowed=base64.b64decode(sys.argv[2]).decode('utf-8').splitlines(); dirs=base64.b64decode(sys.argv[3]).decode('utf-8').splitlines(); rp=os.path.realpath(p); parent=os.path.realpath(os.path.dirname(p)); allowed_real=list(map(os.path.realpath,[x for x in allowed if x])); dir_real=list(map(os.path.realpath,[x for x in dirs if x])); ok=(rp in allowed_real) or (parent in dir_real and os.path.dirname(rp)==parent); sys.exit('ERROR: path is not an allowed service config file') if not ok else None; bak=p+'.kelpiebakup'; bak_parent=os.path.realpath(os.path.dirname(bak)); sys.exit('ERROR: backup path is not in config parent directory') if bak_parent != parent else None; sys.exit('ERROR: config backup file is not available') if not os.path.isfile(bak) else None; os.remove(bak); sys.stdout.write('1')", "{pathBase64} {allowedPathsBase64} {allowedDirsBase64}", sudo: true),
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("pathBase64", MaxLength: 4096, Pattern: Base64PathPattern),
@@ -87,7 +87,7 @@ public sealed class NginxServiceConfigCommandProvider : IAllowedCommandProvider
             SshCommandRiskLevel.ConfirmRequired),
         new(
             "service_logfile_nginx_read",
-            "python3 -c \"import base64; exec(base64.b64decode('" + ReadLogScriptBase64 + "'))\" {pathBase64} {allowedPathsBase64} {maxBytes} {lines} {sinceMinutes}",
+            CreateEncodedPythonStdinCommand(ReadLogScriptBase64, "{pathBase64} {allowedPathsBase64} {maxBytes} {lines} {sinceMinutes}", sudo: false),
             TimeSpan.FromSeconds(10),
             [
                 new AllowedCommandParameterDefinition("pathBase64", MaxLength: 4096, Pattern: Base64PathPattern),
@@ -113,5 +113,18 @@ public sealed class NginxServiceConfigCommandProvider : IAllowedCommandProvider
     {
         ArgumentNullException.ThrowIfNull(profile);
         return Commands;
+    }
+
+    private static string CreateEncodedPythonScriptCommand(string script, string arguments, bool sudo)
+    {
+        var encoded = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(script));
+        return CreateEncodedPythonStdinCommand(encoded, arguments, sudo);
+    }
+
+    private static string CreateEncodedPythonStdinCommand(string encodedScript, string arguments, bool sudo)
+    {
+        var argumentSuffix = string.IsNullOrWhiteSpace(arguments) ? string.Empty : " " + arguments;
+        var command = $"sh -c \"printf %s '{encodedScript}' | base64 -d | python3 - --{argumentSuffix}\"";
+        return sudo ? "sudo -n " + command : command;
     }
 }

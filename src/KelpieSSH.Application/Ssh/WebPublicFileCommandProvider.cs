@@ -27,7 +27,7 @@ public sealed class WebPublicFileCommandProvider : IAllowedCommandProvider
     [
         new(
             "web_public_file_list_internal",
-            "python3 -c \"import base64; exec(base64.b64decode('" + ListScriptBase64 + "'))\" {siteRootBase64} {pathBase64} {maxDepth} {limit}",
+            CreateEncodedPythonStdinCommand(ListScriptBase64, "{siteRootBase64} {pathBase64} {maxDepth} {limit}"),
             TimeSpan.FromSeconds(10),
             [
                 new AllowedCommandParameterDefinition("siteRootBase64", MaxLength: 4096, Pattern: Base64PathPattern),
@@ -37,7 +37,7 @@ public sealed class WebPublicFileCommandProvider : IAllowedCommandProvider
             ]),
         new(
             "web_public_file_stat_internal",
-            "python3 -c \"import base64; exec(base64.b64decode('" + StatScriptBase64 + "'))\" {siteRootBase64} {pathBase64}",
+            CreateEncodedPythonStdinCommand(StatScriptBase64, "{siteRootBase64} {pathBase64}"),
             TimeSpan.FromSeconds(10),
             [
                 new AllowedCommandParameterDefinition("siteRootBase64", MaxLength: 4096, Pattern: Base64PathPattern),
@@ -45,7 +45,7 @@ public sealed class WebPublicFileCommandProvider : IAllowedCommandProvider
             ]),
         new(
             "web_public_file_check_write_internal",
-            "python3 -c \"import base64; exec(base64.b64decode('" + CheckWriteScriptBase64 + "'))\" {siteRootBase64} {pathBase64} {createDirectories}",
+            CreateEncodedPythonStdinCommand(CheckWriteScriptBase64, "{siteRootBase64} {pathBase64} {createDirectories}"),
             TimeSpan.FromSeconds(10),
             [
                 new AllowedCommandParameterDefinition("siteRootBase64", MaxLength: 4096, Pattern: Base64PathPattern),
@@ -54,7 +54,7 @@ public sealed class WebPublicFileCommandProvider : IAllowedCommandProvider
             ]),
         new(
             "web_public_file_read_internal",
-            "python3 -c \"import base64; exec(base64.b64decode('" + ReadScriptBase64 + "'))\" {siteRootBase64} {pathBase64} {maxBytes}",
+            CreateEncodedPythonStdinCommand(ReadScriptBase64, "{siteRootBase64} {pathBase64} {maxBytes}"),
             TimeSpan.FromSeconds(10),
             [
                 new AllowedCommandParameterDefinition("siteRootBase64", MaxLength: 4096, Pattern: Base64PathPattern),
@@ -63,7 +63,7 @@ public sealed class WebPublicFileCommandProvider : IAllowedCommandProvider
             ]),
         new(
             "web_public_file_slice_internal",
-            "python3 -c \"import base64; exec(base64.b64decode('" + SliceScriptBase64 + "'))\" {siteRootBase64} {pathBase64} {mode} {maxBytes} {maxLines}",
+            CreateEncodedPythonStdinCommand(SliceScriptBase64, "{siteRootBase64} {pathBase64} {mode} {maxBytes} {maxLines}"),
             TimeSpan.FromSeconds(10),
             [
                 new AllowedCommandParameterDefinition("siteRootBase64", MaxLength: 4096, Pattern: Base64PathPattern),
@@ -74,7 +74,7 @@ public sealed class WebPublicFileCommandProvider : IAllowedCommandProvider
             ]),
         new(
             "web_public_file_write_internal",
-            "python3 -c \"import base64; exec(base64.b64decode('" + WriteScriptBase64 + "'))\" {siteRootBase64} {pathBase64} {contentBase64} {maxBytes} {createDirectories}",
+            CreateEncodedPythonStdinCommand(WriteScriptBase64, "{siteRootBase64} {pathBase64} {contentBase64} {maxBytes} {createDirectories}"),
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("siteRootBase64", MaxLength: 4096, Pattern: Base64PathPattern),
@@ -138,5 +138,10 @@ public sealed class WebPublicFileCommandProvider : IAllowedCommandProvider
     {
         ArgumentNullException.ThrowIfNull(profile);
         return Commands;
+    }
+
+    private static string CreateEncodedPythonStdinCommand(string encodedScript, string arguments)
+    {
+        return $"sh -c \"printf %s '{encodedScript}' | base64 -d | python3 - -- {arguments}\"";
     }
 }
