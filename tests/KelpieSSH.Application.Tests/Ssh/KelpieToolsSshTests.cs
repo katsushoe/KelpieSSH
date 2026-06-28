@@ -175,6 +175,11 @@ public sealed class KelpieToolsSshTests
         result.ProfileName.Should().Be("vps02");
         result.CommandName.Should().Be("get_disk_usage");
         result.CommandText.Should().Be("df -h");
+        result.Ok.Should().BeTrue();
+        result.Data.Should().NotBeNull();
+        result.ErrorInfo.Should().BeNull();
+        result.Meta.SchemaVersion.Should().Be("1");
+        result.Meta.ProfileName.Should().Be("vps02");
     }
 
     [Theory]
@@ -202,7 +207,12 @@ public sealed class KelpieToolsSshTests
 
         result.CommandName.Should().Be(commandName);
         result.ExitCode.Should().Be(-1);
+        result.Ok.Should().BeFalse();
         result.Error.Should().Be("Confirmation-required maintenance commands must be called through their dedicated MCP tools.");
+        result.ErrorInfo.Should().NotBeNull();
+        result.ErrorInfo!.Code.Should().Be("KELPIE_POLICY_COMMAND_DENIED");
+        result.ErrorInfo.Category.Should().Be("PolicyDenied");
+        result.Data.Should().BeNull();
         runner.LastRequest.Should().BeNull();
     }
 
@@ -348,6 +358,27 @@ public sealed class KelpieToolsSshTests
         result.CommandName.Should().Be("peek_environment_value");
         result.CommandText.Should().Be("printenv 'APP_ENV'");
         result.StandardOutput.Should().Be("production\n");
+    }
+
+    [Fact]
+    public async Task PeekEnvironmentValueAsync_ShouldReturnPolicyErrorResult()
+    {
+        var profile = CreateProfile("vps01");
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var result = await KelpieTools.PeekEnvironmentValueAsync(service, profiles, "vps01", "APP_ENV");
+
+        result.CommandName.Should().Be("peek_environment_value");
+        result.Ok.Should().BeFalse();
+        result.ExitCode.Should().Be(-1);
+        result.Error.Should().Be("KelpiePolicyError: AllowPeekEnvironmentValues is required.");
+        result.ErrorInfo.Should().NotBeNull();
+        result.ErrorInfo!.Code.Should().Be("KELPIE_POLICY_COMMAND_DENIED");
+        result.ErrorInfo.Category.Should().Be("PolicyDenied");
+        result.Data.Should().BeNull();
+        runner.LastRequest.Should().BeNull();
     }
 
     [Fact]
@@ -2045,6 +2076,10 @@ public sealed class KelpieToolsSshTests
         result.CommandName.Should().Be("not_allowed");
         result.ExitCode.Should().Be(-1);
         result.Error.Should().Be("SSH command is not allowed: not_allowed");
+        result.Ok.Should().BeFalse();
+        result.ErrorInfo.Should().NotBeNull();
+        result.ErrorInfo!.Code.Should().Be("KELPIE_POLICY_COMMAND_DENIED");
+        result.ErrorInfo.Category.Should().Be("PolicyDenied");
         result.StandardError.Should().Be("SSH command is not allowed: not_allowed");
         result.Stderr.Should().Equal("SSH command is not allowed: not_allowed");
         result.StderrPlain.Should().Equal("SSH command is not allowed: not_allowed");
@@ -2059,10 +2094,16 @@ public sealed class KelpieToolsSshTests
         var service = CreateProviderBackedService(runner);
         var profiles = new SshConnectionProfileCatalog([]);
 
-        var action = async () => await KelpieTools.GetSshSystemInfoAsync(service, profiles, string.Empty);
+        var result = await KelpieTools.GetSshSystemInfoAsync(service, profiles, string.Empty);
 
-        await action.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("SSH profile name is required.");
+        result.CommandName.Should().Be("get_system_info");
+        result.Ok.Should().BeFalse();
+        result.ExitCode.Should().Be(-1);
+        result.Error.Should().Be("SSH profile name is required.");
+        result.ErrorInfo.Should().NotBeNull();
+        result.ErrorInfo!.Code.Should().Be("KELPIE_MCP_INPUT_INVALID");
+        result.ErrorInfo.Category.Should().Be("Validation");
+        runner.LastRequest.Should().BeNull();
     }
 
     [Fact]
@@ -2123,11 +2164,16 @@ public sealed class KelpieToolsSshTests
 
         result.CommandName.Should().Be("service_status");
         result.ExitCode.Should().Be(3);
+        result.Ok.Should().BeFalse();
         result.StandardOutput.Should().Be("inactive\n");
         result.StandardError.Should().Be("Unit nginx.service could not be found.\n");
         result.Stdout.Should().Equal("inactive", string.Empty);
         result.Stderr.Should().Equal("Unit nginx.service could not be found.", string.Empty);
         result.Error.Should().BeNull();
+        result.ErrorInfo.Should().NotBeNull();
+        result.ErrorInfo!.Code.Should().Be("KELPIE_REMOTE_COMMAND_FAILED");
+        result.ErrorInfo.Category.Should().Be("RemoteCommand");
+        result.Data.Should().BeNull();
         runner.LastRequest!.Arguments["service"].Should().Be("nginx.service");
     }
 
@@ -2139,14 +2185,19 @@ public sealed class KelpieToolsSshTests
         var service = CreateProviderBackedService(runner);
         var profiles = new SshConnectionProfileCatalog([profile]);
 
-        var action = async () => await KelpieTools.GetSshServiceStatusAsync(
+        var result = await KelpieTools.GetSshServiceStatusAsync(
             service,
             profiles,
             "nginx.service;whoami",
             "vps01");
 
-        await action.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("SSH command argument contains a dangerous fragment: service");
+        result.CommandName.Should().Be("service_status");
+        result.Ok.Should().BeFalse();
+        result.ExitCode.Should().Be(-1);
+        result.Error.Should().Be("SSH command argument contains a dangerous fragment: service");
+        result.ErrorInfo.Should().NotBeNull();
+        result.ErrorInfo!.Code.Should().Be("KELPIE_MCP_INPUT_INVALID");
+        result.ErrorInfo.Category.Should().Be("Validation");
         runner.LastRequest.Should().BeNull();
     }
 
@@ -2996,15 +3047,20 @@ public sealed class KelpieToolsSshTests
         var service = CreateProviderBackedService(runner);
         var profiles = new SshConnectionProfileCatalog([profile]);
 
-        var action = async () => await KelpieTools.InstallSshPackageConfirmedAsync(
+        var result = await KelpieTools.InstallSshPackageConfirmedAsync(
             service,
             profiles,
             "nginx",
             "vps01",
             "pkg_install:nginx");
 
-        await action.Should().ThrowAsync<KelpiePolicyError>()
-            .WithMessage("KelpiePolicyError: AllowSudo is required for command: pkg_install");
+        result.CommandName.Should().Be("pkg_install");
+        result.Ok.Should().BeFalse();
+        result.ExitCode.Should().Be(-1);
+        result.Error.Should().Be("KelpiePolicyError: AllowSudo is required for command: pkg_install");
+        result.ErrorInfo.Should().NotBeNull();
+        result.ErrorInfo!.Code.Should().Be("KELPIE_POLICY_COMMAND_DENIED");
+        result.ErrorInfo.Category.Should().Be("PolicyDenied");
         runner.LastRequest.Should().BeNull();
     }
 

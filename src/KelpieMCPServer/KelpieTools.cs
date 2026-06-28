@@ -2639,35 +2639,26 @@ public sealed partial class KelpieTools
         string profileName,
         CancellationToken cancellationToken)
     {
-        var profile = ResolveSshProfile(profileCatalog, profileName);
-        var operation = SshRemoteOperation.FromProfile(
-            profile,
-            "managed",
-            commandName,
-            arguments,
-            correlationId: profileName);
-        var result = await sshCommandService.ExecuteAsync(
-            operation,
-            KelpieExecutionChannel.Mcp,
-            cancellationToken);
+        try
+        {
+            var profile = ResolveSshProfile(profileCatalog, profileName);
+            var operation = SshRemoteOperation.FromProfile(
+                profile,
+                "managed",
+                commandName,
+                arguments,
+                correlationId: profileName);
+            var result = await sshCommandService.ExecuteAsync(
+                operation,
+                KelpieExecutionChannel.Mcp,
+                cancellationToken);
 
-        return new SshToolResult(
-            profile.Name,
-            profile.Host,
-            profile.Port,
-            profile.UserName,
-            result.CommandName,
-            result.CommandText,
-            result.ExitCode,
-            result.StandardOutput,
-            result.StandardError,
-            SplitOutputLines(result.StandardOutput),
-            SplitOutputLines(result.StandardError),
-            SplitOutputLines(RemoveAnsiEscapeSequences(result.StandardOutput)),
-            SplitOutputLines(RemoveAnsiEscapeSequences(result.StandardError)),
-            result.StartedAt,
-            result.CompletedAt,
-            result.TimedOut);
+            return CreateSshToolResult(profile, result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return CreateRejectedSshToolResult(profileName, commandName, ex.Message);
+        }
     }
 
     private static SshRemoteOperationToolResult CreateRemoteOperationToolResult(
@@ -2719,9 +2710,138 @@ public sealed partial class KelpieTools
             Error: error);
     }
 
+    private static SshToolResult CreateSshToolResult(
+        SshConnectionProfile profile,
+        SshCommandResult result,
+        string? sanitizedCommandText = null)
+    {
+        return new SshToolResult(
+            profile.Name,
+            profile.Host,
+            profile.Port,
+            profile.UserName,
+            result.CommandName,
+            sanitizedCommandText ?? result.CommandText,
+            result.ExitCode,
+            result.StandardOutput,
+            result.StandardError,
+            SplitOutputLines(result.StandardOutput),
+            SplitOutputLines(result.StandardError),
+            SplitOutputLines(RemoveAnsiEscapeSequences(result.StandardOutput)),
+            SplitOutputLines(RemoveAnsiEscapeSequences(result.StandardError)),
+            result.StartedAt,
+            result.CompletedAt,
+            result.TimedOut);
+    }
+
     private static bool IsUnknownAllowedCommandError(InvalidOperationException ex)
     {
         return ex.Message.StartsWith("SSH command is not allowed:", StringComparison.Ordinal);
+    }
+
+    private static SshToolErrorInfo CreateErrorInfo(
+        string commandName,
+        int exitCode,
+        bool timedOut,
+        string? error)
+    {
+        if (timedOut)
+        {
+            return new SshToolErrorInfo(
+                "KELPIE_REMOTE_COMMAND_TIMEOUT",
+                "Timeout",
+                "The remote command timed out.",
+                "Check the target host state and retry with a safer or narrower operation.",
+                Retryable: true);
+        }
+
+        if (IsPolicyDeniedError(error))
+        {
+            return new SshToolErrorInfo(
+                "KELPIE_POLICY_COMMAND_DENIED",
+                "PolicyDenied",
+                "The requested SSH command is denied by the current profile policy.",
+                "Check the profile mode and policy settings before retrying.",
+                Retryable: false);
+        }
+
+        if (IsConfirmationRequiredError(error))
+        {
+            return new SshToolErrorInfo(
+                "KELPIE_MCP_CONFIRMATION_REQUIRED",
+                "Validation",
+                "The requested operation requires an explicit confirmation token.",
+                "Call the non-confirmed planning tool first, then pass the exact confirmation token.",
+                Retryable: false);
+        }
+
+        if (IsProfileNotFoundError(error))
+        {
+            return new SshToolErrorInfo(
+                "KELPIE_PROFILE_NOT_FOUND",
+                "NotFound",
+                "The requested SSH profile was not found.",
+                "Check the profile name and reload profiles if the file was recently changed.",
+                Retryable: false);
+        }
+
+        if (IsValidationError(error))
+        {
+            return new SshToolErrorInfo(
+                "KELPIE_MCP_INPUT_INVALID",
+                "Validation",
+                "The MCP tool input is invalid.",
+                "Fix the tool arguments and retry.",
+                Retryable: false);
+        }
+
+        if (exitCode != 0)
+        {
+            return new SshToolErrorInfo(
+                "KELPIE_REMOTE_COMMAND_FAILED",
+                "RemoteCommand",
+                "The remote command completed with a non-zero exit code.",
+                "Check the target service or command state before retrying.",
+                Retryable: false);
+        }
+
+        return new SshToolErrorInfo(
+            "KELPIE_INTERNAL_UNEXPECTED",
+            "Internal",
+            "The SSH tool did not complete successfully.",
+            "Check the Kelpie logs for details.",
+            Retryable: false);
+    }
+
+    private static bool IsPolicyDeniedError(string? error)
+    {
+        return !string.IsNullOrWhiteSpace(error)
+            && (error.StartsWith("KelpiePolicyError:", StringComparison.Ordinal)
+                || error.StartsWith("SSH command is not allowed:", StringComparison.Ordinal)
+                || error.Contains("commands must be called through", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsConfirmationRequiredError(string? error)
+    {
+        return !string.IsNullOrWhiteSpace(error)
+            && error.StartsWith("Confirmation is required:", StringComparison.Ordinal);
+    }
+
+    private static bool IsProfileNotFoundError(string? error)
+    {
+        return !string.IsNullOrWhiteSpace(error)
+            && error.StartsWith("SSH profile was not found:", StringComparison.Ordinal);
+    }
+
+    private static bool IsValidationError(string? error)
+    {
+        return !string.IsNullOrWhiteSpace(error)
+            && (error.Contains(" is required", StringComparison.Ordinal)
+                || error.Contains(" is empty", StringComparison.Ordinal)
+                || error.Contains(" is invalid", StringComparison.Ordinal)
+                || error.Contains("contains a dangerous fragment", StringComparison.Ordinal)
+                || error.Contains("format is invalid", StringComparison.Ordinal)
+                || error.Contains("too long", StringComparison.Ordinal));
     }
 
     private static bool IsDedicatedConfirmationCommand(string commandName)
@@ -2953,7 +3073,77 @@ public sealed partial class KelpieTools
         DateTimeOffset StartedAt,
         DateTimeOffset CompletedAt,
         bool TimedOut,
-        string? Error = null);
+        string? Error = null)
+    {
+        public bool Ok => ExitCode == 0 && !TimedOut && string.IsNullOrEmpty(Error);
+
+        public SshToolCommandData? Data => Ok
+            ? new SshToolCommandData(
+                ProfileName,
+                Host,
+                Port,
+                UserName,
+                CommandName,
+                CommandText,
+                ExitCode,
+                StandardOutput,
+                StandardError,
+                Stdout,
+                Stderr,
+                StdoutPlain,
+                StderrPlain,
+                StartedAt,
+                CompletedAt,
+                TimedOut)
+            : null;
+
+        public SshToolErrorInfo? ErrorInfo => Ok
+            ? null
+            : CreateErrorInfo(CommandName, ExitCode, TimedOut, Error);
+
+        public SshToolMeta Meta => new(
+            SchemaVersion: "1",
+            GeneratedAt: CompletedAt,
+            ProfileName: ProfileName,
+            CommandName: CommandName,
+            LineCount: Stdout.Length,
+            ErrorLineCount: Stderr.Length,
+            Truncated: false);
+    }
+
+    public sealed record SshToolCommandData(
+        string ProfileName,
+        string Host,
+        int Port,
+        string UserName,
+        string CommandName,
+        string CommandText,
+        int ExitCode,
+        string StandardOutput,
+        string StandardError,
+        string[] Stdout,
+        string[] Stderr,
+        string[] StdoutPlain,
+        string[] StderrPlain,
+        DateTimeOffset StartedAt,
+        DateTimeOffset CompletedAt,
+        bool TimedOut);
+
+    public sealed record SshToolErrorInfo(
+        string Code,
+        string Category,
+        string Message,
+        string Hint,
+        bool Retryable);
+
+    public sealed record SshToolMeta(
+        string SchemaVersion,
+        DateTimeOffset GeneratedAt,
+        string ProfileName,
+        string CommandName,
+        int LineCount,
+        int ErrorLineCount,
+        bool Truncated);
 
     /// <summary>
     /// Represents an SSH remote operation MCP tool result.

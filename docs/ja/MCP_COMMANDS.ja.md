@@ -1,6 +1,6 @@
 # KelpieSSH MCP コマンド
 
-最終更新: 2026-06-18
+最終更新: 2026-06-28
 
 このファイルは、KelpieSSH が MCP callable tool として公開するコマンドの正本です。
 通常のターミナルで実行する `kelpie` / `kelpiemcp` CLI コマンドは `COMMANDS.ja.md` を正本とします。
@@ -66,7 +66,15 @@ SSH 先を操作する既存 tool は、互換性のため `profileName` に `Ke
 
 変更操作を伴う tool は `confirmation` を要求します。`confirmation` が空または不一致の場合、実変更せず `Confirmation is required: ...` を返します。
 
-MCP tool の戻り値は JSON object または text です。SSH コマンド系の戻り値には、主に `ProfileName`, `CommandName`, `CommandText`, `ExitCode`, `StandardOutput`, `StandardError`, `Stdout`, `Stderr`, `StdoutPlain`, `StderrPlain`, `StartedAt`, `CompletedAt`, `TimedOut` が含まれます。
+MCP tool の戻り値は JSON object または text です。SSH コマンド系の戻り値には、主に `Ok`, `Data`, `ErrorInfo`, `Meta`, `ProfileName`, `CommandName`, `CommandText`, `ExitCode`, `StandardOutput`, `StandardError`, `Stdout`, `Stderr`, `StdoutPlain`, `StderrPlain`, `StartedAt`, `CompletedAt`, `TimedOut`, `Error` が含まれます。
+
+- `Ok`: SSH tool が `ExitCode: 0` かつ Kelpie 側エラーなしで完了した場合に `true`。
+- `Data`: `Ok` が `true` の場合の構造化 command data。互換性のため既存の top-level fields も残します。
+- `ErrorInfo`: `Ok` が `false` の場合の構造化エラー情報。`Code`, `Category`, `Message`, `Hint`, `Retryable` を含みます。
+- `Meta`: `SchemaVersion`, `GeneratedAt`, `ProfileName`, `CommandName`, output line count, `Truncated` を含む metadata。
+- `Error`: 互換性維持用の legacy error message。
+
+入力不備や policy 拒否のような想定内の失敗は、MCP invocation exception ではなく `Ok: false` の `SshToolResult` として返ります。remote command の非0終了も `Ok: false` になり、legacy stdout / stderr fields は保持されます。
 
 ## コマンド詳細
 

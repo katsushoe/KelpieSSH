@@ -1,6 +1,6 @@
 # KelpieSSH MCP Commands
 
-Last updated: 2026-06-18
+Last updated: 2026-06-28
 
 This file is the English command reference for MCP callable tools exposed by `KelpieMCPServer`.
 For Japanese documentation, see [docs/ja/MCP_COMMANDS.ja.md](docs/ja/MCP_COMMANDS.ja.md).
@@ -78,6 +78,10 @@ Saved profiles are host-side persistence adapters. They are converted into `SshR
 
 SSH command tools usually return `SshToolResult`:
 
+- `Ok`: `true` when the SSH tool completed successfully with `ExitCode: 0` and no Kelpie-side error.
+- `Data`: structured command data when `Ok` is `true`. Existing top-level command fields are kept for compatibility.
+- `ErrorInfo`: structured error information when `Ok` is `false`. It contains `Code`, `Category`, `Message`, `Hint`, and `Retryable`.
+- `Meta`: response metadata. It contains `SchemaVersion`, `GeneratedAt`, `ProfileName`, `CommandName`, output line counts, and `Truncated`.
 - `ProfileName`: resolved SSH profile name.
 - `Host`: target host from the resolved profile or operation.
 - `Port`: target SSH port.
@@ -92,12 +96,15 @@ SSH command tools usually return `SshToolResult`:
 - `StartedAt`: UTC command start timestamp.
 - `CompletedAt`: UTC command completion timestamp.
 - `TimedOut`: `true` when Kelpie stopped waiting because the command timeout elapsed.
-- `Error`: Kelpie-side validation, policy, connection, or execution error message when the tool could not produce a normal SSH command result.
+- `Error`: legacy Kelpie-side validation, policy, connection, or execution error message when the tool could not produce a normal SSH command result.
+
+Expected validation and policy failures are returned as `SshToolResult` with `Ok: false` instead of an MCP invocation exception. Remote non-zero exit codes also set `Ok: false` and return `ErrorInfo.Code: "KELPIE_REMOTE_COMMAND_FAILED"` while preserving the legacy stdout/stderr fields.
 
 `SshToolResult` return value sample:
 
 ```json
 {
+  "Ok": true,
   "ProfileName": "vps01",
   "Host": "example.invalid",
   "Port": 22,
@@ -110,7 +117,45 @@ SSH command tools usually return `SshToolResult`:
   "StartedAt": "2026-06-17T12:00:00Z",
   "CompletedAt": "2026-06-17T12:00:01Z",
   "TimedOut": false,
-  "Error": ""
+  "Error": null,
+  "ErrorInfo": null,
+  "Meta": {
+    "SchemaVersion": "1",
+    "GeneratedAt": "2026-06-17T12:00:01Z",
+    "ProfileName": "vps01",
+    "CommandName": "get_disk_usage",
+    "LineCount": 3,
+    "ErrorLineCount": 0,
+    "Truncated": false
+  }
+}
+```
+
+`SshToolResult` policy rejection sample:
+
+```json
+{
+  "Ok": false,
+  "ProfileName": "vps01",
+  "CommandName": "pkg_install",
+  "ExitCode": -1,
+  "StandardOutput": "",
+  "StandardError": "KelpiePolicyError: AllowSudo is required for command: pkg_install",
+  "Error": "KelpiePolicyError: AllowSudo is required for command: pkg_install",
+  "ErrorInfo": {
+    "Code": "KELPIE_POLICY_COMMAND_DENIED",
+    "Category": "PolicyDenied",
+    "Message": "The requested SSH command is denied by the current profile policy.",
+    "Hint": "Check the profile mode and policy settings before retrying.",
+    "Retryable": false
+  },
+  "Data": null,
+  "Meta": {
+    "SchemaVersion": "1",
+    "ProfileName": "vps01",
+    "CommandName": "pkg_install",
+    "Truncated": false
+  }
 }
 ```
 
