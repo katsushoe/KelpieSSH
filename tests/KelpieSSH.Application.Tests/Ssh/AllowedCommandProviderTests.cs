@@ -869,9 +869,12 @@ public sealed class AllowedCommandProviderTests
             ["days"] = "30",
         });
 
-        commandText.Should().Contain("openssl");
-        commandText.Should().Contain("path='/etc/pki/tls/certs/example.crt'");
-        commandText.Should().Contain("days=int('30')");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("-- '/etc/pki/tls/certs/example.crt' '30'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("command -v openssl");
+        script.Should().Contain("openssl x509 -in \"$path\" -noout -checkend \"$seconds\" -enddate");
     }
 
     [Fact]
@@ -886,8 +889,12 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "50",
         });
 
-        commandText.Should().Contain("pwd.getpwall()");
-        commandText.Should().Contain("limit=int('50')");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("'50'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("getent passwd");
+        script.Should().Contain("NR <= limit");
     }
 
     [Fact]
@@ -902,9 +909,12 @@ public sealed class AllowedCommandProviderTests
             ["user"] = "deploy",
         });
 
-        commandText.Should().Contain("pwd.getpwall()");
-        commandText.Should().Contain("name='deploy'");
-        commandText.Should().Contain("supplementaryGroups=");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("'deploy'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("getent passwd \"$user\"");
+        script.Should().Contain("supplementaryGroups=%s");
     }
 
     [Fact]
@@ -919,8 +929,12 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "50",
         });
 
-        commandText.Should().Contain("grp.getgrall()");
-        commandText.Should().Contain("limit=int('50')");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("'50'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("getent group");
+        script.Should().Contain("NR <= limit");
     }
 
     [Fact]
@@ -935,9 +949,12 @@ public sealed class AllowedCommandProviderTests
             ["group"] = "wheel",
         });
 
-        commandText.Should().Contain("grp.getgrall()");
-        commandText.Should().Contain("name='wheel'");
-        commandText.Should().Contain("members=");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("'wheel'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("getent group \"$group\"");
+        script.Should().Contain("members=%s");
     }
 
     [Fact]

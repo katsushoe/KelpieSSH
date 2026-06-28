@@ -207,6 +207,84 @@ run_item software nginx nginx -v
 run_item software firewall-cmd firewall-cmd --version
 """;
 
+    private const string CertificateExpiryCheckScript = """
+path="$1"
+days="$2"
+
+if ! command -v openssl >/dev/null 2>&1; then
+    echo "openssl command was not found" >&2
+    exit 127
+fi
+
+seconds=$((days * 86400))
+openssl x509 -in "$path" -noout -checkend "$seconds" -enddate
+""";
+
+    private const string UserListScript = """
+limit="$1"
+
+getent passwd | awk -F: -v limit="$limit" 'NR <= limit {
+    print $1 ":" $3 ":" $4 ":" $6 ":" $7
+}'
+""";
+
+    private const string UserInfoScript = """
+user="$1"
+row=$(getent passwd "$user")
+if [ -z "$row" ]; then
+    echo "user not found" >&2
+    exit 2
+fi
+
+IFS=: read -r name _ uid gid _ home shell_path <<EOF
+$row
+EOF
+
+primary=$(getent group "$gid" | awk -F: '{ print $1 }')
+supplementary=$(getent group | awk -F: -v user="$user" '
+{
+    count = split($4, members, ",")
+    for (i = 1; i <= count; i++) {
+        if (members[i] == user) {
+            print $1
+        }
+    }
+}' | sort | paste -sd, -)
+
+printf 'user=%s\n' "$name"
+printf 'uid=%s\n' "$uid"
+printf 'gid=%s\n' "$gid"
+printf 'primaryGroup=%s\n' "$primary"
+printf 'supplementaryGroups=%s\n' "$supplementary"
+printf 'home=%s\n' "$home"
+printf 'shell=%s\n' "$shell_path"
+""";
+
+    private const string GroupListScript = """
+limit="$1"
+
+getent group | awk -F: -v limit="$limit" 'NR <= limit {
+    print $1 ":" $3 ":" $4
+}'
+""";
+
+    private const string GroupInfoScript = """
+group="$1"
+row=$(getent group "$group")
+if [ -z "$row" ]; then
+    echo "group not found" >&2
+    exit 2
+fi
+
+IFS=: read -r name _ gid members <<EOF
+$row
+EOF
+
+printf 'group=%s\n' "$name"
+printf 'gid=%s\n' "$gid"
+printf 'members=%s\n' "$members"
+""";
+
     private static readonly AllowedCommandDefinition[] Commands =
     [
         new("get_system_info", "uname -a", TimeSpan.FromSeconds(10)),
@@ -286,7 +364,7 @@ run_item software firewall-cmd firewall-cmd --version
             ]),
         new(
             "cert_expiry_check",
-            "python3 -c \"import shutil,subprocess,sys; path={path}; days=int({days}); exe=shutil.which('openssl'); print('openssl command was not found', file=sys.stderr) if not exe else None; sys.exit(127) if not exe else None; args=[exe,'x509','-in',path,'-noout','-checkend',str(days*86400),'-enddate']; result=subprocess.run(args, text=True, capture_output=True); print(result.stdout, end=''); print(result.stderr, end='', file=sys.stderr); raise SystemExit(result.returncode)\"",
+            CreateEncodedShellCommand(CertificateExpiryCheckScript, "{path} {days}"),
             TimeSpan.FromSeconds(10),
             [
                 new AllowedCommandParameterDefinition("path", MaxLength: 256, Pattern: CertificatePathPattern),
@@ -294,28 +372,28 @@ run_item software firewall-cmd firewall-cmd --version
             ]),
         new(
             "user_list",
-            "python3 -c \"import pwd; limit=int({limit}); print('\\n'.join(':'.join([user.pw_name,str(user.pw_uid),str(user.pw_gid),user.pw_dir,user.pw_shell]) for user in pwd.getpwall()[:limit]))\"",
+            CreateEncodedShellCommand(UserListScript, "{limit}"),
             TimeSpan.FromSeconds(10),
             [
                 new AllowedCommandParameterDefinition("limit", Pattern: BoundedListLimitPattern),
             ]),
         new(
             "user_info",
-            "python3 -c \"import grp,pwd,sys; name={user}; u=next((x for x in pwd.getpwall() if x.pw_name==name), None); print('user not found', file=sys.stderr) if u is None else None; sys.exit(2) if u is None else None; primary=grp.getgrgid(u.pw_gid).gr_name; supplemental=sorted(g.gr_name for g in grp.getgrall() if name in g.gr_mem); print('user=' + u.pw_name); print('uid=' + str(u.pw_uid)); print('gid=' + str(u.pw_gid)); print('primaryGroup=' + primary); print('supplementaryGroups=' + ','.join(supplemental)); print('home=' + u.pw_dir); print('shell=' + u.pw_shell)\"",
+            CreateEncodedShellCommand(UserInfoScript, "{user}"),
             TimeSpan.FromSeconds(10),
             [
                 new AllowedCommandParameterDefinition("user", Pattern: UserNamePattern),
             ]),
         new(
             "group_list",
-            "python3 -c \"import grp; limit=int({limit}); print('\\n'.join(':'.join([group.gr_name,str(group.gr_gid),','.join(group.gr_mem)]) for group in grp.getgrall()[:limit]))\"",
+            CreateEncodedShellCommand(GroupListScript, "{limit}"),
             TimeSpan.FromSeconds(10),
             [
                 new AllowedCommandParameterDefinition("limit", Pattern: BoundedListLimitPattern),
             ]),
         new(
             "group_info",
-            "python3 -c \"import grp,sys; name={group}; group=next((g for g in grp.getgrall() if g.gr_name==name), None); print('group not found', file=sys.stderr) if group is None else None; sys.exit(2) if group is None else None; print('group=' + group.gr_name); print('gid=' + str(group.gr_gid)); print('members=' + ','.join(group.gr_mem))\"",
+            CreateEncodedShellCommand(GroupInfoScript, "{group}"),
             TimeSpan.FromSeconds(10),
             [
                 new AllowedCommandParameterDefinition("group", Pattern: GroupNamePattern),
@@ -580,5 +658,11 @@ run_item software firewall-cmd firewall-cmd --version
     {
         var encoded = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(script));
         return $"sh -c \"printf %s '{encoded}' | base64 -d | sh\"";
+    }
+
+    private static string CreateEncodedShellCommand(string script, string arguments)
+    {
+        var encoded = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(script));
+        return $"sh -c \"printf %s '{encoded}' | base64 -d | sh -s -- {arguments}\"";
     }
 }

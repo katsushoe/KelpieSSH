@@ -696,7 +696,8 @@ public sealed class KelpieToolsSshTests
             "14");
 
         result.CommandName.Should().Be("cert_expiry_check");
-        result.CommandText.Should().Contain("days=int('14')");
+        result.CommandText.Should().Contain("-- '/etc/pki/tls/certs/example.crt' '14'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["path"].Should().Be("/etc/pki/tls/certs/example.crt");
         runner.LastRequest.Arguments["days"].Should().Be("14");
     }
@@ -716,7 +717,8 @@ public sealed class KelpieToolsSshTests
             "50");
 
         result.CommandName.Should().Be("user_list");
-        result.CommandText.Should().Contain("pwd.getpwall()");
+        result.CommandText.Should().Contain("sh -s -- '50'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["limit"].Should().Be("50");
     }
 
@@ -735,7 +737,8 @@ public sealed class KelpieToolsSshTests
             "deploy");
 
         result.CommandName.Should().Be("user_info");
-        result.CommandText.Should().Contain("name='deploy'");
+        result.CommandText.Should().Contain("sh -s -- 'deploy'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["user"].Should().Be("deploy");
     }
 
@@ -754,7 +757,8 @@ public sealed class KelpieToolsSshTests
             "50");
 
         result.CommandName.Should().Be("group_list");
-        result.CommandText.Should().Contain("grp.getgrall()");
+        result.CommandText.Should().Contain("sh -s -- '50'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["limit"].Should().Be("50");
     }
 
@@ -773,7 +777,8 @@ public sealed class KelpieToolsSshTests
             "wheel");
 
         result.CommandName.Should().Be("group_info");
-        result.CommandText.Should().Contain("name='wheel'");
+        result.CommandText.Should().Contain("sh -s -- 'wheel'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["group"].Should().Be("wheel");
     }
 
