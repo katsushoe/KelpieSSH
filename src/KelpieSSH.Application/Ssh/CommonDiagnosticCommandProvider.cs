@@ -285,6 +285,167 @@ printf 'gid=%s\n' "$gid"
 printf 'members=%s\n' "$members"
 """;
 
+    private const string ServiceResidualConfigCheckScript = """
+service="$1"
+limit="$2"
+base="$service"
+case "$base" in
+    *.service) base=${base%".service"} ;;
+esac
+
+printf 'service=%s\n' "$service"
+printf 'baseName=%s\n' "$base"
+
+count=0
+print_path() {
+    path="$1"
+    if [ "$count" -ge "$limit" ]; then
+        return
+    fi
+
+    if [ -d "$path" ]; then
+        type="dir"
+    elif [ -f "$path" ]; then
+        type="file"
+    elif [ -e "$path" ]; then
+        type="other"
+    else
+        type="other"
+    fi
+
+    if [ -e "$path" ]; then
+        exists="true"
+    else
+        exists="false"
+    fi
+
+    printf '%s:exists=%s:type=%s\n' "$path" "$exists" "$type"
+    count=$((count + 1))
+}
+
+for path in \
+    "/etc/systemd/system/$service" \
+    "/usr/lib/systemd/system/$service" \
+    "/lib/systemd/system/$service" \
+    "/etc/$base" \
+    "/etc/$base.conf" \
+    "/var/lib/$base" \
+    "/var/log/$base" \
+    "/run/$base"
+do
+    print_path "$path"
+done
+
+for extra in /etc/"$base".d/*; do
+    [ -e "$extra" ] || continue
+    print_path "$extra"
+done
+
+printf 'pathsChecked=%s\n' "$count"
+""";
+
+    private const string SupportReportCollectScript = """
+limit="$1"
+
+printf 'reportVersion=1\n'
+printf 'kernel=%s\n' "$(uname -srm 2>/dev/null)"
+
+if [ -r /etc/os-release ]; then
+    while IFS='=' read -r key value; do
+        case "$key" in
+            ID|NAME|VERSION_ID)
+                value=${value#\"}
+                value=${value%\"}
+                printf 'osRelease.%s=%s\n' "$key" "$value"
+                ;;
+        esac
+    done < /etc/os-release
+fi
+
+uptime_output=$(uptime 2>&1)
+uptime_code=$?
+printf 'uptimeExitCode=%s\n' "$uptime_code"
+printf 'uptimeSummary=%s\n' "$uptime_output"
+
+free_output=$(free -m 2>&1)
+free_code=$?
+printf 'memoryExitCode=%s\n' "$free_code"
+printf '%s\n' "$free_output" | sed -n '1,3{s/^/memory=/;p;}'
+
+df_output=$(df -h --output=fstype,size,used,avail,pcent,target 2>&1)
+df_code=$?
+printf 'diskExitCode=%s\n' "$df_code"
+printf 'diskRows=%s\n' "$(printf '%s\n' "$df_output" | awk -v limit="$limit" 'NR > 1 && NR <= limit + 1 { count++ } END { print count + 0 }')"
+printf '%s\n' "$df_output" | awk -v limit="$limit" 'NR <= limit + 1 { print "disk=" $0 }'
+
+if command -v systemctl >/dev/null 2>&1; then
+    failed_output=$(systemctl --failed --no-pager --plain --no-legend 2>/dev/null)
+else
+    failed_output=""
+fi
+
+printf 'failedServices=%s\n' "$(printf '%s\n' "$failed_output" | awk 'NF { count++ } END { print count + 0 }')"
+printf '%s\n' "$failed_output" | awk -v limit="$limit" 'NF && count < limit { print "failedService=" $1; count++ }'
+""";
+
+    private const string FirewallStatusScript = """
+if command -v firewall-cmd >/dev/null 2>&1; then
+    firewalld_available="true"
+    firewalld_state=$(firewall-cmd --state 2>/dev/null)
+    firewalld_zone=$(firewall-cmd --get-default-zone 2>/dev/null)
+    firewalld_services=$(firewall-cmd --list-services 2>/dev/null)
+else
+    firewalld_available="false"
+    firewalld_state="unavailable"
+    firewalld_zone=""
+    firewalld_services=""
+fi
+
+if command -v ufw >/dev/null 2>&1; then
+    ufw_available="true"
+    ufw_output=$(ufw status 2>/dev/null)
+else
+    ufw_available="false"
+    ufw_output=""
+fi
+
+printf 'firewalldAvailable=%s\n' "$firewalld_available"
+printf 'ufwAvailable=%s\n' "$ufw_available"
+printf 'firewalldState=%s\n' "$firewalld_state"
+printf 'firewalldDefaultZone=%s\n' "$firewalld_zone"
+printf 'firewalldServiceCount=%s\n' "$(printf '%s\n' "$firewalld_services" | awk '{ count += NF } END { print count + 0 }')"
+printf 'ufwStatusLineCount=%s\n' "$(printf '%s\n' "$ufw_output" | awk 'NF { count++ } END { print count + 0 }')"
+""";
+
+    private const string BackupVerifyScript = """
+path="$1"
+
+printf 'backupPath=%s\n' "$path"
+if [ ! -f "$path" ]; then
+    printf 'exists=false\n'
+    printf 'size=0\n'
+    printf 'archiveReadable=false\n'
+    printf 'verifyExitCode=2\n'
+    printf 'standardErrorSummary=\n'
+    exit 2
+fi
+
+printf 'exists=true\n'
+printf 'size=%s\n' "$(wc -c < "$path" | tr -d ' ')"
+tar_error=$(tar -tf "$path" 2>&1 >/dev/null)
+tar_code=$?
+if [ "$tar_code" -eq 0 ]; then
+    readable="true"
+else
+    readable="false"
+fi
+
+printf 'archiveReadable=%s\n' "$readable"
+printf 'verifyExitCode=%s\n' "$tar_code"
+printf 'standardErrorSummary=%s\n' "$(printf '%s\n' "$tar_error" | sed -n '1{s/^.\{120\}/&/;s/^\(.\{120\}\).*/\1/;p;}')"
+exit "$tar_code"
+""";
+
     private static readonly AllowedCommandDefinition[] Commands =
     [
         new("get_system_info", "uname -a", TimeSpan.FromSeconds(10)),
@@ -493,7 +654,7 @@ printf 'members=%s\n' "$members"
             SshCommandRiskLevel.ConfirmRequired),
         new(
             "service_residual_config_check",
-            "python3 -c \"import glob,os; service={service}; limit=int({limit}); base=service[:-8] if service.endswith('.service') else service; paths=['/etc/systemd/system/'+service,'/usr/lib/systemd/system/'+service,'/lib/systemd/system/'+service,'/etc/'+base,'/etc/'+base+'.conf','/var/lib/'+base,'/var/log/'+base,'/run/'+base]; paths += sorted(glob.glob('/etc/'+base+'.d/*'))[:limit]; rows=[]; [rows.append(path+':exists='+str(os.path.exists(path)).lower()+':type='+('dir' if os.path.isdir(path) else 'file' if os.path.isfile(path) else 'other')) for path in paths[:limit]]; print('service=' + service); print('baseName=' + base); print('pathsChecked=' + str(len(rows))); print('\\n'.join(rows))\"",
+            CreateEncodedShellCommand(ServiceResidualConfigCheckScript, "{service} {limit}"),
             TimeSpan.FromSeconds(10),
             [
                 ServiceParameter,
@@ -501,14 +662,14 @@ printf 'members=%s\n' "$members"
             ]),
         new(
             "support_report_collect",
-            "python3 -c \"import os,platform,subprocess; limit=int({limit}); print('reportVersion=1'); print('kernel=' + platform.system() + ' ' + platform.release() + ' ' + platform.machine()); data=[]; path='/etc/os-release'; data=open(path, errors='replace').read().splitlines() if os.path.isfile(path) else []; [print('osRelease.' + key + '=' + line.split('=',1)[1].strip().strip(chr(34))) for key in ['ID','NAME','VERSION_ID'] for line in data if line.startswith(key + '=')]; uptime=subprocess.run(['uptime'], text=True, capture_output=True); print('uptimeExitCode=' + str(uptime.returncode)); print('uptimeSummary=' + uptime.stdout.strip()); free=subprocess.run(['free','-m'], text=True, capture_output=True); print('memoryExitCode=' + str(free.returncode)); print('\\n'.join('memory=' + line for line in free.stdout.splitlines()[:3])); df=subprocess.run(['df','-h','--output=fstype,size,used,avail,pcent,target'], text=True, capture_output=True); df_lines=df.stdout.splitlines(); print('diskExitCode=' + str(df.returncode)); print('diskRows=' + str(max(0, min(len(df_lines), limit + 1) - 1))); print('\\n'.join('disk=' + line for line in df_lines[:limit + 1])); failed=subprocess.run(['systemctl','--failed','--no-pager','--plain','--no-legend'], text=True, capture_output=True); units=[line.split()[0] for line in failed.stdout.splitlines() if line.strip()][:limit]; print('failedServices=' + str(len(units))); print('\\n'.join('failedService=' + unit for unit in units))\"",
+            CreateEncodedShellCommand(SupportReportCollectScript, "{limit}"),
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("limit", Pattern: BoundedListLimitPattern),
             ]),
         new(
             "firewall_status",
-            "python3 -c \"import shutil,subprocess; fw=shutil.which('firewall-cmd'); ufw=shutil.which('ufw'); print('firewalldAvailable=' + str(fw is not None).lower()); print('ufwAvailable=' + str(ufw is not None).lower()); state=subprocess.run([fw,'--state'], text=True, capture_output=True) if fw else None; print('firewalldState=' + (state.stdout.strip() if state else 'unavailable')); zone=subprocess.run([fw,'--get-default-zone'], text=True, capture_output=True) if fw else None; print('firewalldDefaultZone=' + (zone.stdout.strip() if zone else '')); services=subprocess.run([fw,'--list-services'], text=True, capture_output=True) if fw else None; print('firewalldServiceCount=' + (str(len(services.stdout.split())) if services else '0')); ufw_status=subprocess.run([ufw,'status'], text=True, capture_output=True) if ufw else None; ufw_lines=[line for line in ufw_status.stdout.splitlines() if line.strip()] if ufw_status else []; print('ufwStatusLineCount=' + str(len(ufw_lines)))\"",
+            CreateEncodedShellCommand(FirewallStatusScript),
             TimeSpan.FromSeconds(15)),
         new(
             "firewall_check_rule",
@@ -554,7 +715,7 @@ printf 'members=%s\n' "$members"
             SshCommandRiskLevel.ConfirmRequired),
         new(
             "backup_verify",
-            "python3 -c \"import os,subprocess,sys; path={backupPath}; exists=os.path.isfile(path); print('backupPath=' + path); print('exists=' + str(exists).lower()); print('size=' + (str(os.path.getsize(path)) if exists else '0')); result=subprocess.run(['tar','-tf',path], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True) if exists else None; print('archiveReadable=' + (str(result.returncode == 0).lower() if result else 'false')); print('verifyExitCode=' + (str(result.returncode) if result else '2')); print('standardErrorSummary=' + (result.stderr.splitlines()[0][:120] if result and result.stderr.splitlines() else '')); raise SystemExit(result.returncode if result else 2)\"",
+            CreateEncodedShellCommand(BackupVerifyScript, "{backupPath}"),
             TimeSpan.FromSeconds(60),
             [
                 new AllowedCommandParameterDefinition("backupPath", MaxLength: 256, Pattern: BackupPathPattern),

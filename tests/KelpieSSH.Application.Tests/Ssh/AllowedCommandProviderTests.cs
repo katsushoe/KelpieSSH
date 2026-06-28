@@ -1238,9 +1238,12 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "20",
         });
 
-        commandText.Should().Contain("service='nginx.service'");
-        commandText.Should().Contain("base=service[:-8]");
-        commandText.Should().Contain("limit=int('20')");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("-- 'nginx.service' '20'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("base=${base%\".service\"}");
+        script.Should().Contain("pathsChecked=%s");
     }
 
     [Fact]
@@ -1255,10 +1258,13 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "20",
         });
 
-        commandText.Should().Contain("reportVersion=1");
-        commandText.Should().Contain("platform.release()");
-        commandText.Should().Contain("systemctl");
-        commandText.Should().Contain("limit=int('20')");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- '20'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("reportVersion=1");
+        script.Should().Contain("uname -srm");
+        script.Should().Contain("systemctl --failed");
         commandText.Should().NotContain("hostname");
         commandText.Should().NotContain("ip addr");
     }
@@ -1272,9 +1278,12 @@ public sealed class AllowedCommandProviderTests
 
         var commandText = command.BuildCommandText();
 
-        commandText.Should().Contain("firewalldAvailable=");
-        commandText.Should().Contain("ufwAvailable=");
-        commandText.Should().Contain("firewalldServiceCount=");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("firewalldAvailable=%s");
+        script.Should().Contain("ufwAvailable=%s");
+        script.Should().Contain("firewalldServiceCount=%s");
         commandText.Should().NotContain("--list-all");
     }
 
@@ -1430,9 +1439,12 @@ public sealed class AllowedCommandProviderTests
             ["backupPath"] = "/var/backups/kelpie/site/full.tar.gz",
         });
 
-        commandText.Should().Contain("tar");
-        commandText.Should().Contain("archiveReadable=");
-        commandText.Should().Contain("'/var/backups/kelpie/site/full.tar.gz'");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- '/var/backups/kelpie/site/full.tar.gz'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("tar -tf \"$path\"");
+        script.Should().Contain("archiveReadable=%s");
     }
 
     [Fact]

@@ -890,6 +890,8 @@ public sealed class KelpieToolsSshTests
             "20");
 
         result.CommandName.Should().Be("service_residual_config_check");
+        result.CommandText.Should().Contain("sh -s -- 'nginx.service' '20'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["service"].Should().Be("nginx.service");
         runner.LastRequest.Arguments["limit"].Should().Be("20");
     }
@@ -2305,8 +2307,8 @@ public sealed class KelpieToolsSshTests
         result.Host.Should().BeEmpty();
         result.Port.Should().Be(0);
         result.UserName.Should().BeEmpty();
-        result.CommandText.Should().Contain("reportVersion=1");
-        result.CommandText.Should().Contain("limit=int('20')");
+        result.CommandText.Should().Contain("sh -s -- '20'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["limit"].Should().Be("20");
     }
 
@@ -2620,7 +2622,8 @@ public sealed class KelpieToolsSshTests
         var result = await KelpieTools.GetSshFirewallStatusAsync(service, profiles, "vps01");
 
         result.CommandName.Should().Be("firewall_status");
-        result.CommandText.Should().Contain("firewalldAvailable=");
+        result.CommandText.Should().StartWith("sh -c");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.CommandName.Should().Be("firewall_status");
     }
 
@@ -2781,6 +2784,8 @@ public sealed class KelpieToolsSshTests
             "/var/backups/kelpie/site/full.tar.gz");
 
         result.CommandName.Should().Be("backup_verify");
+        result.CommandText.Should().Contain("sh -s -- '/var/backups/kelpie/site/full.tar.gz'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["backupPath"].Should().Be("/var/backups/kelpie/site/full.tar.gz");
     }
 
