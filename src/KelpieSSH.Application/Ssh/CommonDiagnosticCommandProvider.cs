@@ -1039,6 +1039,125 @@ printf 'firewalldServiceCount=%s\n' "$(printf '%s\n' "$firewalld_services" | awk
 printf 'ufwStatusLineCount=%s\n' "$(printf '%s\n' "$ufw_output" | awk 'NF { count++ } END { print count + 0 }')"
 """;
 
+    private const string FirewallCheckRuleScript = """
+action="$1"
+target="$2"
+value="$3"
+zone="$4"
+permanent="$5"
+
+firewall_cmd=$(command -v firewall-cmd 2>/dev/null)
+ufw_cmd=$(command -v ufw 2>/dev/null)
+
+printf 'action=%s\n' "$action"
+printf 'target=%s\n' "$target"
+printf 'value=%s\n' "$value"
+printf 'zone=%s\n' "$zone"
+printf 'permanent=%s\n' "$permanent"
+
+if [ -n "$firewall_cmd" ]; then
+    firewalld_available=true
+else
+    firewalld_available=false
+fi
+
+if [ -n "$ufw_cmd" ]; then
+    ufw_available=true
+else
+    ufw_available=false
+fi
+
+printf 'firewalldAvailable=%s\n' "$firewalld_available"
+printf 'ufwAvailable=%s\n' "$ufw_available"
+
+valid=true
+case "$target:$value" in
+    port:*/*) ;;
+    port:*) valid=false ;;
+    service:*/*) valid=false ;;
+esac
+
+printf 'valid=%s\n' "$valid"
+[ "$valid" = true ] || exit 2
+
+if [ -n "$firewall_cmd" ]; then
+    firewalld_state=$("$firewall_cmd" --state 2>/dev/null)
+    if [ "$permanent" = true ]; then
+        "$firewall_cmd" --permanent --zone "$zone" "--query-$target" "$value" >/dev/null 2>&1
+    else
+        "$firewall_cmd" --zone "$zone" "--query-$target" "$value" >/dev/null 2>&1
+    fi
+    query_code=$?
+    if [ "$query_code" -eq 0 ]; then
+        rule_present=true
+    else
+        rule_present=false
+    fi
+else
+    firewalld_state="unavailable"
+    rule_present="unknown"
+    query_code=127
+fi
+
+printf 'firewalldState=%s\n' "$firewalld_state"
+printf 'rulePresent=%s\n' "$rule_present"
+printf 'queryExitCode=%s\n' "$query_code"
+printf 'requiresConfirmation=true\n'
+printf 'confirmation=firewall_apply_rule:%s:%s:%s:%s:%s\n' "$action" "$target" "$value" "$zone" "$permanent"
+""";
+
+    private const string BackupPlanCheckScript = """
+root="$1"
+depth="$2"
+limit="$3"
+
+scanned=0
+files=0
+directories=0
+symlinks=0
+estimated_bytes=0
+exists=false
+
+if [ -e "$root" ]; then
+    exists=true
+fi
+
+printf 'scanRoot=%s\n' "$root"
+printf 'exists=%s\n' "$exists"
+printf 'depth=%s\n' "$depth"
+
+if [ "$exists" = true ]; then
+    find_depth=$((depth + 1))
+    while IFS= read -r path; do
+        [ "$scanned" -ge "$limit" ] && break
+        [ -n "$path" ] || continue
+
+        scanned=$((scanned + 1))
+        if [ -L "$path" ]; then
+            symlinks=$((symlinks + 1))
+        elif [ -d "$path" ]; then
+            directories=$((directories + 1))
+        elif [ -f "$path" ]; then
+            files=$((files + 1))
+            size=$(stat -c '%s' "$path" 2>/dev/null || printf '0')
+            estimated_bytes=$((estimated_bytes + size))
+        fi
+    done <<EOF
+$(find "$root" -mindepth 1 -maxdepth "$find_depth" -xdev -print 2>/dev/null)
+EOF
+fi
+
+printf 'entriesScanned=%s\n' "$scanned"
+printf 'files=%s\n' "$files"
+printf 'directories=%s\n' "$directories"
+printf 'symlinks=%s\n' "$symlinks"
+printf 'estimatedBytes=%s\n' "$estimated_bytes"
+printf 'requiresConfirmation=true\n'
+printf 'confirmation=backup_run:%s\n' "$root"
+
+[ "$exists" = true ] || exit 2
+""";
+
     private const string BackupVerifyScript = """
 path="$1"
 
@@ -1295,7 +1414,7 @@ exit "$tar_code"
             TimeSpan.FromSeconds(15)),
         new(
             "firewall_check_rule",
-            "python3 -c \"import shutil,subprocess,sys; action={action}; target={target}; value={value}; zone={zone}; permanent={permanent}; fw=shutil.which('firewall-cmd'); ufw=shutil.which('ufw'); print('action=' + action); print('target=' + target); print('value=' + value); print('zone=' + zone); print('permanent=' + permanent); print('firewalldAvailable=' + str(fw is not None).lower()); print('ufwAvailable=' + str(ufw is not None).lower()); invalid=(target=='port' and '/' not in value) or (target=='service' and '/' in value); print('valid=' + str(not invalid).lower()); sys.exit(2) if invalid else None; state=subprocess.run([fw,'--state'], text=True, capture_output=True) if fw else None; print('firewalldState=' + (state.stdout.strip() if state else 'unavailable')); args=[fw,'--zone',zone,'--query-' + target,value] if fw else []; args.insert(1,'--permanent') if fw and permanent=='true' else None; query=subprocess.run(args, text=True, capture_output=True) if fw else None; print('rulePresent=' + (str(query.returncode == 0).lower() if query else 'unknown')); print('queryExitCode=' + (str(query.returncode) if query else '127')); print('requiresConfirmation=true'); print('confirmation=firewall_apply_rule:' + action + ':' + target + ':' + value + ':' + zone + ':' + permanent)\"",
+            CreateEncodedShellCommand(FirewallCheckRuleScript, "{action} {target} {value} {zone} {permanent}"),
             TimeSpan.FromSeconds(15),
             [
                 new AllowedCommandParameterDefinition("action", Pattern: FirewallActionPattern),
@@ -1318,7 +1437,7 @@ exit "$tar_code"
             SshCommandRiskLevel.ConfirmRequired),
         new(
             "backup_plan_check",
-            "python3 -c \"import sys; exec('import os,sys\\nroot=os.path.abspath(sys.argv[1])\\ndepth=int(sys.argv[2])\\nlimit=int(sys.argv[3])\\nexists=os.path.exists(root)\\nscanned=0\\nfiles=0\\ndirs=0\\nsymlinks=0\\nbytes_total=0\\nstart=root.rstrip(\\\"/\\\").count(\\\"/\\\")\\nprint(\\\"scanRoot=\\\" + root)\\nprint(\\\"exists=\\\" + str(exists).lower())\\nprint(\\\"depth=\\\" + str(depth))\\nif exists:\\n    for current, dirnames, filenames in os.walk(root, topdown=True, followlinks=False):\\n        current_depth=current.rstrip(\\\"/\\\").count(\\\"/\\\")-start\\n        if current_depth >= depth:\\n            dirnames[:] = []\\n        for name in list(dirnames) + filenames:\\n            if scanned >= limit:\\n                break\\n            path=os.path.join(current,name)\\n            try:\\n                st=os.lstat(path)\\n            except OSError:\\n                continue\\n            scanned += 1\\n            is_link=os.path.islink(path)\\n            symlinks += 1 if is_link else 0\\n            dirs += 1 if os.path.isdir(path) and not is_link else 0\\n            files += 1 if os.path.isfile(path) and not is_link else 0\\n            bytes_total += st.st_size if os.path.isfile(path) and not is_link else 0\\n        if scanned >= limit:\\n            break\\nprint(\\\"entriesScanned=\\\" + str(scanned))\\nprint(\\\"files=\\\" + str(files))\\nprint(\\\"directories=\\\" + str(dirs))\\nprint(\\\"symlinks=\\\" + str(symlinks))\\nprint(\\\"estimatedBytes=\\\" + str(bytes_total))\\nprint(\\\"requiresConfirmation=true\\\")\\nprint(\\\"confirmation=backup_run:\\\" + root)\\nraise SystemExit(0 if exists else 2)')\" {scanRoot} {depth} {limit}",
+            CreateEncodedShellCommand(BackupPlanCheckScript, "{scanRoot} {depth} {limit}"),
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("scanRoot", MaxLength: 128, Pattern: BackupScanRootPattern),

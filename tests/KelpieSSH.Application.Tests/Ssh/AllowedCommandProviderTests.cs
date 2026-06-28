@@ -1346,9 +1346,14 @@ public sealed class AllowedCommandProviderTests
             ["permanent"] = "false",
         });
 
-        commandText.Should().Contain("confirmation=firewall_apply_rule:");
-        commandText.Should().Contain("value='443/tcp'");
-        commandText.Should().Contain("zone='public'");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- 'add' 'port' '443/tcp' 'public' 'false'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("printf 'confirmation=firewall_apply_rule:%s:%s:%s:%s:%s");
+        script.Should().Contain("\"$firewall_cmd\" --state");
+        script.Should().Contain("\"--query-$target\"");
     }
 
     [Fact]
@@ -1427,9 +1432,14 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "20",
         });
 
-        commandText.Should().Contain("entriesScanned=");
-        commandText.Should().Contain("confirmation=backup_run:");
-        commandText.Should().Contain("'/var/www' '2' '20'");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- '/var/www' '2' '20'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("find \"$root\"");
+        script.Should().Contain("printf 'entriesScanned=%s");
+        script.Should().Contain("printf 'confirmation=backup_run:%s");
     }
 
     [Fact]

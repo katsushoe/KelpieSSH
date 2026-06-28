@@ -2657,6 +2657,9 @@ public sealed class KelpieToolsSshTests
             "false");
 
         result.CommandName.Should().Be("firewall_check_rule");
+        result.CommandText.Should().StartWith("sh -c");
+        result.CommandText.Should().Contain("sh -s -- 'add' 'port' '443/tcp' 'public' 'false'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["action"].Should().Be("add");
         runner.LastRequest.Arguments["target"].Should().Be("port");
         runner.LastRequest.Arguments["value"].Should().Be("443/tcp");
@@ -2729,6 +2732,9 @@ public sealed class KelpieToolsSshTests
             "20");
 
         result.CommandName.Should().Be("backup_plan_check");
+        result.CommandText.Should().StartWith("sh -c");
+        result.CommandText.Should().Contain("sh -s -- '/var/www' '2' '20'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["scanRoot"].Should().Be("/var/www");
         runner.LastRequest.Arguments["depth"].Should().Be("2");
         runner.LastRequest.Arguments["limit"].Should().Be("20");
