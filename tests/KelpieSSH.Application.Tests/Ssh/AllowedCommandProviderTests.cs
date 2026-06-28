@@ -1513,9 +1513,14 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "50",
         });
 
-        commandText.Should().Contain("chainBreaks=");
-        commandText.Should().Contain("path='/var/log/kelpie/audit.log'");
-        commandText.Should().Contain("limit=int('50')");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- '/var/log/kelpie/audit.log' '50'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("printf 'chainBreaks=%s");
+        script.Should().Contain("prevHash");
+        script.Should().Contain("previousHash");
     }
 
     [Fact]
@@ -1531,8 +1536,13 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "50",
         });
 
-        commandText.Should().Contain("exportVersion=1");
-        commandText.Should().Contain("allowed=['timestamp'");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- '/var/log/kelpie/audit.log' '50'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("exportVersion=1");
+        script.Should().Contain("for key in timestamp eventType toolName commandName exitCode result riskLevel");
         commandText.Should().NotContain("password");
         commandText.Should().NotContain("PrivateKey");
     }

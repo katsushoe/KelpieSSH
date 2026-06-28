@@ -595,8 +595,9 @@ public sealed class KelpieToolsSshTests
         var result = await KelpieTools.CheckSshHttpLocalAsync(service, profiles, "vps01", "8080");
 
         result.CommandName.Should().Be("check_http_local");
-        result.CommandText.Should().Contain("urllib.request");
-        result.CommandText.Should().Contain("port=int('8080')");
+        result.CommandText.Should().StartWith("sh -c");
+        result.CommandText.Should().Contain("sh -s -- '8080'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["port"].Should().Be("8080");
     }
 
@@ -611,8 +612,9 @@ public sealed class KelpieToolsSshTests
         var result = await KelpieTools.CheckSshTcpConnectLocalAsync(service, profiles, "vps01", "22");
 
         result.CommandName.Should().Be("check_tcp_connect_local");
-        result.CommandText.Should().Contain("socket.create_connection");
-        result.CommandText.Should().Contain("port=int('22')");
+        result.CommandText.Should().StartWith("sh -c");
+        result.CommandText.Should().Contain("sh -s -- '22'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["port"].Should().Be("22");
     }
 
@@ -2822,6 +2824,9 @@ public sealed class KelpieToolsSshTests
             "50");
 
         result.CommandName.Should().Be("audit_verify");
+        result.CommandText.Should().StartWith("sh -c");
+        result.CommandText.Should().Contain("sh -s -- '/var/log/kelpie/audit.log' '50'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["logPath"].Should().Be("/var/log/kelpie/audit.log");
         runner.LastRequest.Arguments["limit"].Should().Be("50");
     }
@@ -2842,6 +2847,9 @@ public sealed class KelpieToolsSshTests
             "50");
 
         result.CommandName.Should().Be("audit_export");
+        result.CommandText.Should().StartWith("sh -c");
+        result.CommandText.Should().Contain("sh -s -- '/var/log/kelpie/audit.log' '50'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["logPath"].Should().Be("/var/log/kelpie/audit.log");
         runner.LastRequest.Arguments["limit"].Should().Be("50");
     }

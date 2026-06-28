@@ -1187,6 +1187,160 @@ printf 'standardErrorSummary=%s\n' "$(printf '%s\n' "$tar_error" | sed -n '1{s/^
 exit "$tar_code"
 """;
 
+    private const string AuditVerifyScript = """
+path="$1"
+limit="$2"
+
+printf 'auditPath=%s\n' "$path"
+if [ ! -f "$path" ]; then
+    printf 'exists=false\n'
+    exit 2
+fi
+
+printf 'exists=true\n'
+
+lines=0
+json_lines=0
+missing=0
+breaks=0
+previous=""
+
+while IFS= read -r line || [ -n "$line" ]; do
+    [ "$lines" -ge "$limit" ] && break
+    lines=$((lines + 1))
+    [ -n "$line" ] || continue
+
+    case "$line" in
+        \{*\})
+            json_lines=$((json_lines + 1))
+            current=$(printf '%s\n' "$line" | sed -n 's/.*"hash"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+            previous_hash=$(printf '%s\n' "$line" | sed -n 's/.*"prevHash"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+            if [ -z "$previous_hash" ]; then
+                previous_hash=$(printf '%s\n' "$line" | sed -n 's/.*"previousHash"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+            fi
+
+            if [ -z "$current" ] || [ -z "$previous_hash" ]; then
+                missing=$((missing + 1))
+            elif [ -n "$previous" ] && [ "$previous_hash" != "$previous" ]; then
+                breaks=$((breaks + 1))
+            fi
+
+            if [ -n "$current" ]; then
+                previous="$current"
+            fi
+            ;;
+    esac
+done < "$path"
+
+printf 'linesScanned=%s\n' "$lines"
+printf 'jsonLines=%s\n' "$json_lines"
+printf 'missingHashFields=%s\n' "$missing"
+printf 'chainBreaks=%s\n' "$breaks"
+
+[ "$breaks" -eq 0 ] || exit 1
+""";
+
+    private const string AuditExportScript = """
+path="$1"
+limit="$2"
+
+extract_json_value() {
+    key="$1"
+    line="$2"
+    value=$(printf '%s\n' "$line" | sed -n 's/.*"'"$key"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+    if [ -z "$value" ]; then
+        value=$(printf '%s\n' "$line" | sed -n 's/.*"'"$key"'"[[:space:]]*:[[:space:]]*\([^,}"]*\).*/\1/p' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    fi
+    printf '%s' "$value" | tr '\r\n' '  ' | cut -c 1-80
+}
+
+append_pair() {
+    key="$1"
+    value="$2"
+    [ -n "$value" ] || return
+    if [ -z "$pairs" ]; then
+        pairs="$key=$value"
+    else
+        pairs="$pairs,$key=$value"
+    fi
+}
+
+printf 'exportVersion=1\n'
+printf 'auditPath=%s\n' "$path"
+if [ ! -f "$path" ]; then
+    printf 'exists=false\n'
+    exit 2
+fi
+
+printf 'exists=true\n'
+
+records=0
+while IFS= read -r line || [ -n "$line" ]; do
+    [ "$records" -ge "$limit" ] && break
+    [ -n "$line" ] || continue
+
+    records=$((records + 1))
+    case "$line" in
+        \{*\})
+            pairs=""
+            for key in timestamp eventType toolName commandName exitCode result riskLevel; do
+                value=$(extract_json_value "$key" "$line")
+                append_pair "$key" "$value"
+            done
+            printf 'record=%s:%s\n' "$records" "$pairs"
+            ;;
+        *)
+            printf 'record=%s:format=text\n' "$records"
+            ;;
+    esac
+done < "$path"
+
+printf 'records=%s\n' "$records"
+""";
+
+    private const string CheckHttpLocalScript = """
+port="$1"
+
+if command -v curl >/dev/null 2>&1; then
+    curl --max-time 5 --silent --show-error --output /dev/null --write-out 'status=%{http_code}\ncontent_type=%{content_type}\n' "http://127.0.0.1:$port/"
+    exit $?
+fi
+
+if command -v wget >/dev/null 2>&1; then
+    output=$(wget -S -O /dev/null -T 5 "http://127.0.0.1:$port/" 2>&1)
+    code=$?
+    status=$(printf '%s\n' "$output" | sed -n 's/.*HTTP\/[0-9.]* \([0-9][0-9][0-9]\).*/\1/p' | tail -n 1)
+    content_type=$(printf '%s\n' "$output" | sed -n 's/^[[:space:]]*Content-Type:[[:space:]]*//Ip' | tail -n 1)
+    printf 'status=%s\n' "$status"
+    printf 'content_type=%s\n' "$content_type"
+    exit "$code"
+fi
+
+echo "curl or wget command was not found" >&2
+exit 127
+""";
+
+    private const string CheckTcpConnectLocalScript = """
+port="$1"
+
+if command -v nc >/dev/null 2>&1; then
+    nc -z -w 5 127.0.0.1 "$port"
+    code=$?
+elif command -v bash >/dev/null 2>&1; then
+    timeout 5 bash -c ":</dev/tcp/127.0.0.1/$port" >/dev/null 2>&1
+    code=$?
+else
+    echo "nc or bash command was not found" >&2
+    exit 127
+fi
+
+if [ "$code" -eq 0 ]; then
+    printf 'connected\n'
+fi
+
+exit "$code"
+""";
+
     private static readonly AllowedCommandDefinition[] Commands =
     [
         new("get_system_info", "uname -a", TimeSpan.FromSeconds(10)),
@@ -1463,7 +1617,7 @@ exit "$tar_code"
             ]),
         new(
             "audit_verify",
-            "python3 -c \"import json,os,sys; path={logPath}; limit=int({limit}); exists=os.path.isfile(path); print('auditPath=' + path); print('exists=' + str(exists).lower()); sys.exit(2) if not exists else None; lines=0; json_lines=0; missing=0; breaks=0; previous=None; handle=open(path, errors='replace'); exec('for line in handle:\\n    if lines >= limit:\\n        break\\n    lines += 1\\n    text=line.strip()\\n    if not text:\\n        continue\\n    try:\\n        row=json.loads(text)\\n    except Exception:\\n        continue\\n    json_lines += 1\\n    current=row.get(\\\"hash\\\")\\n    prev=row.get(\\\"prevHash\\\") or row.get(\\\"previousHash\\\")\\n    if current is None or prev is None:\\n        missing += 1\\n    elif previous is not None and prev != previous:\\n        breaks += 1\\n    if current:\\n        previous=current'); handle.close(); print('linesScanned=' + str(lines)); print('jsonLines=' + str(json_lines)); print('missingHashFields=' + str(missing)); print('chainBreaks=' + str(breaks)); raise SystemExit(0 if breaks == 0 else 1)\"",
+            CreateEncodedShellCommand(AuditVerifyScript, "{logPath} {limit}"),
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("logPath", MaxLength: 180, Pattern: AuditLogPathPattern),
@@ -1471,7 +1625,7 @@ exit "$tar_code"
             ]),
         new(
             "audit_export",
-            "python3 -c \"import json,os,sys; path={logPath}; limit=int({limit}); exists=os.path.isfile(path); print('exportVersion=1'); print('auditPath=' + path); print('exists=' + str(exists).lower()); sys.exit(2) if not exists else None; allowed=['timestamp','eventType','toolName','commandName','exitCode','result','riskLevel']; records=0; handle=open(path, errors='replace'); exec('for line in handle:\\n    if records >= limit:\\n        break\\n    text=line.strip()\\n    if not text:\\n        continue\\n    try:\\n        row=json.loads(text)\\n    except Exception:\\n        records += 1\\n        print(\\\"record=\\\" + str(records) + \\\":format=text\\\")\\n        continue\\n    pairs=[]\\n    for key in allowed:\\n        value=row.get(key)\\n        if value is not None:\\n            pairs.append(key + \\\"=\\\" + str(value).replace(\\\"\\\\n\\\", \\\" \\\")[:80])\\n    records += 1\\n    print(\\\"record=\\\" + str(records) + \\\":\\\" + \\\",\\\".join(pairs))'); handle.close(); print('records=' + str(records))\"",
+            CreateEncodedShellCommand(AuditExportScript, "{logPath} {limit}"),
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("logPath", MaxLength: 180, Pattern: AuditLogPathPattern),
@@ -1479,14 +1633,14 @@ exit "$tar_code"
             ]),
         new(
             "check_http_local",
-            "python3 -c \"import urllib.request; port=int({port}); response=urllib.request.urlopen('http://127.0.0.1:%d/' % port, timeout=5); print('status=' + str(response.status)); print('content_type=' + str(response.headers.get('Content-Type', '')))\"",
+            CreateEncodedShellCommand(CheckHttpLocalScript, "{port}"),
             TimeSpan.FromSeconds(10),
             [
                 new AllowedCommandParameterDefinition("port", Pattern: AllowedCommandPatterns.TcpPort),
             ]),
         new(
             "check_tcp_connect_local",
-            "python3 -c \"import socket; port=int({port}); sock=socket.create_connection(('127.0.0.1', port), timeout=5); print('connected'); sock.close()\"",
+            CreateEncodedShellCommand(CheckTcpConnectLocalScript, "{port}"),
             TimeSpan.FromSeconds(10),
             [
                 new AllowedCommandParameterDefinition("port", Pattern: AllowedCommandPatterns.TcpPort),
