@@ -599,6 +599,7 @@ Safety notes:
 Purpose:
 
 Returns read-only OS, helper, and software inventory for a configured SSH profile.
+The inventory includes command-level availability probes for optional helpers and baseline OS tools such as `python3`, `php`, `node`, `systemctl`, `journalctl`, `findmnt`, `ss`, and `ip`.
 
 Input arguments:
 
@@ -618,6 +619,7 @@ Input arguments:
 Processing:
 
 KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+The detected inventory is an execution-time result. KelpieMCPServer does not persist the detected commands into the SSH profile file; clients should refresh this tool when they need current target state.
 
 Return value:
 

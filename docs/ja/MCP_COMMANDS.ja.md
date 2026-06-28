@@ -746,6 +746,7 @@ profile の `Capabilities` と `EnvironmentValues` policy に従って、remote 
 目的:
 
 指定プロファイルの OS 基本情報、helper、software の availability と version を読み取り専用で一括取得します。
+`python3`、`php`、`node`、`systemctl`、`journalctl`、`findmnt`、`ss`、`ip` などの optional helper / OS 標準 command の有無も確認します。
 
 入力引数:
 
@@ -765,7 +766,7 @@ profile の `Capabilities` と `EnvironmentValues` policy に従って、remote 
 
 処理内容:
 
-対象 SSH profile で `target_inventory` を実行し、`/etc/os-release` と固定コマンドの version 出力を読み取ります。各 helper / software command は約8秒で打ち切り、コマンド単位の失敗は `Not Available` として返します。SSH 接続または OS probe に失敗した場合のみ tool 全体を失敗扱いにします。
+対象 SSH profile で `target_inventory` を実行し、`/etc/os-release` と固定コマンドの version 出力を読み取ります。各 helper / software command は約8秒で打ち切り、コマンド単位の失敗は `Not Available` として返します。検出結果は実行時点の結果として扱い、SSH profile file へ書き戻しません。SSH 接続または OS probe に失敗した場合のみ tool 全体を失敗扱いにします。
 
 戻り値:
 
@@ -1071,7 +1072,7 @@ profile の `Capabilities` と `EnvironmentValues` policy に従って、remote 
 
 処理内容:
 
-固定の `python3 -c` wrapper から `ps -eo pid,ppid,user,comm,%cpu,%mem --sort=<sort>` を実行し、ヘッダーと先頭 `limit` 件を返します。
+固定の shell wrapper から `ps -eo pid,ppid,user,comm,%cpu,%mem --sort=<sort>` を実行し、ヘッダーと先頭 `limit` 件を返します。`python3` は必要ありません。
 
 戻り値:
 
@@ -2677,7 +2678,7 @@ systemd service unit 一覧を取得します。
 
 処理内容:
 
-固定の `python3 -c` wrapper から `systemctl list-units --type=service --state=<state> --no-pager --plain --all --no-legend` を実行し、先頭 `limit` 行だけを返します。
+固定の shell wrapper から `systemctl list-units --type=service --state=<state> --no-pager --plain --all --no-legend` を実行し、先頭 `limit` 行だけを返します。`python3` は必要ありません。
 
 戻り値:
 

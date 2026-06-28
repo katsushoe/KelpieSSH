@@ -471,8 +471,9 @@ public sealed class KelpieToolsSshTests
 
         result.CommandName.Should().Be("get_process_summary");
         result.CommandText.Should().Contain("ps");
-        result.CommandText.Should().Contain("sort='memory'");
-        result.CommandText.Should().Contain("limit=int('15')");
+        result.CommandText.Should().Contain("sort_by=\"$2\"");
+        result.CommandText.Should().Contain("'15' 'memory'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["sortBy"].Should().Be("memory");
         runner.LastRequest.Arguments["limit"].Should().Be("15");
     }
@@ -2159,8 +2160,9 @@ public sealed class KelpieToolsSshTests
 
         result.CommandName.Should().Be("list_services");
         result.CommandText.Should().Contain("systemctl");
-        result.CommandText.Should().Contain("state='running'");
-        result.CommandText.Should().Contain("limit=int('25')");
+        result.CommandText.Should().Contain("state=\"$1\"");
+        result.CommandText.Should().Contain("'running' '25'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["state"].Should().Be("running");
         runner.LastRequest.Arguments["limit"].Should().Be("25");
     }

@@ -199,6 +199,10 @@ run_item software curl curl --version
 run_item software wget wget --version
 run_item software OpenSSL openssl version
 run_item software systemctl systemctl --version
+run_item software journalctl journalctl --version
+run_item software findmnt findmnt --version
+run_item software ss ss --version
+run_item software ip ip -Version
 run_item software nginx nginx -v
 run_item software firewall-cmd firewall-cmd --version
 """;
@@ -213,7 +217,7 @@ run_item software firewall-cmd firewall-cmd --version
         new("get_memory_usage", "free -m", TimeSpan.FromSeconds(10)),
         new(
             "get_process_summary",
-            "python3 -c \"import subprocess,sys; sort={sortBy}; limit=int({limit}); key='-%cpu' if sort=='cpu' else '-%mem'; result=subprocess.run(['ps','-eo','pid,ppid,user,comm,%cpu,%mem','--sort='+key], text=True, capture_output=True); lines=result.stdout.splitlines(); print('\\n'.join(lines[:limit+1])); print(result.stderr, end='', file=sys.stderr); raise SystemExit(result.returncode)\"",
+            "sh -c 'limit=\"$1\"; sort_by=\"$2\"; case \"$sort_by\" in cpu) sort_key=\"-%cpu\";; memory) sort_key=\"-%mem\";; *) echo \"invalid sortBy\" >&2; exit 2;; esac; ps -eo pid,ppid,user,comm,%cpu,%mem --sort=\"$sort_key\" | head -n \"$((limit + 1))\"' sh {limit} {sortBy}",
             TimeSpan.FromSeconds(20),
             [
                 new AllowedCommandParameterDefinition("sortBy", Pattern: ProcessSortByPattern),
@@ -533,7 +537,7 @@ run_item software firewall-cmd firewall-cmd --version
             [ServiceParameter]),
         new(
             "list_services",
-            "python3 -c \"import subprocess,sys; state={state}; limit=int({limit}); result=subprocess.run(['systemctl','list-units','--type=service','--state='+state,'--no-pager','--plain','--all','--no-legend'], text=True, capture_output=True); print('\\n'.join(result.stdout.splitlines()[:limit])); print(result.stderr, end='', file=sys.stderr); raise SystemExit(result.returncode)\"",
+            "sh -c 'state=\"$1\"; limit=\"$2\"; systemctl list-units --type=service --state=\"$state\" --no-pager --plain --all --no-legend | head -n \"$limit\"' sh {state} {limit}",
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("state", Pattern: ServiceStatePattern),

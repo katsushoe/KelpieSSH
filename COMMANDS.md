@@ -18,7 +18,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | [Initialization](#initialization) | `kelpie init [--silent] [profile]`, `kelpie config --check` | Create and validate the local Kelpie home configuration. |
 | [Profile/session](#profilesession) | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | Create, edit, and delete profile templates, select profiles, and manage interactive SSH sessions. |
 | [Mode/UI](#modeui) | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | Switch CLI/GUI mode or choose a temporary launch mode. |
-| [Diagnostics](#diagnostics) | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | Validate profiles, show profile information, MCP server status, SSH diagnostics, and service logs. |
+| [Diagnostics](#diagnostics) | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie inventory`, `kelpie logs` | Validate profiles, show profile information, MCP server status, SSH diagnostics, target inventory, and service logs. |
 | [Packages](#packages) | `kelpie pkg check-updates`, `kelpie pkg info`, `kelpie pkg search`, `kelpie pkg list-installed`, `kelpie pkg simulate-install`, `kelpie pkg simulate-remove`, `kelpie pkg install`, `kelpie pkg remove` | Inspect packages and run confirmation-gated package operations through the selected SSH profile. |
 | [Environment](#environment) | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | List, read, temporarily set, or persist remote environment variables under profile policy. |
 | [Help/version](#helpversion) | `kelpie version`, `kelpie help`, `kelpie --help`, `kelpie --version`, `kelpiemcp version`, `kelpiemcp help` | Show version and help text. |
@@ -1612,6 +1612,7 @@ Commands in this group:
 
 - [`kelpie status <profile>`](#kelpie-status-profile)
 - [`kelpie diag <profile>`](#kelpie-diag-profile)
+- [`kelpie inventory <profile>`](#kelpie-inventory-profile)
 - [`kelpie logs <profile> <service> [lines]`](#kelpie-logs-profile-service-lines)
 
 #### `kelpie status <profile>`
@@ -1679,6 +1680,54 @@ The terminal execution result is represented by the return value sample above: p
 
 Safety notes:
 
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
+#### `kelpie inventory <profile>`
+
+Runs the read-only target inventory probe over SSH.
+
+```powershell
+kelpie inventory vps01
+```
+
+This command executes the same underlying `target_inventory` SSH command that backs the MCP `get_target_inventory` tool.
+The output includes `/etc/os-release` and one `ITEM` row per probed helper or software command, including `python3`, `php`, `node`, `systemctl`, `journalctl`, `findmnt`, `ss`, and `ip`.
+The result is an execution-time probe; Kelpie does not write detected capabilities back to the profile file.
+
+Return value:
+
+- Exit code `0` when the OS probe and command inventory complete.
+- Standard output contains tab-separated `OS` and `ITEM` rows.
+- Standard error contains SSH or policy errors if the inventory run fails.
+
+Return value sample:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "OS\tUbuntu\t24.04\tubuntu\nITEM\thelper\tPython\tpython3\t0\tPython 3.12.3\nITEM\tsoftware\tsystemctl\tsystemctl\t0\tsystemd 255\n",
+  "stderr": ""
+}
+```
+
+Execution result sample:
+
+```text
+# target_inventory
+OS	Ubuntu	24.04	ubuntu
+ITEM	helper	Python	python3	0	Python 3.12.3
+ITEM	helper	PHP	php	127	command not found
+ITEM	software	Node.js	node	127	command not found
+ITEM	software	systemctl	systemctl	0	systemd 255 (255.4-1ubuntu8)
+ITEM	software	journalctl	journalctl	0	systemd 255 (255.4-1ubuntu8)
+ITEM	software	findmnt	findmnt	0	findmnt from util-linux 2.39.3
+ITEM	software	ss	ss	0	ss utility, iproute2-6.1.0
+ITEM	software	ip	ip	0	ip utility, iproute2-6.1.0
+```
+
+Safety notes:
+
+- Inventory output may reveal installed software names and versions. Do not paste production inventory into public issues without review.
 - Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
 
 #### `kelpie logs <profile> <service> [lines]`

@@ -1,4 +1,4 @@
-# KelpieSSH Commands
+# KelpieSSH コマンド
 
 最終更新: 2026-06-28
 
@@ -6,9 +6,9 @@
 コマンドラインオプションの詳細は [CLI_OPTIONS.md](../../CLI_OPTIONS.md) を参照してください。
 MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とします。
 
-## Command Groups
+## コマンド分類
 
-| Group | Command | 内容 |
+| 分類 | コマンド | 内容 |
 | :--- | :--- | :--- |
 | MCP server control | `kelpiemcp start [--reload-config]`, `kelpiemcp stop`, `kelpiemcp status` | `KelpieMCPServer` の起動、停止、状態確認を行う。 |
 | MCP profile trust | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile>`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | SSH profile の信頼 baseline 追加、更新、取り消し、確認を行う。 |
@@ -18,13 +18,13 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | Initialization | `kelpie init [--silent] [profile]`, `kelpie config --check` | `KelpieHome` 配下の初期ディレクトリとサンプル設定を作成・検証する。 |
 | Profile/session | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイルひな形作成・編集・削除、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
 | Mode/UI | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | CLI/GUI モードや一時的な起動方式を切り替える。 |
-| Diagnostics | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | プロファイル検証、プロファイル情報、MCP server 状態、SSH 診断、サービスログを表示する。 |
+| Diagnostics | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie inventory`, `kelpie logs` | プロファイル検証、プロファイル情報、MCP server 状態、SSH 診断、接続先 inventory、サービスログを表示する。 |
 | Packages | `kelpie pkg check-updates`, `kelpie pkg info`, `kelpie pkg search`, `kelpie pkg list-installed`, `kelpie pkg simulate-install`, `kelpie pkg simulate-remove`, `kelpie pkg install`, `kelpie pkg remove` | SSH profile の package provider を使って package 確認と確認付き変更を行う。 |
 | Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | profile policy に従って remote 環境変数の key 表示、値参照、一時設定、永続化を行う。 |
 | Help/version | `kelpie version`, `kelpie help`, `kelpiemcp version`, `kelpiemcp help` | バージョンとヘルプを表示する。 |
 | Candidates | `kelpie services` | 今後追加候補。 |
 
-## Common Rules
+## 共通ルール
 
 `KelpieHome` は `kelpie` / `kelpiemcp` の配置ディレクトリの1つ上に固定します。たとえば `D:\Kelpie\bin\kelpie.exe` から実行した場合、`KelpieHome` は `D:\Kelpie` です。
 
@@ -59,7 +59,7 @@ SSHプロファイルの認証設定は、同じ `profiles/<profile>.json` の�
 | `DebianNginxCommandProvider` | `debian` | any | systemd | `service_enable_now`, `service_reload`, `service_restart`, `service_stop`, `service_disable`, `http_get_local` |
 | `RhelDnfCommandProvider` | `rhel` | `dnf` | `dnf` | `pkg_check_updates`, `pkg_info`, `pkg_search`, `pkg_list_installed`, `pkg_simulate_install`, `pkg_install`, `pkg_simulate_remove`, `pkg_remove` |
 
-## Commands
+## コマンド
 
 この章では、各コマンドに目的、構文、引数詳細、引数サンプル、処理内容、実行結果サンプル、安全上の注意を記載します。
 
@@ -1670,6 +1670,52 @@ tcp   LISTEN 0      128          0.0.0.0:22        0.0.0.0:*
 0 loaded units listed.
 ```
 
+### `kelpie inventory <profile>`
+
+目的:
+
+対象プロファイルに対して、読み取り専用の接続先 inventory probe を SSH 経由で実行します。
+
+構文:
+
+```powershell
+kelpie inventory vps01
+```
+
+引数詳細:
+
+- `profile`: inventory を確認するプロファイル名。
+
+引数サンプル:
+
+- `vps01`
+
+処理内容:
+
+MCP tool の `get_target_inventory` と同じ `target_inventory` SSH コマンドを実行します。
+`/etc/os-release` と、`python3`、`php`、`node`、`systemctl`、`journalctl`、`findmnt`、`ss`、`ip` などの helper / software command の有無と version 概要を確認します。
+検出結果は実行時の probe 結果として表示し、プロファイルファイルへ書き戻しません。
+
+実行結果サンプル:
+
+```text
+# target_inventory
+OS	Ubuntu	24.04	ubuntu
+ITEM	helper	Python	python3	0	Python 3.12.3
+ITEM	helper	PHP	php	127	command not found
+ITEM	software	Node.js	node	127	command not found
+ITEM	software	systemctl	systemctl	0	systemd 255 (255.4-1ubuntu8)
+ITEM	software	journalctl	journalctl	0	systemd 255 (255.4-1ubuntu8)
+ITEM	software	findmnt	findmnt	0	findmnt from util-linux 2.39.3
+ITEM	software	ss	ss	0	ss utility, iproute2-6.1.0
+ITEM	software	ip	ip	0	ip utility, iproute2-6.1.0
+```
+
+注意:
+
+- inventory にはインストール済み software 名や version が含まれる場合があります。公開 issue などへ貼る前に内容を確認してください。
+- 実ホスト名、実ユーザー名、秘密情報、本番パス、顧客データを記録しないでください。
+
 ### `kelpie logs <profile> <service> [lines]`
 
 目的:
@@ -2028,6 +2074,7 @@ Usage:
   kelpie profile show <profile-pattern>
   kelpie status <profile>
   kelpie diag <profile>
+  kelpie inventory <profile>
   kelpie logs <profile> <service> [lines]
   kelpie env keys <profile>
   kelpie env peek <profile> <key>
@@ -2238,7 +2285,7 @@ Run after review: kelpie pkg install vps01 nginx --confirm pkg_install:nginx
 - 初回確認ではローカル Docker SSH コンテナなどの使い捨て target を使ってください。
 - package manager の raw log に host、repository、customer data が含まれる場合、公開 issue や公開ログへ貼り付けないでください。
 
-## Safety Notes
+## 安全上の注意
 
 - `COMMANDS.ja.md` は通常のターミナルから直接実行する CLI コマンドの正本です。MCP callable tool は `MCP_COMMANDS.ja.md` を参照してください。
 - 平文パスワードは `profiles/<profile>.json` に保存しません。

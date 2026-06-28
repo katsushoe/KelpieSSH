@@ -386,6 +386,14 @@ if (string.Equals(command, "diag", StringComparison.OrdinalIgnoreCase))
     return;
 }
 
+if (string.Equals(command, "inventory", StringComparison.OrdinalIgnoreCase))
+{
+    var profileName = args.Length > 1 ? args[1] : string.Empty;
+    KpLog.Info($"Kelpie CLI inventory requested. profile={profileName}");
+    await RunInventoryAsync(LoadProfileCatalog(), profileName);
+    return;
+}
+
 if (string.Equals(command, "logs", StringComparison.OrdinalIgnoreCase))
 {
     var profileName = args.Length > 1 ? args[1] : string.Empty;
@@ -967,6 +975,7 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpie profile show <profile-pattern> [--pager|--no-pager]");
     writer.WriteLine("  kelpie status <profile>");
     writer.WriteLine("  kelpie diag <profile>");
+    writer.WriteLine("  kelpie inventory <profile>");
     writer.WriteLine("  kelpie logs <profile> <service> [lines]");
     writer.WriteLine("  kelpie pkg check-updates <profile>");
     writer.WriteLine("  kelpie pkg info <profile> <package>");
@@ -3328,6 +3337,17 @@ static async Task RunDiagnosticsAsync(SshConnectionProfileCatalog catalog, strin
     {
         await ExecuteAndPrintAsync(service, profile, commandName);
     }
+}
+
+static async Task RunInventoryAsync(SshConnectionProfileCatalog catalog, string profileName)
+{
+    if (!TryResolveProfile(catalog, profileName, out var profile))
+    {
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    await ExecuteAndPrintAsync(CreateSshCommandService(profile), profile, "target_inventory");
 }
 
 static async Task RunLogsAsync(

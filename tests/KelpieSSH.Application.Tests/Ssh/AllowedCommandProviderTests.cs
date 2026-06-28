@@ -654,7 +654,56 @@ public sealed class AllowedCommandProviderTests
         commandText.Should().StartWith("sh -c");
         commandText.Should().Contain("base64 -d");
         commandText.Should().NotContain("python3 -c");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("run_item helper Python python3 --version");
+        script.Should().Contain("run_item helper PHP php --version");
+        script.Should().Contain("run_item software Node.js node --version");
+        script.Should().Contain("run_item software systemctl systemctl --version");
+        script.Should().Contain("run_item software journalctl journalctl --version");
+        script.Should().Contain("run_item software findmnt findmnt --version");
+        script.Should().Contain("run_item software ss ss --version");
+        script.Should().Contain("run_item software ip ip -Version");
         command.RiskLevel.Should().Be(SshCommandRiskLevel.ReadOnly);
+    }
+
+    [Fact]
+    public void CommonDiagnosticCommandProvider_ShouldRenderProcessSummaryWithoutPython()
+    {
+        var provider = new CommonDiagnosticCommandProvider();
+        var profile = CreateProfile("debian", "apt");
+        var command = provider.GetCommands(profile).Single(command => command.Name == "get_process_summary");
+
+        var commandText = command.BuildCommandText(new Dictionary<string, string>
+        {
+            ["sortBy"] = "memory",
+            ["limit"] = "20",
+        });
+
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("ps -eo pid,ppid,user,comm,%cpu,%mem");
+        commandText.Should().Contain("head -n");
+        commandText.Should().Contain("'20' 'memory'");
+        commandText.Should().NotContain("python3");
+    }
+
+    [Fact]
+    public void CommonDiagnosticCommandProvider_ShouldRenderListServicesWithoutPython()
+    {
+        var provider = new CommonDiagnosticCommandProvider();
+        var profile = CreateProfile("debian", "apt");
+        var command = provider.GetCommands(profile).Single(command => command.Name == "list_services");
+
+        var commandText = command.BuildCommandText(new Dictionary<string, string>
+        {
+            ["state"] = "running",
+            ["limit"] = "20",
+        });
+
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("systemctl list-units");
+        commandText.Should().Contain("head -n");
+        commandText.Should().Contain("'running' '20'");
+        commandText.Should().NotContain("python3");
     }
 
     [Fact]
@@ -1459,6 +1508,14 @@ public sealed class AllowedCommandProviderTests
     private static string DecodeEmbeddedPythonScript(string commandText)
     {
         var scriptBase64 = Regex.Match(commandText, "b64decode\\('(?<script>[^']+)'\\)")
+            .Groups["script"]
+            .Value;
+        return Encoding.UTF8.GetString(Convert.FromBase64String(scriptBase64));
+    }
+
+    private static string DecodeEmbeddedShellScript(string commandText)
+    {
+        var scriptBase64 = Regex.Match(commandText, "printf %s '(?<script>[^']+)' \\| base64 -d")
             .Groups["script"]
             .Value;
         return Encoding.UTF8.GetString(Convert.FromBase64String(scriptBase64));
