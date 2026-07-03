@@ -1,6 +1,6 @@
 # KelpieSSH MCP コマンド
 
-最終更新: 2026-06-28
+最終更新: 2026-07-03
 
 このファイルは、KelpieSSH が MCP callable tool として公開するコマンドの正本です。
 通常のターミナルで実行する `kelpie` / `kelpiemcp` CLI コマンドは `COMMANDS.ja.md` を正本とします。
@@ -53,7 +53,7 @@ HTTP request body は REST 形式ではなく JSON-RPC です。たとえば診�
 | SSH 診断 | `ssh_get_system_info`, `ssh_get_os_release`, `ssh_get_uptime`, `ssh_get_disk_usage`, `ssh_get_memory_usage`, `ssh_get_process_summary`, `ssh_get_inode_usage`, `ssh_get_mounts`, `ssh_get_network_addresses`, `ssh_get_routes`, `ssh_get_dns_config`, `ssh_cron_list`, `ssh_cron_validate`, `ssh_cron_check_write`, `ssh_cron_write`, `ssh_cron_rollback`, `ssh_cert_inspect`, `ssh_cert_expiry_check`, `ssh_user_list`, `ssh_user_info`, `ssh_group_list`, `ssh_group_info`, `ssh_sudoers_check`, `ssh_user_usage_check`, `ssh_user_check_group_change`, `ssh_user_apply_group_change`, `ssh_user_rollback_group_change`, `ssh_user_check_permission_change`, `ssh_user_apply_permission_change`, `ssh_user_rollback_permission_change`, `ssh_user_file_ownership_check`, `ssh_user_service_usage_check`, `ssh_service_residual_config_check`, `ssh_support_report_collect`, `ssh_firewall_status`, `ssh_firewall_check_rule`, `ssh_firewall_apply_rule`, `ssh_backup_plan_check`, `ssh_backup_run`, `ssh_backup_verify`, `ssh_audit_verify`, `ssh_audit_export`, `ssh_check_http_local`, `ssh_check_tcp_connect_local`, `ssh_get_listening_ports`, `ssh_get_failed_services`, `ssh_get_journal_recent`, `ssh_tail_log`, `ssh_run_allowed_command`, `ssh_run_remote_operation` | 許可済み SSH 診断コマンドの実行。 |
 | 環境変数 | `get_environment_keys`, `peek_environment_value`, `set_environment_value`, `list_persistent_environment_keys`, `persist_environment_value`, `remove_persistent_environment_value` | profile policy に従って remote 環境変数の key 表示、値参照、一時設定、永続化を行う。 |
 | SSH ターミナル / session cleanup | `ssh_terminal_open`, `ssh_terminal_send`, `ssh_terminal_snapshot`, `ssh_terminal_close`, `ssh_connection_close`, `ssh_logout` | PTY 付き対話ターミナルの操作と MCP password session の破棄。 |
-| パッケージ操作 | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove` | package の確認、検索、dry-run、確認付き変更。 |
+| パッケージ操作 | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove`, `ssh_certbot_check_install`, `ssh_certbot_install` | package の確認、検索、dry-run、確認付き変更、Certbot 専用 install。 |
 | サービス操作 | `ssh_service_status`, `ssh_service_is_active`, `ssh_service_is_enabled`, `ssh_list_services`, `ssh_service_enable_now`, `ssh_service_reload`, `ssh_service_restart`, `ssh_service_stop`, `ssh_service_disable` | systemd service の状態確認と確認付き変更。 |
 | サービス設定 / ログ | `service_config_paths`, `service_config_file_check_read`, `service_config_file_read`, `service_config_file_check_write`, `service_config_file_write`, `service_config_file_rollback`, `service_config_file_commit`, `service_config_test`, `ssh_service_config_nginx_enable_php`, `service_logfile_read` | provider が許可したサービス設定ファイルとログの操作。 |
 | Web ファイル | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_check_write`, `web_secret_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_secret_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | provider が許可した Web ルート配下のファイル操作、秘密ファイル転送、権限変更。 |
@@ -3449,6 +3449,110 @@ Confirmation is required: pkg_install:nginx
 安全上の注意:
 
 - 現時点では確認要求のみです。確認済み remove tool を追加する場合は別途定義します。
+
+### `ssh_certbot_check_install`
+
+目的:
+
+Let's Encrypt 用 Certbot を対象 profile に install できるか、実変更なしで確認します。
+
+入力引数:
+
+- `profileName`: SSH プロファイル名。
+- `plugin`: install 対象 plugin。`nginx` / `apache` / `none` のいずれか。省略時は `nginx`。
+
+引数サンプル:
+
+```json
+{
+  "profileName": "vps01",
+  "plugin": "nginx"
+}
+```
+
+確認文字列:
+
+- 戻り値の `StandardOutput` に `confirmation=certbot_install:<plugin>` を含みます。
+
+処理内容:
+
+Certbot の有無、Web server command の有無、選択 plugin に対応する候補 package を確認し、package manager の候補情報と確認文字列を返します。package install、証明書発行、Web server 設定変更、reload は行いません。
+
+戻り値:
+
+- `SshToolResult`
+
+実行結果サンプル:
+
+```json
+{
+  "ProfileName": "vps01",
+  "CommandName": "certbot_check_install",
+  "ExitCode": 0,
+  "StandardOutput": "packageManager=apt\nplugin=nginx\ncertbotInstalled=false\nnginxInstalled=true\ncandidatePackages=certbot python3-certbot-nginx\nconfirmation=certbot_install:nginx\n"
+}
+```
+
+安全上の注意:
+
+- 読み取り専用です。
+- 実 install には `ssh_certbot_install` を使い、ここで返った確認文字列をそのまま渡します。
+
+### `ssh_certbot_install`
+
+目的:
+
+Let's Encrypt 用 Certbot と選択 plugin の package を確認付きで install します。
+
+入力引数:
+
+- `profileName`: SSH プロファイル名。
+- `plugin`: install 対象 plugin。`nginx` / `apache` / `none` のいずれか。省略時は `nginx`。
+- `confirmation`: `certbot_install:<plugin>`。
+
+引数サンプル:
+
+```json
+{
+  "profileName": "vps01",
+  "plugin": "nginx",
+  "confirmation": "certbot_install:nginx"
+}
+```
+
+確認文字列:
+
+- `certbot_install:<plugin>`
+
+処理内容:
+
+確認文字列と `plugin` を検証し、package install と sudo policy を確認してから、固定 package set だけを install します。`nginx` の場合は `certbot` と nginx plugin、`apache` の場合は `certbot` と apache plugin、`none` の場合は `certbot` のみを対象にします。
+
+戻り値:
+
+- `SshToolResult`
+
+実行結果サンプル:
+
+```json
+{
+  "ProfileName": "vps01",
+  "CommandName": "certbot_install",
+  "ExitCode": 0,
+  "StandardOutput": "<package-manager output>"
+}
+```
+
+確認文字列が不一致の場合:
+
+```text
+Confirmation is required: certbot_install:nginx
+```
+
+安全上の注意:
+
+- SSH 先の package 状態を変更します。
+- この P1 tool は Certbot と選択 plugin の install のみを行います。証明書発行、Web server 設定変更、reload、renew dry-run は別 tool として扱います。
 
 ### `ssh_service_enable_now`
 

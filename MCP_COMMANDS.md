@@ -1,6 +1,6 @@
 # KelpieSSH MCP Commands
 
-Last updated: 2026-06-28
+Last updated: 2026-07-03
 
 This file is the English command reference for MCP callable tools exposed by `KelpieMCPServer`.
 For Japanese documentation, see [docs/ja/MCP_COMMANDS.ja.md](docs/ja/MCP_COMMANDS.ja.md).
@@ -58,7 +58,7 @@ This document describes the `name` and `arguments` used inside `tools/call`. In 
 | [Environment](#environment) | `get_environment_keys`, `peek_environment_value`, `set_environment_value`, `list_persistent_environment_keys`, `persist_environment_value`, `remove_persistent_environment_value` | List, read, temporarily set, or persist remote environment variables under profile policy. |
 | [Generic execution](#generic-execution) | `ssh_run_allowed_command`, `ssh_run_remote_operation` | Run an allow-listed managed operation through policy checks. |
 | [Terminal and session cleanup](#terminal-and-session-cleanup) | `ssh_terminal_open`, `ssh_terminal_send`, `ssh_terminal_snapshot`, `ssh_terminal_close`, `ssh_connection_close`, `ssh_logout` | Manage an interactive SSH terminal session and clear MCP password sessions. |
-| [Packages](#packages) | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove` | Inspect packages and run confirmation-gated package operations. |
+| [Packages](#packages) | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove`, `ssh_certbot_check_install`, `ssh_certbot_install` | Inspect packages and run confirmation-gated package operations, including bounded Certbot installation. |
 | [Services](#services) | `ssh_service_status`, `ssh_service_is_active`, `ssh_service_is_enabled`, `ssh_list_services`, `ssh_service_enable_now`, `ssh_service_reload`, `ssh_service_restart`, `ssh_service_stop`, `ssh_service_disable` | Inspect and safely manage systemd services. |
 | [Service config/logs](#service-configlogs) | `service_config_paths`, `service_config_file_check_read`, `service_config_file_read`, `service_config_file_check_write`, `service_config_file_write`, `service_config_file_rollback`, `service_config_file_commit`, `service_config_test`, `ssh_service_config_nginx_enable_php`, `service_logfile_read` | Operate on provider-approved service configuration files and logs. |
 | [Web files](#web-files) | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_check_write`, `web_secret_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_secret_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | Operate on provider-approved web roots. |
@@ -4531,6 +4531,8 @@ Tools in this group:
 - [`ssh_pkg_install_confirmed`](#ssh_pkg_install_confirmed)
 - [`ssh_pkg_simulate_remove`](#ssh_pkg_simulate_remove)
 - [`ssh_pkg_remove`](#ssh_pkg_remove)
+- [`ssh_certbot_check_install`](#ssh_certbot_check_install)
+- [`ssh_certbot_install`](#ssh_certbot_install)
 
 #### `ssh_pkg_check_updates`
 
@@ -5066,6 +5068,121 @@ The MCP execution result body is the return value sample above, wrapped by the c
 Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+#### `ssh_certbot_check_install`
+
+Purpose:
+
+Checks whether Certbot for Let's Encrypt can be installed on the target through the configured package manager. It does not install packages.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `plugin`: Web server plugin package set. Allowed values are `nginx`, `apache`, and `none`. Defaults to `nginx`.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_certbot_check_install",
+  "arguments": {
+    "profileName": "vps01",
+    "plugin": "nginx"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer resolves the SSH profile, validates `plugin`, runs the read-oriented Certbot install check for the profile package manager, and returns package-manager output plus the confirmation token for `ssh_certbot_install`.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- `StandardOutput` includes `packageManager`, `plugin`, detected Certbot/web server state, candidate package names, package-manager candidate details, and `confirmation=certbot_install:<plugin>`.
+- Error fields contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "certbot_check_install",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "packageManager=apt\nplugin=nginx\ncertbotInstalled=false\nnginxInstalled=true\ncandidatePackages=certbot python3-certbot-nginx\nconfirmation=certbot_install:nginx\n",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Safety notes:
+
+- Read-oriented tool. It does not install Certbot and does not edit web server configuration.
+- Use `ssh_certbot_install` only with the exact confirmation token returned by this check.
+
+#### `ssh_certbot_install`
+
+Purpose:
+
+Installs Certbot for Let's Encrypt after explicit confirmation.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `confirmation`: Exact confirmation token returned by `ssh_certbot_check_install`.
+- `plugin`: Web server plugin package set. Allowed values are `nginx`, `apache`, and `none`. Defaults to `nginx`.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_certbot_install",
+  "arguments": {
+    "profileName": "vps01",
+    "plugin": "nginx",
+    "confirmation": "certbot_install:nginx"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the confirmation token and plugin, applies package-install and sudo policy checks, and installs only the fixed Certbot package set for the selected plugin.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned command name is `certbot_install`.
+- Error fields contain validation, policy, connection, or package-manager errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "certbot_install",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<package-manager output>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Safety notes:
+
+- This tool changes package state on the SSH target.
+- Empty or mismatched confirmation strings do not run package installation.
+- This P1 tool only installs Certbot and the selected package plugin. Certificate issuance, web server editing, reloads, and renewal tests are intentionally separate future commands.
 
 ### Services
 

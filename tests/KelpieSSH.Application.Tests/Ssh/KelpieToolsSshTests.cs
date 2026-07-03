@@ -284,6 +284,8 @@ public sealed class KelpieToolsSshTests
         result.Tools.Should().Contain(tool => tool.ToolName == "ssh_service_stop" && tool.RequiresConfirmation);
         result.Tools.Should().Contain(tool => tool.ToolName == "ssh_service_disable" && tool.RequiresConfirmation);
         result.Tools.Should().Contain(tool => tool.ToolName == "ssh_pkg_install" && tool.RequiresConfirmation);
+        result.Tools.Should().Contain(tool => tool.ToolName == "ssh_certbot_check_install" && tool.Available);
+        result.Tools.Should().Contain(tool => tool.ToolName == "ssh_certbot_install" && tool.Available && tool.RequiresConfirmation);
         runner.LastRequest!.CommandName.Should().Be("get_os_release");
     }
 
@@ -3271,6 +3273,93 @@ public sealed class KelpieToolsSshTests
         result.ErrorInfo.Should().NotBeNull();
         result.ErrorInfo!.Code.Should().Be("KELPIE_POLICY_COMMAND_DENIED");
         result.ErrorInfo.Category.Should().Be("PolicyDenied");
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CheckSshCertbotInstallAsync_ShouldPassPluginArgument()
+    {
+        var profile = CreateProfile("vps01", osFamily: "alma", packageManager: "dnf");
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var result = await KelpieTools.CheckSshCertbotInstallAsync(
+            service,
+            profiles,
+            "vps01",
+            "nginx");
+
+        result.CommandName.Should().Be("certbot_check_install");
+        result.CommandText.Should().Contain("dnf list certbot python3-certbot-nginx");
+        result.CommandText.Should().Contain("'nginx'");
+        result.CommandText.Should().NotContain("python3 -c");
+        runner.LastRequest!.Arguments["plugin"].Should().Be("nginx");
+    }
+
+    [Fact]
+    public async Task InstallSshCertbotAsync_ShouldReturnConfirmationError()
+    {
+        var profile = CreateProfile("vps01", KelpiePolicyMode.Expert);
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var result = await KelpieTools.InstallSshCertbotAsync(
+            service,
+            profiles,
+            "vps01",
+            string.Empty,
+            "nginx");
+
+        result.CommandName.Should().Be("certbot_install");
+        result.ExitCode.Should().Be(-1);
+        result.Error.Should().Be("Confirmation is required: certbot_install:nginx");
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task InstallSshCertbotAsync_ShouldExecuteWithConfirmation()
+    {
+        var profile = CreateProfile("vps01", KelpiePolicyMode.Expert);
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var result = await KelpieTools.InstallSshCertbotAsync(
+            service,
+            profiles,
+            "vps01",
+            "certbot_install:nginx",
+            "nginx");
+
+        result.CommandName.Should().Be("certbot_install");
+        result.CommandText.Should().Contain("apt-get install -y certbot python3-certbot-nginx");
+        runner.LastRequest!.CommandName.Should().Be("certbot_install");
+        runner.LastRequest.Arguments["plugin"].Should().Be("nginx");
+    }
+
+    [Fact]
+    public async Task InstallSshCertbotAsync_ShouldRejectSafeModePolicyBeforeExecution()
+    {
+        var profile = CreateProfile("vps01", KelpiePolicyMode.Safe);
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var result = await KelpieTools.InstallSshCertbotAsync(
+            service,
+            profiles,
+            "vps01",
+            "certbot_install:nginx",
+            "nginx");
+
+        result.CommandName.Should().Be("certbot_install");
+        result.Ok.Should().BeFalse();
+        result.ExitCode.Should().Be(-1);
+        result.Error.Should().Be("KelpiePolicyError: AllowSudo is required for command: certbot_install");
+        result.ErrorInfo.Should().NotBeNull();
+        result.ErrorInfo!.Code.Should().Be("KELPIE_POLICY_COMMAND_DENIED");
         runner.LastRequest.Should().BeNull();
     }
 

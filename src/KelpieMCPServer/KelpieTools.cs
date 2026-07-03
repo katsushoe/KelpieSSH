@@ -2328,6 +2328,69 @@ public sealed partial class KelpieTools
             profileName);
     }
 
+    /// <summary>
+    /// Checks whether Certbot for Let's Encrypt can be installed through a configured SSH profile.
+    /// </summary>
+    /// <param name="sshCommandService">The SSH command service.</param>
+    /// <param name="profileCatalog">The SSH profile catalog.</param>
+    /// <param name="profileName">The SSH profile name.</param>
+    /// <param name="plugin">The optional web server plugin: none, nginx, or apache.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The SSH command result.</returns>
+    [McpServerTool(Name = "ssh_certbot_check_install")]
+    [Description("Checks Certbot install readiness and returns the confirmation token for ssh_certbot_install without changing the server.")]
+    public static async Task<SshToolResult> CheckSshCertbotInstallAsync(
+        SshCommandService sshCommandService,
+        ISshConnectionProfileCatalog profileCatalog,
+        string profileName,
+        string plugin = "nginx",
+        CancellationToken cancellationToken = default)
+    {
+        KpLog.Info($"MCP SSH tool called: ssh_certbot_check_install plugin={plugin}, profile={profileName}");
+        return await ExecuteSshCertbotCommandAsync(
+            sshCommandService,
+            profileCatalog,
+            "certbot_check_install",
+            plugin,
+            profileName,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Installs Certbot for Let's Encrypt after explicit caller confirmation.
+    /// </summary>
+    /// <param name="sshCommandService">The SSH command service.</param>
+    /// <param name="profileCatalog">The SSH profile catalog.</param>
+    /// <param name="profileName">The SSH profile name.</param>
+    /// <param name="confirmation">The required confirmation token: certbot_install:&lt;plugin&gt;.</param>
+    /// <param name="plugin">The optional web server plugin: none, nginx, or apache.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The SSH command result.</returns>
+    [McpServerTool(Name = "ssh_certbot_install")]
+    [Description("Installs Certbot after explicit confirmation. The confirmation argument must be certbot_install:<plugin>.")]
+    public static async Task<SshToolResult> InstallSshCertbotAsync(
+        SshCommandService sshCommandService,
+        ISshConnectionProfileCatalog profileCatalog,
+        string profileName,
+        string confirmation,
+        string plugin = "nginx",
+        CancellationToken cancellationToken = default)
+    {
+        KpLog.Info($"MCP SSH tool called: ssh_certbot_install plugin={plugin}, profile={profileName}");
+        if (!TryGetConfirmationError("certbot_install", plugin, confirmation, out var confirmationError))
+        {
+            return CreateRejectedSshToolResult(profileName, "certbot_install", confirmationError);
+        }
+
+        return await ExecuteSshCertbotCommandAsync(
+            sshCommandService,
+            profileCatalog,
+            "certbot_install",
+            plugin,
+            profileName,
+            cancellationToken);
+    }
+
     private static async Task<SshToolResult> ExecuteSshPackageCommandAsync(
         SshCommandService sshCommandService,
         ISshConnectionProfileCatalog profileCatalog,
@@ -2343,6 +2406,26 @@ public sealed partial class KelpieTools
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 ["package"] = package,
+            },
+            profileName,
+            cancellationToken);
+    }
+
+    private static async Task<SshToolResult> ExecuteSshCertbotCommandAsync(
+        SshCommandService sshCommandService,
+        ISshConnectionProfileCatalog profileCatalog,
+        string commandName,
+        string plugin,
+        string profileName,
+        CancellationToken cancellationToken)
+    {
+        return await ExecuteSshCommandAsync(
+            sshCommandService,
+            profileCatalog,
+            commandName,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["plugin"] = plugin,
             },
             profileName,
             cancellationToken);

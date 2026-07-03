@@ -122,6 +122,8 @@ public sealed partial class KelpieTools
             CreateSshToolCapability("ssh_pkg_install", "pkg_install", commands),
             CreateSshToolCapability("ssh_pkg_simulate_remove", "pkg_simulate_remove", commands),
             CreateSshToolCapability("ssh_pkg_remove", "pkg_remove", commands),
+            CreateSshToolCapability("ssh_certbot_check_install", "certbot_check_install", commands),
+            CreateSshToolCapability("ssh_certbot_install", "certbot_install", commands),
             CreateSshToolCapability("ssh_service_restart", "service_restart", commands),
             CreateSshToolCapability("ssh_service_stop", "service_stop", commands),
             CreateSshToolCapability("ssh_service_disable", "service_disable", commands),

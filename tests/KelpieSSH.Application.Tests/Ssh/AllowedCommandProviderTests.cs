@@ -343,6 +343,8 @@ public sealed class AllowedCommandProviderTests
             "pkg_install",
             "pkg_simulate_remove",
             "pkg_remove",
+            "certbot_check_install",
+            "certbot_install",
         ]);
     }
 
@@ -434,6 +436,8 @@ public sealed class AllowedCommandProviderTests
             "pkg_install",
             "pkg_simulate_remove",
             "pkg_remove",
+            "certbot_check_install",
+            "certbot_install",
         ]);
     }
 
@@ -460,6 +464,22 @@ public sealed class AllowedCommandProviderTests
         });
 
         commandText.Should().Be("sudo -n dnf install -y 'nginx'");
+    }
+
+    [Fact]
+    public void RhelDnfCommandProvider_ShouldRenderCertbotInstallCommand()
+    {
+        var provider = new RhelDnfCommandProvider();
+        var profile = CreateProfile("alma", "dnf");
+        var command = provider.GetCommands(profile).Single(command => command.Name == "certbot_install");
+
+        var commandText = command.BuildCommandText(new Dictionary<string, string>
+        {
+            ["plugin"] = "apache",
+        });
+
+        commandText.Should().Contain("dnf install -y certbot python3-certbot-apache");
+        command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
     }
 
     [Fact]
@@ -554,6 +574,8 @@ public sealed class AllowedCommandProviderTests
         commands["pkg_install"].RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
         commands["pkg_simulate_remove"].RiskLevel.Should().Be(SshCommandRiskLevel.ReadOnly);
         commands["pkg_remove"].RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
+        commands["certbot_check_install"].RiskLevel.Should().Be(SshCommandRiskLevel.ReadOnly);
+        commands["certbot_install"].RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
     }
 
     [Theory]
@@ -587,6 +609,38 @@ public sealed class AllowedCommandProviderTests
         });
 
         commandText.Should().Be("apt-get -s install 'nginx-core'");
+    }
+
+    [Fact]
+    public void DebianAptCommandProvider_ShouldRenderCertbotInstallCommand()
+    {
+        var provider = new DebianAptCommandProvider();
+        var profile = CreateProfile("debian", "apt");
+        var command = provider.GetCommands(profile).Single(command => command.Name == "certbot_install");
+
+        var commandText = command.BuildCommandText(new Dictionary<string, string>
+        {
+            ["plugin"] = "nginx",
+        });
+
+        commandText.Should().Contain("apt-get install -y certbot python3-certbot-nginx");
+        command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
+    }
+
+    [Fact]
+    public void DebianAptCommandProvider_ShouldRejectUnsafeCertbotPlugin()
+    {
+        var provider = new DebianAptCommandProvider();
+        var profile = CreateProfile("debian", "apt");
+        var command = provider.GetCommands(profile).Single(command => command.Name == "certbot_install");
+
+        var action = () => command.BuildCommandText(new Dictionary<string, string>
+        {
+            ["plugin"] = "nginx;rm",
+        });
+
+        action.Should().Throw<InvalidOperationException>()
+            .WithMessage("SSH command argument contains a dangerous fragment: plugin");
     }
 
     [Fact]
