@@ -343,6 +343,140 @@ public static class KelpieServerCommandRunner
     }
 
     /// <summary>
+    /// Stores a short-lived secret payload in the running server session.
+    /// </summary>
+    /// <param name="options">The command options.</param>
+    /// <param name="args">The secret command arguments.</param>
+    public static async Task SecretPutAsync(KelpieMcpServerOptions options, IReadOnlyList<string> args)
+    {
+        var request = ParseSecretPutArguments(args);
+        if (request.Error is not null)
+        {
+            Console.Error.WriteLine(request.Error);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        byte[] content;
+        try
+        {
+            content = File.ReadAllBytes(request.FromFile);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            Console.Error.WriteLine("Failed to read secret file: " + ex.Message);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var response = await SendSecretPutCommandAsync(
+            options.ControlPipeName,
+            request.Name,
+            request.TtlSeconds,
+            content,
+            TimeSpan.FromSeconds(10));
+
+        if (response is null)
+        {
+            Console.Error.WriteLine("KelpieMCPServer is not running.");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        if (response.StartsWith("secret-rejected:", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.Error.WriteLine(response["secret-rejected:".Length..]);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        if (!TryDeserializeSecretInfo(response, out var info))
+        {
+            WriteSecretFailure(response);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        KpLog.Info($"Secret stored for this KelpieMCPServer session. name={info.Name}, size={info.Size}, expiresAtUtc={info.ExpiresAtUtc:O}");
+        Console.WriteLine("Secret stored for this KelpieMCPServer session.");
+        Console.WriteLine($"Name: {info.Name}");
+        Console.WriteLine($"Size: {info.Size} bytes");
+        Console.WriteLine($"ExpiresAtUtc: {info.ExpiresAtUtc:O}");
+    }
+
+    /// <summary>
+    /// Lists short-lived secret references in the running server session.
+    /// </summary>
+    /// <param name="options">The command options.</param>
+    public static async Task SecretListAsync(KelpieMcpServerOptions options)
+    {
+        var response = await SendControlCommandWithResponseAsync(
+            options.ControlPipeName,
+            "secret-list",
+            TimeSpan.FromSeconds(3));
+        if (response is null)
+        {
+            Console.Error.WriteLine("KelpieMCPServer is not running.");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        IReadOnlyCollection<KelpieSecretInfo> secrets;
+        try
+        {
+            secrets = JsonSerializer.Deserialize<KelpieSecretInfo[]>(response) ?? [];
+        }
+        catch (JsonException)
+        {
+            Console.Error.WriteLine("KelpieMCPServer returned an invalid secret list.");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        Console.WriteLine("Secrets:");
+        if (secrets.Count == 0)
+        {
+            Console.WriteLine("(none)");
+            return;
+        }
+
+        foreach (var secret in secrets)
+        {
+            Console.WriteLine($"{secret.Name}  {secret.Size} bytes  expires {secret.ExpiresAtUtc:yyyy-MM-dd HH:mm:ss}Z");
+        }
+    }
+
+    /// <summary>
+    /// Removes one short-lived secret reference from the running server session.
+    /// </summary>
+    /// <param name="options">The command options.</param>
+    /// <param name="args">The secret command arguments.</param>
+    public static async Task SecretForgetAsync(KelpieMcpServerOptions options, IReadOnlyList<string> args)
+    {
+        var secretName = args.Count > 0 ? args[0].Trim() : string.Empty;
+        if (string.IsNullOrWhiteSpace(secretName))
+        {
+            Console.Error.WriteLine("Secret name is required.");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var response = await SendControlCommandWithResponseAsync(
+            options.ControlPipeName,
+            "secret-forget " + secretName,
+            TimeSpan.FromSeconds(3));
+        if (string.Equals(response, "secret-forgotten", StringComparison.OrdinalIgnoreCase))
+        {
+            KpLog.Info($"Secret cleared for this KelpieMCPServer session. name={secretName}");
+            Console.WriteLine("Secret cleared for this KelpieMCPServer session.");
+            return;
+        }
+
+        WriteSecretFailure(response);
+        Environment.ExitCode = 1;
+    }
+
+    /// <summary>
     /// Stores a password for one SSH profile in the running server session.
     /// </summary>
     /// <param name="options">The command options.</param>
@@ -539,6 +673,62 @@ public static class KelpieServerCommandRunner
         }
     }
 
+    private static async Task<string?> SendSecretPutCommandAsync(
+        string pipeName,
+        string secretName,
+        int ttlSeconds,
+        byte[] content,
+        TimeSpan timeout)
+    {
+        try
+        {
+            await using var pipe = new NamedPipeClientStream(
+                ".",
+                pipeName,
+                PipeDirection.InOut,
+                PipeOptions.Asynchronous);
+
+            using var cancellationTokenSource = new CancellationTokenSource(timeout);
+            await pipe.ConnectAsync(cancellationTokenSource.Token);
+
+            var writer = new StreamWriter(pipe)
+            {
+                AutoFlush = true,
+            };
+            var reader = new StreamReader(pipe);
+
+            var request = JsonSerializer.Serialize(new SecretPutRequest(secretName, ttlSeconds));
+            await writer.WriteLineAsync("secret-put " + request);
+            await writer.FlushAsync(cancellationTokenSource.Token);
+
+            var response = await reader.ReadLineAsync(cancellationTokenSource.Token);
+            if (!string.Equals(response, "secret-required", StringComparison.OrdinalIgnoreCase))
+            {
+                return response;
+            }
+
+            await writer.WriteLineAsync(Convert.ToBase64String(content));
+            await writer.FlushAsync(cancellationTokenSource.Token);
+            return await reader.ReadLineAsync(cancellationTokenSource.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
+        catch (TimeoutException)
+        {
+            return null;
+        }
+    }
+
     private static string ReadPasswordFromConsole(string profileName)
     {
         Console.Error.Write($"Password for {profileName}: ");
@@ -588,6 +778,117 @@ public static class KelpieServerCommandRunner
 
         KpLog.Warn(message);
         Console.Error.WriteLine(message);
+    }
+
+    private static void WriteSecretFailure(string? response)
+    {
+        var message = response switch
+        {
+            "secret-name-required" => "Secret name is required.",
+            "secret-empty" => "Secret content is required.",
+            "secret-invalid-base64" => "Secret content could not be transferred.",
+            "secret-not-found" => "Secret reference was not found.",
+            "invalid-request" => "KelpieMCPServer returned invalid request response.",
+            null => "KelpieMCPServer is not running.",
+            _ => $"KelpieMCPServer returned unexpected response: {response}",
+        };
+
+        KpLog.Warn(message);
+        Console.Error.WriteLine(message);
+    }
+
+    private static bool TryDeserializeSecretInfo(string response, out KelpieSecretInfo info)
+    {
+        try
+        {
+            info = JsonSerializer.Deserialize<KelpieSecretInfo>(response) ?? new KelpieSecretInfo(string.Empty, 0, DateTimeOffset.MinValue, DateTimeOffset.MinValue);
+            return !string.IsNullOrWhiteSpace(info.Name);
+        }
+        catch (JsonException)
+        {
+            info = new KelpieSecretInfo(string.Empty, 0, DateTimeOffset.MinValue, DateTimeOffset.MinValue);
+            return false;
+        }
+    }
+
+    private static SecretPutCliRequest ParseSecretPutArguments(IReadOnlyList<string> args)
+    {
+        var name = string.Empty;
+        var fromFile = string.Empty;
+        var ttl = "10m";
+        for (var index = 0; index < args.Count; index++)
+        {
+            var arg = args[index];
+            if (string.Equals(arg, "--name", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Count)
+            {
+                name = args[++index];
+                continue;
+            }
+
+            if (string.Equals(arg, "--from-file", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Count)
+            {
+                fromFile = args[++index];
+                continue;
+            }
+
+            if (string.Equals(arg, "--ttl", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Count)
+            {
+                ttl = args[++index];
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(name) && !arg.StartsWith("-", StringComparison.Ordinal))
+            {
+                name = arg;
+                continue;
+            }
+
+            return SecretPutCliRequest.Invalid("Unknown or incomplete secret put option: " + arg);
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return SecretPutCliRequest.Invalid("Secret name is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(fromFile))
+        {
+            return SecretPutCliRequest.Invalid("--from-file is required.");
+        }
+
+        if (!TryParseTtlSeconds(ttl, out var ttlSeconds))
+        {
+            return SecretPutCliRequest.Invalid("TTL must be a positive duration such as 600, 600s, 10m, or 1h.");
+        }
+
+        return new SecretPutCliRequest(name.Trim(), fromFile, ttlSeconds, null);
+    }
+
+    private static bool TryParseTtlSeconds(string value, out int ttlSeconds)
+    {
+        ttlSeconds = 0;
+        var trimmed = value.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            return false;
+        }
+
+        var suffix = trimmed[^1];
+        var numberText = char.IsLetter(suffix) ? trimmed[..^1] : trimmed;
+        if (!int.TryParse(numberText, out var number) || number <= 0)
+        {
+            return false;
+        }
+
+        ttlSeconds = char.ToLowerInvariant(suffix) switch
+        {
+            's' => number,
+            'm' => number * 60,
+            'h' => number * 60 * 60,
+            _ when char.IsDigit(suffix) => number,
+            _ => 0,
+        };
+        return ttlSeconds > 0;
     }
 
     private static async Task RunProfileTrustOperationAsync(
@@ -1051,4 +1352,20 @@ public static class KelpieServerCommandRunner
         string SecretName,
         DateTimeOffset StartedAtUtc,
         string Kind);
+
+    private sealed record SecretPutRequest(
+        string Name,
+        int TtlSeconds);
+
+    private sealed record SecretPutCliRequest(
+        string Name,
+        string FromFile,
+        int TtlSeconds,
+        string? Error)
+    {
+        public static SecretPutCliRequest Invalid(string error)
+        {
+            return new SecretPutCliRequest(string.Empty, string.Empty, 0, error);
+        }
+    }
 }

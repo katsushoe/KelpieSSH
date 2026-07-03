@@ -14,6 +14,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | MCP profile trust | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile>`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | SSH profile の信頼 baseline 追加、更新、取り消し、確認を行う。 |
 | MCP Windows Service | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Windows Service 登録、登録解除、登録状態確認を行う。 |
 | MCP password session | `kelpiemcp password`, `kelpiemcp forget` | 起動中の MCP server に SSH パスワードを一時保存、削除する。 |
+| MCP secret session | `kelpiemcp secret put`, `kelpiemcp secret list`, `kelpiemcp secret forget` | 起動中の MCP server に短命の秘密ファイル内容を一時保存、一覧表示、削除する。 |
 | Compatibility | `kelpiemcp login`, `kelpiemcp logout` | 旧名互換。新規利用では `password` / `forget` を使う。 |
 | Initialization | `kelpie init [--silent] [profile]`, `kelpie config --check` | `KelpieHome` 配下の初期ディレクトリとサンプル設定を作成・検証する。 |
 | Profile/session | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイルひな形作成・編集・削除、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
@@ -619,6 +620,69 @@ kelpiemcp logout vps01
 実行結果サンプル:
 
 現在は `kelpiemcp forget <profile>` と同じ形式で表示します。
+
+### `kelpiemcp secret put --name <name> --from-file <path> [--ttl <duration>]`
+
+目的:
+
+ローカルファイルの内容を、起動中の `KelpieMCPServer` のメモリ上に短時間だけ保存します。`.env` などを `web_secret_file_check_write` / `web_secret_file_write` で転送するための前処理です。
+
+構文:
+
+```powershell
+kelpiemcp secret put --name prod-web-env --from-file .env --ttl 10m
+```
+
+引数詳細:
+
+- `--name <name>`: MCP tool から参照する secret name。
+- `--from-file <path>`: 読み込むローカルファイル。
+- `--ttl <duration>`: 任意。`600`、`600s`、`10m`、`1h` のように指定します。server 側では最大1時間に丸めます。
+
+処理内容:
+
+ファイル内容は local control pipe 経由で server process のメモリに保存します。標準出力、ログ、MCP tool の戻り値には秘密本文を出しません。
+
+実行結果サンプル:
+
+```text
+Secret stored for this KelpieMCPServer session.
+Name: prod-web-env
+Size: 128 bytes
+ExpiresAtUtc: 2026-07-03T12:00:00.0000000+00:00
+```
+
+### `kelpiemcp secret list`
+
+目的:
+
+起動中の `KelpieMCPServer` が保持している未期限切れ secret reference を一覧表示します。
+
+構文:
+
+```powershell
+kelpiemcp secret list
+```
+
+処理内容:
+
+secret name、サイズ、期限だけを表示します。秘密本文やハッシュは表示しません。
+
+### `kelpiemcp secret forget <name>`
+
+目的:
+
+起動中の `KelpieMCPServer` から短命 secret reference を削除します。
+
+構文:
+
+```powershell
+kelpiemcp secret forget prod-web-env
+```
+
+処理内容:
+
+指定した secret name のメモリ上の内容を削除します。`web_secret_file_write` は既定で成功時に secret を自動削除しますが、`forgetOnSuccess=false` で使った場合や中断時はこのコマンドで削除します。
 
 ### `kelpie init [--silent] [profile]`
 

@@ -18,6 +18,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
     private readonly IHostApplicationLifetime _applicationLifetime;
     private readonly ISshConnectionProfileCatalog _profileCatalog;
     private readonly ISshPasswordSessionStore _passwordSessionStore;
+    private readonly IKelpieSecretStore _secretStore;
     private readonly SshCommandService _sshCommandService;
     private readonly ILogger<NamedPipeShutdownService> _logger;
     private readonly KelpieServerControlOptions _options;
@@ -34,6 +35,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
     /// <param name="passwordSessionStore">The SSH password session store.</param>
     /// <param name="sshCommandService">The SSH command service.</param>
     /// <param name="isWindowsService">The optional Windows Service execution detector.</param>
+    /// <param name="secretStore">The optional short-lived secret store.</param>
     public NamedPipeShutdownService(
         IHostApplicationLifetime applicationLifetime,
         ILogger<NamedPipeShutdownService> logger,
@@ -42,13 +44,15 @@ public sealed class NamedPipeShutdownService : BackgroundService
         ISshPasswordSessionStore passwordSessionStore,
         SshCommandService sshCommandService,
         Func<bool>? isWindowsService = null,
-        KelpieProfileOperationsOptions? profileOperations = null)
+        KelpieProfileOperationsOptions? profileOperations = null,
+        IKelpieSecretStore? secretStore = null)
     {
         _applicationLifetime = applicationLifetime;
         _logger = logger;
         _options = options;
         _profileCatalog = profileCatalog;
         _passwordSessionStore = passwordSessionStore;
+        _secretStore = secretStore ?? new InMemoryKelpieSecretStore();
         _sshCommandService = sshCommandService;
         _profileOperations = profileOperations ?? KelpieProfileOperationsOptions.Default;
         _isWindowsService = isWindowsService ?? WindowsServiceHelpers.IsWindowsService;
@@ -123,6 +127,24 @@ public sealed class NamedPipeShutdownService : BackgroundService
                 if (TryGetArgument(message, "logout", out var logoutProfileName))
                 {
                     await HandleLogoutAsync(logoutProfileName, writer, stoppingToken);
+                    continue;
+                }
+
+                if (TryGetArgument(message, "secret-put", out var secretPutRequestJson))
+                {
+                    await HandleSecretPutAsync(secretPutRequestJson, reader, writer, stoppingToken);
+                    continue;
+                }
+
+                if (string.Equals(message, "secret-list", StringComparison.OrdinalIgnoreCase))
+                {
+                    await HandleSecretListAsync(writer, stoppingToken);
+                    continue;
+                }
+
+                if (TryGetArgument(message, "secret-forget", out var secretName))
+                {
+                    await HandleSecretForgetAsync(secretName, writer, stoppingToken);
                     continue;
                 }
 
@@ -255,6 +277,90 @@ public sealed class NamedPipeShutdownService : BackgroundService
         _passwordSessionStore.ClearPassword(profile.PasswordSecretName);
         KpLog.Info($"SSH password session cleared. profile={profile.Name}");
         await writer.WriteLineAsync("logged-out");
+        await writer.FlushAsync(cancellationToken);
+    }
+
+    private async Task HandleSecretPutAsync(
+        string requestJson,
+        TextReader reader,
+        TextWriter writer,
+        CancellationToken cancellationToken)
+    {
+        SecretPutRequest? request;
+        try
+        {
+            request = JsonSerializer.Deserialize<SecretPutRequest>(requestJson);
+        }
+        catch (JsonException)
+        {
+            await writer.WriteLineAsync("invalid-request");
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        if (request is null || string.IsNullOrWhiteSpace(request.Name))
+        {
+            await writer.WriteLineAsync("secret-name-required");
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        await writer.WriteLineAsync("secret-required");
+        await writer.FlushAsync(cancellationToken);
+
+        var contentBase64 = await reader.ReadLineAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(contentBase64))
+        {
+            await writer.WriteLineAsync("secret-empty");
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        byte[] content;
+        try
+        {
+            content = Convert.FromBase64String(contentBase64);
+        }
+        catch (FormatException)
+        {
+            await writer.WriteLineAsync("secret-invalid-base64");
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        try
+        {
+            var ttl = request.TtlSeconds is > 0
+                ? TimeSpan.FromSeconds(request.TtlSeconds.Value)
+                : TimeSpan.FromMinutes(10);
+            var info = _secretStore.Put(request.Name, content, ttl);
+            KpLog.Info($"Secret stored for MCP session. name={info.Name}, size={info.Size}, expiresAtUtc={info.ExpiresAtUtc:O}");
+            await writer.WriteLineAsync(JsonSerializer.Serialize(info));
+            await writer.FlushAsync(cancellationToken);
+        }
+        catch (ArgumentException ex)
+        {
+            await writer.WriteLineAsync("secret-rejected:" + ex.Message);
+            await writer.FlushAsync(cancellationToken);
+        }
+    }
+
+    private async Task HandleSecretListAsync(
+        TextWriter writer,
+        CancellationToken cancellationToken)
+    {
+        await writer.WriteLineAsync(JsonSerializer.Serialize(_secretStore.List()));
+        await writer.FlushAsync(cancellationToken);
+    }
+
+    private async Task HandleSecretForgetAsync(
+        string secretName,
+        TextWriter writer,
+        CancellationToken cancellationToken)
+    {
+        var removed = _secretStore.Forget(secretName);
+        KpLog.Info($"Secret forget requested. name={secretName}, removed={removed}");
+        await writer.WriteLineAsync(removed ? "secret-forgotten" : "secret-not-found");
         await writer.FlushAsync(cancellationToken);
     }
 
@@ -583,6 +689,10 @@ public sealed class NamedPipeShutdownService : BackgroundService
         string CommandName,
         IReadOnlyDictionary<string, string>? Arguments,
         int? TimeoutSeconds);
+
+    private sealed record SecretPutRequest(
+        string Name,
+        int? TtlSeconds);
 
     private sealed record SendCommandResponse(
         string Handle,

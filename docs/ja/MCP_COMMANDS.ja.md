@@ -56,7 +56,7 @@ HTTP request body は REST 形式ではなく JSON-RPC です。たとえば診�
 | パッケージ操作 | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove` | package の確認、検索、dry-run、確認付き変更。 |
 | サービス操作 | `ssh_service_status`, `ssh_service_is_active`, `ssh_service_is_enabled`, `ssh_list_services`, `ssh_service_enable_now`, `ssh_service_reload`, `ssh_service_restart`, `ssh_service_stop`, `ssh_service_disable` | systemd service の状態確認と確認付き変更。 |
 | サービス設定 / ログ | `service_config_paths`, `service_config_file_check_read`, `service_config_file_read`, `service_config_file_check_write`, `service_config_file_write`, `service_config_file_rollback`, `service_config_file_commit`, `service_config_test`, `ssh_service_config_nginx_enable_php`, `service_logfile_read` | provider が許可したサービス設定ファイルとログの操作。 |
-| Web ファイル | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | provider が許可した Web ルート配下のファイル操作と権限変更。 |
+| Web ファイル | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_check_write`, `web_secret_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_secret_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | provider が許可した Web ルート配下のファイル操作、秘密ファイル転送、権限変更。 |
 
 ## 共通オプション
 
@@ -4648,6 +4648,68 @@ provider の許可範囲、path 検証、content type 検証、親ディレク�
 - TOCTOU を避けるため、`web_file_write` 側の検証は省略しません。
 - `canWrite: true` は「同時点の事前診断で書き込み可能と判断した」ことを示します。実 write 成功を保証するものではありません。
 
+### `web_secret_file_check_write`
+
+目的:
+
+`kelpiemcp secret put` で登録済みの secret reference を使い、`.env` などの秘密ファイルを書き込めるか実変更なしで確認します。
+
+入力引数:
+
+- `profileName`: SSH プロファイル名。
+- `siteKey`: Web 公開サイト設定のキー。
+- `path`: site-relative absolute secret file path。例: `/.env`。
+- `secretName`: `kelpiemcp secret put` で登録した secret name。
+- `contentType`: MIME type。省略時は `text/plain`。
+- `owner`: 書き込み時に適用する `owner[:group]`。省略可。
+- `mode`: 書き込み時に適用する3桁 octal mode。省略可。
+
+引数サンプル:
+
+```json
+{
+  "profileName": "vps01",
+  "siteKey": "default",
+  "path": "/.env",
+  "secretName": "prod-web-env"
+}
+```
+
+処理内容:
+
+secret reference の存在、secret file name、`AllowedFiles` の明示的な書き込み許可、`owner` / `mode` 指定の妥当性、親ディレクトリ、既存対象の通常ファイル性、現在の SSH ユーザーでの書き込み可否を確認します。
+
+戻り値:
+
+- web file write check result。
+- `canWrite: true` の場合、`confirmation` は `web_secret_file_write:<siteKey>:<path>:<secretName>` 形式です。
+- `owner` または `mode` を指定した場合、確認文字列は `web_file_write` と同じ `:<owner>:<mode>` suffix を含みます。片方を省略した場合は空フィールドになります。
+- 秘密本文、プレビュー、ハッシュ、差分は返しません。
+
+実行結果サンプル:
+
+```json
+{
+  "siteKey": "default",
+  "displayName": "Default Web Site",
+  "path": "/.env",
+  "resolvedPath": "/var/www/html/.env",
+  "exists": false,
+  "canWrite": true,
+  "requiresConfirmation": true,
+  "confirmation": "web_secret_file_write:default:/.env:prod-web-env",
+  "contentType": "text/plain",
+  "reason": null,
+  "warnings": []
+}
+```
+
+安全上の注意:
+
+- 先に `kelpiemcp secret put` で secret reference を登録します。
+- `AllowedFiles` に `.env*` などの書き込み許可が明示されていない場合は拒否します。
+- MCP tool 引数へ秘密本文を直接渡さないでください。
+
 ### `web_file_check_permissions`
 
 目的:
@@ -4932,6 +4994,77 @@ Web 公開ルート外へ出ないこと、読み取り許可、content type 許
 - 解決後の対象パスが Web 公開ルート外へ出る場合は拒否します。
 - `.php` などの実行可能な Web 拡張子は既定では書き込み拒否です。対象プロファイルのサイト設定で `WritableExecutableExtensions` に明示列挙されている場合だけ書き込みできます。
 - `WritableExecutableExtensions` は、その書き込みについて実行可能拡張子の拒否と `AllowedExtensions` 不足だけを解除します。パストラバーサル拒否、ドットファイル拒否、秘密ファイル拒否、サイズ上限、MIME type 判定は従来どおり適用されます。
+
+### `web_secret_file_write`
+
+目的:
+
+`kelpiemcp secret put` で登録済みの secret reference から、provider が明示許可した `.env` などの秘密ファイルを書き込みます。秘密本文は MCP tool 引数として直接受け取りません。
+
+入力引数:
+
+- `profileName`: SSH プロファイル名。
+- `siteKey`: Web 公開サイト設定のキー。
+- `path`: site-relative absolute secret file path。例: `/.env`。
+- `secretName`: `kelpiemcp secret put` で登録した secret name。
+- `confirmation`: `web_secret_file_check_write` が返した確認文字列。
+- `contentType`: MIME type。省略時は `text/plain`。
+- `owner`: `owner[:group]` 形式。省略可。
+- `mode`: 3桁 octal mode。省略可。
+- `forgetOnSuccess`: 成功時に secret reference を削除するか。省略時は `true`。
+
+引数サンプル:
+
+```json
+{
+  "profileName": "vps01",
+  "siteKey": "default",
+  "path": "/.env",
+  "secretName": "prod-web-env",
+  "confirmation": "web_secret_file_write:default:/.env:prod-web-env"
+}
+```
+
+確認文字列:
+
+- `web_secret_file_write:<siteKey>:<path>:<secretName>`
+- `owner` / `mode` 指定付き: `web_secret_file_write:<siteKey>:<path>:<secretName>:<owner>:<mode>`
+- `owner` だけ指定: `web_secret_file_write:<siteKey>:<path>:<secretName>:<owner>:`
+- `mode` だけ指定: `web_secret_file_write:<siteKey>:<path>:<secretName>::<mode>`
+
+処理内容:
+
+確認文字列を検証し、server process 内の secret store から本文を取得し、secret path と provider 許可を再検証してから書き込みます。`owner` または `mode` を指定する場合は、`web_secret_file_check_write` で同じ指定を使って取得した確認文字列が必要です。`forgetOnSuccess` が `true` の場合、成功後に secret reference を削除します。
+
+戻り値:
+
+- web file write result。
+- 秘密本文、プレビュー、ハッシュ、差分は返しません。
+
+実行結果サンプル:
+
+```json
+{
+  "siteKey": "default",
+  "displayName": "Default Web Site",
+  "path": "/.env",
+  "resolvedPath": "/var/www/html/.env",
+  "written": true,
+  "created": true,
+  "overwritten": false,
+  "contentType": "text/plain",
+  "size": 128,
+  "warnings": [
+    "Secret content was not returned."
+  ]
+}
+```
+
+安全上の注意:
+
+- 先に `web_secret_file_check_write` を呼び、その確認文字列をそのまま渡します。
+- `AllowedFiles` に `.env*` などの書き込み許可が明示されていない場合は拒否します。
+- `forgetOnSuccess=false` で使った場合は、作業後に `kelpiemcp secret forget <name>` を実行します。
 
 ### `web_change_owner`
 

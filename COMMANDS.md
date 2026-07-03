@@ -15,6 +15,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | [MCP profile trust](#mcp-profile-trust) | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile>`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | Add, reload, revoke, and inspect trusted SSH profile baselines. |
 | [MCP Windows Service](#mcp-windows-service) | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Register, unregister, and inspect the Windows Service entry. |
 | [MCP password session](#mcp-password-session) | `kelpiemcp password`, `kelpiemcp forget`, `kelpiemcp login`, `kelpiemcp logout` | Store or clear an SSH password in the running MCP server session. |
+| [MCP secret session](#mcp-secret-session) | `kelpiemcp secret put`, `kelpiemcp secret list`, `kelpiemcp secret forget` | Store, list, or clear short-lived secret file payloads in the running MCP server session. |
 | [Initialization](#initialization) | `kelpie init [--silent] [profile]`, `kelpie config --check` | Create and validate the local Kelpie home configuration. |
 | [Profile/session](#profilesession) | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | Create, edit, and delete profile templates, select profiles, and manage interactive SSH sessions. |
 | [Mode/UI](#modeui) | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | Switch CLI/GUI mode or choose a temporary launch mode. |
@@ -651,6 +652,75 @@ Return value sample:
 Execution result sample:
 
 The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
+
+Safety notes:
+
+- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
+### MCP secret session
+
+Store, list, or clear short-lived secret payloads in the running `KelpieMCPServer` process memory.
+These commands are intended for workflows such as `web_secret_file_check_write` followed by `web_secret_file_write`.
+
+Commands in this group:
+
+- [`kelpiemcp secret put --name <name> --from-file <path> [--ttl <duration>]`](#kelpiemcp-secret-put---name-name---from-file-path---ttl-duration)
+- [`kelpiemcp secret list`](#kelpiemcp-secret-list)
+- [`kelpiemcp secret forget <name>`](#kelpiemcp-secret-forget-name)
+
+#### `kelpiemcp secret put --name <name> --from-file <path> [--ttl <duration>]`
+
+Reads a local file and stores its bytes only in the running `KelpieMCPServer` process memory under a short-lived secret name.
+The file content is transferred over the local control pipe and is never printed.
+
+```powershell
+kelpiemcp secret put --name prod-web-env --from-file .env --ttl 10m
+```
+
+Input:
+
+- `--name <name>`: required. Secret reference name used by MCP tools.
+- `--from-file <path>`: required. Local file to read.
+- `--ttl <duration>`: optional. Positive duration such as `600`, `600s`, `10m`, or `1h`. The server caps the lifetime to one hour.
+
+Return value:
+
+- Exit code `0` when the secret is accepted by the running MCP server session.
+- Standard output prints the secret name, size, and expiry time.
+- The secret value, preview, hash, or diff is never returned.
+
+Safety notes:
+
+- Do not put real secret values in command examples, logs, or committed test notes.
+- Use `kelpiemcp secret forget <name>` after the operation when the MCP write tool did not auto-forget the secret.
+
+#### `kelpiemcp secret list`
+
+Lists non-expired secret references in the running `KelpieMCPServer` process memory.
+
+```powershell
+kelpiemcp secret list
+```
+
+Return value:
+
+- Exit code `0` when the running MCP server responds.
+- Standard output prints only secret names, sizes, and expiry times.
+- Secret values and hashes are never returned.
+
+#### `kelpiemcp secret forget <name>`
+
+Clears one short-lived secret reference from the running `KelpieMCPServer` process memory.
+
+```powershell
+kelpiemcp secret forget prod-web-env
+```
+
+Return value:
+
+- Exit code `0` when the secret reference is removed.
+- Standard output confirms cleanup.
+- The previous secret value is never returned.
 
 Safety notes:
 

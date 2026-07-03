@@ -1882,6 +1882,178 @@ public sealed class KelpieToolsSshTests
     }
 
     [Fact]
+    public async Task CheckWriteWebSecretFileAsync_ShouldRejectMissingSecretReference()
+    {
+        var profile = CreateProfile("vps01", KelpiePolicyMode.Expert);
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+        var webProvider = new WebPublicFileProvider();
+        var secretStore = new InMemoryKelpieSecretStore();
+
+        var result = await KelpieTools.CheckWriteWebSecretFileAsync(
+            service,
+            profiles,
+            webProvider,
+            secretStore,
+            "vps01",
+            "default",
+            "/.env",
+            "prod-web-env");
+
+        result.CanWrite.Should().BeFalse();
+        result.Error.Should().Be("Secret reference was not found or has expired.");
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CheckWriteWebSecretFileAsync_ShouldReturnSecretConfirmation()
+    {
+        var profile = CreateProfile(
+            "vps01",
+            KelpiePolicyMode.Expert,
+            webPublicSites: [CreateSite([new WebPublicFileRule(".env*", AllowedRootAccess.Write)])]);
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: """{"resolvedPath":"/var/www/html/.env","exists":false,"canWrite":true,"reason":null}""",
+                StandardError: string.Empty),
+        ]);
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+        var webProvider = new WebPublicFileProvider();
+        var secretStore = new InMemoryKelpieSecretStore();
+        secretStore.Put("prod-web-env", System.Text.Encoding.UTF8.GetBytes("TOKEN=secret\n"), TimeSpan.FromMinutes(10));
+
+        var result = await KelpieTools.CheckWriteWebSecretFileAsync(
+            service,
+            profiles,
+            webProvider,
+            secretStore,
+            "vps01",
+            "default",
+            "/.env",
+            "prod-web-env");
+
+        result.CanWrite.Should().BeTrue();
+        result.Confirmation.Should().Be("web_secret_file_write:default:/.env:prod-web-env");
+        result.Error.Should().BeNull();
+        runner.LastRequest!.CommandName.Should().Be("web_public_file_check_write_internal");
+    }
+
+    [Fact]
+    public async Task CheckWriteWebSecretFileAsync_ShouldBindPermissionRequestToConfirmation()
+    {
+        var profile = CreateProfile(
+            "vps01",
+            KelpiePolicyMode.Expert,
+            webPublicSites: [CreateSite([new WebPublicFileRule(".env*", AllowedRootAccess.Write)])]);
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: """{"resolvedPath":"/var/www/html/.env","exists":false,"canWrite":true,"reason":null}""",
+                StandardError: string.Empty),
+        ]);
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+        var webProvider = new WebPublicFileProvider();
+        var secretStore = new InMemoryKelpieSecretStore();
+        secretStore.Put("prod-web-env", System.Text.Encoding.UTF8.GetBytes("TOKEN=secret\n"), TimeSpan.FromMinutes(10));
+
+        var check = await KelpieTools.CheckWriteWebSecretFileAsync(
+            service,
+            profiles,
+            webProvider,
+            secretStore,
+            "vps01",
+            "default",
+            "/.env",
+            "prod-web-env",
+            owner: "www-data:www-data",
+            mode: "600");
+
+        check.Confirmation.Should().Be("web_secret_file_write:default:/.env:prod-web-env:www-data:www-data:600");
+
+        var write = await KelpieTools.WriteWebSecretFileAsync(
+            service,
+            profiles,
+            webProvider,
+            secretStore,
+            "vps01",
+            "default",
+            "/.env",
+            "prod-web-env",
+            "web_secret_file_write:default:/.env:prod-web-env",
+            owner: "www-data:www-data",
+            mode: "600");
+
+        write.Written.Should().BeFalse();
+        write.Error.Should().Be("Confirmation is required: web_secret_file_write:default:/.env:prod-web-env:www-data:www-data:600");
+    }
+
+    [Fact]
+    public async Task WriteWebSecretFileAsync_ShouldRequireConfirmation()
+    {
+        var profile = CreateProfile("vps01", KelpiePolicyMode.Expert);
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+        var webProvider = new WebPublicFileProvider();
+        var secretStore = new InMemoryKelpieSecretStore();
+        secretStore.Put("prod-web-env", System.Text.Encoding.UTF8.GetBytes("TOKEN=secret\n"), TimeSpan.FromMinutes(10));
+
+        var result = await KelpieTools.WriteWebSecretFileAsync(
+            service,
+            profiles,
+            webProvider,
+            secretStore,
+            "vps01",
+            "default",
+            "/.env",
+            "prod-web-env",
+            "wrong");
+
+        result.Error.Should().Be("Confirmation is required: web_secret_file_write:default:/.env:prod-web-env");
+        result.Written.Should().BeFalse();
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task WriteWebSecretFileAsync_ShouldWriteAndForgetSecretOnSuccess()
+    {
+        var profile = CreateProfile(
+            "vps01",
+            KelpiePolicyMode.Expert,
+            webPublicSites: [CreateSite([new WebPublicFileRule(".env*", AllowedRootAccess.Write)])]);
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: """{"resolvedPath":"/var/www/html/.env","written":true,"created":true,"overwritten":false,"size":13}""",
+                StandardError: string.Empty),
+        ]);
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+        var webProvider = new WebPublicFileProvider();
+        var secretStore = new InMemoryKelpieSecretStore();
+        secretStore.Put("prod-web-env", System.Text.Encoding.UTF8.GetBytes("TOKEN=secret\n"), TimeSpan.FromMinutes(10));
+
+        var result = await KelpieTools.WriteWebSecretFileAsync(
+            service,
+            profiles,
+            webProvider,
+            secretStore,
+            "vps01",
+            "default",
+            "/.env",
+            "prod-web-env",
+            "web_secret_file_write:default:/.env:prod-web-env");
+
+        result.Written.Should().BeTrue();
+        result.Warnings.Should().Contain("Secret content was not returned.");
+        secretStore.TryGetContentBase64("prod-web-env", out _, out _).Should().BeFalse();
+        runner.LastRequest!.CommandName.Should().Be("web_public_file_write_internal");
+        System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(runner.LastRequest.Arguments["contentBase64"]))
+            .Should().Be("TOKEN=secret\n");
+    }
+
+    [Fact]
     public async Task ChangeWebPublicOwnerRecursiveAsync_ShouldRequireConfirmation()
     {
         var profile = CreateProfile("vps01", KelpiePolicyMode.Expert);
@@ -3223,7 +3395,8 @@ public sealed class KelpieToolsSshTests
         string osFamily = "debian",
         string packageManager = "apt",
         PolicySet? capabilities = null,
-        IReadOnlyCollection<EnvironmentValueRule>? environmentValues = null)
+        IReadOnlyCollection<EnvironmentValueRule>? environmentValues = null,
+        IReadOnlyCollection<WebPublicSite>? webPublicSites = null)
     {
         return new SshConnectionProfile
         {
@@ -3236,6 +3409,21 @@ public sealed class KelpieToolsSshTests
             Mode = mode,
             Capabilities = capabilities ?? PolicySet.Empty,
             EnvironmentValues = environmentValues ?? [],
+            WebPublicSites = webPublicSites ?? [],
+        };
+    }
+
+    private static WebPublicSite CreateSite(
+        IReadOnlyCollection<WebPublicFileRule> allowedFiles,
+        string siteKey = "default",
+        string rootPath = "/var/www/html")
+    {
+        return new WebPublicSite
+        {
+            SiteKey = siteKey,
+            DisplayName = "Default Web Site",
+            RootPath = rootPath,
+            AllowedFiles = allowedFiles,
         };
     }
 

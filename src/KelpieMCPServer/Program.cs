@@ -94,6 +94,7 @@ builder.Services.AddSingleton<ISshConnectionProfileCatalog>(serviceProvider =>
 builder.Services.AddSingleton(CommandProcessingProviderCatalog.CreateDefault());
 builder.Services.AddSingleton(ServiceConfigPathsProviderCatalog.CreateDefault());
 builder.Services.AddSingleton<IWebPublicFileProvider, WebPublicFileProvider>();
+builder.Services.AddSingleton<IKelpieSecretStore, InMemoryKelpieSecretStore>();
 builder.Services.AddSingleton<ISshPasswordSessionStore, InMemorySshPasswordSessionStore>();
 builder.Services.AddSingleton<ISshPasswordProvider>(serviceProvider =>
     serviceProvider.GetRequiredService<ISshPasswordSessionStore>());

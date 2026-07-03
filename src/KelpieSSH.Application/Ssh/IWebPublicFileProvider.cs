@@ -66,6 +66,20 @@ public interface IWebPublicFileProvider
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Checks whether one explicitly allowed secret file can be written without writing it.
+    /// </summary>
+    Task<WebPublicFileWriteCheckResult> CheckSecretWriteAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        string secretName,
+        string? contentType = null,
+        string? owner = null,
+        string? mode = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Checks whether one web public path is eligible for permission changes without changing it.
     /// </summary>
     Task<WebPublicPermissionCheckResult> CheckPermissionsAsync(
@@ -123,6 +137,20 @@ public interface IWebPublicFileProvider
         string path,
         string contentBase64,
         string? encoding,
+        string? contentType,
+        string? owner = null,
+        string? mode = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Writes one explicitly allowed secret file.
+    /// </summary>
+    Task<WebPublicFileWriteResult> WriteSecretFileAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        string contentBase64,
         string? contentType,
         string? owner = null,
         string? mode = null,

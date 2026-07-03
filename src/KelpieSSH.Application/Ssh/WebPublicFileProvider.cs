@@ -452,6 +452,94 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
     }
 
     /// <inheritdoc />
+    public async Task<WebPublicFileWriteCheckResult> CheckSecretWriteAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        string secretName,
+        string? contentType = null,
+        string? owner = null,
+        string? mode = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sshCommandService);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var site = ResolveSite(profile, siteKey);
+        var normalizedPath = NormalizePath(path);
+        var access = ValidateSecretPath(normalizedPath, site, requireWrite: true);
+        var resolvedContentType = ResolveSecretContentType(normalizedPath, contentType);
+        var permissionRequest = CreateWritePermissionRequest(owner, mode);
+        var confirmation = CreateWebSecretFileWriteConfirmation(
+            site.SiteKey,
+            normalizedPath,
+            secretName,
+            permissionRequest);
+        if (access.Error is not null)
+        {
+            return CreateSecretWriteCheckResult(site, normalizedPath, resolvedContentType, canWrite: false, access.Error, secretName, permissionRequest);
+        }
+
+        if (permissionRequest.Error is not null)
+        {
+            return CreateSecretWriteCheckResult(site, normalizedPath, resolvedContentType, canWrite: false, permissionRequest.Error, secretName, permissionRequest);
+        }
+
+        if (!IsContentTypeAllowed(resolvedContentType, site, requireWrite: true, access.IsExplicitRule))
+        {
+            return CreateSecretWriteCheckResult(
+                site,
+                normalizedPath,
+                resolvedContentType,
+                canWrite: false,
+                $"Content type is not writable: {resolvedContentType}",
+                secretName,
+                permissionRequest);
+        }
+
+        var result = await sshCommandService.ExecuteAsync(
+            profile,
+            CheckWriteCommandName,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["siteRootBase64"] = EncodeArgument(site.RootPath),
+                ["pathBase64"] = EncodeArgument(normalizedPath),
+                ["createDirectories"] = site.CreateDirectories ? "1" : "0",
+            },
+            channel: KelpieExecutionChannel.Mcp,
+            cancellationToken: cancellationToken);
+
+        if (result.ExitCode != 0)
+        {
+            return CreateSecretWriteCheckResult(
+                site,
+                normalizedPath,
+                resolvedContentType,
+                canWrite: false,
+                $"Web secret file write check failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}",
+                secretName,
+                permissionRequest);
+        }
+
+        var remote = JsonSerializer.Deserialize<RemoteWriteCheckResult>(result.StandardOutput, JsonOptions)
+            ?? throw new InvalidOperationException("Web secret file write check returned empty JSON.");
+
+        return new WebPublicFileWriteCheckResult(
+            site.SiteKey,
+            site.DisplayName,
+            normalizedPath,
+            remote.ResolvedPath ?? string.Empty,
+            remote.Exists,
+            remote.CanWrite,
+            RequiresConfirmation: remote.CanWrite,
+            confirmation,
+            resolvedContentType,
+            remote.Reason,
+            Warnings: []);
+    }
+
+    /// <inheritdoc />
     public async Task<WebPublicPermissionCheckResult> CheckPermissionsAsync(
         SshCommandService sshCommandService,
         SshConnectionProfile profile,
@@ -817,6 +905,102 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             Mode: remote.Mode ?? string.Empty);
     }
 
+    /// <inheritdoc />
+    public async Task<WebPublicFileWriteResult> WriteSecretFileAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        string contentBase64,
+        string? contentType,
+        string? owner = null,
+        string? mode = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sshCommandService);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var site = ResolveSite(profile, siteKey);
+        var normalizedPath = NormalizePath(path);
+        var access = ValidateSecretPath(normalizedPath, site, requireWrite: true);
+        if (access.Error is not null)
+        {
+            return CreateWriteError(site, normalizedPath, access.Error);
+        }
+
+        if (!TryValidateContent(contentBase64, site, out var size, out var contentError))
+        {
+            return CreateWriteError(site, normalizedPath, contentError);
+        }
+
+        var resolvedContentType = ResolveSecretContentType(normalizedPath, contentType);
+        if (!IsContentTypeAllowed(resolvedContentType, site, requireWrite: true, access.IsExplicitRule))
+        {
+            return CreateWriteError(site, normalizedPath, $"Content type is not writable: {resolvedContentType}");
+        }
+
+        var permissionRequest = CreateWritePermissionRequest(owner, mode);
+        if (permissionRequest.Error is not null)
+        {
+            return CreateWriteError(site, normalizedPath, permissionRequest.Error);
+        }
+
+        if (permissionRequest.HasPermissions)
+        {
+            return await WriteFileWithPermissionsAsync(
+                sshCommandService,
+                profile,
+                site,
+                normalizedPath,
+                contentBase64,
+                resolvedContentType,
+                size,
+                permissionRequest,
+                cancellationToken);
+        }
+
+        var result = await sshCommandService.ExecuteAsync(
+            profile,
+            WriteCommandName,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["siteRootBase64"] = EncodeArgument(site.RootPath),
+                ["pathBase64"] = EncodeArgument(normalizedPath),
+                ["contentBase64"] = contentBase64,
+                ["maxBytes"] = site.MaxWriteBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["createDirectories"] = site.CreateDirectories ? "1" : "0",
+            },
+            channel: KelpieExecutionChannel.Mcp,
+            cancellationToken: cancellationToken);
+
+        if (result.ExitCode != 0)
+        {
+            return CreateWriteError(
+                site,
+                normalizedPath,
+                $"Web secret file write failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}");
+        }
+
+        var remote = JsonSerializer.Deserialize<RemoteWriteResult>(result.StandardOutput, JsonOptions)
+            ?? throw new InvalidOperationException("Web secret file write returned empty JSON.");
+
+        return new WebPublicFileWriteResult(
+            site.SiteKey,
+            site.DisplayName,
+            normalizedPath,
+            remote.ResolvedPath ?? string.Empty,
+            remote.Written,
+            remote.Created,
+            remote.Overwritten,
+            resolvedContentType,
+            remote.Size == 0 ? size : remote.Size,
+            Warnings: ["Secret content was not returned."],
+            Error: null,
+            Owner: remote.Owner ?? string.Empty,
+            Group: remote.Group ?? string.Empty,
+            Mode: remote.Mode ?? string.Empty);
+    }
+
     private async Task<WebPublicFileWriteResult> WriteFileWithPermissionsAsync(
         SshCommandService sshCommandService,
         SshConnectionProfile profile,
@@ -1054,6 +1238,19 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
         return $"web_file_write:{siteKey}:{path}";
     }
 
+    private static string CreateWebSecretFileWriteConfirmation(
+        string siteKey,
+        string path,
+        string secretName,
+        WritePermissionRequest permissionRequest)
+    {
+        var permissionSuffix = permissionRequest.HasPermissions
+            ? $":{permissionRequest.OwnerSpec}:{permissionRequest.Mode}"
+            : string.Empty;
+
+        return $"web_secret_file_write:{siteKey}:{path}:{secretName.Trim()}{permissionSuffix}";
+    }
+
     private static string NormalizePath(string path)
     {
         return string.IsNullOrWhiteSpace(path) ? string.Empty : "/" + path.Trim().TrimStart('/');
@@ -1130,6 +1327,47 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
         return new WebPublicFileAccess(false, Error: null);
     }
 
+    private static WebPublicFileAccess ValidateSecretPath(
+        string path,
+        WebPublicSite site,
+        bool requireWrite)
+    {
+        if (!IsSafeAbsoluteUnixPath(site.RootPath))
+        {
+            return new WebPublicFileAccess(false, "Web public root must be a safe absolute Unix path.");
+        }
+
+        if (!IsSafeSiteRelativePath(path))
+        {
+            return new WebPublicFileAccess(false, "Requested path must be an absolute site-relative path without traversal.");
+        }
+
+        var fileName = path.Split('/').Last();
+        if (path.Split('/').Any(part => part.StartsWith(".git", StringComparison.OrdinalIgnoreCase))
+            || string.Equals(fileName, "id_rsa", StringComparison.OrdinalIgnoreCase))
+        {
+            return new WebPublicFileAccess(false, "Requested path is denied by web secret file safety rules.");
+        }
+
+        if (!SecretFileRegex().IsMatch(fileName))
+        {
+            return new WebPublicFileAccess(false, "Requested path is not a supported secret file name.");
+        }
+
+        var rule = FindAllowedFileRule(path, fileName, site);
+        if (rule is null)
+        {
+            return new WebPublicFileAccess(false, "Secret file writes require an explicit writable AllowedFiles rule.");
+        }
+
+        if (!rule.Access.HasFlag(AllowedRootAccess.Write))
+        {
+            return new WebPublicFileAccess(true, "Requested secret file is not writable by AllowedFiles.");
+        }
+
+        return new WebPublicFileAccess(true, Error: null);
+    }
+
     private static bool IsWritableExecutableExtensionAllowed(WebPublicSite site, string extension)
     {
         return !string.IsNullOrWhiteSpace(extension)
@@ -1202,6 +1440,13 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
         return DefaultContentTypes.TryGetValue(extension, out var contentType)
             ? contentType
             : "application/octet-stream";
+    }
+
+    private static string ResolveSecretContentType(string path, string? requestedContentType)
+    {
+        return !string.IsNullOrWhiteSpace(requestedContentType)
+            ? requestedContentType.Trim()
+            : "text/plain";
     }
 
     private static bool IsContentTypeAllowed(
@@ -1612,6 +1857,30 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             Error: reason);
     }
 
+    private static WebPublicFileWriteCheckResult CreateSecretWriteCheckResult(
+        WebPublicSite site,
+        string path,
+        string contentType,
+        bool canWrite,
+        string? reason,
+        string secretName,
+        WritePermissionRequest permissionRequest)
+    {
+        return new WebPublicFileWriteCheckResult(
+            site.SiteKey,
+            site.DisplayName,
+            path,
+            ResolvedPath: string.Empty,
+            Exists: false,
+            canWrite,
+            RequiresConfirmation: canWrite,
+            CreateWebSecretFileWriteConfirmation(site.SiteKey, path, secretName, permissionRequest),
+            contentType,
+            reason,
+            Warnings: [],
+            Error: reason);
+    }
+
     private static WebPublicPermissionChangeResult CreatePermissionError(
         WebPublicSite site,
         string path,
@@ -1686,7 +1955,7 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             : firstLine;
     }
 
-    [GeneratedRegex(@"(?i)^(\.env|\.htaccess|\.htpasswd|.*\.pem|.*\.key)$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?i)^(\.env(\..*)?|\.htaccess|\.htpasswd|.*\.pem|.*\.key)$", RegexOptions.CultureInvariant)]
     private static partial Regex SecretFileRegex();
 
     private sealed class RemoteReadResult

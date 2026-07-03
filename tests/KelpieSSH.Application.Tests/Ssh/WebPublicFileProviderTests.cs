@@ -91,6 +91,56 @@ public sealed class WebPublicFileProviderTests
     }
 
     [Fact]
+    public async Task CheckSecretWriteAsync_ShouldRequireExplicitAllowedFileRule()
+    {
+        var profile = CreateProfile(
+            KelpiePolicyMode.Expert,
+            [CreateSite([new WebPublicFileRule(".html", AllowedRootAccess.Read | AllowedRootAccess.Write)])]);
+        var runner = new FakeSshCommandRunner([]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.CheckSecretWriteAsync(
+            service,
+            profile,
+            "default",
+            "/.env",
+            "prod-web-env");
+
+        result.CanWrite.Should().BeFalse();
+        result.Error.Should().Be("Secret file writes require an explicit writable AllowedFiles rule.");
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CheckSecretWriteAsync_ShouldReturnSecretConfirmation()
+    {
+        var profile = CreateProfile(
+            KelpiePolicyMode.Expert,
+            [CreateSite([new WebPublicFileRule(".env*", AllowedRootAccess.Write)])]);
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: """{"resolvedPath":"/var/www/html/.env.production","exists":false,"canWrite":true,"reason":null}""",
+                StandardError: string.Empty),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.CheckSecretWriteAsync(
+            service,
+            profile,
+            "default",
+            "/.env.production",
+            "prod-web-env");
+
+        result.CanWrite.Should().BeTrue();
+        result.Confirmation.Should().Be("web_secret_file_write:default:/.env.production:prod-web-env");
+        result.ContentType.Should().Be("text/plain");
+        result.Error.Should().BeNull();
+        runner.LastRequest!.CommandName.Should().Be("web_public_file_check_write_internal");
+    }
+
+    [Fact]
     public async Task ReadFileAsync_ShouldReadDefaultSiteFile()
     {
         var profile = CreateProfile();
@@ -117,6 +167,37 @@ public sealed class WebPublicFileProviderTests
         runner.LastRequest!.CommandName.Should().Be("web_public_file_read_internal");
         DecodeArgument(runner.LastRequest, "siteRootBase64").Should().Be("/var/www/html");
         DecodeArgument(runner.LastRequest, "pathBase64").Should().Be("/my_dir/sample.html");
+    }
+
+    [Fact]
+    public async Task WriteSecretFileAsync_ShouldWriteExplicitSecretFileWithoutReturningContent()
+    {
+        var profile = CreateProfile(
+            KelpiePolicyMode.Expert,
+            [CreateSite([new WebPublicFileRule(".env*", AllowedRootAccess.Write)])]);
+        var contentBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes("TOKEN=secret\n"));
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: """{"resolvedPath":"/var/www/html/.env","written":true,"created":true,"overwritten":false,"size":13}""",
+                StandardError: string.Empty),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.WriteSecretFileAsync(
+            service,
+            profile,
+            "default",
+            "/.env",
+            contentBase64,
+            contentType: null);
+
+        result.Written.Should().BeTrue();
+        result.Size.Should().Be(13);
+        result.Warnings.Should().Contain("Secret content was not returned.");
+        result.Error.Should().BeNull();
+        runner.LastRequest!.CommandName.Should().Be("web_public_file_write_internal");
+        runner.LastRequest.Arguments["contentBase64"].Should().Be(contentBase64);
     }
 
     [Fact]

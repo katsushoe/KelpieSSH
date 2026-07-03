@@ -138,6 +138,33 @@ if (string.Equals(command, "profile-capabilities", StringComparison.OrdinalIgnor
     return;
 }
 
+if (string.Equals(command, "secret", StringComparison.OrdinalIgnoreCase))
+{
+    var secretCommand = args.Length > 1 ? args[1] : string.Empty;
+    var options = CreateOptions(configuration);
+    if (string.Equals(secretCommand, "put", StringComparison.OrdinalIgnoreCase))
+    {
+        await KelpieServerCommandRunner.SecretPutAsync(options, args.Skip(2).ToArray());
+        return;
+    }
+
+    if (string.Equals(secretCommand, "list", StringComparison.OrdinalIgnoreCase))
+    {
+        await KelpieServerCommandRunner.SecretListAsync(options);
+        return;
+    }
+
+    if (string.Equals(secretCommand, "forget", StringComparison.OrdinalIgnoreCase))
+    {
+        await KelpieServerCommandRunner.SecretForgetAsync(options, args.Skip(2).ToArray());
+        return;
+    }
+
+    ShowSecretUsage(secretCommand);
+    Environment.ExitCode = string.IsNullOrWhiteSpace(secretCommand) ? 0 : 1;
+    return;
+}
+
 if (string.Equals(command, "password", StringComparison.OrdinalIgnoreCase))
 {
     var profileName = args.Length > 1 ? args[1] : string.Empty;
@@ -262,6 +289,9 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpiemcp profile reload <profile>");
     writer.WriteLine("  kelpiemcp profile revoke <profile>");
     writer.WriteLine("  kelpiemcp profile-capabilities [profile]");
+    writer.WriteLine("  kelpiemcp secret put --name <name> --from-file <path> [--ttl <duration>]");
+    writer.WriteLine("  kelpiemcp secret list");
+    writer.WriteLine("  kelpiemcp secret forget <name>");
     writer.WriteLine("  kelpiemcp password <profile>");
     writer.WriteLine("  kelpiemcp forget <profile>");
     writer.WriteLine("  kelpiemcp version");
@@ -295,4 +325,17 @@ static void ShowServiceUsage(string serviceCommand)
     Console.Error.WriteLine("  kelpiemcp service register");
     Console.Error.WriteLine("  kelpiemcp service unregister");
     Console.Error.WriteLine("  kelpiemcp service status");
+}
+
+static void ShowSecretUsage(string secretCommand)
+{
+    if (!string.IsNullOrWhiteSpace(secretCommand))
+    {
+        Console.Error.WriteLine($"Unknown secret command: {secretCommand}");
+    }
+
+    Console.Error.WriteLine("Usage:");
+    Console.Error.WriteLine("  kelpiemcp secret put --name <name> --from-file <path> [--ttl <duration>]");
+    Console.Error.WriteLine("  kelpiemcp secret list");
+    Console.Error.WriteLine("  kelpiemcp secret forget <name>");
 }

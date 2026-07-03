@@ -61,7 +61,7 @@ This document describes the `name` and `arguments` used inside `tools/call`. In 
 | [Packages](#packages) | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove` | Inspect packages and run confirmation-gated package operations. |
 | [Services](#services) | `ssh_service_status`, `ssh_service_is_active`, `ssh_service_is_enabled`, `ssh_list_services`, `ssh_service_enable_now`, `ssh_service_reload`, `ssh_service_restart`, `ssh_service_stop`, `ssh_service_disable` | Inspect and safely manage systemd services. |
 | [Service config/logs](#service-configlogs) | `service_config_paths`, `service_config_file_check_read`, `service_config_file_read`, `service_config_file_check_write`, `service_config_file_write`, `service_config_file_rollback`, `service_config_file_commit`, `service_config_test`, `ssh_service_config_nginx_enable_php`, `service_logfile_read` | Operate on provider-approved service configuration files and logs. |
-| [Web files](#web-files) | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | Operate on provider-approved web roots. |
+| [Web files](#web-files) | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_check_write`, `web_secret_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_secret_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | Operate on provider-approved web roots. |
 
 ## Common Inputs
 
@@ -6283,11 +6283,13 @@ Tools in this group:
 - [`web_file_search_text`](#web_file_search_text)
 - [`web_file_stat`](#web_file_stat)
 - [`web_file_check_write`](#web_file_check_write)
+- [`web_secret_file_check_write`](#web_secret_file_check_write)
 - [`web_file_check_permissions`](#web_file_check_permissions)
 - [`web_file_read`](#web_file_read)
 - [`web_file_head`](#web_file_head)
 - [`web_file_tail`](#web_file_tail)
 - [`web_file_write`](#web_file_write)
+- [`web_secret_file_write`](#web_secret_file_write)
 - [`web_change_owner`](#web_change_owner)
 - [`web_change_owner_recursive`](#web_change_owner_recursive)
 - [`web_change_mode`](#web_change_mode)
@@ -6611,6 +6613,71 @@ The MCP execution result body is the return value sample above, wrapped by the c
 Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+#### `web_secret_file_check_write`
+
+Purpose:
+
+Checks whether one explicitly allowed web secret file can be written from a server-side secret reference without exposing the secret value.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `siteKey`: Configured web site key.
+- `path`: Absolute site-relative secret file path such as `/.env`.
+- `secretName`: Secret reference previously stored with `kelpiemcp secret put`.
+- `contentType`: Optional content type metadata. Defaults to `text/plain`.
+- `owner`: Optional owner or owner:group spec to apply during the write.
+- `mode`: Optional three-digit octal mode to apply during the write.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "web_secret_file_check_write",
+  "arguments": {
+    "profileName": "vps01",
+    "siteKey": "default",
+    "path": "/.env",
+    "secretName": "prod-web-env"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer verifies that the secret reference exists, resolves the SSH profile, requires an explicitly writable `AllowedFiles` rule for the target secret file, validates any requested owner or mode, runs the bounded write check, and returns a confirmation token for `web_secret_file_write`.
+
+Return value:
+
+- Return type: `WebPublicFileWriteCheckResult`.
+- `Confirmation` has the form `web_secret_file_write:<siteKey>:<path>:<secretName>` when `CanWrite` is true.
+- If `owner` or `mode` is specified, the confirmation token includes the same permission suffix as `web_file_write`: `:<owner>:<mode>`, with an empty field for omitted owner or mode.
+- The secret value, preview, hash, and diff are never returned.
+
+Return value sample:
+
+```json
+{
+  "SiteKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/.env",
+  "ResolvedPath": "/var/www/html/.env",
+  "Exists": false,
+  "CanWrite": true,
+  "RequiresConfirmation": true,
+  "Confirmation": "web_secret_file_write:default:/.env:prod-web-env",
+  "ContentType": "text/plain",
+  "Reason": null,
+  "Warnings": []
+}
+```
+
+Safety notes:
+
+- Call `kelpiemcp secret put` before this tool.
+- Secret file writes require a writable `AllowedFiles` rule such as `.env*`.
+- Do not pass secret content directly as an MCP argument.
 
 #### `web_file_check_permissions`
 
@@ -6949,6 +7016,75 @@ Safety notes:
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 - Executable web extensions such as `.php` remain denied by default. They are writable only when the target profile site explicitly lists the extension in `WritableExecutableExtensions`.
 - `WritableExecutableExtensions` bypasses the executable extension write block and the `AllowedExtensions` shortage for that write only. Traversal checks, dotfile and secret-file denial, size limits, and content type rules still apply.
+
+#### `web_secret_file_write`
+
+Purpose:
+
+Writes one explicitly allowed web secret file from a server-side secret reference after explicit confirmation.
+The secret value is never accepted as a direct MCP argument and is never returned.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `siteKey`: Configured web site key.
+- `path`: Absolute site-relative secret file path such as `/.env`.
+- `secretName`: Secret reference previously stored with `kelpiemcp secret put`.
+- `confirmation`: Exact confirmation token returned by `web_secret_file_check_write`.
+- `contentType`: Optional content type metadata. Defaults to `text/plain`.
+- `owner`: Optional owner or owner:group spec.
+- `mode`: Optional three-digit octal mode.
+- `forgetOnSuccess`: Optional boolean. Defaults to true and removes the secret reference after a successful write.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "web_secret_file_write",
+  "arguments": {
+    "profileName": "vps01",
+    "siteKey": "default",
+    "path": "/.env",
+    "secretName": "prod-web-env",
+    "confirmation": "web_secret_file_write:default:/.env:prod-web-env"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the confirmation token, resolves the secret payload from the server-side secret store, re-runs the secret path and provider checks, writes the file through the bounded web write command, and removes the secret reference on success when `forgetOnSuccess` is true. If `owner` or `mode` is specified, it must be the same request that was used to obtain the confirmation token.
+
+Return value:
+
+- Return type: `WebPublicFileWriteResult`.
+- `Warnings` includes a note that secret content was not returned.
+- The secret value, preview, hash, and diff are never returned.
+
+Return value sample:
+
+```json
+{
+  "SiteKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/.env",
+  "ResolvedPath": "/var/www/html/.env",
+  "Written": true,
+  "Created": true,
+  "Overwritten": false,
+  "ContentType": "text/plain",
+  "Size": 128,
+  "Warnings": [
+    "Secret content was not returned."
+  ]
+}
+```
+
+Safety notes:
+
+- Call `web_secret_file_check_write` first and pass only its exact confirmation token.
+- Secret file writes require a writable `AllowedFiles` rule such as `.env*`.
+- Use `kelpiemcp secret forget <name>` if you set `forgetOnSuccess` to false.
 
 #### `web_change_owner`
 
