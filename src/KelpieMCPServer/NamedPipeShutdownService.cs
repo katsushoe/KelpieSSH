@@ -70,7 +70,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
         {
             try
             {
-                await using var pipe = CreateControlPipe(_options.PipeName);
+                await using var pipe = CreateControlPipe(_options.PipeName, _isWindowsService());
 
                 await pipe.WaitForConnectionAsync(stoppingToken);
 
@@ -661,7 +661,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
         return ex.Message.Contains("Pipe is broken", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static NamedPipeServerStream CreateControlPipe(string pipeName)
+    private static NamedPipeServerStream CreateControlPipe(string pipeName, bool isWindowsService)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -685,6 +685,13 @@ public sealed class NamedPipeShutdownService : BackgroundService
 
         security.AddAccessRule(new PipeAccessRule(admins, PipeAccessRights.FullControl, AccessControlType.Allow));
         security.AddAccessRule(new PipeAccessRule(localSystem, PipeAccessRights.FullControl, AccessControlType.Allow));
+        if (isWindowsService)
+        {
+            var interactiveUsers = new SecurityIdentifier(WellKnownSidType.InteractiveSid, null);
+            var remoteInteractiveUsers = new SecurityIdentifier("S-1-5-14");
+            security.AddAccessRule(new PipeAccessRule(interactiveUsers, PipeAccessRights.ReadWrite, AccessControlType.Allow));
+            security.AddAccessRule(new PipeAccessRule(remoteInteractiveUsers, PipeAccessRights.ReadWrite, AccessControlType.Allow));
+        }
 
         return NamedPipeServerStreamAcl.Create(
             pipeName,
