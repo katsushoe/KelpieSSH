@@ -2255,6 +2255,13 @@ static void DeleteProfilesByPattern(string profilePattern, bool noBackup, bool d
         {
             Console.WriteLine($"  {pendingTarget.ProfileName}: {GetProfileBackupPath(pendingTarget.ProfilePath)}");
         }
+
+        var pendingProfileNames = pendingTargets
+            .Select(target => target.ProfileName)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        targets = targets
+            .Where(target => !pendingProfileNames.Contains(target.ProfileName))
+            .ToArray();
     }
 
     if (targets.Count == 0)
