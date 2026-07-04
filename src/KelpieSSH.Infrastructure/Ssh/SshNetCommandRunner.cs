@@ -124,7 +124,23 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
 
         using var command = client.CreateCommand(request.CommandText);
         command.CommandTimeout = request.Timeout;
-        var standardOutput = command.Execute();
+        string standardOutput;
+        try
+        {
+            standardOutput = command.Execute();
+        }
+        catch (SshOperationTimeoutException)
+        {
+            return new SshCommandResult(
+                request.CommandName,
+                request.CommandText,
+                -1,
+                string.Empty,
+                "SSH command timed out.",
+                startedAt,
+                DateTimeOffset.UtcNow,
+                TimedOut: true);
+        }
 
         return new SshCommandResult(
             request.CommandName,

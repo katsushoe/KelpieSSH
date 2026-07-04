@@ -24,7 +24,27 @@ public sealed class RawShellCommandPolicyTests
         action.Should().Throw<KelpiePolicyError>();
     }
 
-    private static SshConnectionProfile CreateProfile()
+    [Theory]
+    [InlineData("rm /")]
+    [InlineData("rm /*")]
+    public void EnsureAllowed_ShouldRejectRootDeleteTargetsEvenWithGlobalWrite(string commandText)
+    {
+        var profile = CreateProfile(
+            KelpiePolicyMode.Expert,
+            [new AllowedRootRule("*", AllowedRootAccess.Write)]);
+
+        var action = () => RawShellCommandPolicy.Default.EnsureAllowed(
+            profile,
+            commandText,
+            KelpieExecutionChannel.Cli);
+
+        action.Should().Throw<KelpiePolicyError>()
+            .Which.Message.Should().Contain("rm target is forbidden:");
+    }
+
+    private static SshConnectionProfile CreateProfile(
+        KelpiePolicyMode mode = KelpiePolicyMode.Safe,
+        IReadOnlyCollection<AllowedRootRule>? allowedRootRules = null)
     {
         return new SshConnectionProfile
         {
@@ -34,7 +54,8 @@ public sealed class RawShellCommandPolicyTests
             PrivateKeyPath = "id_ed25519",
             OsFamily = "debian",
             PackageManager = "apt",
-            Mode = KelpiePolicyMode.Safe,
+            Mode = mode,
+            AllowedRootRules = allowedRootRules ?? [],
         };
     }
 }

@@ -84,8 +84,10 @@ public sealed class SshProfileTrustStore
             var payload = Convert.FromBase64String(envelope.Payload);
             var buffer = new byte[payload.Length];
 
-            using var guard = new AesGcm(Materialize(), TagSize);
-            guard.Decrypt(nonce, payload, tag, buffer);
+            if (!TryDecrypt(nonce, payload, tag, buffer))
+            {
+                throw new CryptographicException("MCP trust store authentication failed.");
+            }
 
             var manifest = JsonSerializer.Deserialize<TrustStoreManifest>(
                     Encoding.UTF8.GetString(buffer),
@@ -143,7 +145,7 @@ public sealed class SshProfileTrustStore
         var payload = new byte[buffer.Length];
         var tag = new byte[TagSize];
 
-        using var guard = new AesGcm(Materialize(), TagSize);
+        using var guard = new AesGcm(MaterializeCurrent(), TagSize);
         guard.Encrypt(nonce, buffer, payload, tag);
 
         var envelope = new StoreEnvelope
@@ -271,7 +273,51 @@ public sealed class SshProfileTrustStore
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalizedPath))).ToLowerInvariant();
     }
 
-    private static byte[] Materialize()
+    private static bool TryDecrypt(
+        byte[] nonce,
+        byte[] payload,
+        byte[] tag,
+        byte[] buffer)
+    {
+        if (TryDecryptWithKey(MaterializeCurrent(), nonce, payload, tag, buffer))
+        {
+            return true;
+        }
+
+        Array.Clear(buffer);
+        return TryDecryptWithKey(MaterializeLegacy(), nonce, payload, tag, buffer);
+    }
+
+    private static bool TryDecryptWithKey(
+        byte[] key,
+        byte[] nonce,
+        byte[] payload,
+        byte[] tag,
+        byte[] buffer)
+    {
+        try
+        {
+            using var guard = new AesGcm(key, TagSize);
+            guard.Decrypt(nonce, payload, tag, buffer);
+            return true;
+        }
+        catch (CryptographicException)
+        {
+            return false;
+        }
+    }
+
+    private static byte[] MaterializeCurrent()
+    {
+        var legacyMaterial = MaterializeLegacy();
+        var machineMaterial = Encoding.UTF8.GetBytes(Environment.MachineName.ToUpperInvariant());
+        var combined = new byte[legacyMaterial.Length + machineMaterial.Length];
+        Buffer.BlockCopy(legacyMaterial, 0, combined, 0, legacyMaterial.Length);
+        Buffer.BlockCopy(machineMaterial, 0, combined, legacyMaterial.Length, machineMaterial.Length);
+        return SHA256.HashData(combined);
+    }
+
+    private static byte[] MaterializeLegacy()
     {
         var material = new byte[StoreSeed.Length];
         for (var index = 0; index < StoreSeed.Length; index++)

@@ -1,6 +1,7 @@
 using System.IO.Pipes;
 using System.Security.AccessControl;
 using System.Security.Principal;
+using System.Text;
 using System.Text.Json;
 using Kelpie.Core;
 using KelpieSSH.Application.Ssh;
@@ -15,6 +16,10 @@ namespace KelpieMCPServer;
 /// </summary>
 public sealed class NamedPipeShutdownService : BackgroundService
 {
+    private static readonly UTF8Encoding ControlPipeEncoding = new(
+        encoderShouldEmitUTF8Identifier: false,
+        throwOnInvalidBytes: true);
+
     private readonly IHostApplicationLifetime _applicationLifetime;
     private readonly ISshConnectionProfileCatalog _profileCatalog;
     private readonly ISshPasswordSessionStore _passwordSessionStore;
@@ -69,8 +74,8 @@ public sealed class NamedPipeShutdownService : BackgroundService
 
                 await pipe.WaitForConnectionAsync(stoppingToken);
 
-                using var reader = new StreamReader(pipe);
-                var writer = new StreamWriter(pipe)
+                using var reader = new StreamReader(pipe, ControlPipeEncoding);
+                var writer = new StreamWriter(pipe, ControlPipeEncoding)
                 {
                     AutoFlush = true,
                 };
@@ -669,10 +674,17 @@ public sealed class NamedPipeShutdownService : BackgroundService
         }
 
         var security = new PipeSecurity();
-        var users = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
+        using var identity = WindowsIdentity.GetCurrent();
+        var currentUser = identity.User;
         var admins = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
-        security.AddAccessRule(new PipeAccessRule(users, PipeAccessRights.ReadWrite, AccessControlType.Allow));
+        var localSystem = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+        if (currentUser is not null)
+        {
+            security.AddAccessRule(new PipeAccessRule(currentUser, PipeAccessRights.ReadWrite, AccessControlType.Allow));
+        }
+
         security.AddAccessRule(new PipeAccessRule(admins, PipeAccessRights.FullControl, AccessControlType.Allow));
+        security.AddAccessRule(new PipeAccessRule(localSystem, PipeAccessRights.FullControl, AccessControlType.Allow));
 
         return NamedPipeServerStreamAcl.Create(
             pipeName,

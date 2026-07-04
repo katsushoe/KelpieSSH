@@ -13,6 +13,9 @@ namespace KelpieServerCommand;
 public static class KelpieServerCommandRunner
 {
     private static readonly TimeSpan PipeConnectionTimeout = TimeSpan.FromMilliseconds(300);
+    private static readonly UTF8Encoding ControlPipeEncoding = new(
+        encoderShouldEmitUTF8Identifier: false,
+        throwOnInvalidBytes: true);
     private const string WindowsServiceName = "KelpieMCPServer";
     private const string WindowsServiceDisplayName = "KelpieSSH MCP Server";
     private const string WindowsServiceDescription = "Provides the local KelpieSSH MCP server endpoint for AI clients.";
@@ -590,14 +593,14 @@ public static class KelpieServerCommandRunner
             using var cancellationTokenSource = new CancellationTokenSource(timeout);
             await pipe.ConnectAsync(cancellationTokenSource.Token);
 
-            var writer = new StreamWriter(pipe)
+            var writer = new StreamWriter(pipe, ControlPipeEncoding)
             {
                 AutoFlush = true,
             };
             await writer.WriteLineAsync(command);
             await writer.FlushAsync(cancellationTokenSource.Token);
 
-            using var reader = new StreamReader(pipe);
+            using var reader = new StreamReader(pipe, ControlPipeEncoding);
             return await reader.ReadLineAsync(cancellationTokenSource.Token);
         }
         catch (OperationCanceledException)
@@ -635,11 +638,11 @@ public static class KelpieServerCommandRunner
             using var cancellationTokenSource = new CancellationTokenSource(timeout);
             await pipe.ConnectAsync(cancellationTokenSource.Token);
 
-            var writer = new StreamWriter(pipe)
+            var writer = new StreamWriter(pipe, ControlPipeEncoding)
             {
                 AutoFlush = true,
             };
-            var reader = new StreamReader(pipe);
+            var reader = new StreamReader(pipe, ControlPipeEncoding);
 
             await writer.WriteLineAsync("login " + profileName);
             await writer.FlushAsync(cancellationTokenSource.Token);
@@ -691,11 +694,11 @@ public static class KelpieServerCommandRunner
             using var cancellationTokenSource = new CancellationTokenSource(timeout);
             await pipe.ConnectAsync(cancellationTokenSource.Token);
 
-            var writer = new StreamWriter(pipe)
+            var writer = new StreamWriter(pipe, ControlPipeEncoding)
             {
                 AutoFlush = true,
             };
-            var reader = new StreamReader(pipe);
+            var reader = new StreamReader(pipe, ControlPipeEncoding);
 
             var request = JsonSerializer.Serialize(new SecretPutRequest(secretName, ttlSeconds));
             await writer.WriteLineAsync("secret-put " + request);
@@ -875,12 +878,12 @@ public static class KelpieServerCommandRunner
 
         var suffix = trimmed[^1];
         var numberText = char.IsLetter(suffix) ? trimmed[..^1] : trimmed;
-        if (!int.TryParse(numberText, out var number) || number <= 0)
+        if (!long.TryParse(numberText, out var number) || number <= 0)
         {
             return false;
         }
 
-        ttlSeconds = char.ToLowerInvariant(suffix) switch
+        var seconds = char.ToLowerInvariant(suffix) switch
         {
             's' => number,
             'm' => number * 60,
@@ -888,6 +891,12 @@ public static class KelpieServerCommandRunner
             _ when char.IsDigit(suffix) => number,
             _ => 0,
         };
+        if (seconds <= 0 || seconds > int.MaxValue)
+        {
+            return false;
+        }
+
+        ttlSeconds = (int)seconds;
         return ttlSeconds > 0;
     }
 
