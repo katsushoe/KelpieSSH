@@ -9,6 +9,7 @@ public sealed class RawShellCommandPolicy
     [
         "&&",
         "||",
+        "&",
         ";",
         "`",
         "$(",
@@ -20,7 +21,6 @@ public sealed class RawShellCommandPolicy
     ];
     private static readonly string[] ReadOnlyExecutables =
     [
-        "awk",
         "cat",
         "clear",
         "date",
@@ -28,13 +28,11 @@ public sealed class RawShellCommandPolicy
         "dnf",
         "du",
         "echo",
-        "find",
         "free",
         "grep",
         "head",
         "hostname",
         "id",
-        "ip",
         "journalctl",
         "less",
         "ls",
@@ -42,10 +40,8 @@ public sealed class RawShellCommandPolicy
         "ps",
         "pwd",
         "rpm",
-        "sed",
         "ss",
         "stat",
-        "systemctl",
         "tail",
         "top",
         "uname",
