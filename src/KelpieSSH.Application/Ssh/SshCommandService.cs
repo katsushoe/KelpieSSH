@@ -256,6 +256,25 @@ public sealed class SshCommandService
     }
 
     /// <summary>
+    /// Gets the risk level for one allowed SSH command without rendering its arguments.
+    /// </summary>
+    /// <param name="profile">The SSH connection profile.</param>
+    /// <param name="commandName">The allowed command name.</param>
+    /// <returns>The command risk level.</returns>
+    public SshCommandRiskLevel GetRiskLevel(SshConnectionProfile profile, string commandName)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var allowedCommandCatalog = ResolveAllowedCommandCatalog(profile);
+        if (!allowedCommandCatalog.TryGet(commandName, out var command))
+        {
+            throw new InvalidOperationException($"SSH command is not allowed: {commandName}");
+        }
+
+        return command.RiskLevel;
+    }
+
+    /// <summary>
     /// Creates a validated preview for one SSH remote operation without executing it.
     /// </summary>
     /// <param name="operation">The remote operation request.</param>

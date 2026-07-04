@@ -127,7 +127,7 @@ public sealed class KelpieToolsSshTests
     }
 
     [Fact]
-    public async Task RunRemoteOperationAsync_ShouldRunWithoutProfileCatalog()
+    public async Task RunRemoteOperationAsync_ShouldRejectCallerSuppliedPolicy()
     {
         var runner = new FakeSshCommandRunner();
         var service = CreateProviderBackedService(runner);
@@ -152,9 +152,9 @@ public sealed class KelpieToolsSshTests
 
         result.CorrelationId.Should().Be("op-example");
         result.CommandName.Should().Be("service_status");
-        result.CommandText.Should().Be("systemctl status 'nginx' --no-pager");
-        runner.LastRequest.Should().NotBeNull();
-        runner.LastRequest!.Profile.Name.Should().Be("op-example");
+        result.ExitCode.Should().Be(-1);
+        result.Error.Should().Be("ssh_run_remote_operation is disabled because caller-supplied SSH policy is not trusted. Use saved-profile tools instead.");
+        runner.LastRequest.Should().BeNull();
     }
 
     [Fact]

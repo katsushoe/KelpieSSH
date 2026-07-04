@@ -190,7 +190,7 @@ public sealed partial class KelpieTools
                 "Audit commands must be called through ssh_audit_* tools.");
         }
 
-        if (IsDedicatedConfirmationCommand(commandName))
+        if (IsConfirmationRequiredCommand(sshCommandService, profileCatalog, profileName, commandName))
         {
             return CreateRejectedSshToolResult(
                 profileName,
@@ -229,12 +229,10 @@ public sealed partial class KelpieTools
         CancellationToken cancellationToken = default)
     {
         KpLog.Info($"MCP SSH tool called: ssh_run_remote_operation operation={operation.Operation.Name}, correlationId={operation.Options?.CorrelationId ?? string.Empty}");
-        var result = await sshCommandService.ExecuteAsync(
+        await Task.CompletedTask;
+        return CreateRejectedRemoteOperationToolResult(
             operation,
-            KelpieExecutionChannel.Mcp,
-            cancellationToken);
-
-        return CreateRemoteOperationToolResult(operation, result);
+            "ssh_run_remote_operation is disabled because caller-supplied SSH policy is not trusted. Use saved-profile tools instead.");
     }
 
     /// <summary>
@@ -2767,6 +2765,31 @@ public sealed partial class KelpieTools
             result.TimedOut);
     }
 
+    private static SshRemoteOperationToolResult CreateRejectedRemoteOperationToolResult(
+        SshRemoteOperation operation,
+        string error)
+    {
+        var completedAt = DateTimeOffset.UtcNow;
+        return new SshRemoteOperationToolResult(
+            operation.Options?.CorrelationId,
+            operation.Endpoint.Host,
+            operation.Endpoint.Port,
+            operation.Credential.UserName,
+            operation.Operation.Name,
+            string.Empty,
+            -1,
+            string.Empty,
+            error,
+            [],
+            [error],
+            [],
+            [error],
+            completedAt,
+            completedAt,
+            TimedOut: false,
+            Error: error);
+    }
+
     private static SshToolResult CreateRejectedSshToolResult(
         string profileName,
         string commandName,
@@ -2927,16 +2950,21 @@ public sealed partial class KelpieTools
                 || error.Contains("too long", StringComparison.Ordinal));
     }
 
-    private static bool IsDedicatedConfirmationCommand(string commandName)
+    private static bool IsConfirmationRequiredCommand(
+        SshCommandService sshCommandService,
+        ISshConnectionProfileCatalog profileCatalog,
+        string profileName,
+        string commandName)
     {
-        return commandName is "cron_write"
-            or "cron_rollback"
-            or "user_apply_group_change"
-            or "user_rollback_group_change"
-            or "user_apply_permission_change"
-            or "user_rollback_permission_change"
-            or "firewall_apply_rule"
-            or "backup_run";
+        try
+        {
+            var profile = ResolveSshProfile(profileCatalog, profileName);
+            return sshCommandService.GetRiskLevel(profile, commandName) == SshCommandRiskLevel.ConfirmRequired;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     private static SshConnectionProfile ResolveSshProfile(
