@@ -16,6 +16,11 @@ public sealed class SshConnectionSshOptions
     public int Port { get; set; } = 22;
 
     /// <summary>
+    /// Gets or sets the expected SSH host key SHA256 fingerprint.
+    /// </summary>
+    public string HostKeyFingerprintSha256 { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the SSH user name.
     /// </summary>
     public string UserName { get; set; } = string.Empty;

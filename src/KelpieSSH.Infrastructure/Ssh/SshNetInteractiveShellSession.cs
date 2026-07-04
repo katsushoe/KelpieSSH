@@ -71,6 +71,13 @@ public sealed class SshNetInteractiveShellSession : IAsyncDisposable
         };
 
         _client = new SshClient(connectionInfo);
+        _client.HostKeyReceived += (_, args) =>
+        {
+            args.CanTrust = SshHostKeyVerifier.IsTrusted(
+                _profile.HostKeyFingerprintSha256,
+                args.FingerPrintSHA256);
+        };
+
         await ConnectClientAsync(_client, cancellationToken);
         _shell = _client.CreateShellStream(
             TerminalName,

@@ -22,6 +22,18 @@ public sealed class SshConnectionProfileFileLoaderTests
     }
 
     [Fact]
+    public void LoadFile_ShouldReadHostKeyFingerprint()
+    {
+        var directory = CreateTempDirectory();
+        var filePath = Path.Combine(directory, "vps01.json");
+        File.WriteAllText(filePath, CreateProfileJsonWithHostKeyFingerprint());
+
+        var profile = SshConnectionProfileFileLoader.LoadFile(filePath);
+
+        profile.HostKeyFingerprintSha256.Should().Be("SHA256:abc123");
+    }
+
+    [Fact]
     public void LoadDirectory_ShouldLoadJsonProfilesInDirectory()
     {
         var directory = CreateTempDirectory();
@@ -31,6 +43,18 @@ public sealed class SshConnectionProfileFileLoaderTests
         var profiles = SshConnectionProfileFileLoader.LoadDirectory(directory);
 
         profiles.Select(profile => profile.Name).Should().Equal("vps01", "vps02");
+    }
+
+    [Fact]
+    public void LoadDirectory_ShouldSkipInvalidJsonProfileAndLoadValidProfiles()
+    {
+        var directory = CreateTempDirectory();
+        File.WriteAllText(Path.Combine(directory, "broken.json"), "{");
+        File.WriteAllText(Path.Combine(directory, "vps01.json"), CreateProfileJson("keys/vps01"));
+
+        var profiles = SshConnectionProfileFileLoader.LoadDirectory(directory);
+
+        profiles.Select(profile => profile.Name).Should().Equal("vps01");
     }
 
     [Fact]
@@ -329,6 +353,27 @@ public sealed class SshConnectionProfileFileLoaderTests
           "AllowedRoots": [
             "/var/www"
           ]
+        }
+        """;
+    }
+
+    private static string CreateProfileJsonWithHostKeyFingerprint()
+    {
+        return """
+        {
+          "Host": {
+            "Address": "example.invalid",
+            "HostKeyFingerprintSha256": "SHA256:abc123"
+          },
+          "Auth": {
+            "UserName": "deploy",
+            "Method": "privateKey",
+            "PrivateKeyFile": "id_ed25519"
+          },
+          "Platform": {
+            "OsFamily": "debian",
+            "PackageManager": "apt"
+          }
         }
         """;
     }

@@ -152,6 +152,7 @@ public sealed class SshConnectionProfileOptions
             Name = Name,
             Host = hostAddress,
             Port = IsHostConfigured(host) ? host.Port : ssh.Port,
+            HostKeyFingerprintSha256 = ResolveHostKeyFingerprint(host, ssh),
             UserName = selectedUser.UserName,
             AuthenticationMethod = selectedUser.AuthenticationMethod,
             PrivateKeyPath = selectedUser.PrivateKeyPath ?? privateKeyPath,
@@ -199,6 +200,18 @@ public sealed class SshConnectionProfileOptions
         return IsHostConfigured(host)
             ? host.Address
             : legacySsh.Host;
+    }
+
+    private static string? ResolveHostKeyFingerprint(SshConnectionHostOptions host, SshConnectionSshOptions legacySsh)
+    {
+        if (!string.IsNullOrWhiteSpace(host.HostKeyFingerprintSha256))
+        {
+            return host.HostKeyFingerprintSha256;
+        }
+
+        return string.IsNullOrWhiteSpace(legacySsh.HostKeyFingerprintSha256)
+            ? null
+            : legacySsh.HostKeyFingerprintSha256;
     }
 
     private static string ResolveUserName(

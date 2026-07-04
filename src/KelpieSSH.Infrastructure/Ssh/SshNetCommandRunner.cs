@@ -112,6 +112,13 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
         };
 
         using var client = new SshClient(connectionInfo);
+        client.HostKeyReceived += (_, args) =>
+        {
+            args.CanTrust = SshHostKeyVerifier.IsTrusted(
+                request.Profile.HostKeyFingerprintSha256,
+                args.FingerPrintSHA256);
+        };
+
         client.Connect();
         cancellationToken.ThrowIfCancellationRequested();
 

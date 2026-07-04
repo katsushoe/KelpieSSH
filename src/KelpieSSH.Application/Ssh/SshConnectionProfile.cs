@@ -21,6 +21,11 @@ public sealed class SshConnectionProfile
     public int Port { get; init; } = 22;
 
     /// <summary>
+    /// Gets the expected SSH host key SHA256 fingerprint.
+    /// </summary>
+    public string? HostKeyFingerprintSha256 { get; init; }
+
+    /// <summary>
     /// Gets the SSH user name.
     /// </summary>
     public required string UserName { get; init; }
@@ -130,6 +135,7 @@ public sealed class SshConnectionProfile
             Name = Name,
             Host = Host,
             Port = Port,
+            HostKeyFingerprintSha256 = HostKeyFingerprintSha256,
             UserName = user.UserName,
             AuthenticationMethod = user.AuthenticationMethod,
             PrivateKeyPath = user.PrivateKeyPath,

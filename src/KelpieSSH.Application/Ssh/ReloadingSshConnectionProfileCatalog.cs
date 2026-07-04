@@ -276,7 +276,7 @@ public sealed class ReloadingSshConnectionProfileCatalog : ISshConnectionProfile
         {
             loadErrors = [];
             return new SshConnectionProfileCatalog(
-                SshConnectionProfileFileLoader.LoadDirectory(profilesDirectory));
+                SshConnectionProfileFileLoader.LoadDirectoryStrict(profilesDirectory));
         }
 
         return LoadTrustedCatalog(profilesDirectory, trustStorePath, reloadProfileNames, out loadErrors);

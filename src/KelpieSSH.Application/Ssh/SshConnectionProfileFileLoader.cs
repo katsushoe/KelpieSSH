@@ -27,6 +27,27 @@ public static class SshConnectionProfileFileLoader
         return Directory
             .EnumerateFiles(serversDirectory, "*.json", SearchOption.TopDirectoryOnly)
             .OrderBy(filePath => filePath, StringComparer.OrdinalIgnoreCase)
+            .Select(TryLoadFile)
+            .Where(profile => profile is not null)
+            .Select(profile => profile!)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Loads all saved SSH profiles and fails when any profile file is invalid.
+    /// </summary>
+    /// <param name="serversDirectory">The directory that contains profile JSON files.</param>
+    /// <returns>The loaded SSH connection profiles.</returns>
+    public static IReadOnlyCollection<SshConnectionProfile> LoadDirectoryStrict(string serversDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(serversDirectory) || !Directory.Exists(serversDirectory))
+        {
+            return [];
+        }
+
+        return Directory
+            .EnumerateFiles(serversDirectory, "*.json", SearchOption.TopDirectoryOnly)
+            .OrderBy(filePath => filePath, StringComparer.OrdinalIgnoreCase)
             .Select(LoadFile)
             .ToArray();
     }
@@ -55,5 +76,17 @@ public static class SshConnectionProfileFileLoader
 
         options.Name = profileName;
         return options.ToProfile(Path.GetDirectoryName(Path.GetFullPath(filePath)) ?? AppContext.BaseDirectory);
+    }
+
+    private static SshConnectionProfile? TryLoadFile(string filePath)
+    {
+        try
+        {
+            return LoadFile(filePath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException)
+        {
+            return null;
+        }
     }
 }
