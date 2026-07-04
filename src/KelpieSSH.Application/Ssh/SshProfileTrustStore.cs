@@ -12,6 +12,8 @@ public sealed class SshProfileTrustStore
 {
     private const int NonceSize = 12;
     private const int TagSize = 16;
+    private const int DataKeySize = 32;
+    private const string KeyProtectionFile = "file";
 
     private static readonly byte[] StoreSeed =
     [
@@ -84,7 +86,7 @@ public sealed class SshProfileTrustStore
             var payload = Convert.FromBase64String(envelope.Payload);
             var buffer = new byte[payload.Length];
 
-            if (!TryDecrypt(nonce, payload, tag, buffer))
+            if (!TryDecrypt(filePath, envelope, nonce, payload, tag, buffer))
             {
                 throw new CryptographicException("MCP trust store authentication failed.");
             }
@@ -145,12 +147,15 @@ public sealed class SshProfileTrustStore
         var payload = new byte[buffer.Length];
         var tag = new byte[TagSize];
 
-        using var guard = new AesGcm(MaterializeCurrent(), TagSize);
+        var dataKey = CreateDataKey(filePath, out var keyProtection, out var protectedKey);
+        using var guard = new AesGcm(dataKey, TagSize);
         guard.Encrypt(nonce, buffer, payload, tag);
 
         var envelope = new StoreEnvelope
         {
-            FormatVersion = 1,
+            FormatVersion = 2,
+            KeyProtection = keyProtection,
+            ProtectedKey = protectedKey,
             Nonce = Convert.ToBase64String(nonce),
             Tag = Convert.ToBase64String(tag),
             Payload = Convert.ToBase64String(payload),
@@ -274,11 +279,20 @@ public sealed class SshProfileTrustStore
     }
 
     private static bool TryDecrypt(
+        string filePath,
+        StoreEnvelope envelope,
         byte[] nonce,
         byte[] payload,
         byte[] tag,
         byte[] buffer)
     {
+        if (TryGetEnvelopeDataKey(filePath, envelope, out var envelopeKey)
+            && TryDecryptWithKey(envelopeKey, nonce, payload, tag, buffer))
+        {
+            return true;
+        }
+
+        Array.Clear(buffer);
         if (TryDecryptWithKey(MaterializeCurrent(), nonce, payload, tag, buffer))
         {
             return true;
@@ -304,6 +318,71 @@ public sealed class SshProfileTrustStore
         catch (CryptographicException)
         {
             return false;
+        }
+    }
+
+    private static bool TryGetEnvelopeDataKey(
+        string filePath,
+        StoreEnvelope envelope,
+        out byte[] dataKey)
+    {
+        dataKey = [];
+        if (string.IsNullOrWhiteSpace(envelope.KeyProtection))
+        {
+            return false;
+        }
+
+        try
+        {
+            if (string.Equals(envelope.KeyProtection, KeyProtectionFile, StringComparison.OrdinalIgnoreCase))
+            {
+                var keyPath = GetKeyFilePath(filePath);
+                if (!File.Exists(keyPath))
+                {
+                    return false;
+                }
+
+                dataKey = Convert.FromBase64String(File.ReadAllText(keyPath));
+                return dataKey.Length == DataKeySize;
+            }
+        }
+        catch (Exception ex) when (ex is CryptographicException
+            or FormatException
+            or IOException
+            or UnauthorizedAccessException)
+        {
+            return false;
+        }
+
+        return false;
+    }
+
+    private static byte[] CreateDataKey(
+        string filePath,
+        out string keyProtection,
+        out string protectedKey)
+    {
+        var dataKey = RandomNumberGenerator.GetBytes(DataKeySize);
+        keyProtection = KeyProtectionFile;
+        protectedKey = string.Empty;
+        SaveKeyFile(filePath, dataKey);
+        return dataKey;
+    }
+
+    private static string GetKeyFilePath(string trustStorePath)
+    {
+        return trustStorePath + ".key";
+    }
+
+    private static void SaveKeyFile(string trustStorePath, byte[] dataKey)
+    {
+        var keyPath = GetKeyFilePath(trustStorePath);
+        File.WriteAllText(keyPath, Convert.ToBase64String(dataKey));
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(
+                keyPath,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite);
         }
     }
 
@@ -342,6 +421,10 @@ public sealed class SshProfileTrustStore
     private sealed class StoreEnvelope
     {
         public int FormatVersion { get; init; }
+
+        public string KeyProtection { get; init; } = string.Empty;
+
+        public string ProtectedKey { get; init; } = string.Empty;
 
         public string Nonce { get; init; } = string.Empty;
 

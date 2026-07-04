@@ -290,6 +290,37 @@ public sealed class SshConnectionProfileCatalogTests
     }
 
     [Fact]
+    public void TrustStore_ShouldCreateSeparateKeyFile()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+
+        var trustStore = SshProfileTrustStore.Load(trustStorePath);
+        trustStore.SetConfigHash("abc123");
+        trustStore.Save(trustStorePath);
+
+        File.Exists(trustStorePath).Should().BeTrue();
+        File.Exists(trustStorePath + ".key").Should().BeTrue();
+        File.ReadAllText(trustStorePath).Should().Contain("\"KeyProtection\": \"file\"");
+    }
+
+    [Fact]
+    public void TrustStore_ShouldRejectProtectedStoreWhenKeyFileIsMissing()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        var trustStore = SshProfileTrustStore.Load(trustStorePath);
+        trustStore.SetConfigHash("abc123");
+        trustStore.Save(trustStorePath);
+        File.Delete(trustStorePath + ".key");
+
+        var action = () => SshProfileTrustStore.Load(trustStorePath);
+
+        action.Should().Throw<InvalidOperationException>()
+            .WithMessage("MCP trust store could not be read or verified.");
+    }
+
+    [Fact]
     public void TrustStore_ShouldStoreCreatorPathHash()
     {
         var directory = CreateTempDirectory();
