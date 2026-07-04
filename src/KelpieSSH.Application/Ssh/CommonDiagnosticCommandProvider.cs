@@ -5,10 +5,11 @@ namespace KelpieSSH.Application.Ssh;
 /// </summary>
 public sealed class CommonDiagnosticCommandProvider : IAllowedCommandProvider
 {
-    private const string CertificatePathPattern = "^/(etc/letsencrypt/(live|archive)/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\.(pem|crt|cer)|etc/(ssl|pki)(/[A-Za-z0-9_.-]+)+\\.(pem|crt|cer))$";
+    private const string SafePathSegmentPattern = "[A-Za-z0-9_-][A-Za-z0-9_.-]*";
+    private const string CertificatePathPattern = "^/(etc/letsencrypt/(live|archive)/[A-Za-z0-9_-][A-Za-z0-9_.-]*/[A-Za-z0-9_-][A-Za-z0-9_.-]*\\.(pem|crt|cer)|etc/(ssl|pki)(/[A-Za-z0-9_-][A-Za-z0-9_.-]*)+\\.(pem|crt|cer))$";
     private const string BoundedListLimitPattern = "^(200|1[0-9]{2}|[1-9][0-9]?)$";
     private const string CronExpressionPattern = "^[0-9A-Za-z*/?,#LW.-]+( [0-9A-Za-z*/?,#LW.-]+){4}$";
-    private const string CronLogPathPattern = "^/var/log/[A-Za-z0-9_./-]{1,160}$";
+    private const string CronLogPathPattern = "^/var/log(/[A-Za-z0-9_-][A-Za-z0-9_.-]*){1,8}$";
     private const string ServiceNamePattern = "^[a-zA-Z0-9_.@-]{1,128}$";
     private const string ServiceStatePattern = "^[a-zA-Z,-]{1,64}$";
     private const string ShellCommandTextPattern = "^[A-Za-z0-9_./:+=,@ -]{1,128}$";
@@ -20,15 +21,15 @@ public sealed class CommonDiagnosticCommandProvider : IAllowedCommandProvider
     private const string LoginStatePattern = "^(enabled|disabled|unchanged)$";
     private const string PermissionStatePattern = "^(present|absent|unchanged)$";
     private const string PrincipalTypePattern = "^(user|group)$";
-    private const string OwnershipScanRootPattern = "^/(etc|home|opt|srv|var|var/log|var/www)(/[A-Za-z0-9_.-]+){0,4}$";
-    private const string BackupScanRootPattern = "^/(etc|home|opt|srv|var|var/log|var/www)(/[A-Za-z0-9_.-]+){0,4}$";
-    private const string BackupPathPattern = "^/var/backups/kelpie(/[A-Za-z0-9_.-]+){1,6}(\\.tar|\\.tgz|\\.tar\\.gz)$";
+    private const string OwnershipScanRootPattern = "^/(etc|home|opt|srv|var|var/log|var/www)(/[A-Za-z0-9_-][A-Za-z0-9_.-]*){0,4}$";
+    private const string BackupScanRootPattern = "^/(etc|home|opt|srv|var|var/log|var/www)(/[A-Za-z0-9_-][A-Za-z0-9_.-]*){0,4}$";
+    private const string BackupPathPattern = "^/var/backups/kelpie(/[A-Za-z0-9_-][A-Za-z0-9_.-]*){1,6}(\\.tar|\\.tgz|\\.tar\\.gz)$";
     private const string FirewallActionPattern = "^(add|remove)$";
     private const string FirewallTargetPattern = "^(service|port)$";
     private const string FirewallRuleValuePattern = "^([A-Za-z0-9_.-]{1,64}|([1-9][0-9]{0,4})/(tcp|udp))$";
     private const string FirewallZonePattern = "^[A-Za-z0-9_.-]{1,64}$";
     private const string BooleanPattern = "^(true|false)$";
-    private const string AuditLogPathPattern = "^/var/log/kelpie(/[A-Za-z0-9_.-]+){0,4}\\.log$";
+    private const string AuditLogPathPattern = "^/var/log/kelpie(/[A-Za-z0-9_-][A-Za-z0-9_.-]*){0,4}\\.log$";
     private const string DepthPattern = "^[0-5]$";
     private const string ProcessSortByPattern = "^(cpu|memory)$";
     private const string LoginShellPattern = "^/(bin|sbin|usr/bin|usr/sbin)/[A-Za-z0-9_.-]{1,64}$";

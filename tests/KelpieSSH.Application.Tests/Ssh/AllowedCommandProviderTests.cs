@@ -1326,6 +1326,28 @@ public sealed class AllowedCommandProviderTests
             .WithMessage("SSH command argument format is invalid: scanRoot");
     }
 
+    [Theory]
+    [InlineData("cert_inspect", "path", "/etc/letsencrypt/live/../privkey.pem")]
+    [InlineData("cron_validate", "logPath", "/var/log/../auth.log")]
+    [InlineData("user_file_ownership_check", "scanRoot", "/var/www/../log")]
+    [InlineData("backup_plan_check", "scanRoot", "/var/www/../log")]
+    public void CommonDiagnosticCommandProvider_ShouldRejectParentTraversalPathArguments(
+        string commandName,
+        string argumentName,
+        string argumentValue)
+    {
+        var provider = new CommonDiagnosticCommandProvider();
+        var profile = CreateProfile("debian", "apt");
+        var command = provider.GetCommands(profile).Single(command => command.Name == commandName);
+        var arguments = CreateValidArguments(commandName);
+        arguments[argumentName] = argumentValue;
+
+        var action = () => command.BuildCommandText(arguments);
+
+        action.Should().Throw<InvalidOperationException>()
+            .WithMessage($"SSH command argument format is invalid: {argumentName}");
+    }
+
     [Fact]
     public void CommonDiagnosticCommandProvider_ShouldRenderUserServiceUsageCheck()
     {
@@ -1683,6 +1705,39 @@ public sealed class AllowedCommandProviderTests
             OsFamily = osFamily,
             PackageManager = packageManager,
             Capabilities = PolicySet.Empty,
+        };
+    }
+
+    private static Dictionary<string, string> CreateValidArguments(string commandName)
+    {
+        return commandName switch
+        {
+            "cert_inspect" => new Dictionary<string, string>
+            {
+                ["path"] = "/etc/letsencrypt/live/example.com/fullchain.pem",
+            },
+            "cron_validate" => new Dictionary<string, string>
+            {
+                ["cronExpression"] = "0 0 * * *",
+                ["runUser"] = "deploy",
+                ["command"] = "/usr/bin/true",
+                ["logPath"] = "/var/log/kelpie-cron.log",
+            },
+            "user_file_ownership_check" => new Dictionary<string, string>
+            {
+                ["targetType"] = "user",
+                ["name"] = "deploy",
+                ["scanRoot"] = "/var/www",
+                ["depth"] = "2",
+                ["limit"] = "20",
+            },
+            "backup_plan_check" => new Dictionary<string, string>
+            {
+                ["scanRoot"] = "/var/www",
+                ["depth"] = "2",
+                ["limit"] = "20",
+            },
+            _ => throw new InvalidOperationException("Unexpected command name."),
         };
     }
 

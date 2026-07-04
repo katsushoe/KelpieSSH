@@ -25,7 +25,12 @@ public static class AllowedRootMatcher
             return false;
         }
 
-        var normalizedPath = NormalizePath(path);
+        var normalizedPath = SshPathNormalizer.Normalize(path);
+        if (string.IsNullOrEmpty(normalizedPath))
+        {
+            return false;
+        }
+
         var comparison = IsWindows(osFamily) ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         var regexOptions = IsWindows(osFamily) ? RegexOptions.IgnoreCase : RegexOptions.None;
         var ancestors = GetAncestors(normalizedPath).ToArray();
@@ -37,7 +42,12 @@ public static class AllowedRootMatcher
                 continue;
             }
 
-            var normalizedRoot = NormalizePath(root);
+            var normalizedRoot = SshPathNormalizer.Normalize(root, allowGlob: true);
+            if (string.IsNullOrEmpty(normalizedRoot))
+            {
+                continue;
+            }
+
             if (normalizedRoot is "*" or "**")
             {
                 return true;
@@ -140,17 +150,6 @@ public static class AllowedRootMatcher
             current = current[..index];
             yield return current;
         }
-    }
-
-    private static string NormalizePath(string value)
-    {
-        var normalized = value.Trim().Replace('\\', '/');
-        while (normalized.Contains("//", StringComparison.Ordinal))
-        {
-            normalized = normalized.Replace("//", "/", StringComparison.Ordinal);
-        }
-
-        return TrimTrailingSlash(normalized);
     }
 
     private static string TrimTrailingSlash(string value)

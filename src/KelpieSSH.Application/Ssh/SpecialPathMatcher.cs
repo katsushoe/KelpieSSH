@@ -25,7 +25,12 @@ public static class SpecialPathMatcher
             return null;
         }
 
-        var normalizedPath = NormalizePath(path);
+        var normalizedPath = SshPathNormalizer.Normalize(path);
+        if (string.IsNullOrEmpty(normalizedPath))
+        {
+            return null;
+        }
+
         var regexOptions = IsWindows(osFamily) ? RegexOptions.IgnoreCase : RegexOptions.None;
 
         foreach (var rule in specialPaths)
@@ -35,7 +40,12 @@ public static class SpecialPathMatcher
                 continue;
             }
 
-            var normalizedPattern = NormalizePath(rule.Pattern);
+            var normalizedPattern = SshPathNormalizer.Normalize(rule.Pattern, allowGlob: true);
+            if (string.IsNullOrEmpty(normalizedPattern))
+            {
+                continue;
+            }
+
             var regex = new Regex(ToGlobRegex(normalizedPattern), regexOptions, TimeSpan.FromMilliseconds(100));
             if (regex.IsMatch(normalizedPath))
             {
@@ -44,17 +54,6 @@ public static class SpecialPathMatcher
         }
 
         return null;
-    }
-
-    private static string NormalizePath(string value)
-    {
-        var normalized = value.Trim().Replace('\\', '/');
-        while (normalized.Contains("//", StringComparison.Ordinal))
-        {
-            normalized = normalized.Replace("//", "/", StringComparison.Ordinal);
-        }
-
-        return normalized.TrimEnd('/');
     }
 
     private static bool IsWindows(string osFamily)
