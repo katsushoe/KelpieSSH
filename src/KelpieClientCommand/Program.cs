@@ -2,12 +2,15 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using KelpieClientCommand;
 using KelpieServerCommand;
 using Kelpie.Core;
 using KelpieSSH.Application.Ssh;
 using KelpieSSH.Infrastructure.Ssh;
 using Microsoft.Extensions.Configuration;
 using Renci.SshNet.Common;
+
+ConfigureConsoleEncoding();
 
 if (!KelpieRuntimePathOverrideParser.TryParse(args, out var commandArgs, out var runtimePathOverrides, out var runtimePathError))
 {
@@ -460,6 +463,18 @@ catch (Exception ex) when (ex is FileNotFoundException
     KpLog.Warn(ex.Message);
     Console.Error.WriteLine(SanitizeReason(ex.Message));
     Environment.ExitCode = 1;
+}
+
+static void ConfigureConsoleEncoding()
+{
+    try
+    {
+        Console.OutputEncoding = Encoding.UTF8;
+    }
+    catch (Exception)
+    {
+        // Some redirected or restricted consoles reject encoding changes.
+    }
 }
 
 static IConfigurationRoot LoadConfiguration()
@@ -3156,51 +3171,7 @@ static string ReadPrompt(string title, string defaultValue)
 
 static IReadOnlyList<string> ReadOptionalPromptList(string title, IReadOnlyCollection<string> defaultValues)
 {
-    var values = new List<string>();
-    Console.Write($"{title} [Return to skip]: ");
-    var firstValue = Console.ReadLine();
-    if (firstValue is null)
-    {
-        return [];
-    }
-
-    var trimmedFirstValue = firstValue.Trim();
-    if (string.IsNullOrWhiteSpace(trimmedFirstValue))
-    {
-        return [];
-    }
-
-    if (string.Equals(trimmedFirstValue, "-", StringComparison.Ordinal))
-    {
-        return [];
-    }
-
-    values.Add(trimmedFirstValue);
-
-    while (true)
-    {
-        Console.Write($"{title} [Return to skip]: ");
-        var value = Console.ReadLine();
-        if (value is null)
-        {
-            break;
-        }
-
-        var trimmed = value.Trim();
-        if (string.IsNullOrWhiteSpace(trimmed))
-        {
-            break;
-        }
-
-        if (string.Equals(trimmed, "-", StringComparison.Ordinal))
-        {
-            return [];
-        }
-
-        values.Add(trimmed);
-    }
-
-    return values;
+    return ProfilePromptListReader.Read(Console.In, Console.Out, title, defaultValues);
 }
 
 static int ReadPortPrompt(string title, int defaultValue)
