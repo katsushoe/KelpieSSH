@@ -318,6 +318,33 @@ if (string.Equals(command, "profile", StringComparison.OrdinalIgnoreCase))
         return;
     }
 
+    if (string.Equals(subcommand, "trust-host-key", StringComparison.OrdinalIgnoreCase))
+    {
+        if (!TryExtractNoBackupOption(args, out var trustArgs, out var trustNoBackup))
+        {
+            WriteProfileUsage(Console.Error);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        if (!TryExtractDryRunOption(trustArgs, out trustArgs, out var trustDryRun))
+        {
+            WriteProfileUsage(Console.Error);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        if (trustArgs.Length != 3)
+        {
+            WriteProfileUsage(Console.Error);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        TrustHostKey(trustArgs[2], trustNoBackup, trustDryRun);
+        return;
+    }
+
     if (string.Equals(subcommand, "check", StringComparison.OrdinalIgnoreCase))
     {
         if (!TryExtractPagerOption(args, out var checkArgs, out var checkPagerMode))
@@ -936,6 +963,7 @@ static void WriteProfileUsage(TextWriter writer)
     writer.WriteLine("  kelpie profile clean <profile-pattern> [--dry-run]");
     writer.WriteLine("  kelpie profile commit <profile-pattern> [--dry-run]");
     writer.WriteLine("  kelpie profile rollback <profile-pattern> [--dry-run]");
+    writer.WriteLine("  kelpie profile trust-host-key <profile> [--no-backup] [--dry-run]");
     writer.WriteLine("  kelpie profile check <profile> [--pager|--no-pager]");
     writer.WriteLine("  kelpie profile show <profile-pattern> [--pager|--no-pager]");
     writer.WriteLine();
@@ -1000,6 +1028,7 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpie profile clean <profile-pattern>");
     writer.WriteLine("  kelpie profile commit <profile-pattern>");
     writer.WriteLine("  kelpie profile rollback <profile-pattern>");
+    writer.WriteLine("  kelpie profile trust-host-key <profile> [--no-backup]");
     writer.WriteLine("  kelpie profile check <profile> [--pager|--no-pager]");
     writer.WriteLine("  kelpie profile show <profile-pattern> [--pager|--no-pager]");
     writer.WriteLine("  kelpie status <profile>");
@@ -1925,6 +1954,85 @@ static void CommitProfile(string profileName, bool dryRun)
     }
 }
 
+static void TrustHostKey(string profileName, bool noBackup, bool dryRun)
+{
+    if (string.IsNullOrWhiteSpace(profileName))
+    {
+        Console.Error.WriteLine("Profile name is required.");
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    if (ContainsWildcard(profileName))
+    {
+        Console.Error.WriteLine("Profile trust-host-key requires a single profile name. Wildcards are not supported.");
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    var profilePath = GetExistingProfilePath(profileName);
+    if (profilePath is null)
+    {
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    if (File.Exists(GetProfileBackupPath(profilePath)))
+    {
+        WritePendingProfileTransactionError(profileName, profilePath);
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    var profile = SshConnectionProfileFileLoader.LoadFile(profilePath);
+    if (!string.IsNullOrWhiteSpace(profile.HostKeyFingerprintSha256))
+    {
+        Console.WriteLine($"Host key is already pinned for profile: {profile.Name}");
+        Console.WriteLine($"Host key SHA256: {FormatHostKeyFingerprint(profile.HostKeyFingerprintSha256)}");
+        return;
+    }
+
+    Console.WriteLine($"Reading SSH host key fingerprint for profile: {profile.Name}");
+    Console.WriteLine($"Host: {profile.Host}");
+    Console.WriteLine($"Port: {profile.Port}");
+    var fingerprint = new SshNetHostKeyFingerprintReader().ReadSha256(profile);
+
+    Console.WriteLine("Received SSH host key fingerprint:");
+    Console.WriteLine(fingerprint);
+    Console.WriteLine("Only trust this key if you verified it through your VPS provider console or another trusted channel.");
+
+    var editService = CreateProfileEditService();
+    if (dryRun)
+    {
+        RunDryRunProfileEdit(
+            profile.Name,
+            profilePath,
+            path => editService.SetHostKeyFingerprint(path, fingerprint),
+            noBackup);
+        return;
+    }
+
+    if (!ReadTrustConfirmation(profile.Name))
+    {
+        Console.WriteLine("Host key trust was canceled. No files were changed.");
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    RunTransactionalProfileEdit(
+        profile.Name,
+        profilePath,
+        () => editService.SetHostKeyFingerprint(profilePath, fingerprint),
+        noBackup);
+}
+
+static bool ReadTrustConfirmation(string profileName)
+{
+    Console.Error.Write($"Type TRUST to record this fingerprint for `{profileName}`: ");
+    var value = Console.ReadLine();
+    return string.Equals(value?.Trim(), "TRUST", StringComparison.Ordinal);
+}
+
 static void CommitProfilesByPattern(string profilePattern, bool dryRun)
 {
     var targets = ResolveProfileTargets(profilePattern, ProfileTargetKind.Pending, rejectPendingBackups: false);
@@ -2564,7 +2672,7 @@ static void RunProfileEdit(string[] args)
         return;
     }
 
-    var editService = new SshProfileEditService(new ProcessEditorLauncher());
+    var editService = CreateProfileEditService();
 
     if (args.Length == 3)
     {
@@ -2662,6 +2770,11 @@ static void RunProfileEdit(string[] args)
 
     WriteProfileEditUsage();
     Environment.ExitCode = 1;
+}
+
+static SshProfileEditService CreateProfileEditService()
+{
+    return new SshProfileEditService(new ProcessEditorLauncher());
 }
 
 static string? GetExistingProfilePath(string profileName)

@@ -17,7 +17,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | [MCP password session](#mcp-password-session) | `kelpiemcp password`, `kelpiemcp forget`, `kelpiemcp login`, `kelpiemcp logout` | Store or clear an SSH password in the running MCP server session. |
 | [MCP secret session](#mcp-secret-session) | `kelpiemcp secret put`, `kelpiemcp secret list`, `kelpiemcp secret forget` | Store, list, or clear short-lived secret file payloads in the running MCP server session. |
 | [Initialization](#initialization) | `kelpie init [--silent] [profile]`, `kelpie config --check` | Create and validate the local Kelpie home configuration. |
-| [Profile/session](#profilesession) | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | Create, edit, and delete profile templates, select profiles, and manage interactive SSH sessions. |
+| [Profile/session](#profilesession) | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie profile trust-host-key`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | Create, edit, trust host keys for, and delete profile templates, select profiles, and manage interactive SSH sessions. |
 | [Mode/UI](#modeui) | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | Switch CLI/GUI mode or choose a temporary launch mode. |
 | [Diagnostics](#diagnostics) | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie inventory`, `kelpie logs` | Validate profiles, show profile information, MCP server status, SSH diagnostics, target inventory, and service logs. |
 | [Packages](#packages) | `kelpie pkg check-updates`, `kelpie pkg info`, `kelpie pkg search`, `kelpie pkg list-installed`, `kelpie pkg simulate-install`, `kelpie pkg simulate-remove`, `kelpie pkg install`, `kelpie pkg remove` | Inspect packages and run confirmation-gated package operations through the selected SSH profile. |
@@ -839,6 +839,7 @@ Commands in this group:
 - [`kelpie profile clean <profile-pattern>`](#kelpie-profile-clean-profile-pattern)
 - [`kelpie profile commit <profile-pattern>`](#kelpie-profile-commit-profile-pattern)
 - [`kelpie profile rollback <profile-pattern>`](#kelpie-profile-rollback-profile-pattern)
+- [`kelpie profile trust-host-key <profile>`](#kelpie-profile-trust-host-key-profile)
 - [`kelpie profile check <profile>`](#kelpie-profile-check-profile)
 - [`kelpie profile show <profile-pattern>`](#kelpie-profile-show-profile-pattern)
 - [`kelpie open <profile>`](#kelpie-open-profile)
@@ -1030,7 +1031,7 @@ Arguments:
 | Argument | Required | Description |
 | :--- | :---: | :--- |
 | `<profile>` | yes | Single SSH profile name. Wildcards are not supported because editor mode can block and edits are transactional per profile. |
-| `<dotPath>` | for `set` | Scalar path to update. Supported values are `Host.Address`, `Host.Port`, `Auth.Method`, `Auth.PrivateKeyFile`, `Auth.PasswordSecretName`, `DefaultUser`, `Users.<user>.Mode`, `Platform.OsFamily`, and `Platform.PackageManager`. |
+| `<dotPath>` | for `set` | Scalar path to update. Supported values are `Host.Address`, `Host.Port`, `Host.HostKeyFingerprintSha256`, `Auth.Method`, `Auth.PrivateKeyFile`, `Auth.PasswordSecretName`, `DefaultUser`, `Users.<user>.Mode`, `Platform.OsFamily`, and `Platform.PackageManager`. |
 | `<value>` | for `set` | New scalar value. `Host.Port` must be an integer from `1` to `65535`. |
 | `<path>` | for `add-root` / `rm-root` | Allowed root path or glob. |
 | `<access>` | for `add-root` | `ReadOnly`, `ReadWrite`, `$ReadOnly`, or `$ReadWrite`. The value is normalized to the `$...` form. |
@@ -1269,6 +1270,64 @@ Processing:
 - With wildcards, resolves matching pending backups from `profiles/*.json.kelpie`.
 - With `--dry-run`, the command does not ask for confirmation and does not restore or delete files.
 - Without `--dry-run`, exact rollback restores the backup immediately; wildcard rollback asks for confirmation before restoring matching backups.
+
+#### `kelpie profile trust-host-key <profile>`
+
+Reads the remote SSH host key SHA256 fingerprint and records it in `Host.HostKeyFingerprintSha256` after explicit confirmation.
+Use this command only after verifying the displayed fingerprint through a trusted channel such as the VPS provider console.
+
+```powershell
+kelpie profile trust-host-key vps01
+kelpie profile trust-host-key vps01 --dry-run
+kelpie profile trust-host-key vps01 --no-backup
+```
+
+Arguments:
+
+| Argument | Required | Description |
+| :--- | :---: | :--- |
+| `<profile>` | yes | SSH profile name. Wildcards are rejected. |
+| `--dry-run` | no | Read and print the fingerprint, validate the JSON update on a temporary file, and print the would-be profile JSON without changing files. |
+| `--no-backup` | no | Write the profile update immediately without creating `profiles/<profile>.json.kelpie`. |
+
+Processing:
+
+- Requires an existing `profiles/<profile>.json`.
+- Refuses to run while `profiles/<profile>.json.kelpie` is pending.
+- Refuses to overwrite an already configured `Host.HostKeyFingerprintSha256`.
+- Opens an SSH handshake to read the server host key fingerprint. No remote command is executed.
+- Prints the received fingerprint and asks the user to type `TRUST`.
+- On confirmation, writes the fingerprint to `Host.HostKeyFingerprintSha256` and validates the resulting profile JSON.
+- Without `--no-backup`, saves the original profile as `profiles/<profile>.json.kelpie` and asks `Commit profile? [Y/n]:` after the update.
+
+Return value:
+
+- Exit code `0` when the fingerprint is recorded, when the profile is already pinned, or when dry-run completes.
+- Non-zero exit code when the profile is missing, a pending backup exists, fingerprint reading fails, the user does not type `TRUST`, or the profile update fails validation.
+- Standard output contains the target profile, host, port, received fingerprint, and profile transaction result.
+- Standard error contains validation, SSH, and confirmation errors.
+
+Execution result sample:
+
+```text
+Reading SSH host key fingerprint for profile: vps01
+Host: example.invalid
+Port: 22
+Received SSH host key fingerprint:
+SHA256:abc123
+Only trust this key if you verified it through your VPS provider console or another trusted channel.
+Type TRUST to record this fingerprint for `vps01`: TRUST
+Updated profile: vps01
+Profile file: D:\Kelpie\profiles\vps01.json
+Commit profile? [Y/n]: Y
+Committed profile: vps01
+```
+
+Safety notes:
+
+- TOFU is safe only when the first observed fingerprint is verified out of band.
+- If the first SSH connection is intercepted, trusting the displayed fingerprint can pin an attacker's host key.
+- Do not paste real host names, usernames, or production fingerprints into committed examples.
 
 #### `kelpie profile check <profile>`
 
