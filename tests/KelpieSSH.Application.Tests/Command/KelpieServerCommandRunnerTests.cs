@@ -1,4 +1,5 @@
 using System.IO.Pipes;
+using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using Kelpie.Core;
@@ -9,6 +10,10 @@ namespace KelpieSSH.Application.Tests.Command;
 
 public sealed class KelpieServerCommandRunnerTests
 {
+    private static readonly UTF8Encoding ControlPipeEncoding = new(
+        encoderShouldEmitUTF8Identifier: false,
+        throwOnInvalidBytes: true);
+
     [Fact]
     public async Task StartAsync_ShouldStartWindowsServiceWhenServiceIsRegistered()
     {
@@ -126,6 +131,84 @@ public sealed class KelpieServerCommandRunnerTests
 
         await serverTask;
         output.ToString().Should().Contain("SSH password stored for this KelpieMCPServer session.");
+    }
+
+    [Fact]
+    public async Task PasswordAsync_ShouldSendUtf8PasswordToPipe()
+    {
+        var options = CreateOptions();
+        using var output = new StringWriter();
+        var previousOutput = Console.Out;
+        const string password = "pass-日本語-umlaut-ä";
+        var serverTask = RunLoginPipeAsync(options.ControlPipeName, "vps01", password, "logged-in");
+        Console.SetOut(output);
+
+        try
+        {
+            await KelpieServerCommandRunner.PasswordAsync(options, "vps01", () => password);
+        }
+        finally
+        {
+            Console.SetOut(previousOutput);
+        }
+
+        await serverTask;
+        output.ToString().Should().Contain("SSH password stored for this KelpieMCPServer session.");
+    }
+
+    [Fact]
+    public async Task SecretPutAsync_ShouldSendSecretPayloadThroughPipeBody()
+    {
+        var options = CreateOptions();
+        using var output = new StringWriter();
+        var previousOutput = Console.Out;
+        var directory = Path.Combine(Path.GetTempPath(), "kelpie-secret-put-" + Guid.NewGuid().ToString("N"));
+        var secretPath = Path.Combine(directory, "secret.txt");
+        var secretBytes = Encoding.UTF8.GetBytes("TOKEN=secret-value");
+        Directory.CreateDirectory(directory);
+        File.WriteAllBytes(secretPath, secretBytes);
+        var serverTask = RunSecretPutPipeAsync(options.ControlPipeName, "prod-web-env", 600, secretBytes);
+        Console.SetOut(output);
+
+        try
+        {
+            await KelpieServerCommandRunner.SecretPutAsync(
+                options,
+                ["--name", "prod-web-env", "--from-file", secretPath, "--ttl", "10m"]);
+        }
+        finally
+        {
+            Console.SetOut(previousOutput);
+            Directory.Delete(directory, recursive: true);
+        }
+
+        await serverTask;
+        output.ToString().Should().Contain("Secret stored for this KelpieMCPServer session.");
+    }
+
+    [Fact]
+    public async Task SecretPutAsync_ShouldRejectOverflowTtl()
+    {
+        var options = CreateOptions();
+        using var error = new StringWriter();
+        var previousError = Console.Error;
+        var previousExitCode = Environment.ExitCode;
+        Console.SetError(error);
+        Environment.ExitCode = 0;
+
+        try
+        {
+            await KelpieServerCommandRunner.SecretPutAsync(
+                options,
+                ["--name", "prod-web-env", "--from-file", "secret.txt", "--ttl", "999999999999999999999999h"]);
+        }
+        finally
+        {
+            Console.SetError(previousError);
+            Environment.ExitCode = previousExitCode;
+        }
+
+        error.ToString().Should().Contain("TTL must be a positive duration");
     }
 
     [Fact]
@@ -353,8 +436,8 @@ public sealed class KelpieServerCommandRunnerTests
             PipeOptions.Asynchronous);
 
         await pipe.WaitForConnectionAsync();
-        using var reader = new StreamReader(pipe);
-        var writer = new StreamWriter(pipe)
+        using var reader = new StreamReader(pipe, ControlPipeEncoding);
+        var writer = new StreamWriter(pipe, ControlPipeEncoding)
         {
             AutoFlush = true,
         };
@@ -379,8 +462,8 @@ public sealed class KelpieServerCommandRunnerTests
             PipeOptions.Asynchronous);
 
         await pipe.WaitForConnectionAsync();
-        using var reader = new StreamReader(pipe);
-        var writer = new StreamWriter(pipe)
+        using var reader = new StreamReader(pipe, ControlPipeEncoding);
+        var writer = new StreamWriter(pipe, ControlPipeEncoding)
         {
             AutoFlush = true,
         };
@@ -393,6 +476,49 @@ public sealed class KelpieServerCommandRunnerTests
         var password = await reader.ReadLineAsync();
         password.Should().Be(expectedPassword);
         await writer.WriteLineAsync(response);
+        await writer.FlushAsync();
+    }
+
+    private static async Task RunSecretPutPipeAsync(
+        string pipeName,
+        string expectedSecretName,
+        int expectedTtlSeconds,
+        byte[] expectedSecretBytes)
+    {
+        await using var pipe = new NamedPipeServerStream(
+            pipeName,
+            PipeDirection.InOut,
+            1,
+            PipeTransmissionMode.Byte,
+            PipeOptions.Asynchronous);
+
+        await pipe.WaitForConnectionAsync();
+        using var reader = new StreamReader(pipe, ControlPipeEncoding);
+        var writer = new StreamWriter(pipe, ControlPipeEncoding)
+        {
+            AutoFlush = true,
+        };
+
+        var requestLine = await reader.ReadLineAsync();
+        requestLine.Should().NotContain(Convert.ToBase64String(expectedSecretBytes));
+        requestLine.Should().StartWith("secret-put ");
+        var requestJson = requestLine!["secret-put ".Length..];
+        using var requestDocument = JsonDocument.Parse(requestJson);
+        requestDocument.RootElement.GetProperty("Name").GetString().Should().Be(expectedSecretName);
+        requestDocument.RootElement.GetProperty("TtlSeconds").GetInt32().Should().Be(expectedTtlSeconds);
+
+        await writer.WriteLineAsync("secret-required");
+        await writer.FlushAsync();
+
+        var payloadBase64 = await reader.ReadLineAsync();
+        Convert.FromBase64String(payloadBase64!).Should().Equal(expectedSecretBytes);
+
+        var now = DateTimeOffset.UtcNow;
+        await writer.WriteLineAsync(JsonSerializer.Serialize(new KelpieSecretInfo(
+            expectedSecretName,
+            expectedSecretBytes.Length,
+            now,
+            now.AddSeconds(expectedTtlSeconds))));
         await writer.FlushAsync();
     }
 }

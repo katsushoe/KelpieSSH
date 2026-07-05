@@ -297,9 +297,9 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
                 ["pathBase64"] = EncodeArgument(requestedPath),
                 ["allowedPathsBase64"] = EncodeLines(access.ExactPaths),
                 ["allowedDirsBase64"] = EncodeLines(access.AllowedDirectories),
-                ["contentBase64"] = contentBase64,
             },
             channel: KelpieExecutionChannel.Mcp,
+            standardInput: contentBase64,
             cancellationToken: cancellationToken);
 
         if (result.ExitCode != 0)
@@ -590,9 +590,9 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
                     ["pathBase64"] = EncodeArgument(requestedPath),
                     ["allowedPathsBase64"] = EncodeLines(access.ExactPaths),
                     ["allowedDirsBase64"] = EncodeLines(access.AllowedDirectories),
-                    ["contentBase64"] = Convert.ToBase64String(updatedBytes),
                 },
                 channel: KelpieExecutionChannel.Mcp,
+                standardInput: Convert.ToBase64String(updatedBytes),
                 cancellationToken: cancellationToken);
 
             if (writeResult.ExitCode != 0)

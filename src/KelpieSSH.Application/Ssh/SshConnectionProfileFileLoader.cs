@@ -19,18 +19,45 @@ public static class SshConnectionProfileFileLoader
     /// <returns>The loaded SSH connection profiles.</returns>
     public static IReadOnlyCollection<SshConnectionProfile> LoadDirectory(string serversDirectory)
     {
+        return LoadDirectoryWithErrors(serversDirectory).Profiles;
+    }
+
+    /// <summary>
+    /// Loads all saved SSH profiles from a directory and returns profile-level load errors.
+    /// </summary>
+    /// <param name="serversDirectory">The directory that contains profile JSON files.</param>
+    /// <returns>The loaded profiles and profile-level load errors.</returns>
+    public static SshConnectionProfileDirectoryLoadResult LoadDirectoryWithErrors(string serversDirectory)
+    {
         if (string.IsNullOrWhiteSpace(serversDirectory) || !Directory.Exists(serversDirectory))
         {
-            return [];
+            return new SshConnectionProfileDirectoryLoadResult([], []);
         }
 
-        return Directory
+        var profiles = new List<SshConnectionProfile>();
+        var errors = new List<SshConnectionProfileLoadError>();
+        foreach (var filePath in Directory
             .EnumerateFiles(serversDirectory, "*.json", SearchOption.TopDirectoryOnly)
-            .OrderBy(filePath => filePath, StringComparer.OrdinalIgnoreCase)
-            .Select(TryLoadFile)
-            .Where(profile => profile is not null)
-            .Select(profile => profile!)
-            .ToArray();
+            .OrderBy(filePath => filePath, StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                profiles.Add(LoadFile(filePath));
+            }
+            catch (Exception ex) when (ex is IOException
+                or UnauthorizedAccessException
+                or JsonException
+                or InvalidOperationException)
+            {
+                errors.Add(new SshConnectionProfileLoadError(
+                    Path.GetFileNameWithoutExtension(filePath),
+                    filePath,
+                    "profile-load-failed",
+                    ex.Message));
+            }
+        }
+
+        return new SshConnectionProfileDirectoryLoadResult(profiles, errors);
     }
 
     /// <summary>
@@ -78,15 +105,13 @@ public static class SshConnectionProfileFileLoader
         return options.ToProfile(Path.GetDirectoryName(Path.GetFullPath(filePath)) ?? AppContext.BaseDirectory);
     }
 
-    private static SshConnectionProfile? TryLoadFile(string filePath)
-    {
-        try
-        {
-            return LoadFile(filePath);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException)
-        {
-            return null;
-        }
-    }
 }
+
+/// <summary>
+/// Represents directory profile load results.
+/// </summary>
+/// <param name="Profiles">The loaded profiles.</param>
+/// <param name="Errors">The profile-level load errors.</param>
+public sealed record SshConnectionProfileDirectoryLoadResult(
+    IReadOnlyCollection<SshConnectionProfile> Profiles,
+    IReadOnlyCollection<SshConnectionProfileLoadError> Errors);

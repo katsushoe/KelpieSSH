@@ -1,6 +1,6 @@
 # KelpieSSH Profile Guide
 
-Last updated: 2026-06-21
+Last updated: 2026-07-05
 
 This guide explains how to configure SSH profiles for KelpieSSH.
 For Japanese documentation, see [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md).
@@ -65,6 +65,30 @@ For private key authentication, place the private key under:
 ```
 
 The matching public key must already be registered on the server, usually in the remote user's `~/.ssh/authorized_keys`.
+
+## Host Key Pinning
+
+Set `Host.HostKeyFingerprintSha256` to pin the SSH server host key fingerprint.
+When the value is configured, KelpieSSH compares the received SSH host key fingerprint with the profile value before trusting the connection.
+
+```json
+{
+  "Host": {
+    "Address": "203.0.113.10",
+    "Port": 22,
+    "HostKeyFingerprintSha256": "SHA256:abc123"
+  }
+}
+```
+
+To record a fingerprint interactively, use:
+
+```powershell
+kelpie profile trust-host-key vps01
+```
+
+Only trust the displayed fingerprint after verifying it through a trusted channel such as the VPS provider console.
+If the first SSH connection is intercepted, recording that fingerprint can pin an attacker's host key.
 
 ## Minimal Private Key Profile
 
@@ -202,6 +226,7 @@ kelpiemcp forget vps01
 | `Host` | yes | object | none | SSH endpoint settings. |
 | `Host.Address` | yes | string | none | Host name or IP address. Must not be empty. |
 | `Host.Port` | no | integer | `22` | SSH port, normally `1` to `65535`. |
+| `Host.HostKeyFingerprintSha256` | no | string | none | Pinned SSH server host key SHA256 fingerprint. Use `kelpie profile trust-host-key <profile>` or verify and enter it manually. |
 | `Auth` | yes unless `Authentication` is used | object | none | Short alias for `Authentication`. Used by samples. |
 | `Authentication` | yes unless `Auth` is used | object | none | Formal authentication section. Takes priority over `Auth` when both are present. |
 | `Auth.UserName` / `Authentication.UserName` | yes for single-user profiles | string | none | SSH login user. Direct `root` login is rejected. |

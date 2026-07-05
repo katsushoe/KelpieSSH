@@ -27,6 +27,8 @@
     <ProjectReference Include="..\..\src\KelpieMCPServer\KelpieMCPServer.csproj" />
     <ProjectReference Include="..\..\src\Kelpie.Core\Kelpie.Core.csproj" />
     <ProjectReference Include="..\..\src\KelpieServerCommand\KelpieServerCommand.csproj" />
+    <ProjectReference Include="..\..\src\KelpieClientCommand\KelpieClientCommand.csproj" />
+    <ProjectReference Include="..\..\src\KelpieSSH.Infrastructure\KelpieSSH.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\KelpieWebPermissionHelper\KelpieWebPermissionHelper.csproj" />
   </ItemGroup>
 

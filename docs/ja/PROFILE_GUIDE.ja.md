@@ -1,6 +1,6 @@
 # KelpieSSH Profile Guide
 
-最終更新: 2026-06-21
+最終更新: 2026-07-05
 
 この文書は、KelpieSSH の SSH profile 設定方法を説明します。
 英語版は [../../PROFILE_GUIDE.md](../../PROFILE_GUIDE.md) です。
@@ -66,6 +66,30 @@ kelpie init vps01
 
 対応する公開鍵は、事前にサーバー側へ登録されている必要があります。
 通常は remote user の `~/.ssh/authorized_keys` に登録します。
+
+## ホスト鍵 pinning
+
+`Host.HostKeyFingerprintSha256` を設定すると、SSH サーバーのホスト鍵 fingerprint を pin できます。
+この値がある場合、KelpieSSH は接続時に受信した SSH ホスト鍵 fingerprint と profile の設定値を照合してから接続を信頼します。
+
+```json
+{
+  "Host": {
+    "Address": "203.0.113.10",
+    "Port": 22,
+    "HostKeyFingerprintSha256": "SHA256:abc123"
+  }
+}
+```
+
+対話的に fingerprint を記録する場合は次を使います。
+
+```powershell
+kelpie profile trust-host-key vps01
+```
+
+表示された fingerprint は、VPS 管理画面など信頼できる別経路で確認してから信頼してください。
+初回 SSH 接続が中間者攻撃を受けている場合、攻撃者のホスト鍵を pin する危険があります。
 
 ## 最小秘密鍵 profile
 
@@ -203,6 +227,7 @@ kelpiemcp forget vps01
 | `Host` | はい | object | なし | SSH 接続先設定。 |
 | `Host.Address` | はい | string | なし | Host name または IP address。空不可。 |
 | `Host.Port` | いいえ | integer | `22` | SSH port。通常は `1` から `65535`。 |
+| `Host.HostKeyFingerprintSha256` | いいえ | string | なし | pin する SSH サーバーホスト鍵 SHA256 fingerprint。`kelpie profile trust-host-key <profile>` を使うか、別経路で確認して手動入力します。 |
 | `Auth` | `Authentication` がない場合は はい | object | なし | `Authentication` の短縮別名。サンプルではこちらを使います。 |
 | `Authentication` | `Auth` がない場合は はい | object | なし | 正式な認証設定。`Auth` と両方ある場合はこちらを優先します。 |
 | `Auth.UserName` / `Authentication.UserName` | single-user profile では はい | string | なし | SSH login user。`root` 直接ログインは禁止です。 |
@@ -496,7 +521,7 @@ Legacy compatibility のサンプル:
 
 SSH 接続先です。
 
-| Field | 必須 | 初期値 | Description |
+| 項目 | 必須 | 初期値 | 説明 |
 | :--- | :---: | :--- | :--- |
 | `Host.Address` | はい | なし | Host name または IP address。 |
 | `Host.Port` | いいえ | `22` | SSH port。 |
@@ -512,7 +537,7 @@ SSH 認証設定です。
 `Authentication` が正式名、`Auth` は samples で使う短縮名です。
 両方ある場合は `Authentication` を優先します。
 
-| Field | 必須 | 初期値 | Description |
+| 項目 | 必須 | 初期値 | 説明 |
 | :--- | :---: | :--- | :--- |
 | `Auth.UserName` | single-user profile では はい | なし | SSH login user。`root` 直接ログインは禁止です。 |
 | `Auth.Method` | はい | `privateKey` | `privateKey` または `password`。 |
@@ -532,7 +557,7 @@ Troubleshooting:
 
 接続動作です。
 
-| Field | 必須 | 初期値 | Description |
+| 項目 | 必須 | 初期値 | 説明 |
 | :--- | :---: | :--- | :--- |
 | `Connection.TimeoutSeconds` | いいえ | `10` | SSH connection timeout 秒数。 |
 
@@ -545,14 +570,14 @@ Troubleshooting:
 
 安全な command 選択に使う target OS metadata です。
 
-| Field | 必須 | 初期値 | Description |
+| 項目 | 必須 | 初期値 | 説明 |
 | :--- | :---: | :--- | :--- |
 | `Platform.OsFamily` | はい | なし | Target OS family または alias。 |
 | `Platform.PackageManager` | いいえ | `OsFamily` から推定 | `apt`, `dnf`, `yum` など。 |
 
 代表的な `OsFamily`:
 
-| Value | Effective family | Typical OS |
+| 値 | 有効な family | 代表的な OS |
 | :--- | :--- | :--- |
 | `debian` | `debian` | Debian |
 | `ubuntu` | `debian` | Ubuntu |
@@ -572,7 +597,7 @@ Troubleshooting:
 
 `Mode` は互換用 key で、role expression として読み取ります。
 
-| Role | Description |
+| ロール | 説明 |
 | :--- | :--- |
 | `ReadOnly` | 読み取り中心の診断と listing。 |
 | `Safe` | 既定の safe role。危険な変更、secret 表示、sudo、delete、move、install を禁止します。 |
@@ -665,17 +690,17 @@ Troubleshooting:
 }
 ```
 
-Capability gates:
+Capability gate の一覧:
 
-| Capability | Description |
+| 権限 | 説明 |
 | :--- | :--- |
 | `AllowPeekEnvironmentKeys` | 環境変数名と metadata の一覧取得を許可します。 |
 | `AllowPeekEnvironmentValues` | key rule が許可する場合に、環境変数値の読み取りを許可します。 |
 | `AllowSetEnvironmentValues` | key rule が許可する場合に、1回の command execution 用の環境変数値設定、または Kelpie env file への永続化を許可します。 |
 
-`EnvironmentValues` rules:
+`EnvironmentValues` のルール:
 
-| Rule | Type | Description |
+| ルール | 型 | 説明 |
 | :--- | :--- | :--- |
 | `Common` | alias | `PeekCommon|SetCommon` に展開します。 |
 | `Secret` | alias | `PeekSecret|SetSecret` に展開します。この rule を読み込むと warning を出します。 |
@@ -744,7 +769,7 @@ Logging rules:
 }
 ```
 
-Rules:
+ルール:
 
 - User-defined name は `$` で始めます。
 - Built-in names は `$ReadOnly`, `$ReadWrite`, `$ALL` です。
@@ -771,7 +796,7 @@ Path-based operations を許可する path または glob rules です。
 
 Access flags:
 
-| Flag | Description |
+| フラグ | 説明 |
 | :--- | :--- |
 | `@Read` | file content read を許可します。 |
 | `@List` | file / directory listing を許可します。 |
@@ -818,7 +843,7 @@ Troubleshooting:
 }
 ```
 
-| Value | Description |
+| 値 | 説明 |
 | :--- | :--- |
 | `Deny` | read/write/delete を拒否します。 |
 | `Confirm` | operation candidate にはできますが、強い確認を要求します。 |
@@ -895,7 +920,7 @@ Service-specific defaults です。
 }
 ```
 
-| Field | 必須 | 初期値 | Description |
+| 項目 | 必須 | 初期値 | 説明 |
 | :--- | :---: | :--- | :--- |
 | `Services.Nginx.User` | いいえ | なし | Nginx worker user。 |
 | `Services.Nginx.Group` | いいえ | なし | Nginx worker group。 |
@@ -942,7 +967,7 @@ Service-specific defaults です。
 }
 ```
 
-| Field | 必須 | 初期値 | Description |
+| 項目 | 必須 | 初期値 | 説明 |
 | :--- | :---: | :--- | :--- |
 | `WebPublicSites.<siteKey>.Root` / `RootPath` | はい | なし | そのサイトの Web 公開ルート。 |
 | `WebPublicSites.<siteKey>.AllowedExtensions` | いいえ | 組み込み安全静的拡張子 | このサイトで許可する通常ファイルの拡張子。有効な値は `.html` や `.png` のような、先頭ドット付きの単一ファイル拡張子です。大文字小文字は区別しません。path、glob、MIME type、実行可能拡張子は指定しません。 |

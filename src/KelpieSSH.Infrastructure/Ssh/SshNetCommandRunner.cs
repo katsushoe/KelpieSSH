@@ -1,4 +1,5 @@
 using System.Net.Sockets;
+using System.Text;
 using Kelpie.Core;
 using KelpieSSH.Application.Ssh;
 using Renci.SshNet;
@@ -44,6 +45,7 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
             timeoutSource.Token);
 
         var startedAt = DateTimeOffset.UtcNow;
+        WarnIfHostKeyIsNotPinned(request.Profile);
         KpLog.Info(
             $"SSH command started. profile={request.Profile.Name}, command={request.CommandName}, timeoutSeconds={request.Timeout.TotalSeconds:0.###}");
 
@@ -94,6 +96,14 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
         }
     }
 
+    private static void WarnIfHostKeyIsNotPinned(SshConnectionProfile profile)
+    {
+        if (!SshHostKeyVerifier.HasPinnedFingerprint(profile.HostKeyFingerprintSha256))
+        {
+            KpLog.Warn($"SSH host key is not pinned. profile={profile.Name}, host={profile.Host}. Verify the first connection out of band and set Host.HostKeyFingerprintSha256.");
+        }
+    }
+
     private static SshCommandResult Execute(
         SshCommandRequest request,
         DateTimeOffset startedAt,
@@ -124,13 +134,42 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
 
         using var command = client.CreateCommand(request.CommandText);
         command.CommandTimeout = request.Timeout;
-        var standardOutput = command.Execute();
+        try
+        {
+            if (request.StandardInput is null)
+            {
+                _ = command.Execute();
+            }
+            else
+            {
+                var executeTask = command.ExecuteAsync(cancellationToken);
+                using (var inputStream = command.CreateInputStream())
+                {
+                    var inputBytes = Encoding.UTF8.GetBytes(request.StandardInput);
+                    inputStream.Write(inputBytes, 0, inputBytes.Length);
+                }
+
+                executeTask.GetAwaiter().GetResult();
+            }
+        }
+        catch (SshOperationTimeoutException)
+        {
+            return new SshCommandResult(
+                request.CommandName,
+                request.CommandText,
+                -1,
+                string.Empty,
+                "SSH command timed out.",
+                startedAt,
+                DateTimeOffset.UtcNow,
+                TimedOut: true);
+        }
 
         return new SshCommandResult(
             request.CommandName,
             request.CommandText,
             command.ExitStatus ?? -1,
-            standardOutput,
+            command.Result,
             command.Error,
             startedAt,
             DateTimeOffset.UtcNow,

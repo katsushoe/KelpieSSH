@@ -96,6 +96,21 @@ public sealed class SshConnectionProfileCatalogTests
     }
 
     [Fact]
+    public void ReloadingCatalog_WithoutTrustStore_ShouldSkipBrokenProfileAndReportError()
+    {
+        var directory = CreateTempDirectory();
+        File.WriteAllText(Path.Combine(directory, "broken.json"), "{ invalid json");
+        File.WriteAllText(Path.Combine(directory, "vps01.json"), CreateProfileJson("deploy"));
+
+        var catalog = new ReloadingSshConnectionProfileCatalog(directory);
+
+        catalog.TryGet("vps01", out var profile).Should().BeTrue();
+        profile.UserName.Should().Be("deploy");
+        catalog.ProfileLoadErrors.Should().ContainSingle(error =>
+            error.ProfileName == "broken" && error.Reason == "profile-load-failed");
+    }
+
+    [Fact]
     public void ReloadingCatalog_WithTrustStore_ShouldCreateBaseline()
     {
         var directory = CreateTempDirectory();
@@ -287,6 +302,37 @@ public sealed class SshConnectionProfileCatalogTests
 
         loaded.TryGetConfigHash(out var actualHash).Should().BeTrue();
         actualHash.Should().Be(expectedHash);
+    }
+
+    [Fact]
+    public void TrustStore_ShouldCreateSeparateKeyFile()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+
+        var trustStore = SshProfileTrustStore.Load(trustStorePath);
+        trustStore.SetConfigHash("abc123");
+        trustStore.Save(trustStorePath);
+
+        File.Exists(trustStorePath).Should().BeTrue();
+        File.Exists(trustStorePath + ".key").Should().BeTrue();
+        File.ReadAllText(trustStorePath).Should().Contain("\"KeyProtection\": \"file\"");
+    }
+
+    [Fact]
+    public void TrustStore_ShouldRejectProtectedStoreWhenKeyFileIsMissing()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        var trustStore = SshProfileTrustStore.Load(trustStorePath);
+        trustStore.SetConfigHash("abc123");
+        trustStore.Save(trustStorePath);
+        File.Delete(trustStorePath + ".key");
+
+        var action = () => SshProfileTrustStore.Load(trustStorePath);
+
+        action.Should().Throw<InvalidOperationException>()
+            .WithMessage("MCP trust store could not be read or verified.");
     }
 
     [Fact]

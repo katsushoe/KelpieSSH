@@ -24,6 +24,7 @@ public sealed class SshProfileEditService
     [
         "Host.Address",
         "Host.Port",
+        "Host.HostKeyFingerprintSha256",
         "Auth.Method",
         "Auth.PrivateKeyFile",
         "Auth.PasswordSecretName",
@@ -73,6 +74,12 @@ public sealed class SshProfileEditService
                 return null;
             }
 
+            if (string.Equals(normalizedPath, "Host.HostKeyFingerprintSha256", StringComparison.OrdinalIgnoreCase))
+            {
+                SetString(GetOrCreateObject(node, "Host"), "HostKeyFingerprintSha256", NormalizeHostKeyFingerprint(value));
+                return null;
+            }
+
             if (string.Equals(normalizedPath, "Auth.Method", StringComparison.OrdinalIgnoreCase))
             {
                 SetString(GetOrCreateObject(node, "Auth"), "Method", value);
@@ -119,6 +126,22 @@ public sealed class SshProfileEditService
 
             return CreateUnsupportedDotPathMessage(normalizedPath);
         });
+    }
+
+    /// <summary>
+    /// Sets the pinned SSH host key fingerprint.
+    /// </summary>
+    /// <param name="profilePath">The profile JSON file path.</param>
+    /// <param name="fingerprint">The SHA256 host key fingerprint.</param>
+    /// <returns>The edit result.</returns>
+    public ProfileEditResult SetHostKeyFingerprint(string profilePath, string fingerprint)
+    {
+        if (string.IsNullOrWhiteSpace(fingerprint))
+        {
+            return ProfileEditResult.Fail(profilePath, "Host key fingerprint is required.");
+        }
+
+        return SetScalar(profilePath, "Host.HostKeyFingerprintSha256", fingerprint);
     }
 
     /// <summary>
@@ -327,6 +350,17 @@ public sealed class SshProfileEditService
     private static string NormalizeLf(string value)
     {
         return value.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\r", "\n", StringComparison.Ordinal);
+    }
+
+    private static string NormalizeHostKeyFingerprint(string value)
+    {
+        var normalized = value.Trim();
+        if (!normalized.StartsWith("SHA256:", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = "SHA256:" + normalized;
+        }
+
+        return normalized.TrimEnd('=');
     }
 
     private static JsonObject GetOrCreateObject(JsonObject parent, string propertyName)

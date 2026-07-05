@@ -19,8 +19,19 @@ public static partial class PermissionHelper
         TextWriter standardOutput,
         TextWriter standardError)
     {
+        return Run(args, operations, Console.In, standardOutput, standardError);
+    }
+
+    public static int Run(
+        string[] args,
+        IUnixPermissionOperations operations,
+        TextReader standardInput,
+        TextWriter standardOutput,
+        TextWriter standardError)
+    {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(operations);
+        ArgumentNullException.ThrowIfNull(standardInput);
         ArgumentNullException.ThrowIfNull(standardOutput);
         ArgumentNullException.ThrowIfNull(standardError);
 
@@ -35,7 +46,7 @@ public static partial class PermissionHelper
             {
                 "--version" => WriteVersion(standardOutput),
                 "version" => WriteVersion(standardOutput),
-                "write-file" => WriteFile(args, operations, standardOutput, standardError),
+                "write-file" => WriteFile(args, operations, standardInput, standardOutput, standardError),
                 "change-owner" => ChangeOwner(args, operations, standardOutput, standardError),
                 "change-mode" => ChangeMode(args, operations, standardOutput, standardError),
                 _ => WriteError(standardError, "ERROR: unsupported action: " + args[0]),
@@ -50,6 +61,7 @@ public static partial class PermissionHelper
     private static int WriteFile(
         IReadOnlyList<string> args,
         IUnixPermissionOperations operations,
+        TextReader standardInput,
         TextWriter standardOutput,
         TextWriter standardError)
     {
@@ -60,7 +72,7 @@ public static partial class PermissionHelper
 
         var siteRoot = DecodeBase64(args[1], "siteRoot");
         var path = DecodeBase64(args[2], "path");
-        var content = DecodeContent(args[3]);
+        var content = DecodeContent(args[3], standardInput);
         var maxBytes = ValidateMaxBytes(args[4]);
         var createDirectories = ValidateCreateDirectories(args[5]);
         var ownerSpec = DecodeOptionalBase64(args[6], "owner").Trim();
@@ -322,11 +334,15 @@ public static partial class PermissionHelper
             : decoded;
     }
 
-    private static byte[] DecodeContent(string value)
+    private static byte[] DecodeContent(string value, TextReader standardInput)
     {
+        var contentBase64 = string.Equals(value, "-", StringComparison.Ordinal)
+            ? standardInput.ReadToEnd()
+            : value;
+
         try
         {
-            return Convert.FromBase64String(value);
+            return Convert.FromBase64String(contentBase64);
         }
         catch (FormatException ex)
         {

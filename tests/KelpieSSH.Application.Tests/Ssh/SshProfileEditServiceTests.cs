@@ -35,6 +35,20 @@ public sealed class SshProfileEditServiceTests
         ReadProfile(profile.Path)["Host"]!["Port"]!.GetValue<int>().Should().Be(2224);
     }
 
+    [Fact]
+    public void SetHostKeyFingerprint_ShouldSetNormalizedSha256Fingerprint()
+    {
+        using var profile = TestProfile.Create();
+        var service = CreateService();
+
+        var result = service.SetHostKeyFingerprint(profile.Path, "abc123=");
+
+        result.Success.Should().BeTrue();
+        var node = ReadProfile(profile.Path);
+        node["Host"]!["HostKeyFingerprintSha256"]!.GetValue<string>().Should().Be("SHA256:abc123");
+        SshConnectionProfileFileLoader.LoadFile(profile.Path).HostKeyFingerprintSha256.Should().Be("SHA256:abc123");
+    }
+
     [Theory]
     [InlineData("0")]
     [InlineData("65536")]

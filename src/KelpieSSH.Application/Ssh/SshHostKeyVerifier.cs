@@ -13,7 +13,7 @@ public static class SshHostKeyVerifier
     /// <returns><c>true</c> when no pin is configured or when the fingerprint matches.</returns>
     public static bool IsTrusted(string? expectedSha256, string? actualSha256)
     {
-        if (string.IsNullOrWhiteSpace(expectedSha256))
+        if (!HasPinnedFingerprint(expectedSha256))
         {
             return true;
         }
@@ -23,10 +23,21 @@ public static class SshHostKeyVerifier
             return false;
         }
 
+        var expected = expectedSha256!;
         return string.Equals(
-            Normalize(expectedSha256),
+            Normalize(expected),
             Normalize(actualSha256),
             StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Determines whether a profile has a pinned host key fingerprint.
+    /// </summary>
+    /// <param name="expectedSha256">The configured SHA256 fingerprint.</param>
+    /// <returns><c>true</c> when a non-empty fingerprint is configured.</returns>
+    public static bool HasPinnedFingerprint(string? expectedSha256)
+    {
+        return !string.IsNullOrWhiteSpace(expectedSha256);
     }
 
     private static string Normalize(string value)

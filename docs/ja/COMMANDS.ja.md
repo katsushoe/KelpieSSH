@@ -17,7 +17,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | MCP secret session | `kelpiemcp secret put`, `kelpiemcp secret list`, `kelpiemcp secret forget` | 起動中の MCP server に短命の秘密ファイル内容を一時保存、一覧表示、削除する。 |
 | Compatibility | `kelpiemcp login`, `kelpiemcp logout` | 旧名互換。新規利用では `password` / `forget` を使う。 |
 | Initialization | `kelpie init [--silent] [profile]`, `kelpie config --check` | `KelpieHome` 配下の初期ディレクトリとサンプル設定を作成・検証する。 |
-| Profile/session | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイルひな形作成・編集・削除、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
+| Profile/session | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie profile trust-host-key`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイルひな形作成・編集・ホスト鍵信頼登録・削除、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
 | Mode/UI | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | CLI/GUI モードや一時的な起動方式を切り替える。 |
 | Diagnostics | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie inventory`, `kelpie logs` | プロファイル検証、プロファイル情報、MCP server 状態、SSH 診断、接続先 inventory、サービスログを表示する。 |
 | Packages | `kelpie pkg check-updates`, `kelpie pkg info`, `kelpie pkg search`, `kelpie pkg list-installed`, `kelpie pkg simulate-install`, `kelpie pkg simulate-remove`, `kelpie pkg install`, `kelpie pkg remove` | SSH profile の package provider を使って package 確認と確認付き変更を行う。 |
@@ -1258,7 +1258,7 @@ kelpie profile rollback vps02
 引数詳細:
 
 - `profile`: 編集する profile 名。現在の `KelpieHome/profiles` から解決します。
-- `dotPath`: `set` で更新する scalar path。許可値は `Host.Address`、`Host.Port`、`Auth.Method`、`Auth.PrivateKeyFile`、`Auth.PasswordSecretName`、`DefaultUser`、`Users.<user>.Mode`、`Platform.OsFamily`、`Platform.PackageManager` です。
+- `dotPath`: `set` で更新する scalar path。許可値は `Host.Address`、`Host.Port`、`Host.HostKeyFingerprintSha256`、`Auth.Method`、`Auth.PrivateKeyFile`、`Auth.PasswordSecretName`、`DefaultUser`、`Users.<user>.Mode`、`Platform.OsFamily`、`Platform.PackageManager` です。
 - `value`: `set` の新しい値。`Host.Port` は `1` から `65535` の整数です。
 - `path`: `add-root` / `rm-root` の allowed root path または glob です。
 - `access`: `add-root` の権限。`ReadOnly`、`ReadWrite`、`$ReadOnly`、`$ReadWrite` を受け付け、`$...` 形式へ正規化します。
@@ -1512,6 +1512,68 @@ kelpie profile rollback "vps-*" --dry-run
 - wildcard を含む場合は `profiles/*.json.kelpie` から一致する pending backup を解決します。
 - `--dry-run` 指定時は確認 prompt を出さず、profile file の復元も backup file の削除も行いません。
 - `--dry-run` なしの場合、単一 profile は即時復元し、wildcard は確認後に一致 backup を復元します。
+
+### `kelpie profile trust-host-key <profile>`
+
+目的:
+
+接続先 SSH サーバーのホスト鍵 SHA256 fingerprint を読み取り、明示確認後に `Host.HostKeyFingerprintSha256` へ記録します。
+表示された fingerprint は、VPS 管理画面など信頼できる別経路で確認してから信頼してください。
+
+構文:
+
+```powershell
+kelpie profile trust-host-key vps01
+kelpie profile trust-host-key vps01 --dry-run
+kelpie profile trust-host-key vps01 --no-backup
+```
+
+引数詳細:
+
+| 引数 | 必須 | 説明 |
+| :--- | :---: | :--- |
+| `<profile>` | はい | SSH profile 名。wildcard は拒否します。 |
+| `--dry-run` | いいえ | fingerprint を読み取り表示し、一時ファイル上で JSON 更新を検証して書き込み予定 JSON を表示します。実ファイルは変更しません。 |
+| `--no-backup` | いいえ | `profiles/<profile>.json.kelpie` backup を作成せず、profile 更新を即時反映します。 |
+
+処理内容:
+
+- 既存の `profiles/<profile>.json` が必要です。
+- `profiles/<profile>.json.kelpie` が pending の場合は拒否します。
+- 既に `Host.HostKeyFingerprintSha256` が設定済みの場合は上書きしません。
+- SSH handshake で server host key fingerprint を読み取ります。remote command は実行しません。
+- 受信した fingerprint を表示し、ユーザーに `TRUST` の入力を求めます。
+- 確認後、fingerprint を `Host.HostKeyFingerprintSha256` に書き込み、更新後 profile JSON を検証します。
+- `--no-backup` なしでは、元 profile を `profiles/<profile>.json.kelpie` として保存し、更新後に `Commit profile? [Y/n]:` を尋ねます。
+
+戻り値:
+
+- fingerprint を記録した場合、既に pin 済みの場合、または dry-run 完了時は exit code `0`。
+- profile 不存在、pending backup あり、fingerprint 読み取り失敗、`TRUST` 未入力、profile 更新検証失敗時は non-zero exit code。
+- 標準出力には対象 profile、host、port、受信 fingerprint、profile transaction 結果を出します。
+- 標準エラーには検証、SSH、確認に関するエラーを出します。
+
+実行結果サンプル:
+
+```text
+Reading SSH host key fingerprint for profile: vps01
+Host: example.invalid
+Port: 22
+Received SSH host key fingerprint:
+SHA256:abc123
+Only trust this key if you verified it through your VPS provider console or another trusted channel.
+Type TRUST to record this fingerprint for `vps01`: TRUST
+Updated profile: vps01
+Profile file: D:\Kelpie\profiles\vps01.json
+Commit profile? [Y/n]: Y
+Committed profile: vps01
+```
+
+安全メモ:
+
+- TOFU は、最初に観測した fingerprint を別経路で確認できる場合にのみ安全です。
+- 初回 SSH 接続が中間者攻撃を受けている場合、攻撃者のホスト鍵を pin する危険があります。
+- 実ホスト名、実ユーザー名、本番 fingerprint をコミット対象の例に含めないでください。
 
 ### `kelpie profile check <profile>`
 
@@ -2134,6 +2196,7 @@ Usage:
   kelpie profile clean <profile-pattern> [--dry-run]
   kelpie profile commit <profile-pattern> [--dry-run]
   kelpie profile rollback <profile-pattern> [--dry-run]
+  kelpie profile trust-host-key <profile> [--no-backup] [--dry-run]
   kelpie profile check <profile>
   kelpie profile show <profile-pattern>
   kelpie status <profile>
