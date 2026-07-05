@@ -60,6 +60,11 @@ public sealed class SshNetInteractiveShellSession : IAsyncDisposable
             throw new InvalidOperationException("Direct root SSH login is not allowed.");
         }
 
+        if (!SshHostKeyVerifier.HasPinnedFingerprint(_profile.HostKeyFingerprintSha256))
+        {
+            KpLog.Warn($"SSH host key is not pinned. profile={_profile.Name}, host={_profile.Host}. Verify the first connection out of band and set Host.HostKeyFingerprintSha256.");
+        }
+
         var authenticationMethod = await _authenticationFactory.CreateAsync(_profile, cancellationToken);
         var connectionInfo = new ConnectionInfo(
             _profile.Host,

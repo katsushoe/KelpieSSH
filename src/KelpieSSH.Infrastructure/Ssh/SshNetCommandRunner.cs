@@ -44,6 +44,7 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
             timeoutSource.Token);
 
         var startedAt = DateTimeOffset.UtcNow;
+        WarnIfHostKeyIsNotPinned(request.Profile);
         KpLog.Info(
             $"SSH command started. profile={request.Profile.Name}, command={request.CommandName}, timeoutSeconds={request.Timeout.TotalSeconds:0.###}");
 
@@ -91,6 +92,14 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
             KpLog.Err(
                 $"SSH command failed. profile={request.Profile.Name}, command={request.CommandName}, exceptionType={ex.GetType().FullName ?? "UnknownException"}");
             throw;
+        }
+    }
+
+    private static void WarnIfHostKeyIsNotPinned(SshConnectionProfile profile)
+    {
+        if (!SshHostKeyVerifier.HasPinnedFingerprint(profile.HostKeyFingerprintSha256))
+        {
+            KpLog.Warn($"SSH host key is not pinned. profile={profile.Name}, host={profile.Host}. Verify the first connection out of band and set Host.HostKeyFingerprintSha256.");
         }
     }
 

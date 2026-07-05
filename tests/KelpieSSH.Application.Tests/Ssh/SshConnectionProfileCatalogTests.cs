@@ -96,6 +96,21 @@ public sealed class SshConnectionProfileCatalogTests
     }
 
     [Fact]
+    public void ReloadingCatalog_WithoutTrustStore_ShouldSkipBrokenProfileAndReportError()
+    {
+        var directory = CreateTempDirectory();
+        File.WriteAllText(Path.Combine(directory, "broken.json"), "{ invalid json");
+        File.WriteAllText(Path.Combine(directory, "vps01.json"), CreateProfileJson("deploy"));
+
+        var catalog = new ReloadingSshConnectionProfileCatalog(directory);
+
+        catalog.TryGet("vps01", out var profile).Should().BeTrue();
+        profile.UserName.Should().Be("deploy");
+        catalog.ProfileLoadErrors.Should().ContainSingle(error =>
+            error.ProfileName == "broken" && error.Reason == "profile-load-failed");
+    }
+
+    [Fact]
     public void ReloadingCatalog_WithTrustStore_ShouldCreateBaseline()
     {
         var directory = CreateTempDirectory();

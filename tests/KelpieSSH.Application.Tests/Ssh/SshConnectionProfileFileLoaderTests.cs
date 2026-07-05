@@ -58,6 +58,23 @@ public sealed class SshConnectionProfileFileLoaderTests
     }
 
     [Fact]
+    public void LoadDirectoryWithErrors_ShouldReturnSkippedProfileErrors()
+    {
+        var directory = CreateTempDirectory();
+        var brokenPath = Path.Combine(directory, "broken.json");
+        File.WriteAllText(brokenPath, "{");
+        File.WriteAllText(Path.Combine(directory, "vps01.json"), CreateProfileJson("keys/vps01"));
+
+        var result = SshConnectionProfileFileLoader.LoadDirectoryWithErrors(directory);
+
+        result.Profiles.Select(profile => profile.Name).Should().Equal("vps01");
+        result.Errors.Should().ContainSingle(error =>
+            error.ProfileName == "broken"
+            && error.FilePath == brokenPath
+            && error.Reason == "profile-load-failed");
+    }
+
+    [Fact]
     public void LoadDirectory_ShouldReturnEmptyCollectionWhenDirectoryDoesNotExist()
     {
         var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));

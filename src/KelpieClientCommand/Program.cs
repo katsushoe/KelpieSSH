@@ -26,6 +26,8 @@ KpLogSetup.Configure(
     "kelpie");
 KpLog.Info("Kelpie CLI starting.");
 
+try
+{
 var command = args.Length > 0 ? args[0] : string.Empty;
 if (!IsCheckCommand(args))
 {
@@ -420,6 +422,18 @@ if (string.Equals(command, "env", StringComparison.OrdinalIgnoreCase))
 
 ShowUsage(command);
 Environment.ExitCode = string.IsNullOrWhiteSpace(command) ? 0 : 1;
+}
+catch (Exception ex) when (ex is FileNotFoundException
+    or DirectoryNotFoundException
+    or UnauthorizedAccessException
+    or IOException
+    or InvalidOperationException
+    or SshException)
+{
+    KpLog.Warn(ex.Message);
+    Console.Error.WriteLine(SanitizeReason(ex.Message));
+    Environment.ExitCode = 1;
+}
 
 static IConfigurationRoot LoadConfiguration()
 {
@@ -444,9 +458,20 @@ static KelpieMcpServerOptions LoadCommandOptions()
 static SshConnectionProfileCatalog LoadProfileCatalog()
 {
     var profilesDirectory = KelpieRuntimePaths.GetProfilesDirectory(AppContext.BaseDirectory);
+    var loadResult = SshConnectionProfileFileLoader.LoadDirectoryWithErrors(profilesDirectory);
+    WriteProfileLoadWarnings(loadResult.Errors);
 
-    return new SshConnectionProfileCatalog(
-        SshConnectionProfileFileLoader.LoadDirectory(profilesDirectory));
+    return new SshConnectionProfileCatalog(loadResult.Profiles);
+}
+
+static void WriteProfileLoadWarnings(IReadOnlyCollection<SshConnectionProfileLoadError> errors)
+{
+    foreach (var error in errors)
+    {
+        var message = $"SSH profile skipped. profile={error.ProfileName}, reason={error.Reason}, file={error.FilePath}, message={error.Message}";
+        KpLog.Warn(message);
+        Console.Error.WriteLine(message);
+    }
 }
 
 static void RunConfigCheck(string[] args)
@@ -663,6 +688,10 @@ static void CheckLoadedProfile(CheckResultWriter result, SshConnectionProfile pr
     CheckAuthSecret(result, "Auth", profile.AuthenticationMethod, profile.PrivateKeyPath, profile.PasswordSecretName);
     result.Write("Platform.OsFamily", !string.IsNullOrWhiteSpace(profile.OsFamily), "OS family is required");
     result.Write("Platform.PackageManager", !string.IsNullOrWhiteSpace(profile.PackageManager), "package manager is required");
+    result.Write(
+        "Host.HostKeyFingerprintSha256",
+        !string.IsNullOrWhiteSpace(profile.HostKeyFingerprintSha256),
+        "host key fingerprint is not pinned; verify the first connection out of band and record Host.HostKeyFingerprintSha256");
     result.Write("Mode", Enum.IsDefined(profile.Mode), "mode is invalid");
 
     var commandProviders = CommandProcessingProviderCatalog.CreateDefault()
@@ -4026,6 +4055,8 @@ static void WriteProfileSummary(SshConnectionProfile profile, bool includeAuthen
     Console.WriteLine($"Profile: {profile.Name}");
     Console.WriteLine($"Host: {profile.Host}");
     Console.WriteLine($"Port: {profile.Port}");
+    Console.WriteLine($"Host key SHA256: {FormatHostKeyFingerprint(profile.HostKeyFingerprintSha256)}");
+    WriteHostKeyPinWarning(profile);
     Console.WriteLine($"User: {profile.UserName}");
     Console.WriteLine($"OS family: {profile.OsFamily}");
     Console.WriteLine($"Package manager: {profile.PackageManager}");
@@ -4054,6 +4085,26 @@ static void WriteProfileSummary(SshConnectionProfile profile, bool includeAuthen
         Console.WriteLine($"Password secret: {FormatConfiguredSecret(profile.PasswordSecretName)}");
         Console.WriteLine("Password session: use kelpiemcp password <profile> for the running KelpieMCPServer session.");
     }
+}
+
+static string FormatHostKeyFingerprint(string? fingerprint)
+{
+    return string.IsNullOrWhiteSpace(fingerprint)
+        ? "(not pinned)"
+        : fingerprint.Trim();
+}
+
+static void WriteHostKeyPinWarning(SshConnectionProfile profile)
+{
+    if (!string.IsNullOrWhiteSpace(profile.HostKeyFingerprintSha256))
+    {
+        return;
+    }
+
+    Console.Error.WriteLine(
+        $"Warning: SSH host key is not pinned for profile `{profile.Name}`. Verify the first connection out of band, then set Host.HostKeyFingerprintSha256.");
+    Console.Error.WriteLine(
+        "TOFU note: record the verified SHA256 fingerprint in the profile before relying on this target.");
 }
 
 static void WriteAllowedRoots(SshConnectionProfile profile)
