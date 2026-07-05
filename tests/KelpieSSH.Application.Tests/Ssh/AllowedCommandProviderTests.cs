@@ -150,12 +150,7 @@ public sealed class AllowedCommandProviderTests
             ["allowedPathsBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("\n")),
             ["allowedDirsBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("/etc/nginx/conf.d\n")),
         };
-        var writeArguments = new Dictionary<string, string>(baseArguments, StringComparer.OrdinalIgnoreCase)
-        {
-            ["contentBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("server {}\n")),
-        };
-
-        var writeCommand = commands.Single(command => command.Name == "service_config_nginx_write_config").BuildCommandText(writeArguments);
+        var writeCommand = commands.Single(command => command.Name == "service_config_nginx_write_config").BuildCommandText(baseArguments);
         var checkCommand = commands.Single(command => command.Name == "service_config_nginx_check_write_config").BuildCommandText(baseArguments);
         var rollbackCommand = commands.Single(command => command.Name == "service_config_nginx_rollback_config").BuildCommandText(baseArguments);
 
@@ -163,10 +158,12 @@ public sealed class AllowedCommandProviderTests
         var checkScript = DecodeEmbeddedShellScript(checkCommand);
         var rollbackScript = DecodeEmbeddedShellScript(rollbackCommand);
 
-        writeCommand.Should().NotContain("python3 -c");
+        writeCommand.Should().Contain("python3 -c");
+        writeCommand.Should().NotContain(Convert.ToBase64String(Encoding.UTF8.GetBytes("server {}\n")));
         checkCommand.Should().NotContain("python3 -c");
         rollbackCommand.Should().NotContain("python3 -c");
         writeScript.Should().Contain("KELPIE_CREATED_CONFIG_FILE_BACKUP_V1");
+        writeScript.Should().Contain("sys.stdin.read()");
         writeScript.Should().Contain("exists=os.path.exists(rp)");
         writeScript.Should().Contain("exists and not os.path.isfile(rp)");
         checkScript.Should().Contain("exists=os.path.exists(rp)");

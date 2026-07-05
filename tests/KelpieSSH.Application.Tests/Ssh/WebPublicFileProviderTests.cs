@@ -197,7 +197,9 @@ public sealed class WebPublicFileProviderTests
         result.Warnings.Should().Contain("Secret content was not returned.");
         result.Error.Should().BeNull();
         runner.LastRequest!.CommandName.Should().Be("web_public_file_write_internal");
-        runner.LastRequest.Arguments["contentBase64"].Should().Be(contentBase64);
+        runner.LastRequest.Arguments.Should().NotContainKey("contentBase64");
+        runner.LastRequest.CommandText.Should().NotContain(contentBase64);
+        runner.LastRequest.StandardInput.Should().Be(contentBase64);
     }
 
     [Fact]
@@ -443,7 +445,9 @@ public sealed class WebPublicFileProviderTests
         result.Size.Should().Be(4);
         result.Error.Should().BeNull();
         runner.LastRequest!.CommandName.Should().Be("web_public_file_write_internal");
-        runner.LastRequest.Arguments["contentBase64"].Should().Be(imageBase64);
+        runner.LastRequest.Arguments.Should().NotContainKey("contentBase64");
+        runner.LastRequest.CommandText.Should().NotContain(imageBase64);
+        runner.LastRequest.StandardInput.Should().Be(imageBase64);
     }
 
     [Fact]
@@ -476,6 +480,9 @@ public sealed class WebPublicFileProviderTests
         result.Mode.Should().Be("775");
         result.Error.Should().BeNull();
         runner.LastRequest!.CommandName.Should().Be("web_public_file_write_with_permissions_internal");
+        runner.LastRequest.Arguments.Should().NotContainKey("contentBase64");
+        runner.LastRequest.CommandText.Should().NotContain(contentBase64);
+        runner.LastRequest.StandardInput.Should().Be(contentBase64);
         DecodeArgument(runner.LastRequest, "ownerBase64").Should().Be("www-data:www-data");
         DecodeArgument(runner.LastRequest, "modeBase64").Should().Be("775");
     }
@@ -586,7 +593,9 @@ public sealed class WebPublicFileProviderTests
         result.ContentType.Should().Be("application/gzip");
         result.Size.Should().Be(4);
         result.Error.Should().BeNull();
-        runner.LastRequest!.Arguments["contentBase64"].Should().Be(gzipBase64);
+        runner.LastRequest!.Arguments.Should().NotContainKey("contentBase64");
+        runner.LastRequest.CommandText.Should().NotContain(gzipBase64);
+        runner.LastRequest.StandardInput.Should().Be(gzipBase64);
     }
 
     [Fact]

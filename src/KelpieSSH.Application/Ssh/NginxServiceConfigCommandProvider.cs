@@ -47,13 +47,12 @@ public sealed class NginxServiceConfigCommandProvider : IAllowedCommandProvider
             ]),
         new(
             "service_config_nginx_write_config",
-            CreateEncodedPythonScriptCommand("import base64,os,shutil,sys; marker='KELPIE_CREATED_CONFIG_FILE_BACKUP_V1\\n'; p=base64.b64decode(sys.argv[1]).decode('utf-8'); allowed=base64.b64decode(sys.argv[2]).decode('utf-8').splitlines(); dirs=base64.b64decode(sys.argv[3]).decode('utf-8').splitlines(); rp=os.path.realpath(p); parent=os.path.realpath(os.path.dirname(p)); allowed_real=list(map(os.path.realpath,[x for x in allowed if x])); dir_real=list(map(os.path.realpath,[x for x in dirs if x])); ok=(rp in allowed_real) or (parent in dir_real and os.path.dirname(rp)==parent); sys.exit('ERROR: path is not an allowed service config file') if not ok else None; exists=os.path.exists(rp); sys.exit('ERROR: config path is not a regular file') if exists and not os.path.isfile(rp) else None; sys.exit('ERROR: config parent directory is not available') if not os.path.isdir(parent) else None; bak=p+'.kelpiebakup'; bak_parent=os.path.realpath(os.path.dirname(bak)); sys.exit('ERROR: backup path is not in config parent directory') if bak_parent != parent else None; data=base64.b64decode(sys.argv[4], validate=True); text=data.decode('utf-8'); sys.exit('ERROR: binary config file is not allowed') if '\\x00' in text else None; (shutil.copy2(rp,bak) if exists else open(bak,'w',encoding='utf-8',newline='').write(marker)) if not os.path.exists(bak) else None; open(p,'w',encoding='utf-8',newline='').write(text); sys.stdout.write(str(len(data)))", "{pathBase64} {allowedPathsBase64} {allowedDirsBase64} {contentBase64}", sudo: true),
+            CreateEncodedPythonCommand("import base64,os,shutil,sys; marker='KELPIE_CREATED_CONFIG_FILE_BACKUP_V1\\n'; p=base64.b64decode(sys.argv[1]).decode('utf-8'); allowed=base64.b64decode(sys.argv[2]).decode('utf-8').splitlines(); dirs=base64.b64decode(sys.argv[3]).decode('utf-8').splitlines(); rp=os.path.realpath(p); parent=os.path.realpath(os.path.dirname(p)); allowed_real=list(map(os.path.realpath,[x for x in allowed if x])); dir_real=list(map(os.path.realpath,[x for x in dirs if x])); ok=(rp in allowed_real) or (parent in dir_real and os.path.dirname(rp)==parent); sys.exit('ERROR: path is not an allowed service config file') if not ok else None; exists=os.path.exists(rp); sys.exit('ERROR: config path is not a regular file') if exists and not os.path.isfile(rp) else None; sys.exit('ERROR: config parent directory is not available') if not os.path.isdir(parent) else None; bak=p+'.kelpiebakup'; bak_parent=os.path.realpath(os.path.dirname(bak)); sys.exit('ERROR: backup path is not in config parent directory') if bak_parent != parent else None; data=base64.b64decode(sys.stdin.read(), validate=True); text=data.decode('utf-8'); sys.exit('ERROR: binary config file is not allowed') if '\\x00' in text else None; (shutil.copy2(rp,bak) if exists else open(bak,'w',encoding='utf-8',newline='').write(marker)) if not os.path.exists(bak) else None; open(p,'w',encoding='utf-8',newline='').write(text); sys.stdout.write(str(len(data)))", "{pathBase64} {allowedPathsBase64} {allowedDirsBase64}", sudo: true),
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("pathBase64", MaxLength: 4096, Pattern: Base64PathPattern),
                 new AllowedCommandParameterDefinition("allowedPathsBase64", MaxLength: 4096, Pattern: Base64PathPattern),
                 new AllowedCommandParameterDefinition("allowedDirsBase64", MaxLength: 4096, Pattern: Base64PathPattern),
-                new AllowedCommandParameterDefinition("contentBase64", MaxLength: 87384, Pattern: Base64ContentPattern),
             ],
             SshCommandRiskLevel.ConfirmRequired),
         new(
@@ -125,6 +124,14 @@ public sealed class NginxServiceConfigCommandProvider : IAllowedCommandProvider
     {
         var argumentSuffix = string.IsNullOrWhiteSpace(arguments) ? string.Empty : " " + arguments;
         var command = $"sh -c \"printf %s '{encodedScript}' | base64 -d | python3 - --{argumentSuffix}\"";
+        return sudo ? "sudo -n " + command : command;
+    }
+
+    private static string CreateEncodedPythonCommand(string script, string arguments, bool sudo)
+    {
+        var encoded = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(script));
+        var argumentSuffix = string.IsNullOrWhiteSpace(arguments) ? string.Empty : " " + arguments;
+        var command = $"sh -c \"python3 -c \\\"$(printf %s '{encoded}' | base64 -d)\\\" --{argumentSuffix}\"";
         return sudo ? "sudo -n " + command : command;
     }
 }

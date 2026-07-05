@@ -56,7 +56,8 @@ public sealed class KelpieToolsSshTests
         runner.Requests.Should().HaveCount(2);
         runner.Requests[0].Profile.EnvironmentValues.Should().Contain(rule =>
             rule.Key == "SECRET_TOKEN" && rule.IsHidden);
-        runner.Requests[1].CommandText.Should().Be("if [ -f ~/.kelpie/.env ]; then . ~/.kelpie/.env; fi; env APP_ENV='production' uname -a");
+        runner.Requests[1].CommandText.Should().Be("if [ -f ~/.kelpie/.env ]; then . ~/.kelpie/.env; fi; IFS= read -r __k_val; export APP_ENV=\"$__k_val\"; unset __k_val; uname -a");
+        runner.Requests[1].StandardInput.Should().Be("production\n");
     }
 
     [Fact]
@@ -408,7 +409,8 @@ public sealed class KelpieToolsSshTests
         result.CommandName.Should().Be("set_environment_value");
         result.CommandText.Should().Be("env APP_ENV=(hidden) uname -a");
         result.CommandText.Should().NotContain("production");
-        runner.LastRequest!.CommandText.Should().Be("if [ -f ~/.kelpie/.env ]; then . ~/.kelpie/.env; fi; env APP_ENV='production' uname -a");
+        runner.LastRequest!.CommandText.Should().Be("if [ -f ~/.kelpie/.env ]; then . ~/.kelpie/.env; fi; IFS= read -r __k_val; export APP_ENV=\"$__k_val\"; unset __k_val; uname -a");
+        runner.LastRequest.StandardInput.Should().Be("production\n");
     }
 
     [Fact]
@@ -1075,7 +1077,8 @@ public sealed class KelpieToolsSshTests
         result.BytesWritten.Should().Be(System.Text.Encoding.UTF8.GetByteCount(expectedWrittenContent));
         result.Error.Should().BeNull();
         runner.LastRequest!.CommandName.Should().Be("service_config_nginx_write_config");
-        var writtenContent = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(runner.LastRequest.Arguments["contentBase64"]));
+        runner.LastRequest.Arguments.Should().NotContainKey("contentBase64");
+        var writtenContent = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(runner.LastRequest.StandardInput!));
         writtenContent.Should().Be(expectedWrittenContent);
     }
 
@@ -2051,7 +2054,9 @@ public sealed class KelpieToolsSshTests
         result.Warnings.Should().Contain("Secret content was not returned.");
         secretStore.TryGetContentBase64("prod-web-env", out _, out _).Should().BeFalse();
         runner.LastRequest!.CommandName.Should().Be("web_public_file_write_internal");
-        System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(runner.LastRequest.Arguments["contentBase64"]))
+        runner.LastRequest.Arguments.Should().NotContainKey("contentBase64");
+        runner.LastRequest.CommandText.Should().NotContain("TOKEN=secret");
+        System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(runner.LastRequest.StandardInput!))
             .Should().Be("TOKEN=secret\n");
     }
 

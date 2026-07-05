@@ -242,7 +242,8 @@ public sealed class NginxConfigPathsProviderTests
         DecodeArgument(runner.LastRequest, "pathBase64").Should().Be("/etc/nginx/conf.d/kelpie-test.conf");
         DecodeArgument(runner.LastRequest, "allowedPathsBase64").Should().Be("/etc/nginx/nginx.conf");
         DecodeArgument(runner.LastRequest, "allowedDirsBase64").Should().Be("/etc/nginx/conf.d");
-        DecodeArgument(runner.LastRequest, "contentBase64").Should().Be(NormalizeLf(updatedContent));
+        runner.LastRequest.Arguments.Should().NotContainKey("contentBase64");
+        DecodeStandardInput(runner.LastRequest).Should().Be(NormalizeLf(updatedContent));
     }
 
     [Fact]
@@ -285,7 +286,7 @@ public sealed class NginxConfigPathsProviderTests
 
         result.Error.Should().BeNull();
         result.BytesWritten.Should().Be(Encoding.UTF8.GetByteCount(NormalizeLf(updatedContent)));
-        DecodeArgument(runner.LastRequest!, "contentBase64").Should().Be(NormalizeLf(updatedContent));
+        DecodeStandardInput(runner.LastRequest!).Should().Be(NormalizeLf(updatedContent));
     }
 
     [Fact]
@@ -347,7 +348,7 @@ public sealed class NginxConfigPathsProviderTests
 
         result.Error.Should().BeNull();
         result.BytesWritten.Should().Be(Encoding.UTF8.GetByteCount(NormalizeLf(updatedContent)));
-        DecodeArgument(runner.LastRequest!, "contentBase64").Should().Be(NormalizeLf(updatedContent));
+        DecodeStandardInput(runner.LastRequest!).Should().Be(NormalizeLf(updatedContent));
     }
 
     [Fact]
@@ -435,7 +436,7 @@ public sealed class NginxConfigPathsProviderTests
 
         result.Error.Should().BeNull();
         result.BytesWritten.Should().Be(Encoding.UTF8.GetByteCount(NormalizeLf(updatedContent)));
-        DecodeArgument(runner.LastRequest!, "contentBase64").Should().Be(NormalizeLf(updatedContent));
+        DecodeStandardInput(runner.LastRequest!).Should().Be(NormalizeLf(updatedContent));
     }
 
     [Fact]
@@ -593,9 +594,8 @@ public sealed class NginxConfigPathsProviderTests
             "service_config_nginx_write_config",
             "service_config_nginx_test_config",
             "service_config_nginx_commit_config");
-        var writtenContent = DecodeArgument(
-            runner.Requests.Single(request => request.CommandName == "service_config_nginx_write_config"),
-            "contentBase64");
+        var writtenContent = DecodeStandardInput(
+            runner.Requests.Single(request => request.CommandName == "service_config_nginx_write_config"));
         writtenContent.Should().Contain("index index.php index.html index.htm;");
         writtenContent.Should().Contain("listen 80 default_server;");
         writtenContent.Should().Contain("location ~ \\.php$");
@@ -720,9 +720,8 @@ public sealed class NginxConfigPathsProviderTests
         result.Changed.Should().BeTrue();
         result.Committed.Should().BeTrue();
         result.Warnings.Should().Contain("Nginx site configuration file did not exist; generated a fixed default server block.");
-        var writtenContent = DecodeArgument(
-            runner.Requests.Single(request => request.CommandName == "service_config_nginx_write_config"),
-            "contentBase64");
+        var writtenContent = DecodeStandardInput(
+            runner.Requests.Single(request => request.CommandName == "service_config_nginx_write_config"));
         writtenContent.Should().Contain("server_name _;");
         writtenContent.Should().Contain("root /var/www/html;");
         writtenContent.Should().Contain("listen 80 default_server;");
@@ -996,6 +995,12 @@ public sealed class NginxConfigPathsProviderTests
     private static string DecodeArgument(SshCommandRequest request, string name)
     {
         return Encoding.UTF8.GetString(Convert.FromBase64String(request.Arguments[name]));
+    }
+
+    private static string DecodeStandardInput(SshCommandRequest request)
+    {
+        request.StandardInput.Should().NotBeNull();
+        return Encoding.UTF8.GetString(Convert.FromBase64String(request.StandardInput!));
     }
 
     private static string NormalizeLf(string value)

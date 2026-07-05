@@ -8,9 +8,11 @@ namespace KelpieSSH.Application.Ssh;
 /// <param name="CommandText">The exact command text sent over SSH.</param>
 /// <param name="Timeout">The execution timeout.</param>
 /// <param name="Arguments">The validated command arguments.</param>
+/// <param name="StandardInput">The optional standard input sent to the command.</param>
 public sealed record SshCommandRequest(
     SshConnectionProfile Profile,
     string CommandName,
     string CommandText,
     TimeSpan Timeout,
-    IReadOnlyDictionary<string, string> Arguments);
+    IReadOnlyDictionary<string, string> Arguments,
+    string? StandardInput = null);

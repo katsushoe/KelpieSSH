@@ -1,4 +1,5 @@
 using System.Net.Sockets;
+using System.Text;
 using Kelpie.Core;
 using KelpieSSH.Application.Ssh;
 using Renci.SshNet;
@@ -133,10 +134,23 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
 
         using var command = client.CreateCommand(request.CommandText);
         command.CommandTimeout = request.Timeout;
-        string standardOutput;
         try
         {
-            standardOutput = command.Execute();
+            if (request.StandardInput is null)
+            {
+                _ = command.Execute();
+            }
+            else
+            {
+                var executeTask = command.ExecuteAsync(cancellationToken);
+                using (var inputStream = command.CreateInputStream())
+                {
+                    var inputBytes = Encoding.UTF8.GetBytes(request.StandardInput);
+                    inputStream.Write(inputBytes, 0, inputBytes.Length);
+                }
+
+                executeTask.GetAwaiter().GetResult();
+            }
         }
         catch (SshOperationTimeoutException)
         {
@@ -155,7 +169,7 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
             request.CommandName,
             request.CommandText,
             command.ExitStatus ?? -1,
-            standardOutput,
+            command.Result,
             command.Error,
             startedAt,
             DateTimeOffset.UtcNow,

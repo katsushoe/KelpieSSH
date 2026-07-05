@@ -865,11 +865,11 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             {
                 ["siteRootBase64"] = EncodeArgument(site.RootPath),
                 ["pathBase64"] = EncodeArgument(normalizedPath),
-                ["contentBase64"] = contentBase64,
                 ["maxBytes"] = site.MaxWriteBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["createDirectories"] = site.CreateDirectories ? "1" : "0",
             },
             channel: KelpieExecutionChannel.Mcp,
+            standardInput: contentBase64,
             cancellationToken: cancellationToken);
 
         if (result.ExitCode != 0)
@@ -966,11 +966,11 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             {
                 ["siteRootBase64"] = EncodeArgument(site.RootPath),
                 ["pathBase64"] = EncodeArgument(normalizedPath),
-                ["contentBase64"] = contentBase64,
                 ["maxBytes"] = site.MaxWriteBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["createDirectories"] = site.CreateDirectories ? "1" : "0",
             },
             channel: KelpieExecutionChannel.Mcp,
+            standardInput: contentBase64,
             cancellationToken: cancellationToken);
 
         if (result.ExitCode != 0)
@@ -1019,13 +1019,13 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             {
                 ["siteRootBase64"] = EncodeArgument(site.RootPath),
                 ["pathBase64"] = EncodeArgument(normalizedPath),
-                ["contentBase64"] = contentBase64,
                 ["maxBytes"] = site.MaxWriteBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["createDirectories"] = site.CreateDirectories ? "1" : "0",
                 ["ownerBase64"] = EncodeOptionalArgument(permissionRequest.OwnerSpec),
                 ["modeBase64"] = EncodeOptionalArgument(permissionRequest.Mode),
             },
             channel: KelpieExecutionChannel.Mcp,
+            standardInput: contentBase64,
             cancellationToken: cancellationToken);
 
         if (result.ExitCode != 0)

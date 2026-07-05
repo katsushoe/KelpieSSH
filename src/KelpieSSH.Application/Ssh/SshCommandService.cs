@@ -151,7 +151,7 @@ public sealed class SshCommandService
                 operation.Operation.Arguments,
                 timeout,
                 channel,
-                cancellationToken);
+                cancellationToken: cancellationToken);
         }
 
         if (string.Equals(operation.Operation.Kind, "raw", StringComparison.OrdinalIgnoreCase))
@@ -183,6 +183,7 @@ public sealed class SshCommandService
         IReadOnlyDictionary<string, string>? arguments = null,
         TimeSpan? timeout = null,
         KelpieExecutionChannel channel = KelpieExecutionChannel.Cli,
+        string? standardInput = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
@@ -209,7 +210,8 @@ public sealed class SshCommandService
             command.Name,
             commandText,
             timeout ?? command.DefaultTimeout,
-            commandArguments);
+            commandArguments,
+            standardInput);
 
         return await _sshCommandRunner.ExecuteAsync(request, cancellationToken);
     }
@@ -469,16 +471,18 @@ public sealed class SshCommandService
 
         var trimmedCommandText = commandText.Trim();
         _rawShellCommandPolicy.EnsureAllowed(profile, trimmedCommandText, channel);
+        var standardInput = value + "\n";
         var request = new SshCommandRequest(
             profile,
             "set_environment_value",
-            $"if [ -f {PersistentEnvironmentFilePath} ]; then . {PersistentEnvironmentFilePath}; fi; env {key}={QuoteShellArgument(value)} {trimmedCommandText}",
+            $"if [ -f {PersistentEnvironmentFilePath} ]; then . {PersistentEnvironmentFilePath}; fi; IFS= read -r __k_val; export {key}=\"$__k_val\"; unset __k_val; {trimmedCommandText}",
             timeout ?? TimeSpan.FromSeconds(30),
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 ["key"] = key,
                 ["command"] = trimmedCommandText,
-            });
+            },
+            standardInput);
 
         return await _sshCommandRunner.ExecuteAsync(request, cancellationToken);
     }
@@ -556,14 +560,14 @@ public sealed class SshCommandService
             throw new KelpiePolicyError($"environment value persist is not allowed: {key}");
         }
 
-        var line = $"{key}={QuoteShellArgument(value)}";
+        var standardInput = value + "\n";
         var commandText = string.Join(" && ", [
             "mkdir -p ~/.kelpie",
             $"touch {PersistentEnvironmentFilePath}",
             $"backup={PersistentEnvironmentFilePath}.$(date -u +%Y%m%dT%H%M%SZ).kelpie",
             $"cp {PersistentEnvironmentFilePath} \"$backup\"",
             $"awk -F= -v key={QuoteShellArgument(key)} '$1 != key {{ print }}' {PersistentEnvironmentFilePath} > {PersistentEnvironmentFilePath}.tmp",
-            $"printf '%s\\n' {QuoteShellArgument(line)} >> {PersistentEnvironmentFilePath}.tmp",
+            $"IFS= read -r __k_val; printf '%s\\n' \"{key}=$__k_val\" >> {PersistentEnvironmentFilePath}.tmp; unset __k_val",
             $"mv {PersistentEnvironmentFilePath}.tmp {PersistentEnvironmentFilePath}",
             $"chmod 600 {PersistentEnvironmentFilePath}",
             "printf 'Updated ~/.kelpie/.env\\nBackup: %s\\n' \"$backup\"",
@@ -576,7 +580,8 @@ public sealed class SshCommandService
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 ["key"] = key,
-            });
+            },
+            standardInput);
 
         return await _sshCommandRunner.ExecuteAsync(request, cancellationToken);
     }

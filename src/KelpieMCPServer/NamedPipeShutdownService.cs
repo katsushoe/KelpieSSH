@@ -551,7 +551,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
                 request.Arguments,
                 timeout,
                 KelpieExecutionChannel.Cli,
-                cancellationToken);
+                cancellationToken: cancellationToken);
 
             await WriteSendCommandResponseAsync(
                 writer,
