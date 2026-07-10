@@ -15,6 +15,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | MCP Windows Service | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Windows Service 登録、登録解除、登録状態確認を行う。 |
 | MCP password session | `kelpiemcp password`, `kelpiemcp forget` | 起動中の MCP server に SSH パスワードを一時保存、削除する。 |
 | MCP secret session | `kelpiemcp secret put`, `kelpiemcp secret list`, `kelpiemcp secret forget` | 起動中の MCP server に短命の秘密ファイル内容を一時保存、一覧表示、削除する。 |
+| MCP environment session | `kelpiemcp env put`, `kelpiemcp env list`, `kelpiemcp env forget`, `kelpiemcp env clear` | 起動中の MCP server に短命の環境変数 override を一時保存、一覧表示、削除する。 |
 | Compatibility | `kelpiemcp login`, `kelpiemcp logout` | 旧名互換。新規利用では `password` / `forget` を使う。 |
 | Initialization | `kelpie init [--silent] [profile]`, `kelpie config --check` | `KelpieHome` 配下の初期ディレクトリとサンプル設定を作成・検証する。 |
 | Profile/session | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie profile trust-host-key`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイルひな形作成・編集・ホスト鍵信頼登録・削除、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
@@ -683,6 +684,70 @@ kelpiemcp secret forget prod-web-env
 処理内容:
 
 指定した secret name のメモリ上の内容を削除します。`web_secret_file_write` は既定で成功時に secret を自動削除しますが、`forgetOnSuccess=false` で使った場合や中断時はこのコマンドで削除します。
+
+### `kelpiemcp env put <profile> <key> <value>`
+
+目的:
+
+起動中の `KelpieMCPServer` のメモリ上に、profile 別の環境変数 override を保存します。保存した override は、同じ profile に対する以後の MCP tool / interactive session command 実行時に適用されます。
+
+構文:
+
+```powershell
+kelpiemcp env put vps01 APP_ENV production
+```
+
+処理内容:
+
+profile の `Capabilities` に `AllowSetEnvironmentValues` が必要です。さらに、対象 key が `EnvironmentValues` で `SetCommon` または `SetSecret` として許可されている必要があります。値は local control pipe の本文として転送し、標準出力には profile、key、値の長さ、更新時刻だけを表示します。
+
+### `kelpiemcp env list [profile]`
+
+目的:
+
+起動中の `KelpieMCPServer` が保持している環境変数 override の metadata を一覧表示します。
+
+構文:
+
+```powershell
+kelpiemcp env list vps01
+```
+
+処理内容:
+
+profile、key、値の長さ、更新時刻だけを表示します。値そのものは表示しません。profile を省略した場合は、server が保持している全 profile の override metadata を表示します。
+
+### `kelpiemcp env forget <profile> <key>`
+
+目的:
+
+起動中の `KelpieMCPServer` から、指定 profile / key の環境変数 override を削除します。
+
+構文:
+
+```powershell
+kelpiemcp env forget vps01 APP_ENV
+```
+
+処理内容:
+
+指定した override をメモリ上から削除します。削除には `AllowSetEnvironmentValues` と、対象 key の `SetCommon` または `SetSecret` rule が必要です。
+
+### `kelpiemcp env clear <profile>`
+
+目的:
+
+起動中の `KelpieMCPServer` から、指定 profile の環境変数 override をすべて削除します。
+
+構文:
+
+```powershell
+kelpiemcp env clear vps01
+```
+
+処理内容:
+
+指定した profile の override をメモリ上から削除し、削除件数を表示します。override は process memory だけに保存されるため、`KelpieMCPServer` 停止時にも消えます。
 
 ### `kelpie init [--silent] [profile]`
 

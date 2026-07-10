@@ -480,6 +480,165 @@ public static class KelpieServerCommandRunner
     }
 
     /// <summary>
+    /// Stores one environment override in the running server session.
+    /// </summary>
+    /// <param name="options">The command options.</param>
+    /// <param name="args">The env command arguments.</param>
+    public static async Task EnvPutAsync(KelpieMcpServerOptions options, IReadOnlyList<string> args)
+    {
+        if (args.Count < 3)
+        {
+            Console.Error.WriteLine("Usage: kelpiemcp env put <profile> <key> <value>");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var profileName = args[0].Trim();
+        var key = args[1].Trim();
+        var value = args[2];
+        var response = await SendEnvPutCommandAsync(
+            options.ControlPipeName,
+            profileName,
+            key,
+            value,
+            TimeSpan.FromSeconds(10));
+        if (response is null)
+        {
+            Console.Error.WriteLine("KelpieMCPServer is not running.");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        if (response.StartsWith("env-rejected:", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.Error.WriteLine(response["env-rejected:".Length..]);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        if (!TryDeserializeEnvironmentOverrideInfo(response, out var info))
+        {
+            WriteEnvFailure(response);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        KpLog.Info($"Environment override stored for this KelpieMCPServer session. profile={info.ProfileName}, key={info.Key}, valueLength={info.ValueLength}");
+        Console.WriteLine("Environment override stored for this KelpieMCPServer session.");
+        Console.WriteLine($"Profile: {info.ProfileName}");
+        Console.WriteLine($"Key: {info.Key}");
+        Console.WriteLine($"ValueLength: {info.ValueLength}");
+        Console.WriteLine($"UpdatedAtUtc: {info.UpdatedAtUtc:O}");
+    }
+
+    /// <summary>
+    /// Lists environment overrides in the running server session.
+    /// </summary>
+    /// <param name="options">The command options.</param>
+    /// <param name="profileName">The optional SSH profile name.</param>
+    public static async Task EnvListAsync(KelpieMcpServerOptions options, string profileName)
+    {
+        var request = JsonSerializer.Serialize(new EnvListRequest(
+            string.IsNullOrWhiteSpace(profileName) ? null : profileName.Trim()));
+        var response = await SendControlCommandWithResponseAsync(
+            options.ControlPipeName,
+            "env-list " + request,
+            TimeSpan.FromSeconds(3));
+        if (response is null)
+        {
+            Console.Error.WriteLine("KelpieMCPServer is not running.");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        IReadOnlyCollection<KelpieEnvironmentOverrideInfo> overrides;
+        try
+        {
+            overrides = JsonSerializer.Deserialize<KelpieEnvironmentOverrideInfo[]>(response) ?? [];
+        }
+        catch (JsonException)
+        {
+            WriteEnvFailure(response);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        Console.WriteLine("Environment overrides:");
+        if (overrides.Count == 0)
+        {
+            Console.WriteLine("(none)");
+            return;
+        }
+
+        foreach (var item in overrides)
+        {
+            Console.WriteLine($"{item.ProfileName}  {item.Key}  length {item.ValueLength}  updated {item.UpdatedAtUtc:yyyy-MM-dd HH:mm:ss}Z");
+        }
+    }
+
+    /// <summary>
+    /// Removes one environment override from the running server session.
+    /// </summary>
+    /// <param name="options">The command options.</param>
+    /// <param name="args">The env command arguments.</param>
+    public static async Task EnvForgetAsync(KelpieMcpServerOptions options, IReadOnlyList<string> args)
+    {
+        if (args.Count < 2)
+        {
+            Console.Error.WriteLine("Usage: kelpiemcp env forget <profile> <key>");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var request = JsonSerializer.Serialize(new EnvForgetRequest(args[0].Trim(), args[1].Trim()));
+        var response = await SendControlCommandWithResponseAsync(
+            options.ControlPipeName,
+            "env-forget " + request,
+            TimeSpan.FromSeconds(3));
+        if (string.Equals(response, "env-forgotten", StringComparison.OrdinalIgnoreCase))
+        {
+            KpLog.Info($"Environment override cleared for this KelpieMCPServer session. profile={args[0].Trim()}, key={args[1].Trim()}");
+            Console.WriteLine("Environment override cleared for this KelpieMCPServer session.");
+            return;
+        }
+
+        WriteEnvFailure(response);
+        Environment.ExitCode = 1;
+    }
+
+    /// <summary>
+    /// Removes every environment override for one profile from the running server session.
+    /// </summary>
+    /// <param name="options">The command options.</param>
+    /// <param name="profileName">The SSH profile name.</param>
+    public static async Task EnvClearAsync(KelpieMcpServerOptions options, string profileName)
+    {
+        if (string.IsNullOrWhiteSpace(profileName))
+        {
+            Console.Error.WriteLine("Profile name is required.");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var request = JsonSerializer.Serialize(new EnvClearRequest(profileName.Trim()));
+        var response = await SendControlCommandWithResponseAsync(
+            options.ControlPipeName,
+            "env-clear " + request,
+            TimeSpan.FromSeconds(3));
+        if (!TryDeserializeEnvClearResponse(response, out var clearResponse))
+        {
+            WriteEnvFailure(response);
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        KpLog.Info($"Environment overrides cleared for this KelpieMCPServer session. profile={clearResponse.ProfileName}, removed={clearResponse.Removed}");
+        Console.WriteLine("Environment overrides cleared for this KelpieMCPServer session.");
+        Console.WriteLine($"Profile: {clearResponse.ProfileName}");
+        Console.WriteLine($"Removed: {clearResponse.Removed}");
+    }
+
+    /// <summary>
     /// Stores a password for one SSH profile in the running server session.
     /// </summary>
     /// <param name="options">The command options.</param>
@@ -732,6 +891,62 @@ public static class KelpieServerCommandRunner
         }
     }
 
+    private static async Task<string?> SendEnvPutCommandAsync(
+        string pipeName,
+        string profileName,
+        string key,
+        string value,
+        TimeSpan timeout)
+    {
+        try
+        {
+            await using var pipe = new NamedPipeClientStream(
+                ".",
+                pipeName,
+                PipeDirection.InOut,
+                PipeOptions.Asynchronous);
+
+            using var cancellationTokenSource = new CancellationTokenSource(timeout);
+            await pipe.ConnectAsync(cancellationTokenSource.Token);
+
+            var writer = new StreamWriter(pipe, ControlPipeEncoding)
+            {
+                AutoFlush = true,
+            };
+            var reader = new StreamReader(pipe, ControlPipeEncoding);
+
+            var request = JsonSerializer.Serialize(new EnvPutRequest(profileName, key));
+            await writer.WriteLineAsync("env-put " + request);
+            await writer.FlushAsync(cancellationTokenSource.Token);
+
+            var response = await reader.ReadLineAsync(cancellationTokenSource.Token);
+            if (!string.Equals(response, "env-value-required", StringComparison.OrdinalIgnoreCase))
+            {
+                return response;
+            }
+
+            await writer.WriteLineAsync(Convert.ToBase64String(Encoding.UTF8.GetBytes(value)));
+            await writer.FlushAsync(cancellationTokenSource.Token);
+            return await reader.ReadLineAsync(cancellationTokenSource.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
+        catch (TimeoutException)
+        {
+            return null;
+        }
+    }
+
     private static string ReadPasswordFromConsole(string profileName)
     {
         Console.Error.Write($"Password for {profileName}: ");
@@ -800,6 +1015,26 @@ public static class KelpieServerCommandRunner
         Console.Error.WriteLine(message);
     }
 
+    private static void WriteEnvFailure(string? response)
+    {
+        var message = response switch
+        {
+            "profile-not-found" => "SSH profile was not found.",
+            "env-set-not-allowed" => "SSH profile does not allow setting environment values.",
+            "env-key-invalid" => "Environment variable key is invalid.",
+            "env-key-not-allowed" => "Environment variable key is not allowed by the SSH profile.",
+            "env-value-missing" => "Environment value was not transferred.",
+            "env-value-invalid-base64" => "Environment value could not be transferred.",
+            "env-not-found" => "Environment override was not found.",
+            "invalid-request" => "KelpieMCPServer returned invalid request response.",
+            null => "KelpieMCPServer is not running.",
+            _ => $"KelpieMCPServer returned unexpected response: {response}",
+        };
+
+        KpLog.Warn(message);
+        Console.Error.WriteLine(message);
+    }
+
     private static bool TryDeserializeSecretInfo(string response, out KelpieSecretInfo info)
     {
         try
@@ -810,6 +1045,40 @@ public static class KelpieServerCommandRunner
         catch (JsonException)
         {
             info = new KelpieSecretInfo(string.Empty, 0, DateTimeOffset.MinValue, DateTimeOffset.MinValue);
+            return false;
+        }
+    }
+
+    private static bool TryDeserializeEnvironmentOverrideInfo(string response, out KelpieEnvironmentOverrideInfo info)
+    {
+        try
+        {
+            info = JsonSerializer.Deserialize<KelpieEnvironmentOverrideInfo>(response) ?? new KelpieEnvironmentOverrideInfo(string.Empty, string.Empty, 0, DateTimeOffset.MinValue);
+            return !string.IsNullOrWhiteSpace(info.ProfileName) && !string.IsNullOrWhiteSpace(info.Key);
+        }
+        catch (JsonException)
+        {
+            info = new KelpieEnvironmentOverrideInfo(string.Empty, string.Empty, 0, DateTimeOffset.MinValue);
+            return false;
+        }
+    }
+
+    private static bool TryDeserializeEnvClearResponse(string? response, out EnvClearResponse clearResponse)
+    {
+        if (string.IsNullOrWhiteSpace(response))
+        {
+            clearResponse = new EnvClearResponse(string.Empty, 0);
+            return false;
+        }
+
+        try
+        {
+            clearResponse = JsonSerializer.Deserialize<EnvClearResponse>(response) ?? new EnvClearResponse(string.Empty, 0);
+            return !string.IsNullOrWhiteSpace(clearResponse.ProfileName);
+        }
+        catch (JsonException)
+        {
+            clearResponse = new EnvClearResponse(string.Empty, 0);
             return false;
         }
     }
@@ -1365,6 +1634,24 @@ public static class KelpieServerCommandRunner
     private sealed record SecretPutRequest(
         string Name,
         int TtlSeconds);
+
+    private sealed record EnvPutRequest(
+        string ProfileName,
+        string Key);
+
+    private sealed record EnvListRequest(
+        string? ProfileName);
+
+    private sealed record EnvForgetRequest(
+        string ProfileName,
+        string Key);
+
+    private sealed record EnvClearRequest(
+        string ProfileName);
+
+    private sealed record EnvClearResponse(
+        string ProfileName,
+        int Removed);
 
     private sealed record SecretPutCliRequest(
         string Name,

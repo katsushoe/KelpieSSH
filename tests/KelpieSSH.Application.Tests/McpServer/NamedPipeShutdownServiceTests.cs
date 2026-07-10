@@ -134,6 +134,57 @@ public sealed class NamedPipeShutdownServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_ShouldStoreEnvironmentOverrideForEnvPutCommand()
+    {
+        var lifetime = new FakeHostApplicationLifetime();
+        var pipeName = "KelpieTest." + Guid.NewGuid().ToString("N");
+        var environmentStore = new InMemoryKelpieEnvironmentOverrideStore();
+        using var service = new NamedPipeShutdownService(
+            lifetime,
+            NullLogger<NamedPipeShutdownService>.Instance,
+            new KelpieServerControlOptions(pipeName),
+            CreateProfileCatalog(allowEnvironmentOverride: true),
+            new InMemorySshPasswordSessionStore(),
+            CreateSshCommandService(),
+            environmentOverrideStore: environmentStore);
+
+        await service.StartAsync(CancellationToken.None);
+
+        var response = await SendEnvPutCommandAsync(pipeName, "vps01", "APP_ENV", "production");
+
+        await service.StopAsync(CancellationToken.None);
+
+        var info = JsonSerializer.Deserialize<KelpieEnvironmentOverrideInfo>(response!);
+        info.Should().NotBeNull();
+        info!.ProfileName.Should().Be("vps01");
+        info.Key.Should().Be("APP_ENV");
+        info.ValueLength.Should().Be("production".Length);
+        environmentStore.GetValues("vps01").Should().Contain("APP_ENV", "production");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldRejectEnvPutWhenKeyIsNotAllowed()
+    {
+        var lifetime = new FakeHostApplicationLifetime();
+        var pipeName = "KelpieTest." + Guid.NewGuid().ToString("N");
+        using var service = new NamedPipeShutdownService(
+            lifetime,
+            NullLogger<NamedPipeShutdownService>.Instance,
+            new KelpieServerControlOptions(pipeName),
+            CreateProfileCatalog(allowEnvironmentOverride: true),
+            new InMemorySshPasswordSessionStore(),
+            CreateSshCommandService());
+
+        await service.StartAsync(CancellationToken.None);
+
+        var response = await SendEnvPutCommandAsync(pipeName, "vps01", "UNLISTED", "production");
+
+        await service.StopAsync(CancellationToken.None);
+
+        response.Should().Be("env-key-not-allowed");
+    }
+
+    [Fact]
     public async Task ExecuteAsync_ShouldReturnSessions()
     {
         var lifetime = new FakeHostApplicationLifetime();
@@ -489,7 +540,41 @@ public sealed class NamedPipeShutdownServiceTests
         return await reader.ReadLineAsync(cancellationTokenSource.Token);
     }
 
-    private static SshConnectionProfileCatalog CreateProfileCatalog()
+    private static async Task<string?> SendEnvPutCommandAsync(
+        string pipeName,
+        string profileName,
+        string key,
+        string value)
+    {
+        await using var pipe = new NamedPipeClientStream(
+            ".",
+            pipeName,
+            PipeDirection.InOut,
+            PipeOptions.Asynchronous);
+
+        using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        await pipe.ConnectAsync(cancellationTokenSource.Token);
+
+        var writer = new StreamWriter(pipe)
+        {
+            AutoFlush = true,
+        };
+        var reader = new StreamReader(pipe);
+
+        await writer.WriteLineAsync("env-put " + JsonSerializer.Serialize(new EnvPutRequest(profileName, key)));
+        await writer.FlushAsync(cancellationTokenSource.Token);
+        var firstResponse = await reader.ReadLineAsync(cancellationTokenSource.Token);
+        if (!string.Equals(firstResponse, "env-value-required", StringComparison.OrdinalIgnoreCase))
+        {
+            return firstResponse;
+        }
+
+        await writer.WriteLineAsync(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(value)));
+        await writer.FlushAsync(cancellationTokenSource.Token);
+        return await reader.ReadLineAsync(cancellationTokenSource.Token);
+    }
+
+    private static SshConnectionProfileCatalog CreateProfileCatalog(bool allowEnvironmentOverride = false)
     {
         return new SshConnectionProfileCatalog(
         [
@@ -502,7 +587,12 @@ public sealed class NamedPipeShutdownServiceTests
                 PasswordSecretName = "kelpie:vps01",
                 OsFamily = "debian",
                 PackageManager = "apt",
-                Capabilities = PolicySet.Empty,
+                Capabilities = allowEnvironmentOverride
+                    ? PolicySet.FromNames([KelpiePolicyNames.AllowSetEnvironmentValues])
+                    : PolicySet.Empty,
+                EnvironmentValues = allowEnvironmentOverride
+                    ? [new EnvironmentValueRule("APP_ENV", EnvironmentValueAccess.SetCommon)]
+                    : [],
             },
         ]);
     }
@@ -554,4 +644,6 @@ public sealed class NamedPipeShutdownServiceTests
             _applicationStopped.Cancel();
         }
     }
+
+    private sealed record EnvPutRequest(string ProfileName, string Key);
 }

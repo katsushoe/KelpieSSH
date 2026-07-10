@@ -165,6 +165,41 @@ if (string.Equals(command, "secret", StringComparison.OrdinalIgnoreCase))
     return;
 }
 
+if (string.Equals(command, "env", StringComparison.OrdinalIgnoreCase))
+{
+    var envCommand = args.Length > 1 ? args[1] : string.Empty;
+    var options = CreateOptions(configuration);
+    if (string.Equals(envCommand, "put", StringComparison.OrdinalIgnoreCase))
+    {
+        await KelpieServerCommandRunner.EnvPutAsync(options, args.Skip(2).ToArray());
+        return;
+    }
+
+    if (string.Equals(envCommand, "list", StringComparison.OrdinalIgnoreCase))
+    {
+        var profileName = args.Length > 2 ? args[2] : string.Empty;
+        await KelpieServerCommandRunner.EnvListAsync(options, profileName);
+        return;
+    }
+
+    if (string.Equals(envCommand, "forget", StringComparison.OrdinalIgnoreCase))
+    {
+        await KelpieServerCommandRunner.EnvForgetAsync(options, args.Skip(2).ToArray());
+        return;
+    }
+
+    if (string.Equals(envCommand, "clear", StringComparison.OrdinalIgnoreCase))
+    {
+        var profileName = args.Length > 2 ? args[2] : string.Empty;
+        await KelpieServerCommandRunner.EnvClearAsync(options, profileName);
+        return;
+    }
+
+    ShowEnvUsage(envCommand);
+    Environment.ExitCode = string.IsNullOrWhiteSpace(envCommand) ? 0 : 1;
+    return;
+}
+
 if (string.Equals(command, "password", StringComparison.OrdinalIgnoreCase))
 {
     var profileName = args.Length > 1 ? args[1] : string.Empty;
@@ -292,6 +327,10 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpiemcp secret put --name <name> --from-file <path> [--ttl <duration>]");
     writer.WriteLine("  kelpiemcp secret list");
     writer.WriteLine("  kelpiemcp secret forget <name>");
+    writer.WriteLine("  kelpiemcp env put <profile> <key> <value>");
+    writer.WriteLine("  kelpiemcp env list [profile]");
+    writer.WriteLine("  kelpiemcp env forget <profile> <key>");
+    writer.WriteLine("  kelpiemcp env clear <profile>");
     writer.WriteLine("  kelpiemcp password <profile>");
     writer.WriteLine("  kelpiemcp forget <profile>");
     writer.WriteLine("  kelpiemcp version");
@@ -338,4 +377,18 @@ static void ShowSecretUsage(string secretCommand)
     Console.Error.WriteLine("  kelpiemcp secret put --name <name> --from-file <path> [--ttl <duration>]");
     Console.Error.WriteLine("  kelpiemcp secret list");
     Console.Error.WriteLine("  kelpiemcp secret forget <name>");
+}
+
+static void ShowEnvUsage(string envCommand)
+{
+    if (!string.IsNullOrWhiteSpace(envCommand))
+    {
+        Console.Error.WriteLine($"Unknown env command: {envCommand}");
+    }
+
+    Console.Error.WriteLine("Usage:");
+    Console.Error.WriteLine("  kelpiemcp env put <profile> <key> <value>");
+    Console.Error.WriteLine("  kelpiemcp env list [profile]");
+    Console.Error.WriteLine("  kelpiemcp env forget <profile> <key>");
+    Console.Error.WriteLine("  kelpiemcp env clear <profile>");
 }

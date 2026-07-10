@@ -16,6 +16,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | [MCP Windows Service](#mcp-windows-service) | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Register, unregister, and inspect the Windows Service entry. |
 | [MCP password session](#mcp-password-session) | `kelpiemcp password`, `kelpiemcp forget`, `kelpiemcp login`, `kelpiemcp logout` | Store or clear an SSH password in the running MCP server session. |
 | [MCP secret session](#mcp-secret-session) | `kelpiemcp secret put`, `kelpiemcp secret list`, `kelpiemcp secret forget` | Store, list, or clear short-lived secret file payloads in the running MCP server session. |
+| [MCP environment session](#mcp-environment-session) | `kelpiemcp env put`, `kelpiemcp env list`, `kelpiemcp env forget`, `kelpiemcp env clear` | Store, list, or clear short-lived environment overrides in the running MCP server session. |
 | [Initialization](#initialization) | `kelpie init [--silent] [profile]`, `kelpie config --check` | Create and validate the local Kelpie home configuration. |
 | [Profile/session](#profilesession) | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie profile trust-host-key`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | Create, edit, trust host keys for, and delete profile templates, select profiles, and manage interactive SSH sessions. |
 | [Mode/UI](#modeui) | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | Switch CLI/GUI mode or choose a temporary launch mode. |
@@ -725,6 +726,79 @@ Return value:
 Safety notes:
 
 - Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
+### MCP environment session
+
+Store, list, or clear short-lived environment overrides in the running `KelpieMCPServer` process memory.
+Overrides are applied to later MCP/interactive-session command executions for the matching SSH profile while the server process is running.
+
+Commands in this group:
+
+- [`kelpiemcp env put <profile> <key> <value>`](#kelpiemcp-env-put-profile-key-value)
+- [`kelpiemcp env list [profile]`](#kelpiemcp-env-list-profile)
+- [`kelpiemcp env forget <profile> <key>`](#kelpiemcp-env-forget-profile-key)
+- [`kelpiemcp env clear <profile>`](#kelpiemcp-env-clear-profile)
+
+#### `kelpiemcp env put <profile> <key> <value>`
+
+Stores one in-memory environment override for the selected profile.
+The profile must allow `AllowSetEnvironmentValues`, and the key must be listed in `EnvironmentValues` with `SetCommon` or `SetSecret`.
+The value is transferred through the local control pipe body and is never printed.
+
+```powershell
+kelpiemcp env put vps01 APP_ENV production
+```
+
+Return value:
+
+- Exit code `0` when the running MCP server accepts the override.
+- Standard output prints the profile name, key, value length, and update time.
+- The value itself is never returned.
+
+#### `kelpiemcp env list [profile]`
+
+Lists in-memory environment override metadata held by the running MCP server.
+
+```powershell
+kelpiemcp env list vps01
+```
+
+Return value:
+
+- Exit code `0` when the running MCP server responds.
+- Standard output prints profile names, keys, value lengths, and update times.
+- Values are never returned.
+
+#### `kelpiemcp env forget <profile> <key>`
+
+Removes one in-memory environment override.
+
+```powershell
+kelpiemcp env forget vps01 APP_ENV
+```
+
+Return value:
+
+- Exit code `0` when the override is removed.
+- Standard output confirms cleanup.
+
+#### `kelpiemcp env clear <profile>`
+
+Removes every in-memory environment override for one profile.
+
+```powershell
+kelpiemcp env clear vps01
+```
+
+Return value:
+
+- Exit code `0` when the running MCP server responds.
+- Standard output prints the profile name and removed override count.
+
+Safety notes:
+
+- Overrides are process memory only and are cleared when `KelpieMCPServer` stops.
+- Do not include real secrets, tokens, host names, or production paths in command examples, logs, or committed test notes.
 
 ### Initialization
 

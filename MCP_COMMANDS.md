@@ -3676,6 +3676,7 @@ Safety notes:
 ### Environment
 
 List, read, temporarily set, or persist remote environment variables under profile policy.
+If `kelpiemcp env put <profile> <key> <value>` has stored an in-memory MCP server override, KelpieMCPServer applies that override to later command executions for the same profile while the server process is running. Override values are not returned in MCP tool results.
 
 Tools in this group:
 

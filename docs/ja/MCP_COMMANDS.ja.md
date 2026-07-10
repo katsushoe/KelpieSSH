@@ -433,6 +433,7 @@ MCP server は terminal handle から接続中 profile を解決します。`kel
 目的:
 
 profile の `Capabilities` と `EnvironmentValues` policy に従って、remote 環境変数の key 表示、値参照、1回だけの一時設定、Kelpie env file への永続化を行います。
+`kelpiemcp env put <profile> <key> <value>` で MCP server process のメモリに保存した override がある場合、同じ profile の以後の command 実行時に適用されます。override の値は MCP tool の戻り値には出しません。
 
 入力引数:
 

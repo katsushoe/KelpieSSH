@@ -132,11 +132,13 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
         client.Connect();
         cancellationToken.ThrowIfCancellationRequested();
 
-        using var command = client.CreateCommand(request.CommandText);
+        var commandText = BuildExecutionCommandText(request);
+        var standardInput = BuildExecutionStandardInput(request);
+        using var command = client.CreateCommand(commandText);
         command.CommandTimeout = request.Timeout;
         try
         {
-            if (request.StandardInput is null)
+            if (standardInput is null)
             {
                 _ = command.Execute();
             }
@@ -145,7 +147,7 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
                 var executeTask = command.ExecuteAsync(cancellationToken);
                 using (var inputStream = command.CreateInputStream())
                 {
-                    var inputBytes = Encoding.UTF8.GetBytes(request.StandardInput);
+                    var inputBytes = Encoding.UTF8.GetBytes(standardInput);
                     inputStream.Write(inputBytes, 0, inputBytes.Length);
                 }
 
@@ -174,6 +176,71 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
             startedAt,
             DateTimeOffset.UtcNow,
             TimedOut: false);
+    }
+
+    private static string BuildExecutionCommandText(SshCommandRequest request)
+    {
+        if (request.EnvironmentOverrides is null || request.EnvironmentOverrides.Count == 0)
+        {
+            return request.CommandText;
+        }
+
+        var builder = new StringBuilder();
+        var index = 0;
+        foreach (var item in request.EnvironmentOverrides.OrderBy(item => item.Key, StringComparer.Ordinal))
+        {
+            ValidateEnvironmentKey(item.Key);
+            var variableName = "__kelpie_env_" + index++;
+            builder.Append("IFS= read -r ");
+            builder.Append(variableName);
+            builder.Append("; export ");
+            builder.Append(item.Key);
+            builder.Append("=\"$");
+            builder.Append(variableName);
+            builder.Append("\"; unset ");
+            builder.Append(variableName);
+            builder.Append("; ");
+        }
+
+        builder.Append(request.CommandText);
+        return builder.ToString();
+    }
+
+    private static string? BuildExecutionStandardInput(SshCommandRequest request)
+    {
+        if (request.EnvironmentOverrides is null || request.EnvironmentOverrides.Count == 0)
+        {
+            return request.StandardInput;
+        }
+
+        var builder = new StringBuilder();
+        foreach (var item in request.EnvironmentOverrides.OrderBy(item => item.Key, StringComparer.Ordinal))
+        {
+            if (item.Value.Contains('\r', StringComparison.Ordinal) || item.Value.Contains('\n', StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException($"Environment variable value must not contain newline characters: {item.Key}");
+            }
+
+            builder.Append(item.Value);
+            builder.Append('\n');
+        }
+
+        if (request.StandardInput is not null)
+        {
+            builder.Append(request.StandardInput);
+        }
+
+        return builder.ToString();
+    }
+
+    private static void ValidateEnvironmentKey(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key)
+            || !key.All(ch => char.IsAsciiLetterOrDigit(ch) || ch == '_')
+            || char.IsDigit(key[0]))
+        {
+            throw new InvalidOperationException($"Environment variable key is invalid: {key}");
+        }
     }
 
 }
