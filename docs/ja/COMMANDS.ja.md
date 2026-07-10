@@ -1,6 +1,6 @@
 # KelpieSSH コマンド
 
-最終更新: 2026-06-28
+最終更新: 2026-07-10
 
 このファイルは、利用者が通常のターミナルから直接実行する `kelpie` / `kelpiemcp` CLI コマンドの正本です。
 コマンドラインオプションの詳細は [CLI_OPTIONS.md](../../CLI_OPTIONS.md) を参照してください。
@@ -21,7 +21,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | Mode/UI | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | CLI/GUI モードや一時的な起動方式を切り替える。 |
 | Diagnostics | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie inventory`, `kelpie logs` | プロファイル検証、プロファイル情報、MCP server 状態、SSH 診断、接続先 inventory、サービスログを表示する。 |
 | Packages | `kelpie pkg check-updates`, `kelpie pkg info`, `kelpie pkg search`, `kelpie pkg list-installed`, `kelpie pkg simulate-install`, `kelpie pkg simulate-remove`, `kelpie pkg install`, `kelpie pkg remove` | SSH profile の package provider を使って package 確認と確認付き変更を行う。 |
-| Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | profile policy に従って remote 環境変数の key 表示、値参照、一時設定、永続化を行う。 |
+| Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | profile policy に従って remote 環境変数の key 表示、値参照、永続化を行う。 |
 | Help/version | `kelpie version`, `kelpie help`, `kelpiemcp version`, `kelpiemcp help` | バージョンとヘルプを表示する。 |
 | Candidates | `kelpie services` | 今後追加候補。 |
 
@@ -1963,46 +1963,6 @@ masked の場合:
 ************ (length=12)
 ```
 
-### `kelpie env set <profile> <key> <value> -- <command>`
-
-目的:
-
-1回の command execution にだけ remote 環境変数値を付与して実行します。remote host に新しい値を永続保存しません。
-実行前に `~/.kelpie/.env` が存在する場合は source してから、指定した `<key> <value>` で上書きします。
-
-構文:
-
-```powershell
-kelpie env set vps01 APP_ENV production -- printenv APP_ENV
-```
-
-引数詳細:
-
-- `profile`: 環境変数を一時設定して command を実行するプロファイル名。
-- `key`: 設定する環境変数名。
-- `value`: 1回の command execution に付与する値。
-- `command`: `--` 以降に書く実行コマンド。
-
-引数サンプル:
-
-- `profile`: `vps01`
-- `key`: `APP_ENV`
-- `value`: `production`
-- `command`: `printenv APP_ENV`
-
-処理内容:
-
-profile の `Capabilities` に `AllowSetEnvironmentValues` が必要です。
-さらに、対象 key が `EnvironmentValues` で `SetCommon` または `SetSecret` として許可されている必要があります。
-`--` 以降の command は `kelpie login` の対話コマンドと同じ raw-command policy で検査されます。
-環境変数値を公開ログや issue に貼り付けないでください。
-
-実行結果サンプル:
-
-```text
-production
-```
-
 ### `kelpie env list <profile>`
 
 目的:
@@ -2205,7 +2165,6 @@ Usage:
   kelpie logs <profile> <service> [lines]
   kelpie env keys <profile>
   kelpie env peek <profile> <key>
-  kelpie env set <profile> <key> <value> -- <command>
   kelpie env list <profile>
   kelpie env persist <profile> <key> <value>
   kelpie env remove <profile> <key>

@@ -1060,7 +1060,6 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpie pkg remove <profile> <package> [--confirm <token>]");
     writer.WriteLine("  kelpie env keys <profile>");
     writer.WriteLine("  kelpie env peek <profile> <key>");
-    writer.WriteLine("  kelpie env set <profile> <key> <value> -- <command>");
     writer.WriteLine("  kelpie env list <profile>");
     writer.WriteLine("  kelpie env persist <profile> <key> <value>");
     writer.WriteLine("  kelpie env remove <profile> <key>");
@@ -3795,40 +3794,6 @@ static async Task RunEnvironmentAsync(SshConnectionProfileCatalog catalog, strin
         return;
     }
 
-    if (string.Equals(subcommand, "set", StringComparison.OrdinalIgnoreCase))
-    {
-        if (args.Length < 7)
-        {
-            WriteEnvironmentUsage();
-            Environment.ExitCode = 1;
-            return;
-        }
-
-        var separatorIndex = Array.IndexOf(args, "--", 5);
-        if (separatorIndex < 0 || separatorIndex == args.Length - 1)
-        {
-            WriteEnvironmentUsage();
-            Environment.ExitCode = 1;
-            return;
-        }
-
-        var profileName = args[2];
-        var key = args[3];
-        var value = args[4];
-        var commandText = string.Join(' ', args.Skip(separatorIndex + 1));
-        KpLog.Info($"Kelpie CLI env set requested. profile={profileName}, key={key}");
-        if (!TryResolveProfile(catalog, profileName, out var profile))
-        {
-            Environment.ExitCode = 1;
-            return;
-        }
-
-        await ExecuteEnvironmentAndPrintAsync(
-            CreateSshCommandService(profile),
-            service => service.SetEnvironmentValueAsync(profile, key, value, commandText));
-        return;
-    }
-
     if (string.Equals(subcommand, "list", StringComparison.OrdinalIgnoreCase))
     {
         if (args.Length != 3)
@@ -3910,7 +3875,6 @@ static void WriteEnvironmentUsage()
     Console.Error.WriteLine("Usage:");
     Console.Error.WriteLine("  kelpie env keys <profile>");
     Console.Error.WriteLine("  kelpie env peek <profile> <key>");
-    Console.Error.WriteLine("  kelpie env set <profile> <key> <value> -- <command>");
     Console.Error.WriteLine("  kelpie env list <profile>");
     Console.Error.WriteLine("  kelpie env persist <profile> <key> <value>");
     Console.Error.WriteLine("  kelpie env remove <profile> <key>");

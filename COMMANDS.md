@@ -1,6 +1,6 @@
 # KelpieSSH Commands
 
-Last updated: 2026-06-28
+Last updated: 2026-07-10
 
 This file is the English command reference for commands run directly from a terminal, such as `kelpie` and `kelpiemcp`.
 For Japanese documentation, see [docs/ja/COMMANDS.ja.md](docs/ja/COMMANDS.ja.md).
@@ -21,7 +21,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | [Mode/UI](#modeui) | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | Switch CLI/GUI mode or choose a temporary launch mode. |
 | [Diagnostics](#diagnostics) | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie inventory`, `kelpie logs` | Validate profiles, show profile information, MCP server status, SSH diagnostics, target inventory, and service logs. |
 | [Packages](#packages) | `kelpie pkg check-updates`, `kelpie pkg info`, `kelpie pkg search`, `kelpie pkg list-installed`, `kelpie pkg simulate-install`, `kelpie pkg simulate-remove`, `kelpie pkg install`, `kelpie pkg remove` | Inspect packages and run confirmation-gated package operations through the selected SSH profile. |
-| [Environment](#environment) | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | List, read, temporarily set, or persist remote environment variables under profile policy. |
+| [Environment](#environment) | `kelpie env keys`, `kelpie env peek`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | List, read, or persist remote environment variables under profile policy. |
 | [Help/version](#helpversion) | `kelpie version`, `kelpie help`, `kelpie --help`, `kelpie --version`, `kelpiemcp version`, `kelpiemcp help` | Show version and help text. |
 
 ## Common Rules
@@ -1994,13 +1994,12 @@ Safety notes:
 
 ### Environment
 
-List, read, temporarily set, or persist remote environment variables under profile policy.
+List, read, or persist remote environment variables under profile policy.
 
 Commands in this group:
 
 - [`kelpie env keys <profile>`](#kelpie-env-keys-profile)
 - [`kelpie env peek <profile> <key>`](#kelpie-env-peek-profile-key)
-- [`kelpie env set <profile> <key> <value> -- <command>`](#kelpie-env-set-profile-key-value----command)
 - [`kelpie env list <profile>`](#kelpie-env-list-profile)
 - [`kelpie env persist <profile> <key> <value>`](#kelpie-env-persist-profile-key-value)
 - [`kelpie env remove <profile> <key>`](#kelpie-env-remove-profile-key)
@@ -2074,46 +2073,6 @@ Masked example:
 ```text
 ************ (length=12)
 ```
-
-Return value sample:
-
-```json
-{
-  "exitCode": 0,
-  "stdout": "<command-specific terminal output>",
-  "stderr": ""
-}
-```
-
-Execution result sample:
-
-The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
-
-Safety notes:
-
-- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
-
-#### `kelpie env set <profile> <key> <value> -- <command>`
-
-Runs one command with one environment variable value set for that execution only.
-Before running the command, Kelpie sources `~/.kelpie/.env` if it exists.
-The `<key> <value>` pair then overrides that environment for the single command execution only.
-It does not persist the new value on the remote host.
-
-```powershell
-kelpie env set vps01 APP_ENV production -- printenv APP_ENV
-```
-
-This command requires `AllowSetEnvironmentValues` in `Capabilities`.
-The requested key must be listed in `EnvironmentValues` with `SetCommon` or `SetSecret`.
-The command after `--` is checked by the same CLI raw-command policy used by `kelpie login`.
-Environment variable values must not be pasted into public logs or issues.
-
-Return value:
-
-- Exit code `0` when the allowed command runs with the temporary environment value.
-- Standard output and standard error are the bounded output streams from the allowed remote command.
-- The provided environment value is not a persisted return value.
 
 Return value sample:
 
