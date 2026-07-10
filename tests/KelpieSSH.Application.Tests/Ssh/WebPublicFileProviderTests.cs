@@ -91,6 +91,55 @@ public sealed class WebPublicFileProviderTests
     }
 
     [Fact]
+    public async Task CheckWriteAsync_ShouldExplainMissingPhpWritePermission()
+    {
+        var profile = CreateProfile(KelpiePolicyMode.Expert);
+        var runner = new FakeSshCommandRunner([]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.CheckWriteAsync(
+            service,
+            profile,
+            "default",
+            "/index.php",
+            contentType: "text/html");
+
+        result.CanWrite.Should().BeFalse();
+        result.Error.Should().Be("Requested file extension is denied.");
+        result.ReasonCode.Should().Be("WritableExecutableExtensionMissing");
+        result.Guidance.Should().Contain("WritableExecutableExtensions");
+        result.Guidance.Should().Contain(".php");
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CheckWriteAsync_ShouldExplainRemotePermissionDenied()
+    {
+        var profile = CreateProfile(KelpiePolicyMode.Expert);
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: """{"resolvedPath":"/var/www/html/index.html","exists":true,"canWrite":false,"reason":"Permission denied"}""",
+                StandardError: string.Empty),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.CheckWriteAsync(
+            service,
+            profile,
+            "default",
+            "/index.html",
+            contentType: "text/html");
+
+        result.CanWrite.Should().BeFalse();
+        result.Reason.Should().Be("Permission denied");
+        result.ReasonCode.Should().Be("RemoteFileSystemPermissionDenied");
+        result.Guidance.Should().Contain("owner");
+        result.Guidance.Should().Contain("mode");
+    }
+
+    [Fact]
     public async Task CheckSecretWriteAsync_ShouldRequireExplicitAllowedFileRule()
     {
         var profile = CreateProfile(
@@ -784,6 +833,8 @@ public sealed class WebPublicFileProviderTests
             contentType: "text/html");
 
         result.Error.Should().Be("Requested file extension is denied.");
+        result.ReasonCode.Should().Be("WritableExecutableExtensionMissing");
+        result.Guidance.Should().Contain("WritableExecutableExtensions");
         runner.LastRequest.Should().BeNull();
     }
 

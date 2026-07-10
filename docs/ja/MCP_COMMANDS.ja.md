@@ -4727,6 +4727,7 @@ provider の許可範囲、path 検証、content type 検証、親ディレク�
 戻り値:
 
 - web file write check result。
+- `canWrite: false` の場合、`reasonCode` と `guidance` で不足している policy、拡張子許可、content type 書き込み許可、またはリモートファイルシステム権限を説明します。AI クライアントはこの値を使って「どの権限が足りないため書き込めないか」を説明できます。
 
 実行結果サンプル:
 
@@ -4742,6 +4743,8 @@ provider の許可範囲、path 検証、content type 検証、親ディレク�
   "confirmation": "web_file_write:default:/kelpie-mcp-test.txt",
   "contentType": "text/plain",
   "reason": null,
+  "reasonCode": null,
+  "guidance": null,
   "warnings": []
 }
 ```
@@ -4786,6 +4789,7 @@ secret reference の存在、secret file name、`AllowedFiles` の明示的な�
 戻り値:
 
 - web file write check result。
+- `canWrite: false` の場合、`reasonCode` と `guidance` で不足している policy、拡張子許可、content type 書き込み許可、またはリモートファイルシステム権限を説明します。AI クライアントはこの値を使って「どの権限が足りないため書き込めないか」を説明できます。
 - `canWrite: true` の場合、`confirmation` は `web_secret_file_write:<siteKey>:<path>:<secretName>` 形式です。
 - `owner` または `mode` を指定した場合、確認文字列は `web_file_write` と同じ `:<owner>:<mode>` suffix を含みます。片方を省略した場合は空フィールドになります。
 - 秘密本文、プレビュー、ハッシュ、差分は返しません。
@@ -4804,6 +4808,8 @@ secret reference の存在、secret file name、`AllowedFiles` の明示的な�
   "confirmation": "web_secret_file_write:default:/.env:prod-web-env",
   "contentType": "text/plain",
   "reason": null,
+  "reasonCode": null,
+  "guidance": null,
   "warnings": []
 }
 ```
@@ -5058,6 +5064,7 @@ Web 公開ルート外へ出ないこと、読み取り許可、content type 許
 戻り値:
 
 - web file write result。
+- 書き込みが拒否された場合、`reasonCode` と `guidance` で不足している policy、拡張子許可、content type 書き込み許可、またはリモートファイルシステム権限を説明します。AI クライアントはこの値を使って「どの権限が足りないため PHP ファイルを置けないか」を説明できます。
 
 実行結果サンプル:
 
@@ -5075,6 +5082,8 @@ Web 公開ルート外へ出ないこと、読み取り許可、content type 許
   "owner": "www-data",
   "group": "www-data",
   "mode": "775",
+  "reasonCode": null,
+  "guidance": null,
   "warnings": []
 }
 ```

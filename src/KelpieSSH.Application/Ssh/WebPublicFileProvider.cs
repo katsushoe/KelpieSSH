@@ -437,6 +437,10 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
         var remote = JsonSerializer.Deserialize<RemoteWriteCheckResult>(result.StandardOutput, JsonOptions)
             ?? throw new InvalidOperationException("Web public file write check returned empty JSON.");
 
+        var failure = remote.CanWrite
+            ? WebPublicWriteFailure.None
+            : CreateWriteFailure(remote.Reason);
+
         return new WebPublicFileWriteCheckResult(
             site.SiteKey,
             site.DisplayName,
@@ -448,7 +452,10 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             confirmation,
             resolvedContentType,
             remote.Reason,
-            Warnings: []);
+            Warnings: [],
+            Error: null,
+            ReasonCode: failure.ReasonCode,
+            Guidance: failure.Guidance);
     }
 
     /// <inheritdoc />
@@ -525,6 +532,10 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
         var remote = JsonSerializer.Deserialize<RemoteWriteCheckResult>(result.StandardOutput, JsonOptions)
             ?? throw new InvalidOperationException("Web secret file write check returned empty JSON.");
 
+        var failure = remote.CanWrite
+            ? WebPublicWriteFailure.None
+            : CreateWriteFailure(remote.Reason);
+
         return new WebPublicFileWriteCheckResult(
             site.SiteKey,
             site.DisplayName,
@@ -536,7 +547,10 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             confirmation,
             resolvedContentType,
             remote.Reason,
-            Warnings: []);
+            Warnings: [],
+            Error: null,
+            ReasonCode: failure.ReasonCode,
+            Guidance: failure.Guidance);
     }
 
     /// <inheritdoc />
@@ -1782,6 +1796,7 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
         string path,
         string error)
     {
+        var failure = CreateWriteFailure(error);
         return new WebPublicFileWriteResult(
             site.SiteKey,
             site.DisplayName,
@@ -1793,7 +1808,9 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             ContentType: ResolveContentType(path, site, null),
             Size: 0,
             Warnings: [],
-            Error: error);
+            Error: error,
+            ReasonCode: failure.ReasonCode,
+            Guidance: failure.Guidance);
     }
 
     private static WebPublicFileListResult CreateListError(
@@ -1842,6 +1859,10 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
         bool canWrite,
         string? reason)
     {
+        var failure = canWrite
+            ? WebPublicWriteFailure.None
+            : CreateWriteFailure(reason);
+
         return new WebPublicFileWriteCheckResult(
             site.SiteKey,
             site.DisplayName,
@@ -1854,7 +1875,9 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             contentType,
             reason,
             Warnings: [],
-            Error: reason);
+            Error: reason,
+            ReasonCode: failure.ReasonCode,
+            Guidance: failure.Guidance);
     }
 
     private static WebPublicFileWriteCheckResult CreateSecretWriteCheckResult(
@@ -1866,6 +1889,10 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
         string secretName,
         WritePermissionRequest permissionRequest)
     {
+        var failure = canWrite
+            ? WebPublicWriteFailure.None
+            : CreateWriteFailure(reason);
+
         return new WebPublicFileWriteCheckResult(
             site.SiteKey,
             site.DisplayName,
@@ -1878,7 +1905,72 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             contentType,
             reason,
             Warnings: [],
-            Error: reason);
+            Error: reason,
+            ReasonCode: failure.ReasonCode,
+            Guidance: failure.Guidance);
+    }
+
+    private static WebPublicWriteFailure CreateWriteFailure(string? reason)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            return WebPublicWriteFailure.None;
+        }
+
+        if (reason.Contains("not writable by AllowedFiles", StringComparison.OrdinalIgnoreCase))
+        {
+            return new WebPublicWriteFailure(
+                "AllowedFilesWritePermissionMissing",
+                "The matching AllowedFiles rule does not grant Write permission. Add Write to the matching AllowedFiles rule or choose another allowed path.");
+        }
+
+        if (reason.Contains("not allowed by AllowedFiles", StringComparison.OrdinalIgnoreCase))
+        {
+            return new WebPublicWriteFailure(
+                "AllowedFilesRuleMissing",
+                "No AllowedFiles rule permits this path. Add an explicit writable AllowedFiles rule for the target file or choose another allowed path.");
+        }
+
+        if (reason.Contains("Secret file writes require an explicit writable AllowedFiles rule", StringComparison.OrdinalIgnoreCase))
+        {
+            return new WebPublicWriteFailure(
+                "SecretAllowedFilesRuleMissing",
+                "Secret file writes require an explicit AllowedFiles rule with Write permission for the target secret file.");
+        }
+
+        if (reason.Contains("file extension is denied for writing", StringComparison.OrdinalIgnoreCase)
+            || reason.Contains("file extension is denied", StringComparison.OrdinalIgnoreCase))
+        {
+            return new WebPublicWriteFailure(
+                "WritableExecutableExtensionMissing",
+                "This executable web extension is not writable by the current profile. For PHP files, add .php to WebPublicSites.<siteKey>.WritableExecutableExtensions for the target site.");
+        }
+
+        if (reason.Contains("file extension is not allowed", StringComparison.OrdinalIgnoreCase))
+        {
+            return new WebPublicWriteFailure(
+                "AllowedExtensionMissing",
+                "The file extension is not allowed for this site. Add the extension to AllowedExtensions, or for PHP files explicitly allow .php in WritableExecutableExtensions.");
+        }
+
+        if (reason.Contains("Content type is not writable", StringComparison.OrdinalIgnoreCase))
+        {
+            return new WebPublicWriteFailure(
+                "ContentTypeWritePermissionMissing",
+                "The resolved content type does not grant Write permission. Add Write to the matching AllowedContentTypes rule or pass an allowed content type.");
+        }
+
+        if (reason.Contains("permission denied", StringComparison.OrdinalIgnoreCase)
+            || reason.Contains("access denied", StringComparison.OrdinalIgnoreCase))
+        {
+            return new WebPublicWriteFailure(
+                "RemoteFileSystemPermissionDenied",
+                "The remote SSH user or helper could not write the target path. Check the directory owner, group, mode, or use the owner/mode options with the configured permission helper.");
+        }
+
+        return new WebPublicWriteFailure(
+            "WriteRejected",
+            "The write request was rejected by KelpieSSH policy or by the remote preflight check. Review Error and Reason for the exact condition.");
     }
 
     private static WebPublicPermissionChangeResult CreatePermissionError(
@@ -2049,6 +2141,13 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
     private sealed record WebPublicFileAccess(
         bool IsExplicitRule,
         string? Error);
+
+    private sealed record WebPublicWriteFailure(
+        string? ReasonCode,
+        string? Guidance)
+    {
+        public static WebPublicWriteFailure None { get; } = new(null, null);
+    }
 
     private sealed record WritePermissionRequest(
         bool HasPermissions,

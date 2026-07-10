@@ -6704,6 +6704,7 @@ Return value:
 - Return type: `WebPublicFileWriteCheckResult`.
 - The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
 - Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+- When `CanWrite` is false, `ReasonCode` and `Guidance` describe the missing policy, extension, content-type, or remote filesystem permission so AI clients can explain the failure.
 
 Return value sample:
 
@@ -6719,6 +6720,8 @@ Return value sample:
   "Confirmation": "<value>",
   "ContentType": "<output text>",
   "Reason": "<value>",
+  "ReasonCode": null,
+  "Guidance": null,
   "Warnings": []
 }
 ```
@@ -7106,6 +7109,7 @@ Return value:
 - Return type: `WebPublicFileWriteResult`.
 - The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
 - Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+- When a write is rejected, `ReasonCode` and `Guidance` describe the missing policy, extension, content-type, or remote filesystem permission so AI clients can explain the failure.
 
 Return value sample:
 
@@ -7120,6 +7124,8 @@ Return value sample:
   "Overwritten": true,
   "ContentType": "<output text>",
   "Size": 0,
+  "ReasonCode": null,
+  "Guidance": null,
   "Warnings": []
 }
 ```
