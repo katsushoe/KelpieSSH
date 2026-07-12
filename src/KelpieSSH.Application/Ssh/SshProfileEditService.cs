@@ -24,6 +24,7 @@ public sealed class SshProfileEditService
     [
         "Host.Address",
         "Host.Port",
+        "Host.HostKeyFingerprintSha256",
         "Auth.Method",
         "Auth.PrivateKeyFile",
         "Auth.PasswordSecretName",
@@ -73,6 +74,12 @@ public sealed class SshProfileEditService
                 return null;
             }
 
+            if (string.Equals(normalizedPath, "Host.HostKeyFingerprintSha256", StringComparison.OrdinalIgnoreCase))
+            {
+                SetString(GetOrCreateObject(node, "Host"), "HostKeyFingerprintSha256", NormalizeHostKeyFingerprint(value));
+                return null;
+            }
+
             if (string.Equals(normalizedPath, "Auth.Method", StringComparison.OrdinalIgnoreCase))
             {
                 SetString(GetOrCreateObject(node, "Auth"), "Method", value);
@@ -119,6 +126,22 @@ public sealed class SshProfileEditService
 
             return CreateUnsupportedDotPathMessage(normalizedPath);
         });
+    }
+
+    /// <summary>
+    /// Sets the pinned SSH host key fingerprint.
+    /// </summary>
+    /// <param name="profilePath">The profile JSON file path.</param>
+    /// <param name="fingerprint">The SHA256 host key fingerprint.</param>
+    /// <returns>The edit result.</returns>
+    public ProfileEditResult SetHostKeyFingerprint(string profilePath, string fingerprint)
+    {
+        if (string.IsNullOrWhiteSpace(fingerprint))
+        {
+            return ProfileEditResult.Fail(profilePath, "Host key fingerprint is required.");
+        }
+
+        return SetScalar(profilePath, "Host.HostKeyFingerprintSha256", fingerprint);
     }
 
     /// <summary>
@@ -327,6 +350,17 @@ public sealed class SshProfileEditService
     private static string NormalizeLf(string value)
     {
         return value.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\r", "\n", StringComparison.Ordinal);
+    }
+
+    private static string NormalizeHostKeyFingerprint(string value)
+    {
+        var normalized = value.Trim();
+        if (!normalized.StartsWith("SHA256:", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = "SHA256:" + normalized;
+        }
+
+        return normalized.TrimEnd('=');
     }
 
     private static JsonObject GetOrCreateObject(JsonObject parent, string propertyName)
@@ -559,7 +593,7 @@ public static class ProfileEditorCommandResolver
     /// <summary>
     /// Resolves the editor command.
     /// </summary>
-    /// <param name="configuredEditor">The configured kelpie.json editor value.</param>
+    /// <param name="configuredEditor">The configured kelpie.json Editor value.</param>
     /// <param name="getEnvironmentVariable">The environment variable reader.</param>
     /// <param name="isWindows">Whether the current OS is Windows.</param>
     /// <returns>The editor command line.</returns>
@@ -578,11 +612,117 @@ public static class ProfileEditorCommandResolver
         {
             if (!string.IsNullOrWhiteSpace(value))
             {
-                return value.Trim();
+                return NormalizeEditorAlias(value.Trim(), getEnvironmentVariable, isWindows);
             }
         }
 
         return isWindows ? "notepad" : "vi";
+    }
+
+    private static string NormalizeEditorAlias(
+        string editorCommand,
+        Func<string, string?> getEnvironmentVariable,
+        bool isWindows)
+    {
+        if (string.Equals(editorCommand, "vscode", StringComparison.OrdinalIgnoreCase))
+        {
+            return ResolveExecutableAlias("code", string.Empty, getEnvironmentVariable, isWindows);
+        }
+
+        if (editorCommand.StartsWith("vscode ", StringComparison.OrdinalIgnoreCase))
+        {
+            return ResolveExecutableAlias("code", editorCommand["vscode".Length..], getEnvironmentVariable, isWindows);
+        }
+
+        const string QuotedVscode = "\"vscode\"";
+        if (string.Equals(editorCommand, QuotedVscode, StringComparison.OrdinalIgnoreCase))
+        {
+            return ResolveExecutableAlias("code", string.Empty, getEnvironmentVariable, isWindows);
+        }
+
+        if (editorCommand.StartsWith(QuotedVscode + " ", StringComparison.OrdinalIgnoreCase))
+        {
+            return ResolveExecutableAlias("code", editorCommand[QuotedVscode.Length..], getEnvironmentVariable, isWindows);
+        }
+
+        return editorCommand;
+    }
+
+    private static string ResolveExecutableAlias(
+        string executableName,
+        string arguments,
+        Func<string, string?> getEnvironmentVariable,
+        bool isWindows)
+    {
+        var executablePath = isWindows
+            ? FindExecutableOnPath(executableName, getEnvironmentVariable)
+            : null;
+        var command = executablePath is null
+            ? executableName
+            : QuoteCommandIfNeeded(executablePath);
+
+        return command + arguments;
+    }
+
+    private static string? FindExecutableOnPath(
+        string executableName,
+        Func<string, string?> getEnvironmentVariable)
+    {
+        var pathValue = getEnvironmentVariable("PATH");
+        if (string.IsNullOrWhiteSpace(pathValue))
+        {
+            return null;
+        }
+
+        var extensions = GetPathExtensions(executableName, getEnvironmentVariable("PATHEXT"));
+        foreach (var directory in pathValue.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var normalizedDirectory = directory.Trim().Trim('"');
+            if (string.IsNullOrWhiteSpace(normalizedDirectory))
+            {
+                continue;
+            }
+
+            foreach (var extension in extensions)
+            {
+                var candidatePath = Path.Combine(normalizedDirectory, executableName + extension);
+                if (File.Exists(candidatePath))
+                {
+                    return candidatePath;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static IReadOnlyList<string> GetPathExtensions(string executableName, string? pathExtValue)
+    {
+        if (Path.HasExtension(executableName))
+        {
+            return [string.Empty];
+        }
+
+        var extensions = (string.IsNullOrWhiteSpace(pathExtValue)
+            ? ".COM;.EXE;.BAT;.CMD"
+            : pathExtValue)
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(extension => extension.StartsWith('.')
+                ? extension
+                : "." + extension)
+            .Select(extension => extension.ToLowerInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        extensions.Insert(0, string.Empty);
+        return extensions;
+    }
+
+    private static string QuoteCommandIfNeeded(string command)
+    {
+        return command.Contains(' ', StringComparison.Ordinal)
+            ? $"\"{command}\""
+            : command;
     }
 }
 

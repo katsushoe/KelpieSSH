@@ -106,8 +106,8 @@ public static class KelpieHomeInitializer
         }
 
         var fullHomeDirectory = Path.GetFullPath(homeDirectory);
-        var configDirectory = Path.Combine(fullHomeDirectory, "config");
-        var profilesDirectory = Path.Combine(fullHomeDirectory, "profiles");
+        var configDirectory = ResolveConfigDirectory(fullHomeDirectory);
+        var profilesDirectory = ResolveProfilesDirectory(fullHomeDirectory);
 
         if (!Directory.Exists(configDirectory)
             || !Directory.Exists(profilesDirectory)
@@ -141,7 +141,7 @@ public static class KelpieHomeInitializer
 
         var normalizedProfileName = NormalizeProfileName(profileName);
         var fullHomeDirectory = Path.GetFullPath(homeDirectory);
-        return Path.Combine(fullHomeDirectory, "profiles", $"{normalizedProfileName}.json");
+        return Path.Combine(ResolveProfilesDirectory(fullHomeDirectory), $"{normalizedProfileName}.json");
     }
 
     private static string NormalizeProfileName(string? profileName)
@@ -162,17 +162,18 @@ public static class KelpieHomeInitializer
 
     private static KelpieHomePaths CreatePaths(string homeDirectory, string commandDirectory, string profileName)
     {
-        var configDirectory = Path.Combine(homeDirectory, "config");
-        var profilesDirectory = Path.Combine(homeDirectory, "profiles");
-        var keysDirectory = Path.Combine(homeDirectory, "keys");
-        var dataDirectory = Path.Combine(homeDirectory, "dat");
-        var logsDirectory = Path.Combine(homeDirectory, "logs");
-        var mcpDirectory = Path.Combine(commandDirectory, "mcp");
+        var configDirectory = ResolveConfigDirectory(homeDirectory);
+        var profilesDirectory = ResolveProfilesDirectory(homeDirectory);
+        var keysDirectory = ResolveKeysDirectory(homeDirectory);
+        var dataDirectory = ResolveDataDirectory(homeDirectory);
+        var logsDirectory = ResolveLogsDirectory(homeDirectory);
+        var binDirectory = ResolveBinDirectory(commandDirectory);
+        var mcpDirectory = Path.Combine(binDirectory, "mcp");
 
         return new KelpieHomePaths(
             homeDirectory,
             configDirectory,
-            commandDirectory,
+            binDirectory,
             profilesDirectory,
             keysDirectory,
             dataDirectory,
@@ -181,6 +182,48 @@ public static class KelpieHomeInitializer
             Path.Combine(configDirectory, KelpieRuntimePaths.KelpieConfigFileName),
             Path.Combine(configDirectory, KelpieRuntimePaths.KelpieMcpConfigFileName),
             Path.Combine(profilesDirectory, $"{profileName}.json"));
+    }
+
+    private static string ResolveConfigDirectory(string homeDirectory)
+    {
+        return KelpieRuntimePaths.Overrides.ConfigDirectory is { Length: > 0 } directory
+            ? Path.GetFullPath(directory)
+            : Path.Combine(homeDirectory, "config");
+    }
+
+    private static string ResolveProfilesDirectory(string homeDirectory)
+    {
+        return KelpieRuntimePaths.Overrides.ProfilesDirectory is { Length: > 0 } directory
+            ? Path.GetFullPath(directory)
+            : Path.Combine(homeDirectory, "profiles");
+    }
+
+    private static string ResolveKeysDirectory(string homeDirectory)
+    {
+        return KelpieRuntimePaths.Overrides.KeysDirectory is { Length: > 0 } directory
+            ? Path.GetFullPath(directory)
+            : Path.Combine(homeDirectory, "keys");
+    }
+
+    private static string ResolveDataDirectory(string homeDirectory)
+    {
+        return KelpieRuntimePaths.Overrides.DataDirectory is { Length: > 0 } directory
+            ? Path.GetFullPath(directory)
+            : Path.Combine(homeDirectory, "dat");
+    }
+
+    private static string ResolveLogsDirectory(string homeDirectory)
+    {
+        return KelpieRuntimePaths.Overrides.LogsDirectory is { Length: > 0 } directory
+            ? Path.GetFullPath(directory)
+            : Path.Combine(homeDirectory, "logs");
+    }
+
+    private static string ResolveBinDirectory(string commandDirectory)
+    {
+        return KelpieRuntimePaths.Overrides.BinDirectory is { Length: > 0 } directory
+            ? Path.GetFullPath(directory)
+            : commandDirectory;
     }
 
     private static IReadOnlyCollection<string> CreateDirectories(IReadOnlyCollection<string> directories)
@@ -272,7 +315,7 @@ public static class KelpieHomeInitializer
             }
             else
             {
-                updated |= SetStringIfMissing(node, "editor", string.Empty);
+                updated |= SetStringIfMissingWithCanonicalName(node, "Editor", string.Empty);
             }
 
             if (!updated)
@@ -339,6 +382,30 @@ public static class KelpieHomeInitializer
         return true;
     }
 
+    private static bool SetStringIfMissingWithCanonicalName(JsonObject node, string propertyName, string value)
+    {
+        foreach (var item in node)
+        {
+            if (!string.Equals(item.Key, propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (string.Equals(item.Key, propertyName, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var existingValue = item.Value;
+            node.Remove(item.Key);
+            node[propertyName] = existingValue ?? JsonValue.Create(value);
+            return true;
+        }
+
+        node[propertyName] = value;
+        return true;
+    }
+
     private static bool SetIntIfMissingOrInvalid(JsonObject node, string propertyName, int value)
     {
         if (node[propertyName] is JsonValue jsonValue
@@ -374,7 +441,7 @@ public static class KelpieHomeInitializer
         return Serialize(new
         {
             LogDirectory = paths.LogsDirectory,
-            editor = string.Empty,
+            Editor = string.Empty,
         });
     }
 
@@ -416,24 +483,34 @@ public static class KelpieHomeInitializer
         });
     }
 
-    private static string CreateProfileJson(string profileName, KelpieProfileTemplateOptions? templateOptions = null)
+    public static string CreateProfileJson(string profileName, KelpieProfileTemplateOptions? templateOptions = null)
     {
         var options = NormalizeProfileTemplateOptions(profileName, templateOptions);
         var allowedRoots = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (!string.IsNullOrWhiteSpace(options.ReadOnlyRoot))
+        foreach (var readOnlyRoot in options.ReadOnlyRoots)
         {
-            allowedRoots[options.ReadOnlyRoot] = "$ReadOnly";
+            allowedRoots[readOnlyRoot] = "$ReadOnly";
         }
 
-        if (!string.IsNullOrWhiteSpace(options.ReadWriteRoot))
+        foreach (var readWriteRoot in options.ReadWriteRoots)
         {
-            allowedRoots[options.ReadWriteRoot] = "$ReadWrite";
+            allowedRoots[readWriteRoot] = "$ReadWrite";
+        }
+
+        foreach (var allowedRoot in options.AllowedRootEntries)
+        {
+            allowedRoots[allowedRoot.Key] = allowedRoot.Value;
         }
 
         var specialPaths = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (!string.IsNullOrWhiteSpace(options.DenyPattern))
+        foreach (var denyPattern in options.DenyPatterns)
         {
-            specialPaths[options.DenyPattern] = "Deny";
+            specialPaths[denyPattern] = "Deny";
+        }
+
+        foreach (var specialPath in options.SpecialPathEntries)
+        {
+            specialPaths[specialPath.Key] = specialPath.Value;
         }
 
         var authentication = new Dictionary<string, object?>(StringComparer.Ordinal)
@@ -497,9 +574,44 @@ public static class KelpieHomeInitializer
             DefaultUser: string.IsNullOrWhiteSpace(templateOptions.DefaultUser) ? defaults.DefaultUser : templateOptions.DefaultUser.Trim(),
             Mode: string.IsNullOrWhiteSpace(templateOptions.Mode) ? defaults.Mode : templateOptions.Mode.Trim(),
             OsFamily: string.IsNullOrWhiteSpace(templateOptions.OsFamily) ? defaults.OsFamily : templateOptions.OsFamily.Trim(),
-            ReadOnlyRoot: templateOptions.ReadOnlyRoot?.Trim() ?? string.Empty,
-            ReadWriteRoot: templateOptions.ReadWriteRoot?.Trim() ?? string.Empty,
-            DenyPattern: templateOptions.DenyPattern?.Trim() ?? string.Empty);
+            ReadOnlyRoots: NormalizeStringList(templateOptions.ReadOnlyRoots),
+            ReadWriteRoots: NormalizeStringList(templateOptions.ReadWriteRoots),
+            DenyPatterns: NormalizeStringList(templateOptions.DenyPatterns))
+        {
+            AllowedRootEntries = NormalizeStringMap(templateOptions.AllowedRootEntries),
+            SpecialPathEntries = NormalizeStringMap(templateOptions.SpecialPathEntries),
+        };
+    }
+
+    private static IReadOnlyList<string> NormalizeStringList(IEnumerable<string>? values)
+    {
+        return values?
+            .Select(value => value?.Trim() ?? string.Empty)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray()
+            ?? [];
+    }
+
+    private static IReadOnlyDictionary<string, string> NormalizeStringMap(IReadOnlyDictionary<string, string>? values)
+    {
+        if (values is null)
+        {
+            return new Dictionary<string, string>(StringComparer.Ordinal);
+        }
+
+        var normalized = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (key, value) in values)
+        {
+            var normalizedKey = key.Trim();
+            var normalizedValue = value.Trim();
+            if (!string.IsNullOrWhiteSpace(normalizedKey) && !string.IsNullOrWhiteSpace(normalizedValue))
+            {
+                normalized[normalizedKey] = normalizedValue;
+            }
+        }
+
+        return normalized;
     }
 
     private static KelpieMcpConfigTemplateOptions NormalizeMcpConfigTemplateOptions(
@@ -613,10 +725,67 @@ public sealed record KelpieProfileTemplateOptions(
     string DefaultUser,
     string Mode,
     string OsFamily,
-    string ReadOnlyRoot,
-    string ReadWriteRoot,
-    string DenyPattern)
+    IReadOnlyList<string> ReadOnlyRoots,
+    IReadOnlyList<string> ReadWriteRoots,
+    IReadOnlyList<string> DenyPatterns)
 {
+    /// <summary>
+    /// Gets map-style allowed root entries appended after read-only and read-write roots.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> AllowedRootEntries { get; init; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Gets map-style special path entries appended after deny patterns.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> SpecialPathEntries { get; init; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Initializes a new instance with single optional root and deny values.
+    /// </summary>
+    public KelpieProfileTemplateOptions(
+        string HostAddress,
+        int Port,
+        string AuthMethod,
+        string? PrivateKeyFile,
+        string? PasswordSecretName,
+        string DefaultUser,
+        string Mode,
+        string OsFamily,
+        string ReadOnlyRoot,
+        string ReadWriteRoot,
+        string DenyPattern)
+        : this(
+            HostAddress,
+            Port,
+            AuthMethod,
+            PrivateKeyFile,
+            PasswordSecretName,
+            DefaultUser,
+            Mode,
+            OsFamily,
+            string.IsNullOrWhiteSpace(ReadOnlyRoot) ? [] : [ReadOnlyRoot],
+            string.IsNullOrWhiteSpace(ReadWriteRoot) ? [] : [ReadWriteRoot],
+            string.IsNullOrWhiteSpace(DenyPattern) ? [] : [DenyPattern])
+    {
+    }
+
+    /// <summary>
+    /// Gets the first read-only root for legacy callers.
+    /// </summary>
+    public string ReadOnlyRoot => ReadOnlyRoots.FirstOrDefault() ?? string.Empty;
+
+    /// <summary>
+    /// Gets the first read-write root for legacy callers.
+    /// </summary>
+    public string ReadWriteRoot => ReadWriteRoots.FirstOrDefault() ?? string.Empty;
+
+    /// <summary>
+    /// Gets the first deny pattern for legacy callers.
+    /// </summary>
+    public string DenyPattern => DenyPatterns.FirstOrDefault() ?? string.Empty;
+
     /// <summary>
     /// Creates the default SSH profile template values.
     /// </summary>
@@ -625,7 +794,7 @@ public sealed record KelpieProfileTemplateOptions(
     public static KelpieProfileTemplateOptions CreateDefault(string profileName)
     {
         return new KelpieProfileTemplateOptions(
-            HostAddress: "example.invalid",
+            HostAddress: "localhost",
             Port: 22,
             AuthMethod: "privateKey",
             PrivateKeyFile: $"{profileName}_ed25519",
@@ -633,9 +802,9 @@ public sealed record KelpieProfileTemplateOptions(
             DefaultUser: "deploy",
             Mode: "Safe",
             OsFamily: "debian",
-            ReadOnlyRoot: "/var/log",
-            ReadWriteRoot: "/var/www",
-            DenyPattern: "**/.env");
+            ReadOnlyRoots: ["/var/log"],
+            ReadWriteRoots: ["/var/www"],
+            DenyPatterns: ["**/.env"]);
     }
 }
 

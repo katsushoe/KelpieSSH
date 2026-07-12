@@ -1,6 +1,6 @@
 # KelpieSSH Profile Guide
 
-最終更新: 2026-06-18
+最終更新: 2026-07-05
 
 この文書は、KelpieSSH の SSH profile 設定方法を説明します。
 英語版は [../../PROFILE_GUIDE.md](../../PROFILE_GUIDE.md) です。
@@ -66,6 +66,30 @@ kelpie init vps01
 
 対応する公開鍵は、事前にサーバー側へ登録されている必要があります。
 通常は remote user の `~/.ssh/authorized_keys` に登録します。
+
+## ホスト鍵 pinning
+
+`Host.HostKeyFingerprintSha256` を設定すると、SSH サーバーのホスト鍵 fingerprint を pin できます。
+この値がある場合、KelpieSSH は接続時に受信した SSH ホスト鍵 fingerprint と profile の設定値を照合してから接続を信頼します。
+
+```json
+{
+  "Host": {
+    "Address": "203.0.113.10",
+    "Port": 22,
+    "HostKeyFingerprintSha256": "SHA256:abc123"
+  }
+}
+```
+
+対話的に fingerprint を記録する場合は次を使います。
+
+```powershell
+kelpie profile trust-host-key vps01
+```
+
+表示された fingerprint は、VPS 管理画面など信頼できる別経路で確認してから信頼してください。
+初回 SSH 接続が中間者攻撃を受けている場合、攻撃者のホスト鍵を pin する危険があります。
 
 ## 最小秘密鍵 profile
 
@@ -198,72 +222,73 @@ kelpiemcp forget vps01
 
 ### プロファイルスキーマ概要
 
-| 項目 | 必須 | 型 | 既定値 | 値 / 制約 |
+| 項目 | 必須 | 型 | 初期値 | 値 / 制約 |
 | :--- | :---: | :--- | :--- | :--- |
-| `Host` | yes | object | none | SSH 接続先設定。 |
-| `Host.Address` | yes | string | none | Host name または IP address。空不可。 |
-| `Host.Port` | no | integer | `22` | SSH port。通常は `1` から `65535`。 |
-| `Auth` | `Authentication` がない場合 yes | object | none | `Authentication` の短縮別名。サンプルではこちらを使います。 |
-| `Authentication` | `Auth` がない場合 yes | object | none | 正式な認証設定。`Auth` と両方ある場合はこちらを優先します。 |
-| `Auth.UserName` / `Authentication.UserName` | single-user profile では yes | string | none | SSH login user。`root` 直接ログインは禁止です。 |
-| `Auth.UsrName` / `Authentication.UsrName` | no | string | none | `UserName` の互換 typo alias。新規設定では `UserName` を使います。 |
-| `Auth.Method` / `Authentication.Method` | yes | string enum | `privateKey` | `privateKey`: 秘密鍵認証。`password`: `PasswordSecretName` と runtime password session を使う認証。 |
-| `Auth.PrivateKeyFile` / `Authentication.PrivateKeyFile` | `privateKey` では yes | string | none | `KelpieHome\keys` 配下のファイル名、または absolute path。 |
-| `Auth.PrivateKeyPath` / `Authentication.PrivateKeyPath` | no | string | none | 互換用 path。新規設定では `PrivateKeyFile` を推奨します。 |
-| `Auth.PrivateKeyPassphrase` / `Authentication.PrivateKeyPassphrase` | no | string or null | `null` | 秘密鍵 passphrase。公開サンプルに実値を書いてはいけません。 |
-| `Auth.PasswordSecretName` / `Authentication.PasswordSecretName` | `password` では yes | string or null | `null` | Secret reference name。profile に平文 password は保存しません。 |
-| `Connection` | no | object | `{ "TimeoutSeconds": 10 }` | SSH 接続動作。 |
-| `Connection.TimeoutSeconds` | no | integer | `10` | 正の整数。 |
-| `Platform` | yes | object | none | provider 選択に使う target OS metadata。 |
-| `Platform.OsFamily` | yes | string enum/alias | none | `debian`, `ubuntu`, `rhel`, `alma`, `almalinux`, `rocky`, `centos`, `oraclelinux`。alias は effective family に解決されます。 |
-| `Platform.PackageManager` | no | string | `OsFamily` から推定 | effective `debian` は `apt`、effective `rhel` は `dnf`。必要なら明示指定できます。 |
-| `Mode` | no | string role expression | `Safe` | `ReadOnly`, `Safe`, `Maintenance`, `Expert`, `WebUser`, `WebAdmin`。`|` で組み合わせ可能。互換 key として role expression として読み取ります。 |
-| `Roles` | no | string or string array | `Mode` から解決 | `Mode` と同じ role 名。設定時は role 解決に使います。 |
-| `Capabilities` | no | string, string array, or object | empty | CLI 専用 policy flags。MCP では無視します。詳細は [`Capabilities`](#capabilities)。 |
-| `Rights` | no | dictionary object | built-ins only | `$` 始まりの名前を key にし、値は preset または `@` flags の access expression。 |
-| `AllowedRoots` | no | dictionary object or string array | empty | Object form は path/glob から access expression への map。Array form は互換 read-only/list/cd。 |
-| `SpecialPaths` | no | dictionary object | empty | Key は path glob。値は `Deny`, `Confirm`, `Allow`。 |
-| `EnvironmentValues` | no | dictionary object | empty | Key は environment variable name。値は environment access expression。 |
-| `DefaultUser` | no | string | `Auth.UserName` | `Users` が複数あり、command 側で user 未指定の場合に選ばれる user。 |
-| `Users` | no | dictionary object or array | single legacy user | 推奨 object form は SSH user name から role expression または詳細 user object への map。 |
-| `Users.<user>` | no | string or object | profile settings を継承 | String value は role expression。Object value は auth, roles, roots, special paths, environment values, web public sites を上書きできます。 |
-| `Users.<user>.Method` | no | string enum | profile auth method | `privateKey` または `password`。 |
-| `Users.<user>.PrivateKeyFile` | no | string | profile auth value | User-level private key file override。 |
-| `Users.<user>.PrivateKeyPath` | no | string | profile auth value | 互換用 user-level private key path。新規設定では `PrivateKeyFile` を推奨します。 |
-| `Users.<user>.PrivateKeyPassphrase` | no | string or null | profile auth value | User-level private key passphrase override。 |
-| `Users.<user>.PasswordSecretName` | no | string or null | profile auth value | User-level password secret reference override。 |
-| `Users.<user>.Mode` | no | string role expression | profile roles | Profile `Mode` と同じ値。 |
-| `Users.<user>.Roles` | no | string or string array | profile roles | Profile `Roles` と同じ値。 |
-| `Users.<user>.Capabilities` | no | string, string array, or object | profile capabilities | CLI 専用 user-level policy flags。 |
-| `Users.<user>.AllowedRoots` | no | dictionary object or string array | profile allowed roots | Profile `AllowedRoots` と同じ形式。 |
-| `Users.<user>.SpecialPaths` | no | dictionary object | profile special paths | Profile `SpecialPaths` と同じ形式。 |
-| `Users.<user>.EnvironmentValues` | no | dictionary object | profile environment rules | Profile `EnvironmentValues` と同じ形式。 |
-| `Users.<user>.WebPublicSites` | no | dictionary object or array | profile web public sites | Profile `WebPublicSites` と同じ形式。 |
-| `Services` | no | object | empty object | Service-specific defaults。 |
-| `Services.Nginx` | no | object | empty object | Nginx と web helpers が使う Nginx defaults。 |
-| `Services.Nginx.User` | no | string | none | Nginx worker user。 |
-| `Services.Nginx.Group` | no | string | none | Nginx worker group。 |
-| `Services.Nginx.Port` | no | integer | none | 設定時は `1` から `65535`。 |
-| `Services.Nginx.Root` | no | string | none | Web public root。`WebPublicSites` 未設定時に `WebUser` role でも使います。 |
-| `WebPublicSites` | no | dictionary object or array | provider default site | Provider default site は `/var/www/html` の `default` site。安全な静的拡張子を既定許可します。 |
-| `WebPublicSites.<siteKey>.SiteKey` | object form では no | string | dictionary key | Array item では必須。空不可。 |
-| `WebPublicSites.<siteKey>.DisplayName` | no | string | `siteKey` | 表示用 site label。 |
-| `WebPublicSites.<siteKey>.Root` / `RootPath` | yes | string | none | 安全な absolute Unix web root path。`RootPath` は別名で、サンプルでは `Root` を推奨します。 |
-| `WebPublicSites.<siteKey>.AllowedExtensions` | no | string array | built-in safe static extensions | 有効な値は `.html` や `.png` のような、先頭ドット付きの単一ファイル拡張子です。大文字小文字は区別しません。通常の Web 公開ファイル向けだけに使い、path、glob、MIME type、実行可能拡張子は指定しません。 |
-| `WebPublicSites.<siteKey>.WritableExecutableExtensions` | no | string array | empty | `.php` のような先頭ドット付き実行可能拡張子。ワイルドカードと path separator は拒否されます。 |
-| `WebPublicSites.<siteKey>.AllowedContentTypes` | no | string array or dictionary object | built-in safe content types | Array は read/write を許可。Object は MIME type から access expression への map。 |
-| `WebPublicSites.<siteKey>.AllowedFiles` | no | dictionary object | empty | Key は file glob、`file:<glob>`、または `mime:<content-type>`。値は access expression。 |
-| `WebPublicSites.<siteKey>.CreateDirectories` | no | boolean | `true` | Web write operation で missing parent directories の作成を許可します。 |
-| `WebPublicSites.<siteKey>.MaxReadBytes` | no | integer | `5242880` | Web file read operation の最大読み取り bytes。 |
-| `WebPublicSites.<siteKey>.MaxWriteBytes` | no | integer | `5242880` | Web file write operation の最大受け入れ bytes。 |
-| `Ssh` | no | object | empty object | Legacy endpoint/auth section。新規設定では `Host` と `Auth` / `Authentication` を使います。 |
-| `Ssh.Host` | no | string | none | Legacy host address。`Host.Address` が未設定の場合だけ使います。 |
-| `Ssh.Port` | no | integer | `22` | Legacy SSH port。`Host.Address` が未設定の場合だけ使います。 |
-| `Ssh.UserName` | no | string | none | Legacy SSH user。Auth user name が未設定の場合だけ使います。 |
-| `Ssh.Authentication` | no | object | empty object | Legacy authentication section。優先順位は最も低いです。 |
-| `Policy` | no | object | empty object | Legacy CLI policy section。新規設定では `Capabilities` と `AllowedRoots` を使います。 |
-| `Policy.Level` | no | string | empty | Legacy capability expression。 |
-| `Policy.AllowedRoots` | no | string array | empty | Legacy read-only/list/cd allowed roots。 |
+| `Host` | はい | object | なし | SSH 接続先設定。 |
+| `Host.Address` | はい | string | なし | Host name または IP address。空不可。 |
+| `Host.Port` | いいえ | integer | `22` | SSH port。通常は `1` から `65535`。 |
+| `Host.HostKeyFingerprintSha256` | いいえ | string | なし | pin する SSH サーバーホスト鍵 SHA256 fingerprint。`kelpie profile trust-host-key <profile>` を使うか、別経路で確認して手動入力します。 |
+| `Auth` | `Authentication` がない場合は はい | object | なし | `Authentication` の短縮別名。サンプルではこちらを使います。 |
+| `Authentication` | `Auth` がない場合は はい | object | なし | 正式な認証設定。`Auth` と両方ある場合はこちらを優先します。 |
+| `Auth.UserName` / `Authentication.UserName` | single-user profile では はい | string | なし | SSH login user。`root` 直接ログインは禁止です。 |
+| `Auth.UsrName` / `Authentication.UsrName` | いいえ | string | なし | `UserName` の互換 typo alias。新規設定では `UserName` を使います。 |
+| `Auth.Method` / `Authentication.Method` | はい | string enum | `privateKey` | `privateKey`: 秘密鍵認証。`password`: `PasswordSecretName` と runtime password session を使う認証。 |
+| `Auth.PrivateKeyFile` / `Authentication.PrivateKeyFile` | `privateKey` では はい | string | なし | `KelpieHome\keys` 配下のファイル名、または absolute path。 |
+| `Auth.PrivateKeyPath` / `Authentication.PrivateKeyPath` | いいえ | string | なし | 互換用 path。新規設定では `PrivateKeyFile` を推奨します。 |
+| `Auth.PrivateKeyPassphrase` / `Authentication.PrivateKeyPassphrase` | いいえ | string or null | `null` | 秘密鍵 passphrase。公開サンプルに実値を書いてはいけません。 |
+| `Auth.PasswordSecretName` / `Authentication.PasswordSecretName` | `password` では はい | string or null | `null` | Secret reference name。profile に平文 password は保存しません。 |
+| `Connection` | いいえ | object | `{ "TimeoutSeconds": 10 }` | SSH 接続動作。 |
+| `Connection.TimeoutSeconds` | いいえ | integer | `10` | 正の整数。 |
+| `Platform` | はい | object | なし | provider 選択に使う target OS metadata。 |
+| `Platform.OsFamily` | はい | string enum/alias | なし | `debian`, `ubuntu`, `rhel`, `alma`, `almalinux`, `rocky`, `centos`, `oraclelinux`。alias は effective family に解決されます。 |
+| `Platform.PackageManager` | いいえ | string | `OsFamily` から推定 | effective `debian` は `apt`、effective `rhel` は `dnf`。必要なら明示指定できます。 |
+| `Mode` | いいえ | string role expression | `Safe` | `ReadOnly`, `Safe`, `Maintenance`, `Expert`, `WebUser`, `WebAdmin`。`|` で組み合わせ可能。互換 key として role expression として読み取ります。 |
+| `Roles` | いいえ | string or string array | `Mode` から解決 | `Mode` と同じ role 名。設定時は role 解決に使います。 |
+| `Capabilities` | いいえ | string, string array, or object | 空 | CLI 専用 policy flags。MCP では無視します。詳細は [`Capabilities`](#capabilities)。 |
+| `Rights` | いいえ | dictionary object | built-ins only | `$` 始まりの名前を key にし、値は preset または `@` flags の access expression。 |
+| `AllowedRoots` | いいえ | dictionary object or string array | 空 | Object form は path/glob から access expression への map。Array form は互換 read-only/list/cd。 |
+| `SpecialPaths` | いいえ | dictionary object | 空 | Key は path glob。値は `Deny`, `Confirm`, `Allow`。 |
+| `EnvironmentValues` | いいえ | dictionary object | 空 | Key は environment variable name。値は environment access expression。 |
+| `DefaultUser` | いいえ | string | `Auth.UserName` | `Users` が複数あり、command 側で user 未指定の場合に選ばれる user。 |
+| `Users` | いいえ | dictionary object or array | single legacy user | 推奨 object form は SSH user name から role expression または詳細 user object への map。 |
+| `Users.<user>` | いいえ | string or object | profile settings を継承 | String value は role expression。Object value は auth, roles, roots, special paths, environment values, web public sites を上書きできます。 |
+| `Users.<user>.Method` | いいえ | string enum | profile auth method | `privateKey` または `password`。 |
+| `Users.<user>.PrivateKeyFile` | いいえ | string | profile auth value | User-level private key file override。 |
+| `Users.<user>.PrivateKeyPath` | いいえ | string | profile auth value | 互換用 user-level private key path。新規設定では `PrivateKeyFile` を推奨します。 |
+| `Users.<user>.PrivateKeyPassphrase` | いいえ | string or null | profile auth value | User-level private key passphrase override。 |
+| `Users.<user>.PasswordSecretName` | いいえ | string or null | profile auth value | User-level password secret reference override。 |
+| `Users.<user>.Mode` | いいえ | string role expression | profile roles | Profile `Mode` と同じ値。 |
+| `Users.<user>.Roles` | いいえ | string or string array | profile roles | Profile `Roles` と同じ値。 |
+| `Users.<user>.Capabilities` | いいえ | string, string array, or object | profile capabilities | CLI 専用 user-level policy flags。 |
+| `Users.<user>.AllowedRoots` | いいえ | dictionary object or string array | profile allowed roots | Profile `AllowedRoots` と同じ形式。 |
+| `Users.<user>.SpecialPaths` | いいえ | dictionary object | profile special paths | Profile `SpecialPaths` と同じ形式。 |
+| `Users.<user>.EnvironmentValues` | いいえ | dictionary object | profile environment rules | Profile `EnvironmentValues` と同じ形式。 |
+| `Users.<user>.WebPublicSites` | いいえ | dictionary object or array | profile web public sites | Profile `WebPublicSites` と同じ形式。 |
+| `Services` | いいえ | object | 空object | Service-specific defaults。 |
+| `Services.Nginx` | いいえ | object | 空object | Nginx と web helpers が使う Nginx defaults。 |
+| `Services.Nginx.User` | いいえ | string | なし | Nginx worker user。 |
+| `Services.Nginx.Group` | いいえ | string | なし | Nginx worker group。 |
+| `Services.Nginx.Port` | いいえ | integer | なし | 設定時は `1` から `65535`。 |
+| `Services.Nginx.Root` | いいえ | string | なし | Web public root。`WebPublicSites` 未設定時に `WebUser` role でも使います。 |
+| `WebPublicSites` | いいえ | dictionary object or array | provider default site | Provider default site は `/var/www/html` の `default` site。安全な静的拡張子を既定許可します。 |
+| `WebPublicSites.<siteKey>.SiteKey` | object form では いいえ | string | dictionary key | Array item では必須。空不可。 |
+| `WebPublicSites.<siteKey>.DisplayName` | いいえ | string | `siteKey` | 表示用 site label。 |
+| `WebPublicSites.<siteKey>.Root` / `RootPath` | はい | string | なし | 安全な absolute Unix web root path。`RootPath` は別名で、サンプルでは `Root` を推奨します。 |
+| `WebPublicSites.<siteKey>.AllowedExtensions` | いいえ | string array | built-in safe static extensions | 有効な値は `.html` や `.png` のような、先頭ドット付きの単一ファイル拡張子です。大文字小文字は区別しません。通常の Web 公開ファイル向けだけに使い、path、glob、MIME type、実行可能拡張子は指定しません。 |
+| `WebPublicSites.<siteKey>.WritableExecutableExtensions` | いいえ | string array | 空 | `.php` のような先頭ドット付き実行可能拡張子。ワイルドカードと path separator は拒否されます。 |
+| `WebPublicSites.<siteKey>.AllowedContentTypes` | いいえ | string array or dictionary object | built-in safe content types | Array は read/write を許可。Object は MIME type から access expression への map。 |
+| `WebPublicSites.<siteKey>.AllowedFiles` | いいえ | dictionary object | 空 | Key は file glob、`file:<glob>`、または `mime:<content-type>`。値は access expression。 |
+| `WebPublicSites.<siteKey>.CreateDirectories` | いいえ | boolean | `true` | Web write operation で missing parent directories の作成を許可します。 |
+| `WebPublicSites.<siteKey>.MaxReadBytes` | いいえ | integer | `5242880` | Web file read operation の最大読み取り bytes。 |
+| `WebPublicSites.<siteKey>.MaxWriteBytes` | いいえ | integer | `5242880` | Web file write operation の最大受け入れ bytes。 |
+| `Ssh` | いいえ | object | 空object | Legacy endpoint/auth section。新規設定では `Host` と `Auth` / `Authentication` を使います。 |
+| `Ssh.Host` | いいえ | string | なし | Legacy host address。`Host.Address` が未設定の場合だけ使います。 |
+| `Ssh.Port` | いいえ | integer | `22` | Legacy SSH port。`Host.Address` が未設定の場合だけ使います。 |
+| `Ssh.UserName` | いいえ | string | なし | Legacy SSH user。Auth user name が未設定の場合だけ使います。 |
+| `Ssh.Authentication` | いいえ | object | 空object | Legacy authentication section。優先順位は最も低いです。 |
+| `Policy` | いいえ | object | 空object | Legacy CLI policy section。新規設定では `Capabilities` と `AllowedRoots` を使います。 |
+| `Policy.Level` | いいえ | string | 空 | Legacy capability expression。 |
+| `Policy.AllowedRoots` | いいえ | string array | 空 | Legacy read-only/list/cd allowed roots。 |
 
 互換性と優先順位:
 
@@ -496,10 +521,10 @@ Legacy compatibility のサンプル:
 
 SSH 接続先です。
 
-| Field | Required | Description |
-| :--- | :---: | :--- |
-| `Host.Address` | yes | Host name または IP address。 |
-| `Host.Port` | no | SSH port。既定値は `22`。 |
+| 項目 | 必須 | 初期値 | 説明 |
+| :--- | :---: | :--- | :--- |
+| `Host.Address` | はい | なし | Host name または IP address。 |
+| `Host.Port` | いいえ | `22` | SSH port。 |
 
 Troubleshooting:
 
@@ -512,14 +537,14 @@ SSH 認証設定です。
 `Authentication` が正式名、`Auth` は samples で使う短縮名です。
 両方ある場合は `Authentication` を優先します。
 
-| Field | Required | Description |
-| :--- | :---: | :--- |
-| `Auth.UserName` | single-user profile では yes | SSH login user。`root` 直接ログインは禁止です。 |
-| `Auth.Method` | yes | `privateKey` または `password`。 |
-| `Auth.PrivateKeyFile` | `privateKey` では yes | `KelpieHome\keys` 配下の秘密鍵ファイル名、または absolute path。 |
-| `Auth.PrivateKeyPath` | no | 互換用 path。新規 profile では `PrivateKeyFile` を推奨します。 |
-| `Auth.PrivateKeyPassphrase` | no | 秘密鍵 passphrase。logs や public files に出してはいけません。 |
-| `Auth.PasswordSecretName` | `password` では yes | Secret reference name。実 password は runtime に入力します。 |
+| 項目 | 必須 | 初期値 | 説明 |
+| :--- | :---: | :--- | :--- |
+| `Auth.UserName` | single-user profile では はい | なし | SSH login user。`root` 直接ログインは禁止です。 |
+| `Auth.Method` | はい | `privateKey` | `privateKey` または `password`。 |
+| `Auth.PrivateKeyFile` | `privateKey` では はい | なし | `KelpieHome\keys` 配下の秘密鍵ファイル名、または absolute path。 |
+| `Auth.PrivateKeyPath` | いいえ | なし | 互換用 path。新規 profile では `PrivateKeyFile` を推奨します。 |
+| `Auth.PrivateKeyPassphrase` | いいえ | `null` | 秘密鍵 passphrase。logs や public files に出してはいけません。 |
+| `Auth.PasswordSecretName` | `password` では はい | `null` | Secret reference name。実 password は runtime に入力します。 |
 
 Troubleshooting:
 
@@ -532,9 +557,9 @@ Troubleshooting:
 
 接続動作です。
 
-| Field | Required | Description |
-| :--- | :---: | :--- |
-| `Connection.TimeoutSeconds` | no | SSH connection timeout 秒数。既定値は `10`。 |
+| 項目 | 必須 | 初期値 | 説明 |
+| :--- | :---: | :--- | :--- |
+| `Connection.TimeoutSeconds` | いいえ | `10` | SSH connection timeout 秒数。 |
 
 Troubleshooting:
 
@@ -545,14 +570,14 @@ Troubleshooting:
 
 安全な command 選択に使う target OS metadata です。
 
-| Field | Required | Description |
-| :--- | :---: | :--- |
-| `Platform.OsFamily` | yes | Target OS family または alias。 |
-| `Platform.PackageManager` | no | `apt`, `dnf`, `yum` など。省略時は `OsFamily` から推定できる場合があります。 |
+| 項目 | 必須 | 初期値 | 説明 |
+| :--- | :---: | :--- | :--- |
+| `Platform.OsFamily` | はい | なし | Target OS family または alias。 |
+| `Platform.PackageManager` | いいえ | `OsFamily` から推定 | `apt`, `dnf`, `yum` など。 |
 
 代表的な `OsFamily`:
 
-| Value | Effective family | Typical OS |
+| 値 | 有効な family | 代表的な OS |
 | :--- | :--- | :--- |
 | `debian` | `debian` | Debian |
 | `ubuntu` | `debian` | Ubuntu |
@@ -572,7 +597,7 @@ Troubleshooting:
 
 `Mode` は互換用 key で、role expression として読み取ります。
 
-| Role | Description |
+| ロール | 説明 |
 | :--- | :--- |
 | `ReadOnly` | 読み取り中心の診断と listing。 |
 | `Safe` | 既定の safe role。危険な変更、secret 表示、sudo、delete、move、install を禁止します。 |
@@ -665,17 +690,17 @@ Troubleshooting:
 }
 ```
 
-Capability gates:
+Capability gate の一覧:
 
-| Capability | Description |
+| 権限 | 説明 |
 | :--- | :--- |
 | `AllowPeekEnvironmentKeys` | 環境変数名と metadata の一覧取得を許可します。 |
 | `AllowPeekEnvironmentValues` | key rule が許可する場合に、環境変数値の読み取りを許可します。 |
 | `AllowSetEnvironmentValues` | key rule が許可する場合に、1回の command execution 用の環境変数値設定、または Kelpie env file への永続化を許可します。 |
 
-`EnvironmentValues` rules:
+`EnvironmentValues` のルール:
 
-| Rule | Type | Description |
+| ルール | 型 | 説明 |
 | :--- | :--- | :--- |
 | `Common` | alias | `PeekCommon|SetCommon` に展開します。 |
 | `Secret` | alias | `PeekSecret|SetSecret` に展開します。この rule を読み込むと warning を出します。 |
@@ -744,7 +769,7 @@ Logging rules:
 }
 ```
 
-Rules:
+ルール:
 
 - User-defined name は `$` で始めます。
 - Built-in names は `$ReadOnly`, `$ReadWrite`, `$ALL` です。
@@ -771,7 +796,7 @@ Path-based operations を許可する path または glob rules です。
 
 Access flags:
 
-| Flag | Description |
+| フラグ | 説明 |
 | :--- | :--- |
 | `@Read` | file content read を許可します。 |
 | `@List` | file / directory listing を許可します。 |
@@ -818,7 +843,7 @@ Troubleshooting:
 }
 ```
 
-| Value | Description |
+| 値 | 説明 |
 | :--- | :--- |
 | `Deny` | read/write/delete を拒否します。 |
 | `Confirm` | operation candidate にはできますが、強い確認を要求します。 |
@@ -895,12 +920,12 @@ Service-specific defaults です。
 }
 ```
 
-| Field | Required | Description |
-| :--- | :---: | :--- |
-| `Services.Nginx.User` | no | Nginx worker user。 |
-| `Services.Nginx.Group` | no | Nginx worker group。 |
-| `Services.Nginx.Port` | no | Nginx listen port。1 から 65535。 |
-| `Services.Nginx.Root` | no | Web public root。`WebUser` role でも使います。 |
+| 項目 | 必須 | 初期値 | 説明 |
+| :--- | :---: | :--- | :--- |
+| `Services.Nginx.User` | いいえ | なし | Nginx worker user。 |
+| `Services.Nginx.Group` | いいえ | なし | Nginx worker group。 |
+| `Services.Nginx.Port` | いいえ | なし | Nginx listen port。1 から 65535。 |
+| `Services.Nginx.Root` | いいえ | なし | Web public root。`WebUser` role でも使います。 |
 
 ### `WebPublicSites`
 
@@ -942,16 +967,16 @@ Service-specific defaults です。
 }
 ```
 
-| Field | Required | Description |
-| :--- | :---: | :--- |
-| `WebPublicSites.<siteKey>.Root` / `RootPath` | yes | そのサイトの Web 公開ルート。 |
-| `WebPublicSites.<siteKey>.AllowedExtensions` | no | このサイトで許可する通常ファイルの拡張子。有効な値は `.html` や `.png` のような、先頭ドット付きの単一ファイル拡張子です。大文字小文字は区別しません。path、glob、MIME type、実行可能拡張子は指定しません。未設定または空の場合は、Kelpie 組み込みの安全な静的ファイル拡張子リストを使います。 |
-| `WebPublicSites.<siteKey>.WritableExecutableExtensions` | no | このサイトだけで書き込みを許可する実行可能拡張子。`.php` のように先頭ドット付きで列挙します。ワイルドカードは拒否されます。 |
-| `WebPublicSites.<siteKey>.AllowedContentTypes` | no | このサイトで許可する MIME type。Array form は read/write を許可し、object form は MIME type から access expression へ対応付けます。 |
-| `WebPublicSites.<siteKey>.AllowedFiles` | no | ファイル単位の許可 rules。Key は file glob、`file:<glob>`、または `mime:<content-type>`。値は access expression。 |
-| `WebPublicSites.<siteKey>.CreateDirectories` | no | 書き込み時に missing parent directories を作成できるかを制御します。 |
-| `WebPublicSites.<siteKey>.MaxReadBytes` | no | Web file read operation で返せる最大 bytes。 |
-| `WebPublicSites.<siteKey>.MaxWriteBytes` | no | Web file write operation で受け入れる最大 bytes。 |
+| 項目 | 必須 | 初期値 | 説明 |
+| :--- | :---: | :--- | :--- |
+| `WebPublicSites.<siteKey>.Root` / `RootPath` | はい | なし | そのサイトの Web 公開ルート。 |
+| `WebPublicSites.<siteKey>.AllowedExtensions` | いいえ | 組み込み安全静的拡張子 | このサイトで許可する通常ファイルの拡張子。有効な値は `.html` や `.png` のような、先頭ドット付きの単一ファイル拡張子です。大文字小文字は区別しません。path、glob、MIME type、実行可能拡張子は指定しません。 |
+| `WebPublicSites.<siteKey>.WritableExecutableExtensions` | いいえ | 空 | このサイトだけで書き込みを許可する実行可能拡張子。`.php` のように先頭ドット付きで列挙します。ワイルドカードは拒否されます。 |
+| `WebPublicSites.<siteKey>.AllowedContentTypes` | いいえ | 組み込み安全 content types | このサイトで許可する MIME type。Array form は read/write を許可し、object form は MIME type から access expression へ対応付けます。 |
+| `WebPublicSites.<siteKey>.AllowedFiles` | いいえ | 空 | ファイル単位の許可 rules。Key は file glob、`file:<glob>`、または `mime:<content-type>`。値は access expression。 |
+| `WebPublicSites.<siteKey>.CreateDirectories` | いいえ | `true` | 書き込み時に missing parent directories を作成できるかを制御します。 |
+| `WebPublicSites.<siteKey>.MaxReadBytes` | いいえ | `5242880` | Web file read operation で返せる最大 bytes。 |
+| `WebPublicSites.<siteKey>.MaxWriteBytes` | いいえ | `5242880` | Web file write operation で受け入れる最大 bytes。 |
 
 #### `WebPublicSites.<siteKey>`
 
@@ -1420,3 +1445,4 @@ MCP では server を起動してから password を登録します。
 kelpiemcp start
 kelpiemcp password vps01
 ```
+

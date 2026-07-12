@@ -206,6 +206,37 @@ public sealed class KelpieWebPermissionHelperTests
     }
 
     [Fact]
+    public void Run_ShouldReadWriteFileContentFromStandardInputWhenContentArgumentIsDash()
+    {
+        var operations = new FakeUnixPermissionOperations();
+        using var input = new StringReader(Convert.ToBase64String(Encoding.UTF8.GetBytes("TOKEN=secret\n")));
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = PermissionHelper.Run(
+            [
+                "write-file",
+                Encode("/var/www/html"),
+                Encode("/my_dir/.env"),
+                "-",
+                "1000",
+                "1",
+                Encode("deploy:www-data"),
+                Encode("600"),
+            ],
+            operations,
+            input,
+            output,
+            error);
+
+        exitCode.Should().Be(0);
+        error.ToString().Should().BeEmpty();
+        var write = operations.Writes.Should().ContainSingle().Which;
+        Encoding.UTF8.GetString(write.Data).Should().Be("TOKEN=secret\n");
+        operations.Moves.Should().ContainSingle().Which.DestinationPath.Should().Be("/var/www/html/my_dir/.env");
+    }
+
+    [Fact]
     public void Run_ShouldWriteFileWithModeOnlyUsingSudoUserOwner()
     {
         var operations = new FakeUnixPermissionOperations();

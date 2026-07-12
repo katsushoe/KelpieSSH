@@ -1,7 +1,8 @@
 # PACKAGES.ja.md Version
-2026.06.18
+2026.06.24
 
 # 変更履歴
+- 2026.06.24
 - 2026.06.18
 - 2026.06.17
 - 2026.06.16
@@ -27,9 +28,9 @@
 
 | 実行ファイル | プロジェクト | バージョン | 主な責務 | 配置例 |
 | :--- | :--- | :--- | :--- | :--- |
-| `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.1.0` | VPS 操作 CLI。初期化、プロファイル確認、診断、ログ取得、GUI/CLI モード切替を担当します。 | `KelpieHome/bin/kelpie.exe` |
-| `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.2.1.0` | MCP サーバー制御 CLI。`start` / `stop` / `status` / `service register` / `service unregister` / `password` / `forget` を担当します。 | `KelpieHome/bin/kelpiemcp.exe` |
-| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.2.4.0` | Streamable HTTP MCP サーバー本体。Codex などの MCP クライアントへ SSH 診断ツールを公開します。 | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
+| `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.4.0` | VPS 操作 CLI。初期化、プロファイル確認、診断、ログ取得、GUI/CLI モード切替を担当します。 | `KelpieHome/bin/kelpie.exe` |
+| `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.3.4.0` | MCP サーバー制御 CLI。`start` / `stop` / `status` / `service register` / `service unregister` / `password` / `forget` を担当します。 | `KelpieHome/bin/kelpiemcp.exe` |
+| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.4.0` | Streamable HTTP MCP サーバー本体。Codex などの MCP クライアントへ SSH 診断ツールを公開します。 | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
 | `kelpie-web-permission-helper` | `src/KelpieWebPermissionHelper/KelpieWebPermissionHelper.csproj` | `0.1.0.4` | SSH先に配置する sudo helper。Web公開ルート配下に限定して権限指定付き atomic write と owner / mode 変更を行います。 | `/usr/local/libexec/kelpie/kelpie-web-permission-helper` |
 
 ## `kelpie`
@@ -119,9 +120,9 @@
 
 | PackageId | プロジェクト | バージョン | ライセンス | Packable | 主な責務 |
 | :--- | :--- | :--- | :--- | :---: | :--- |
-| `Akatsukisoft.Kelpie.Core` | `src/Kelpie.Core/Kelpie.Core.csproj` | `0.2.0.0-alpha` | Apache-2.0 | yes | Kelpie 共通ランタイム、設定解決、サーバー制御オプションなどを提供します。 |
+| `Akatsukisoft.Kelpie.Core` | `src/Kelpie.Core/Kelpie.Core.csproj` | `0.3.0.1-alpha` | Apache-2.0 | yes | Kelpie 共通ランタイム、設定解決、サーバー制御オプションなどを提供します。 |
 | `Akatsukisoft.KelpieSSH.Domain` | `src/KelpieSSH.Domain/KelpieSSH.Domain.csproj` | `0.1.0.0-alpha` | Apache-2.0 | yes | SSH 実行結果、値オブジェクト、ドメイン表現を提供します。 |
-| `Akatsukisoft.KelpieSSH.Application` | `src/KelpieSSH.Application/KelpieSSH.Application.csproj` | `0.3.1.0-alpha` | Apache-2.0 | yes | ユースケース、ポリシー、コマンド許可ロジック、SSH 抽象を提供します。 |
+| `Akatsukisoft.KelpieSSH.Application` | `src/KelpieSSH.Application/KelpieSSH.Application.csproj` | `0.3.2.2-alpha` | Apache-2.0 | yes | ユースケース、ポリシー、コマンド許可ロジック、SSH 抽象を提供します。 |
 | `Akatsukisoft.KelpieSSH.Infrastructure` | `src/KelpieSSH.Infrastructure/KelpieSSH.Infrastructure.csproj` | `0.1.0.0-alpha` | Apache-2.0 | yes | SSH.NET を使った SSH 接続、コマンド実行、ShellStream 連携などのインフラ実装を提供します。 |
 
 ## `Akatsukisoft.Kelpie.Core`
@@ -276,7 +277,8 @@ KelpieSSH では、VPS へ SSH 接続し、安全性評価済みのコマンド�
 
 - 製品バージョンは Kelpie 全体で統一せず、製品またはライブラリごとの `.csproj` で管理します。
 - NuGet 化するライブラリは `IsPackable=true` とし、`README.md`、Apache License 2.0、シンボルパッケージを含めます。
-- 実行ファイルは NuGet ライブラリとは別に、MSI または zip 形式のバイナリ配布物として扱います。
+- Alpha リリースでは Windows ZIP を主なバイナリ配布物として扱います。MSI は作成できる場合の任意配布物であり、未署名の場合があります。
+- 実行ファイルは NuGet ライブラリとは別に、ZIP または MSI 形式のバイナリ配布物として扱います。
 - `KelpieMCPServer` は `kelpie` / `kelpiemcp` と DLL 競合しないように、手動配置では `bin/mcp` 配下へ分離して発行します。
 - `kelpie-web-permission-helper` は SSH先の Linux サーバーへ self-contained 単一ファイルとして配置し、sudoers ではこの実行ファイルだけを NOPASSWD 許可します。
 - テスト専用パッケージは公開ランタイム配布物へ含めません。

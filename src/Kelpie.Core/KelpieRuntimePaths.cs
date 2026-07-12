@@ -7,6 +7,9 @@ namespace Kelpie.Core;
 /// </summary>
 public static class KelpieRuntimePaths
 {
+    private const string HomeEnvironmentVariableName = "KELPIE_HOME";
+    private static readonly AsyncLocal<KelpieRuntimePathOverrides?> CurrentOverrides = new();
+
     /// <summary>
     /// Gets the Kelpie configuration file name.
     /// </summary>
@@ -33,12 +36,42 @@ public static class KelpieRuntimePaths
     public const string KelpieDesktopConfigFileName = "kelpie_desktop.json";
 
     /// <summary>
+    /// Gets the current command-line runtime directory overrides.
+    /// </summary>
+    public static KelpieRuntimePathOverrides Overrides => CurrentOverrides.Value ?? KelpieRuntimePathOverrides.Empty;
+
+    /// <summary>
+    /// Sets command-line runtime directory overrides.
+    /// </summary>
+    /// <param name="pathOverrides">The runtime directory overrides.</param>
+    public static void SetOverrides(KelpieRuntimePathOverrides pathOverrides)
+    {
+        CurrentOverrides.Value = pathOverrides;
+    }
+
+    /// <summary>
     /// Gets the Kelpie home directory from the command base directory.
     /// </summary>
     /// <param name="baseDirectory">The command base directory.</param>
     /// <returns>The Kelpie home directory.</returns>
     public static string GetHomeDirectory(string baseDirectory)
     {
+        var pathOverrides = Overrides;
+        if (!string.IsNullOrWhiteSpace(pathOverrides.BinDirectory))
+        {
+            var binDirectory = new DirectoryInfo(
+                Path.GetFullPath(pathOverrides.BinDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            return binDirectory.Parent?.FullName ?? binDirectory.FullName;
+        }
+
+        var environmentHomeDirectory = Environment.GetEnvironmentVariable(HomeEnvironmentVariableName);
+        if (!string.IsNullOrWhiteSpace(environmentHomeDirectory)
+            && Directory.Exists(environmentHomeDirectory))
+        {
+            return Path.GetFullPath(environmentHomeDirectory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+
         return GetLayoutHomeDirectory(baseDirectory);
     }
 
@@ -68,7 +101,39 @@ public static class KelpieRuntimePaths
     /// <returns>The configuration directory.</returns>
     public static string GetConfigDirectory(string fallbackDirectory)
     {
+        var pathOverrides = Overrides;
+        if (!string.IsNullOrWhiteSpace(pathOverrides.ConfigDirectory))
+        {
+            return Path.GetFullPath(pathOverrides.ConfigDirectory);
+        }
+
         return Path.Combine(GetHomeDirectory(fallbackDirectory), "config");
+    }
+
+    /// <summary>
+    /// Gets the binary directory.
+    /// </summary>
+    /// <param name="fallbackDirectory">The fallback directory used when no binary directory is configured.</param>
+    /// <returns>The binary directory.</returns>
+    public static string GetBinDirectory(string fallbackDirectory)
+    {
+        var pathOverrides = Overrides;
+        return !string.IsNullOrWhiteSpace(pathOverrides.BinDirectory)
+            ? Path.GetFullPath(pathOverrides.BinDirectory)
+            : Path.GetFullPath(fallbackDirectory);
+    }
+
+    /// <summary>
+    /// Gets the key directory.
+    /// </summary>
+    /// <param name="fallbackDirectory">The fallback directory used when no key directory is configured.</param>
+    /// <returns>The key directory.</returns>
+    public static string GetKeysDirectory(string fallbackDirectory)
+    {
+        var pathOverrides = Overrides;
+        return !string.IsNullOrWhiteSpace(pathOverrides.KeysDirectory)
+            ? Path.GetFullPath(pathOverrides.KeysDirectory)
+            : Path.Combine(GetHomeDirectory(fallbackDirectory), "keys");
     }
 
     /// <summary>
@@ -78,6 +143,12 @@ public static class KelpieRuntimePaths
     /// <returns>The runtime data directory.</returns>
     public static string GetDataDirectory(string fallbackDirectory)
     {
+        var pathOverrides = Overrides;
+        if (!string.IsNullOrWhiteSpace(pathOverrides.DataDirectory))
+        {
+            return Path.GetFullPath(pathOverrides.DataDirectory);
+        }
+
         return Path.Combine(GetHomeDirectory(fallbackDirectory), "dat");
     }
 
@@ -138,6 +209,13 @@ public static class KelpieRuntimePaths
         string? configSectionName)
     {
         var paths = new List<string>();
+        var pathOverrides = Overrides;
+        if (!string.IsNullOrWhiteSpace(pathOverrides.LogsDirectory))
+        {
+            paths.Add(Path.GetFullPath(pathOverrides.LogsDirectory));
+            return paths;
+        }
+
         var configuredLogDirectory = GetConfiguredLogDirectory(fallbackDirectory, configFileName, configSectionName);
         if (!string.IsNullOrWhiteSpace(configuredLogDirectory))
         {
@@ -171,6 +249,12 @@ public static class KelpieRuntimePaths
     /// <returns>The SSH profile directory.</returns>
     public static string GetProfilesDirectory(string fallbackDirectory)
     {
+        var pathOverrides = Overrides;
+        if (!string.IsNullOrWhiteSpace(pathOverrides.ProfilesDirectory))
+        {
+            return Path.GetFullPath(pathOverrides.ProfilesDirectory);
+        }
+
         return Path.Combine(GetHomeDirectory(fallbackDirectory), "profiles");
     }
 

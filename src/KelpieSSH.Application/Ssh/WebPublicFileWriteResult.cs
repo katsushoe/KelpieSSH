@@ -17,4 +17,6 @@ public sealed record WebPublicFileWriteResult(
     string? Error = null,
     string Owner = "",
     string Group = "",
-    string Mode = "");
+    string Mode = "",
+    string? ReasonCode = null,
+    string? Guidance = null);

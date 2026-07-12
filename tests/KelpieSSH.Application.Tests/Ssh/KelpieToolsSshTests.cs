@@ -24,6 +24,43 @@ public sealed class KelpieToolsSshTests
     }
 
     [Fact]
+    public async Task ReloadProfiles_ShouldExposeUpdatedEnvironmentPolicyToEnvironmentTools()
+    {
+        var directory = CreateTempDirectory();
+        var profilePath = Path.Combine(directory, "vps01.json");
+        File.WriteAllText(profilePath, CreateProfileJson("deploy"));
+        var profiles = new ReloadingSshConnectionProfileCatalog(directory);
+        File.WriteAllText(profilePath, CreateProfileJsonWithEnvironmentPolicy("deploy"));
+        var runner = new FakeSshCommandRunner(
+        [
+            new FakeSshCommandOutput($"APP_ENV{Environment.NewLine}SECRET_TOKEN{Environment.NewLine}", string.Empty),
+            new FakeSshCommandOutput("production\n", string.Empty),
+        ]);
+        var service = CreateProviderBackedService(runner);
+
+        var reloadResult = KelpieTools.ReloadProfiles(profiles);
+        var keysResult = await KelpieTools.GetEnvironmentKeysAsync(service, profiles, "vps01");
+        var setResult = await KelpieTools.SetEnvironmentValueAsync(
+            service,
+            profiles,
+            "vps01",
+            "APP_ENV",
+            "production",
+            "uname -a");
+
+        reloadResult.Success.Should().BeTrue();
+        reloadResult.ProfileNames.Should().Equal("vps01");
+        keysResult.StandardOutput.Should().Be($"APP_ENV{Environment.NewLine}");
+        setResult.CommandText.Should().Be("env APP_ENV=(hidden) uname -a");
+        setResult.CommandText.Should().NotContain("production");
+        runner.Requests.Should().HaveCount(2);
+        runner.Requests[0].Profile.EnvironmentValues.Should().Contain(rule =>
+            rule.Key == "SECRET_TOKEN" && rule.IsHidden);
+        runner.Requests[1].CommandText.Should().Be("if [ -f ~/.kelpie/.env ]; then . ~/.kelpie/.env; fi; IFS= read -r __k_val; export APP_ENV=\"$__k_val\"; unset __k_val; uname -a");
+        runner.Requests[1].StandardInput.Should().Be("production\n");
+    }
+
+    [Fact]
     public async Task CloseSshConnectionAsync_ShouldReturnNotFoundForMissingHandle()
     {
         var manager = new SshTerminalSessionManager(
@@ -91,7 +128,7 @@ public sealed class KelpieToolsSshTests
     }
 
     [Fact]
-    public async Task RunRemoteOperationAsync_ShouldRunWithoutProfileCatalog()
+    public async Task RunRemoteOperationAsync_ShouldRejectCallerSuppliedPolicy()
     {
         var runner = new FakeSshCommandRunner();
         var service = CreateProviderBackedService(runner);
@@ -116,9 +153,9 @@ public sealed class KelpieToolsSshTests
 
         result.CorrelationId.Should().Be("op-example");
         result.CommandName.Should().Be("service_status");
-        result.CommandText.Should().Be("systemctl status 'nginx' --no-pager");
-        runner.LastRequest.Should().NotBeNull();
-        runner.LastRequest!.Profile.Name.Should().Be("op-example");
+        result.ExitCode.Should().Be(-1);
+        result.Error.Should().Be("ssh_run_remote_operation is disabled because caller-supplied SSH policy is not trusted. Use saved-profile tools instead.");
+        runner.LastRequest.Should().BeNull();
     }
 
     [Fact]
@@ -139,6 +176,11 @@ public sealed class KelpieToolsSshTests
         result.ProfileName.Should().Be("vps02");
         result.CommandName.Should().Be("get_disk_usage");
         result.CommandText.Should().Be("df -h");
+        result.Ok.Should().BeTrue();
+        result.Data.Should().NotBeNull();
+        result.ErrorInfo.Should().BeNull();
+        result.Meta.SchemaVersion.Should().Be("1");
+        result.Meta.ProfileName.Should().Be("vps02");
     }
 
     [Theory]
@@ -166,7 +208,12 @@ public sealed class KelpieToolsSshTests
 
         result.CommandName.Should().Be(commandName);
         result.ExitCode.Should().Be(-1);
+        result.Ok.Should().BeFalse();
         result.Error.Should().Be("Confirmation-required maintenance commands must be called through their dedicated MCP tools.");
+        result.ErrorInfo.Should().NotBeNull();
+        result.ErrorInfo!.Code.Should().Be("KELPIE_POLICY_COMMAND_DENIED");
+        result.ErrorInfo.Category.Should().Be("PolicyDenied");
+        result.Data.Should().BeNull();
         runner.LastRequest.Should().BeNull();
     }
 
@@ -238,6 +285,8 @@ public sealed class KelpieToolsSshTests
         result.Tools.Should().Contain(tool => tool.ToolName == "ssh_service_stop" && tool.RequiresConfirmation);
         result.Tools.Should().Contain(tool => tool.ToolName == "ssh_service_disable" && tool.RequiresConfirmation);
         result.Tools.Should().Contain(tool => tool.ToolName == "ssh_pkg_install" && tool.RequiresConfirmation);
+        result.Tools.Should().Contain(tool => tool.ToolName == "ssh_certbot_check_install" && tool.Available);
+        result.Tools.Should().Contain(tool => tool.ToolName == "ssh_certbot_install" && tool.Available && tool.RequiresConfirmation);
         runner.LastRequest!.CommandName.Should().Be("get_os_release");
     }
 
@@ -315,6 +364,27 @@ public sealed class KelpieToolsSshTests
     }
 
     [Fact]
+    public async Task PeekEnvironmentValueAsync_ShouldReturnPolicyErrorResult()
+    {
+        var profile = CreateProfile("vps01");
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var result = await KelpieTools.PeekEnvironmentValueAsync(service, profiles, "vps01", "APP_ENV");
+
+        result.CommandName.Should().Be("peek_environment_value");
+        result.Ok.Should().BeFalse();
+        result.ExitCode.Should().Be(-1);
+        result.Error.Should().Be("KelpiePolicyError: AllowPeekEnvironmentValues is required.");
+        result.ErrorInfo.Should().NotBeNull();
+        result.ErrorInfo!.Code.Should().Be("KELPIE_POLICY_COMMAND_DENIED");
+        result.ErrorInfo.Category.Should().Be("PolicyDenied");
+        result.Data.Should().BeNull();
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
     public async Task SetEnvironmentValueAsync_ShouldMaskValueInMcpResult()
     {
         var profile = CreateProfile(
@@ -339,7 +409,8 @@ public sealed class KelpieToolsSshTests
         result.CommandName.Should().Be("set_environment_value");
         result.CommandText.Should().Be("env APP_ENV=(hidden) uname -a");
         result.CommandText.Should().NotContain("production");
-        runner.LastRequest!.CommandText.Should().Be("if [ -f ~/.kelpie/.env ]; then . ~/.kelpie/.env; fi; env APP_ENV='production' uname -a");
+        runner.LastRequest!.CommandText.Should().Be("if [ -f ~/.kelpie/.env ]; then . ~/.kelpie/.env; fi; IFS= read -r __k_val; export APP_ENV=\"$__k_val\"; unset __k_val; uname -a");
+        runner.LastRequest.StandardInput.Should().Be("production\n");
     }
 
     [Fact]
@@ -435,8 +506,9 @@ public sealed class KelpieToolsSshTests
 
         result.CommandName.Should().Be("get_process_summary");
         result.CommandText.Should().Contain("ps");
-        result.CommandText.Should().Contain("sort='memory'");
-        result.CommandText.Should().Contain("limit=int('15')");
+        result.CommandText.Should().Contain("sort_by=\"$2\"");
+        result.CommandText.Should().Contain("'15' 'memory'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["sortBy"].Should().Be("memory");
         runner.LastRequest.Arguments["limit"].Should().Be("15");
     }
@@ -527,8 +599,9 @@ public sealed class KelpieToolsSshTests
         var result = await KelpieTools.CheckSshHttpLocalAsync(service, profiles, "vps01", "8080");
 
         result.CommandName.Should().Be("check_http_local");
-        result.CommandText.Should().Contain("urllib.request");
-        result.CommandText.Should().Contain("port=int('8080')");
+        result.CommandText.Should().StartWith("sh -c");
+        result.CommandText.Should().Contain("sh -s -- '8080'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["port"].Should().Be("8080");
     }
 
@@ -543,8 +616,9 @@ public sealed class KelpieToolsSshTests
         var result = await KelpieTools.CheckSshTcpConnectLocalAsync(service, profiles, "vps01", "22");
 
         result.CommandName.Should().Be("check_tcp_connect_local");
-        result.CommandText.Should().Contain("socket.create_connection");
-        result.CommandText.Should().Contain("port=int('22')");
+        result.CommandText.Should().StartWith("sh -c");
+        result.CommandText.Should().Contain("sh -s -- '22'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["port"].Should().Be("22");
     }
 
@@ -563,8 +637,8 @@ public sealed class KelpieToolsSshTests
             "20");
 
         result.CommandName.Should().Be("cron_list");
-        result.CommandText.Should().Contain("crontab");
-        result.CommandText.Should().Contain("limit=int('20')");
+        result.CommandText.Should().Contain("sh -s -- '20'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["limit"].Should().Be("20");
     }
 
@@ -586,7 +660,8 @@ public sealed class KelpieToolsSshTests
             "/var/log/kelpie/job.log");
 
         result.CommandName.Should().Be("cron_validate");
-        result.CommandText.Should().Contain("expr='*/5 * * * *'");
+        result.CommandText.Should().Contain("sh -s -- '*/5 * * * *' 'deploy' '/usr/local/bin/job --once' '/var/log/kelpie/job.log'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["cronExpression"].Should().Be("*/5 * * * *");
         runner.LastRequest.Arguments["runUser"].Should().Be("deploy");
         runner.LastRequest.Arguments["command"].Should().Be("/usr/local/bin/job --once");
@@ -605,11 +680,11 @@ public sealed class KelpieToolsSshTests
             service,
             profiles,
             "vps01",
-            "/etc/letsencrypt/live/example.com/fullchain.pem");
+            "/etc/letsencrypt/live/example.invalid/fullchain.pem");
 
         result.CommandName.Should().Be("cert_inspect");
         result.CommandText.Should().Contain("openssl x509");
-        runner.LastRequest!.Arguments["path"].Should().Be("/etc/letsencrypt/live/example.com/fullchain.pem");
+        runner.LastRequest!.Arguments["path"].Should().Be("/etc/letsencrypt/live/example.invalid/fullchain.pem");
     }
 
     [Fact]
@@ -628,7 +703,8 @@ public sealed class KelpieToolsSshTests
             "14");
 
         result.CommandName.Should().Be("cert_expiry_check");
-        result.CommandText.Should().Contain("days=int('14')");
+        result.CommandText.Should().Contain("-- '/etc/pki/tls/certs/example.crt' '14'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["path"].Should().Be("/etc/pki/tls/certs/example.crt");
         runner.LastRequest.Arguments["days"].Should().Be("14");
     }
@@ -648,7 +724,8 @@ public sealed class KelpieToolsSshTests
             "50");
 
         result.CommandName.Should().Be("user_list");
-        result.CommandText.Should().Contain("pwd.getpwall()");
+        result.CommandText.Should().Contain("sh -s -- '50'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["limit"].Should().Be("50");
     }
 
@@ -667,7 +744,8 @@ public sealed class KelpieToolsSshTests
             "deploy");
 
         result.CommandName.Should().Be("user_info");
-        result.CommandText.Should().Contain("name='deploy'");
+        result.CommandText.Should().Contain("sh -s -- 'deploy'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["user"].Should().Be("deploy");
     }
 
@@ -686,7 +764,8 @@ public sealed class KelpieToolsSshTests
             "50");
 
         result.CommandName.Should().Be("group_list");
-        result.CommandText.Should().Contain("grp.getgrall()");
+        result.CommandText.Should().Contain("sh -s -- '50'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["limit"].Should().Be("50");
     }
 
@@ -705,7 +784,8 @@ public sealed class KelpieToolsSshTests
             "wheel");
 
         result.CommandName.Should().Be("group_info");
-        result.CommandText.Should().Contain("name='wheel'");
+        result.CommandText.Should().Contain("sh -s -- 'wheel'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["group"].Should().Be("wheel");
     }
 
@@ -725,8 +805,8 @@ public sealed class KelpieToolsSshTests
             "deploy");
 
         result.CommandName.Should().Be("sudoers_check");
-        result.CommandText.Should().Contain("kind='user'");
-        result.CommandText.Should().Contain("name='deploy'");
+        result.CommandText.Should().Contain("sh -s -- 'user' 'deploy'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["targetType"].Should().Be("user");
         runner.LastRequest.Arguments["name"].Should().Be("deploy");
     }
@@ -748,6 +828,8 @@ public sealed class KelpieToolsSshTests
             "20");
 
         result.CommandName.Should().Be("user_usage_check");
+        result.CommandText.Should().Contain("sh -s -- 'user' 'deploy' '20'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["targetType"].Should().Be("user");
         runner.LastRequest.Arguments["name"].Should().Be("deploy");
         runner.LastRequest.Arguments["limit"].Should().Be("20");
@@ -772,6 +854,8 @@ public sealed class KelpieToolsSshTests
             "20");
 
         result.CommandName.Should().Be("user_file_ownership_check");
+        result.CommandText.Should().Contain("sh -s -- 'group' 'www-data' '/var/www' '2' '20'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["targetType"].Should().Be("group");
         runner.LastRequest.Arguments["name"].Should().Be("www-data");
         runner.LastRequest.Arguments["scanRoot"].Should().Be("/var/www");
@@ -796,6 +880,8 @@ public sealed class KelpieToolsSshTests
             "20");
 
         result.CommandName.Should().Be("user_service_usage_check");
+        result.CommandText.Should().Contain("sh -s -- 'group' 'www-data' '20'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["targetType"].Should().Be("group");
         runner.LastRequest.Arguments["name"].Should().Be("www-data");
         runner.LastRequest.Arguments["limit"].Should().Be("20");
@@ -817,6 +903,8 @@ public sealed class KelpieToolsSshTests
             "20");
 
         result.CommandName.Should().Be("service_residual_config_check");
+        result.CommandText.Should().Contain("sh -s -- 'nginx.service' '20'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["service"].Should().Be("nginx.service");
         runner.LastRequest.Arguments["limit"].Should().Be("20");
     }
@@ -959,7 +1047,7 @@ public sealed class KelpieToolsSshTests
             new FakeSshCommandOutput(
                 StandardOutput: """
                     server {
-                        server_name old.example.com;
+                        server_name old.example.invalid;
                     }
 
                     """,
@@ -989,7 +1077,8 @@ public sealed class KelpieToolsSshTests
         result.BytesWritten.Should().Be(System.Text.Encoding.UTF8.GetByteCount(expectedWrittenContent));
         result.Error.Should().BeNull();
         runner.LastRequest!.CommandName.Should().Be("service_config_nginx_write_config");
-        var writtenContent = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(runner.LastRequest.Arguments["contentBase64"]));
+        runner.LastRequest.Arguments.Should().NotContainKey("contentBase64");
+        var writtenContent = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(runner.LastRequest.StandardInput!));
         writtenContent.Should().Be(expectedWrittenContent);
     }
 
@@ -1007,7 +1096,7 @@ public sealed class KelpieToolsSshTests
             new FakeSshCommandOutput(
                 StandardOutput: """
                     server {
-                        server_name old.example.com;
+                        server_name old.example.invalid;
                     }
 
                     """,
@@ -1056,7 +1145,7 @@ public sealed class KelpieToolsSshTests
             new FakeSshCommandOutput(
                 StandardOutput: """
                     server {
-                        server_name old.example.com;
+                        server_name old.example.invalid;
                     }
 
                     """,
@@ -1342,6 +1431,9 @@ public sealed class KelpieToolsSshTests
                 StandardError: string.Empty),
             new FakeSshCommandOutput(
                 StandardOutput: "256",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
                 StandardError: string.Empty),
             new FakeSshCommandOutput(
                 StandardOutput: string.Empty,
@@ -1795,6 +1887,180 @@ public sealed class KelpieToolsSshTests
     }
 
     [Fact]
+    public async Task CheckWriteWebSecretFileAsync_ShouldRejectMissingSecretReference()
+    {
+        var profile = CreateProfile("vps01", KelpiePolicyMode.Expert);
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+        var webProvider = new WebPublicFileProvider();
+        var secretStore = new InMemoryKelpieSecretStore();
+
+        var result = await KelpieTools.CheckWriteWebSecretFileAsync(
+            service,
+            profiles,
+            webProvider,
+            secretStore,
+            "vps01",
+            "default",
+            "/.env",
+            "prod-web-env");
+
+        result.CanWrite.Should().BeFalse();
+        result.Error.Should().Be("Secret reference was not found or has expired.");
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CheckWriteWebSecretFileAsync_ShouldReturnSecretConfirmation()
+    {
+        var profile = CreateProfile(
+            "vps01",
+            KelpiePolicyMode.Expert,
+            webPublicSites: [CreateSite([new WebPublicFileRule(".env*", AllowedRootAccess.Write)])]);
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: """{"resolvedPath":"/var/www/html/.env","exists":false,"canWrite":true,"reason":null}""",
+                StandardError: string.Empty),
+        ]);
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+        var webProvider = new WebPublicFileProvider();
+        var secretStore = new InMemoryKelpieSecretStore();
+        secretStore.Put("prod-web-env", System.Text.Encoding.UTF8.GetBytes("TOKEN=secret\n"), TimeSpan.FromMinutes(10));
+
+        var result = await KelpieTools.CheckWriteWebSecretFileAsync(
+            service,
+            profiles,
+            webProvider,
+            secretStore,
+            "vps01",
+            "default",
+            "/.env",
+            "prod-web-env");
+
+        result.CanWrite.Should().BeTrue();
+        result.Confirmation.Should().Be("web_secret_file_write:default:/.env:prod-web-env");
+        result.Error.Should().BeNull();
+        runner.LastRequest!.CommandName.Should().Be("web_public_file_check_write_internal");
+    }
+
+    [Fact]
+    public async Task CheckWriteWebSecretFileAsync_ShouldBindPermissionRequestToConfirmation()
+    {
+        var profile = CreateProfile(
+            "vps01",
+            KelpiePolicyMode.Expert,
+            webPublicSites: [CreateSite([new WebPublicFileRule(".env*", AllowedRootAccess.Write)])]);
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: """{"resolvedPath":"/var/www/html/.env","exists":false,"canWrite":true,"reason":null}""",
+                StandardError: string.Empty),
+        ]);
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+        var webProvider = new WebPublicFileProvider();
+        var secretStore = new InMemoryKelpieSecretStore();
+        secretStore.Put("prod-web-env", System.Text.Encoding.UTF8.GetBytes("TOKEN=secret\n"), TimeSpan.FromMinutes(10));
+
+        var check = await KelpieTools.CheckWriteWebSecretFileAsync(
+            service,
+            profiles,
+            webProvider,
+            secretStore,
+            "vps01",
+            "default",
+            "/.env",
+            "prod-web-env",
+            owner: "www-data:www-data",
+            mode: "600");
+
+        check.Confirmation.Should().Be("web_secret_file_write:default:/.env:prod-web-env:www-data:www-data:600");
+
+        var write = await KelpieTools.WriteWebSecretFileAsync(
+            service,
+            profiles,
+            webProvider,
+            secretStore,
+            "vps01",
+            "default",
+            "/.env",
+            "prod-web-env",
+            "web_secret_file_write:default:/.env:prod-web-env",
+            owner: "www-data:www-data",
+            mode: "600");
+
+        write.Written.Should().BeFalse();
+        write.Error.Should().Be("Confirmation is required: web_secret_file_write:default:/.env:prod-web-env:www-data:www-data:600");
+    }
+
+    [Fact]
+    public async Task WriteWebSecretFileAsync_ShouldRequireConfirmation()
+    {
+        var profile = CreateProfile("vps01", KelpiePolicyMode.Expert);
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+        var webProvider = new WebPublicFileProvider();
+        var secretStore = new InMemoryKelpieSecretStore();
+        secretStore.Put("prod-web-env", System.Text.Encoding.UTF8.GetBytes("TOKEN=secret\n"), TimeSpan.FromMinutes(10));
+
+        var result = await KelpieTools.WriteWebSecretFileAsync(
+            service,
+            profiles,
+            webProvider,
+            secretStore,
+            "vps01",
+            "default",
+            "/.env",
+            "prod-web-env",
+            "wrong");
+
+        result.Error.Should().Be("Confirmation is required: web_secret_file_write:default:/.env:prod-web-env");
+        result.Written.Should().BeFalse();
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task WriteWebSecretFileAsync_ShouldWriteAndForgetSecretOnSuccess()
+    {
+        var profile = CreateProfile(
+            "vps01",
+            KelpiePolicyMode.Expert,
+            webPublicSites: [CreateSite([new WebPublicFileRule(".env*", AllowedRootAccess.Write)])]);
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: """{"resolvedPath":"/var/www/html/.env","written":true,"created":true,"overwritten":false,"size":13}""",
+                StandardError: string.Empty),
+        ]);
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+        var webProvider = new WebPublicFileProvider();
+        var secretStore = new InMemoryKelpieSecretStore();
+        secretStore.Put("prod-web-env", System.Text.Encoding.UTF8.GetBytes("TOKEN=secret\n"), TimeSpan.FromMinutes(10));
+
+        var result = await KelpieTools.WriteWebSecretFileAsync(
+            service,
+            profiles,
+            webProvider,
+            secretStore,
+            "vps01",
+            "default",
+            "/.env",
+            "prod-web-env",
+            "web_secret_file_write:default:/.env:prod-web-env");
+
+        result.Written.Should().BeTrue();
+        result.Warnings.Should().Contain("Secret content was not returned.");
+        secretStore.TryGetContentBase64("prod-web-env", out _, out _).Should().BeFalse();
+        runner.LastRequest!.CommandName.Should().Be("web_public_file_write_internal");
+        runner.LastRequest.Arguments.Should().NotContainKey("contentBase64");
+        runner.LastRequest.CommandText.Should().NotContain("TOKEN=secret");
+        System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(runner.LastRequest.StandardInput!))
+            .Should().Be("TOKEN=secret\n");
+    }
+
+    [Fact]
     public async Task ChangeWebPublicOwnerRecursiveAsync_ShouldRequireConfirmation()
     {
         var profile = CreateProfile("vps01", KelpiePolicyMode.Expert);
@@ -2005,6 +2271,10 @@ public sealed class KelpieToolsSshTests
         result.CommandName.Should().Be("not_allowed");
         result.ExitCode.Should().Be(-1);
         result.Error.Should().Be("SSH command is not allowed: not_allowed");
+        result.Ok.Should().BeFalse();
+        result.ErrorInfo.Should().NotBeNull();
+        result.ErrorInfo!.Code.Should().Be("KELPIE_POLICY_COMMAND_DENIED");
+        result.ErrorInfo.Category.Should().Be("PolicyDenied");
         result.StandardError.Should().Be("SSH command is not allowed: not_allowed");
         result.Stderr.Should().Equal("SSH command is not allowed: not_allowed");
         result.StderrPlain.Should().Equal("SSH command is not allowed: not_allowed");
@@ -2019,10 +2289,16 @@ public sealed class KelpieToolsSshTests
         var service = CreateProviderBackedService(runner);
         var profiles = new SshConnectionProfileCatalog([]);
 
-        var action = async () => await KelpieTools.GetSshSystemInfoAsync(service, profiles, string.Empty);
+        var result = await KelpieTools.GetSshSystemInfoAsync(service, profiles, string.Empty);
 
-        await action.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("SSH profile name is required.");
+        result.CommandName.Should().Be("get_system_info");
+        result.Ok.Should().BeFalse();
+        result.ExitCode.Should().Be(-1);
+        result.Error.Should().Be("SSH profile name is required.");
+        result.ErrorInfo.Should().NotBeNull();
+        result.ErrorInfo!.Code.Should().Be("KELPIE_MCP_INPUT_INVALID");
+        result.ErrorInfo.Category.Should().Be("Validation");
+        runner.LastRequest.Should().BeNull();
     }
 
     [Fact]
@@ -2063,6 +2339,61 @@ public sealed class KelpieToolsSshTests
         result.CommandName.Should().Be("service_status");
         result.CommandText.Should().Be("systemctl status 'nginx.service' --no-pager");
         runner.LastRequest!.Arguments["service"].Should().Be("nginx.service");
+    }
+
+    [Fact]
+    public async Task GetSshServiceStatusAsync_ShouldReturnRemoteFailureResult()
+    {
+        var profile = CreateProfile("vps01");
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput("inactive\n", "Unit nginx.service could not be found.\n", 3),
+        ]);
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var result = await KelpieTools.GetSshServiceStatusAsync(
+            service,
+            profiles,
+            "nginx.service",
+            "vps01");
+
+        result.CommandName.Should().Be("service_status");
+        result.ExitCode.Should().Be(3);
+        result.Ok.Should().BeFalse();
+        result.StandardOutput.Should().Be("inactive\n");
+        result.StandardError.Should().Be("Unit nginx.service could not be found.\n");
+        result.Stdout.Should().Equal("inactive", string.Empty);
+        result.Stderr.Should().Equal("Unit nginx.service could not be found.", string.Empty);
+        result.Error.Should().BeNull();
+        result.ErrorInfo.Should().NotBeNull();
+        result.ErrorInfo!.Code.Should().Be("KELPIE_REMOTE_COMMAND_FAILED");
+        result.ErrorInfo.Category.Should().Be("RemoteCommand");
+        result.Data.Should().BeNull();
+        runner.LastRequest!.Arguments["service"].Should().Be("nginx.service");
+    }
+
+    [Fact]
+    public async Task GetSshServiceStatusAsync_ShouldRejectUnsafeServiceArgumentBeforeExecution()
+    {
+        var profile = CreateProfile("vps01");
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var result = await KelpieTools.GetSshServiceStatusAsync(
+            service,
+            profiles,
+            "nginx.service;whoami",
+            "vps01");
+
+        result.CommandName.Should().Be("service_status");
+        result.Ok.Should().BeFalse();
+        result.ExitCode.Should().Be(-1);
+        result.Error.Should().Be("SSH command argument contains a dangerous fragment: service");
+        result.ErrorInfo.Should().NotBeNull();
+        result.ErrorInfo!.Code.Should().Be("KELPIE_MCP_INPUT_INVALID");
+        result.ErrorInfo.Category.Should().Be("Validation");
+        runner.LastRequest.Should().BeNull();
     }
 
     [Fact]
@@ -2120,8 +2451,9 @@ public sealed class KelpieToolsSshTests
 
         result.CommandName.Should().Be("list_services");
         result.CommandText.Should().Contain("systemctl");
-        result.CommandText.Should().Contain("state='running'");
-        result.CommandText.Should().Contain("limit=int('25')");
+        result.CommandText.Should().Contain("state=\"$1\"");
+        result.CommandText.Should().Contain("'running' '25'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["state"].Should().Be("running");
         runner.LastRequest.Arguments["limit"].Should().Be("25");
     }
@@ -2163,8 +2495,8 @@ public sealed class KelpieToolsSshTests
         result.Host.Should().BeEmpty();
         result.Port.Should().Be(0);
         result.UserName.Should().BeEmpty();
-        result.CommandText.Should().Contain("reportVersion=1");
-        result.CommandText.Should().Contain("limit=int('20')");
+        result.CommandText.Should().Contain("sh -s -- '20'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["limit"].Should().Be("20");
     }
 
@@ -2284,6 +2616,8 @@ public sealed class KelpieToolsSshTests
             "replace");
 
         result.CommandName.Should().Be("user_check_group_change");
+        result.CommandText.Should().Contain("sh -s -- 'deploy' 'nginx,wheel' 'replace'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["user"].Should().Be("deploy");
         runner.LastRequest.Arguments["groups"].Should().Be("nginx,wheel");
         runner.LastRequest.Arguments["mode"].Should().Be("replace");
@@ -2372,6 +2706,8 @@ public sealed class KelpieToolsSshTests
             "absent");
 
         result.CommandName.Should().Be("user_check_permission_change");
+        result.CommandText.Should().Contain("sh -s -- 'deploy' '/bin/bash' 'disabled' 'absent'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["user"].Should().Be("deploy");
         runner.LastRequest.Arguments["shell"].Should().Be("/bin/bash");
         runner.LastRequest.Arguments["login"].Should().Be("disabled");
@@ -2478,7 +2814,8 @@ public sealed class KelpieToolsSshTests
         var result = await KelpieTools.GetSshFirewallStatusAsync(service, profiles, "vps01");
 
         result.CommandName.Should().Be("firewall_status");
-        result.CommandText.Should().Contain("firewalldAvailable=");
+        result.CommandText.Should().StartWith("sh -c");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.CommandName.Should().Be("firewall_status");
     }
 
@@ -2501,6 +2838,9 @@ public sealed class KelpieToolsSshTests
             "false");
 
         result.CommandName.Should().Be("firewall_check_rule");
+        result.CommandText.Should().StartWith("sh -c");
+        result.CommandText.Should().Contain("sh -s -- 'add' 'port' '443/tcp' 'public' 'false'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["action"].Should().Be("add");
         runner.LastRequest.Arguments["target"].Should().Be("port");
         runner.LastRequest.Arguments["value"].Should().Be("443/tcp");
@@ -2573,6 +2913,9 @@ public sealed class KelpieToolsSshTests
             "20");
 
         result.CommandName.Should().Be("backup_plan_check");
+        result.CommandText.Should().StartWith("sh -c");
+        result.CommandText.Should().Contain("sh -s -- '/var/www' '2' '20'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["scanRoot"].Should().Be("/var/www");
         runner.LastRequest.Arguments["depth"].Should().Be("2");
         runner.LastRequest.Arguments["limit"].Should().Be("20");
@@ -2639,6 +2982,8 @@ public sealed class KelpieToolsSshTests
             "/var/backups/kelpie/site/full.tar.gz");
 
         result.CommandName.Should().Be("backup_verify");
+        result.CommandText.Should().Contain("sh -s -- '/var/backups/kelpie/site/full.tar.gz'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["backupPath"].Should().Be("/var/backups/kelpie/site/full.tar.gz");
     }
 
@@ -2658,6 +3003,9 @@ public sealed class KelpieToolsSshTests
             "50");
 
         result.CommandName.Should().Be("audit_verify");
+        result.CommandText.Should().StartWith("sh -c");
+        result.CommandText.Should().Contain("sh -s -- '/var/log/kelpie/audit.log' '50'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["logPath"].Should().Be("/var/log/kelpie/audit.log");
         runner.LastRequest.Arguments["limit"].Should().Be("50");
     }
@@ -2678,6 +3026,9 @@ public sealed class KelpieToolsSshTests
             "50");
 
         result.CommandName.Should().Be("audit_export");
+        result.CommandText.Should().StartWith("sh -c");
+        result.CommandText.Should().Contain("sh -s -- '/var/log/kelpie/audit.log' '50'");
+        result.CommandText.Should().NotContain("python3");
         runner.LastRequest!.Arguments["logPath"].Should().Be("/var/log/kelpie/audit.log");
         runner.LastRequest.Arguments["limit"].Should().Be("50");
     }
@@ -2776,8 +3127,9 @@ public sealed class KelpieToolsSshTests
 
         result.CommandName.Should().Be("pkg_search");
         result.CommandText.Should().Contain("apt-cache");
-        result.CommandText.Should().Contain("query='nginx'");
-        result.CommandText.Should().Contain("limit=int('20')");
+        result.CommandText.Should().Contain("'nginx'");
+        result.CommandText.Should().Contain("'20'");
+        result.CommandText.Should().NotContain("python3 -c");
         runner.LastRequest!.Arguments["query"].Should().Be("nginx");
         runner.LastRequest.Arguments["limit"].Should().Be("20");
     }
@@ -2799,8 +3151,10 @@ public sealed class KelpieToolsSshTests
 
         result.CommandName.Should().Be("pkg_list_installed");
         result.CommandText.Should().Contain("dnf");
-        result.CommandText.Should().Contain("filter_text='nginx'.lower()");
-        result.CommandText.Should().Contain("limit=int('20')");
+        result.CommandText.Should().Contain("grep -i");
+        result.CommandText.Should().Contain("'nginx'");
+        result.CommandText.Should().Contain("'20'");
+        result.CommandText.Should().NotContain("python3 -c");
         runner.LastRequest!.Arguments["filter"].Should().Be("nginx");
         runner.LastRequest.Arguments["limit"].Should().Be("20");
     }
@@ -2899,6 +3253,118 @@ public sealed class KelpieToolsSshTests
         result.ExitCode.Should().Be(-1);
         result.Error.Should().Be("Confirmation is required: pkg_install:nginx");
         result.StandardError.Should().Be("Confirmation is required: pkg_install:nginx");
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task InstallSshPackageConfirmedAsync_ShouldRejectSafeModePolicyBeforeExecution()
+    {
+        var profile = CreateProfile("vps01", KelpiePolicyMode.Safe);
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var result = await KelpieTools.InstallSshPackageConfirmedAsync(
+            service,
+            profiles,
+            "nginx",
+            "vps01",
+            "pkg_install:nginx");
+
+        result.CommandName.Should().Be("pkg_install");
+        result.Ok.Should().BeFalse();
+        result.ExitCode.Should().Be(-1);
+        result.Error.Should().Be("KelpiePolicyError: AllowSudo is required for command: pkg_install");
+        result.ErrorInfo.Should().NotBeNull();
+        result.ErrorInfo!.Code.Should().Be("KELPIE_POLICY_COMMAND_DENIED");
+        result.ErrorInfo.Category.Should().Be("PolicyDenied");
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CheckSshCertbotInstallAsync_ShouldPassPluginArgument()
+    {
+        var profile = CreateProfile("vps01", osFamily: "alma", packageManager: "dnf");
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var result = await KelpieTools.CheckSshCertbotInstallAsync(
+            service,
+            profiles,
+            "vps01",
+            "nginx");
+
+        result.CommandName.Should().Be("certbot_check_install");
+        result.CommandText.Should().Contain("dnf list certbot python3-certbot-nginx");
+        result.CommandText.Should().Contain("'nginx'");
+        result.CommandText.Should().NotContain("python3 -c");
+        runner.LastRequest!.Arguments["plugin"].Should().Be("nginx");
+    }
+
+    [Fact]
+    public async Task InstallSshCertbotAsync_ShouldReturnConfirmationError()
+    {
+        var profile = CreateProfile("vps01", KelpiePolicyMode.Expert);
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var result = await KelpieTools.InstallSshCertbotAsync(
+            service,
+            profiles,
+            "vps01",
+            string.Empty,
+            "nginx");
+
+        result.CommandName.Should().Be("certbot_install");
+        result.ExitCode.Should().Be(-1);
+        result.Error.Should().Be("Confirmation is required: certbot_install:nginx");
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task InstallSshCertbotAsync_ShouldExecuteWithConfirmation()
+    {
+        var profile = CreateProfile("vps01", KelpiePolicyMode.Expert);
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var result = await KelpieTools.InstallSshCertbotAsync(
+            service,
+            profiles,
+            "vps01",
+            "certbot_install:nginx",
+            "nginx");
+
+        result.CommandName.Should().Be("certbot_install");
+        result.CommandText.Should().Contain("apt-get install -y certbot python3-certbot-nginx");
+        runner.LastRequest!.CommandName.Should().Be("certbot_install");
+        runner.LastRequest.Arguments["plugin"].Should().Be("nginx");
+    }
+
+    [Fact]
+    public async Task InstallSshCertbotAsync_ShouldRejectSafeModePolicyBeforeExecution()
+    {
+        var profile = CreateProfile("vps01", KelpiePolicyMode.Safe);
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var result = await KelpieTools.InstallSshCertbotAsync(
+            service,
+            profiles,
+            "vps01",
+            "certbot_install:nginx",
+            "nginx");
+
+        result.CommandName.Should().Be("certbot_install");
+        result.Ok.Should().BeFalse();
+        result.ExitCode.Should().Be(-1);
+        result.Error.Should().Be("KelpiePolicyError: AllowSudo is required for command: certbot_install");
+        result.ErrorInfo.Should().NotBeNull();
+        result.ErrorInfo!.Code.Should().Be("KELPIE_POLICY_COMMAND_DENIED");
         runner.LastRequest.Should().BeNull();
     }
 
@@ -3023,7 +3489,8 @@ public sealed class KelpieToolsSshTests
         string osFamily = "debian",
         string packageManager = "apt",
         PolicySet? capabilities = null,
-        IReadOnlyCollection<EnvironmentValueRule>? environmentValues = null)
+        IReadOnlyCollection<EnvironmentValueRule>? environmentValues = null,
+        IReadOnlyCollection<WebPublicSite>? webPublicSites = null)
     {
         return new SshConnectionProfile
         {
@@ -3036,6 +3503,21 @@ public sealed class KelpieToolsSshTests
             Mode = mode,
             Capabilities = capabilities ?? PolicySet.Empty,
             EnvironmentValues = environmentValues ?? [],
+            WebPublicSites = webPublicSites ?? [],
+        };
+    }
+
+    private static WebPublicSite CreateSite(
+        IReadOnlyCollection<WebPublicFileRule> allowedFiles,
+        string siteKey = "default",
+        string rootPath = "/var/www/html")
+    {
+        return new WebPublicSite
+        {
+            SiteKey = siteKey,
+            DisplayName = "Default Web Site",
+            RootPath = rootPath,
+            AllowedFiles = allowedFiles,
         };
     }
 
@@ -3083,6 +3565,31 @@ public sealed class KelpieToolsSshTests
           "Platform": {
             "OsFamily": "debian",
             "PackageManager": "apt"
+          }
+        }
+        """;
+    }
+
+    private static string CreateProfileJsonWithEnvironmentPolicy(string userName)
+    {
+        return $$"""
+        {
+          "Host": {
+            "Address": "example.invalid"
+          },
+          "Auth": {
+            "UserName": "{{userName}}",
+            "Method": "privateKey",
+            "PrivateKeyFile": "id_ed25519"
+          },
+          "Platform": {
+            "OsFamily": "debian",
+            "PackageManager": "apt"
+          },
+          "Capabilities": "AllowPeekEnvironmentKeys|AllowSetEnvironmentValues",
+          "EnvironmentValues": {
+            "APP_ENV": "Common",
+            "SECRET_TOKEN": "Hidden"
           }
         }
         """;

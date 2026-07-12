@@ -1,6 +1,6 @@
 # KelpieSSH MCP コマンド
 
-最終更新: 2026-06-18
+最終更新: 2026-07-03
 
 このファイルは、KelpieSSH が MCP callable tool として公開するコマンドの正本です。
 通常のターミナルで実行する `kelpie` / `kelpiemcp` CLI コマンドは `COMMANDS.ja.md` を正本とします。
@@ -53,10 +53,10 @@ HTTP request body は REST 形式ではなく JSON-RPC です。たとえば診�
 | SSH 診断 | `ssh_get_system_info`, `ssh_get_os_release`, `ssh_get_uptime`, `ssh_get_disk_usage`, `ssh_get_memory_usage`, `ssh_get_process_summary`, `ssh_get_inode_usage`, `ssh_get_mounts`, `ssh_get_network_addresses`, `ssh_get_routes`, `ssh_get_dns_config`, `ssh_cron_list`, `ssh_cron_validate`, `ssh_cron_check_write`, `ssh_cron_write`, `ssh_cron_rollback`, `ssh_cert_inspect`, `ssh_cert_expiry_check`, `ssh_user_list`, `ssh_user_info`, `ssh_group_list`, `ssh_group_info`, `ssh_sudoers_check`, `ssh_user_usage_check`, `ssh_user_check_group_change`, `ssh_user_apply_group_change`, `ssh_user_rollback_group_change`, `ssh_user_check_permission_change`, `ssh_user_apply_permission_change`, `ssh_user_rollback_permission_change`, `ssh_user_file_ownership_check`, `ssh_user_service_usage_check`, `ssh_service_residual_config_check`, `ssh_support_report_collect`, `ssh_firewall_status`, `ssh_firewall_check_rule`, `ssh_firewall_apply_rule`, `ssh_backup_plan_check`, `ssh_backup_run`, `ssh_backup_verify`, `ssh_audit_verify`, `ssh_audit_export`, `ssh_check_http_local`, `ssh_check_tcp_connect_local`, `ssh_get_listening_ports`, `ssh_get_failed_services`, `ssh_get_journal_recent`, `ssh_tail_log`, `ssh_run_allowed_command`, `ssh_run_remote_operation` | 許可済み SSH 診断コマンドの実行。 |
 | 環境変数 | `get_environment_keys`, `peek_environment_value`, `set_environment_value`, `list_persistent_environment_keys`, `persist_environment_value`, `remove_persistent_environment_value` | profile policy に従って remote 環境変数の key 表示、値参照、一時設定、永続化を行う。 |
 | SSH ターミナル / session cleanup | `ssh_terminal_open`, `ssh_terminal_send`, `ssh_terminal_snapshot`, `ssh_terminal_close`, `ssh_connection_close`, `ssh_logout` | PTY 付き対話ターミナルの操作と MCP password session の破棄。 |
-| パッケージ操作 | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove` | package の確認、検索、dry-run、確認付き変更。 |
+| パッケージ操作 | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove`, `ssh_certbot_check_install`, `ssh_certbot_install` | package の確認、検索、dry-run、確認付き変更、Certbot 専用 install。 |
 | サービス操作 | `ssh_service_status`, `ssh_service_is_active`, `ssh_service_is_enabled`, `ssh_list_services`, `ssh_service_enable_now`, `ssh_service_reload`, `ssh_service_restart`, `ssh_service_stop`, `ssh_service_disable` | systemd service の状態確認と確認付き変更。 |
 | サービス設定 / ログ | `service_config_paths`, `service_config_file_check_read`, `service_config_file_read`, `service_config_file_check_write`, `service_config_file_write`, `service_config_file_rollback`, `service_config_file_commit`, `service_config_test`, `ssh_service_config_nginx_enable_php`, `service_logfile_read` | provider が許可したサービス設定ファイルとログの操作。 |
-| Web ファイル | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | provider が許可した Web ルート配下のファイル操作と権限変更。 |
+| Web ファイル | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_check_write`, `web_secret_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_secret_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | provider が許可した Web ルート配下のファイル操作、秘密ファイル転送、権限変更。 |
 
 ## 共通オプション
 
@@ -66,7 +66,15 @@ SSH 先を操作する既存 tool は、互換性のため `profileName` に `Ke
 
 変更操作を伴う tool は `confirmation` を要求します。`confirmation` が空または不一致の場合、実変更せず `Confirmation is required: ...` を返します。
 
-MCP tool の戻り値は JSON object または text です。SSH コマンド系の戻り値には、主に `ProfileName`, `CommandName`, `CommandText`, `ExitCode`, `StandardOutput`, `StandardError`, `Stdout`, `Stderr`, `StdoutPlain`, `StderrPlain`, `StartedAt`, `CompletedAt`, `TimedOut` が含まれます。
+MCP tool の戻り値は JSON object または text です。SSH コマンド系の戻り値には、主に `Ok`, `Data`, `ErrorInfo`, `Meta`, `ProfileName`, `CommandName`, `CommandText`, `ExitCode`, `StandardOutput`, `StandardError`, `Stdout`, `Stderr`, `StdoutPlain`, `StderrPlain`, `StartedAt`, `CompletedAt`, `TimedOut`, `Error` が含まれます。
+
+- `Ok`: SSH tool が `ExitCode: 0` かつ Kelpie 側エラーなしで完了した場合に `true`。
+- `Data`: `Ok` が `true` の場合の構造化 command data。互換性のため既存の top-level fields も残します。
+- `ErrorInfo`: `Ok` が `false` の場合の構造化エラー情報。`Code`, `Category`, `Message`, `Hint`, `Retryable` を含みます。
+- `Meta`: `SchemaVersion`, `GeneratedAt`, `ProfileName`, `CommandName`, output line count, `Truncated` を含む metadata。
+- `Error`: 互換性維持用の legacy error message。
+
+入力不備や policy 拒否のような想定内の失敗は、MCP invocation exception ではなく `Ok: false` の `SshToolResult` として返ります。remote command の非0終了も `Ok: false` になり、legacy stdout / stderr fields は保持されます。
 
 ## コマンド詳細
 
@@ -425,6 +433,7 @@ MCP server は terminal handle から接続中 profile を解決します。`kel
 目的:
 
 profile の `Capabilities` と `EnvironmentValues` policy に従って、remote 環境変数の key 表示、値参照、1回だけの一時設定、Kelpie env file への永続化を行います。
+`kelpiemcp env put <profile> <key> <value>` で MCP server process のメモリに保存した override がある場合、同じ profile の以後の command 実行時に適用されます。override の値は MCP tool の戻り値には出しません。
 
 入力引数:
 
@@ -746,6 +755,7 @@ profile の `Capabilities` と `EnvironmentValues` policy に従って、remote 
 目的:
 
 指定プロファイルの OS 基本情報、helper、software の availability と version を読み取り専用で一括取得します。
+`python3`、`php`、`node`、`systemctl`、`journalctl`、`findmnt`、`ss`、`ip` などの optional helper / OS 標準 command の有無も確認します。
 
 入力引数:
 
@@ -765,7 +775,7 @@ profile の `Capabilities` と `EnvironmentValues` policy に従って、remote 
 
 処理内容:
 
-対象 SSH profile で `target_inventory` を実行し、`/etc/os-release` と固定コマンドの version 出力を読み取ります。各 helper / software command は約8秒で打ち切り、コマンド単位の失敗は `Not Available` として返します。SSH 接続または OS probe に失敗した場合のみ tool 全体を失敗扱いにします。
+対象 SSH profile で `target_inventory` を実行し、`/etc/os-release` と固定コマンドの version 出力を読み取ります。各 helper / software command は約8秒で打ち切り、コマンド単位の失敗は `Not Available` として返します。検出結果は実行時点の結果として扱い、SSH profile file へ書き戻しません。SSH 接続または OS probe に失敗した場合のみ tool 全体を失敗扱いにします。
 
 戻り値:
 
@@ -1071,7 +1081,7 @@ profile の `Capabilities` と `EnvironmentValues` policy に従って、remote 
 
 処理内容:
 
-固定の `python3 -c` wrapper から `ps -eo pid,ppid,user,comm,%cpu,%mem --sort=<sort>` を実行し、ヘッダーと先頭 `limit` 件を返します。
+固定の shell wrapper から `ps -eo pid,ppid,user,comm,%cpu,%mem --sort=<sort>` を実行し、ヘッダーと先頭 `limit` 件を返します。`python3` は必要ありません。
 
 戻り値:
 
@@ -1338,7 +1348,7 @@ profile の `Capabilities` と `EnvironmentValues` policy に従って、remote 
 
 処理内容:
 
-`/etc/crontab`、`/etc/cron.d/*` の通常ファイル、現在 user の `crontab -l` を固定 Python wrapper で読み取り、コメント行と空行を除いて `limit` 件まで返します。
+固定 shell wrapper から `/etc/crontab`、`/etc/cron.d/*` の通常ファイル、現在 user の `crontab -l` を読み取り、コメント行と空行を除いて `limit` 件まで返します。`python3` は必要ありません。
 
 戻り値:
 
@@ -1381,7 +1391,7 @@ profile の `Capabilities` と `EnvironmentValues` policy に従って、remote 
 
 処理内容:
 
-固定 Python wrapper で引数形式を検証し、`valid=true` または `valid=false` を返します。cron file への書き込みは行いません。
+固定 shell wrapper で引数形式を検証し、`valid=true` または `valid=false` を返します。cron file への書き込みは行いません。`python3` は必要ありません。
 
 戻り値:
 
@@ -1497,7 +1507,7 @@ cron 変更前に、対象、実行 user、cron 式、command、log path、確�
 ```json
 {
   "profileName": "vps01",
-  "path": "/etc/letsencrypt/live/example.com/fullchain.pem"
+  "path": "/etc/letsencrypt/live/example.invalid/fullchain.pem"
 }
 ```
 
@@ -1547,7 +1557,7 @@ cron 変更前に、対象、実行 user、cron 式、command、log path、確�
 
 処理内容:
 
-`openssl x509 -checkend` を固定 Python wrapper から実行し、openssl の仕様どおり有効なら `ExitCode: 0`、期限不足なら非0を返します。
+固定 shell wrapper から `openssl x509 -checkend` を実行し、openssl の仕様どおり有効なら `ExitCode: 0`、期限不足なら非0を返します。`python3` は必要ありません。
 
 戻り値:
 
@@ -1584,7 +1594,7 @@ cron 変更前に、対象、実行 user、cron 式、command、log path、確�
 
 処理内容:
 
-Python の `pwd.getpwall()` でローカル user 情報を取得し、`limit` 件まで返します。
+固定 shell wrapper から `getent passwd` を読み取り、ローカル user 情報を `limit` 件まで返します。`python3` は必要ありません。
 
 戻り値:
 
@@ -1621,7 +1631,7 @@ Python の `pwd.getpwall()` でローカル user 情報を取得し、`limit` �
 
 処理内容:
 
-Python の `pwd.getpwall()` と `grp.getgrall()` を使い、指定 user の公開アカウント情報だけを返します。
+固定 shell wrapper から `getent passwd` / `getent group` を使い、指定 user の公開アカウント情報だけを返します。`python3` は必要ありません。
 
 戻り値:
 
@@ -1659,7 +1669,7 @@ Python の `pwd.getpwall()` と `grp.getgrall()` を使い、指定 user の公�
 
 処理内容:
 
-Python の `grp.getgrall()` で group 情報を取得し、`limit` 件まで返します。
+固定 shell wrapper から `getent group` を読み取り、group 情報を `limit` 件まで返します。`python3` は必要ありません。
 
 戻り値:
 
@@ -1696,7 +1706,7 @@ Python の `grp.getgrall()` で group 情報を取得し、`limit` 件まで返�
 
 処理内容:
 
-Python の `grp.getgrall()` から指定 group を検索し、GID と member 名を返します。
+固定 shell wrapper から `getent group` で指定 group を検索し、GID と member 名を返します。`python3` は必要ありません。
 
 戻り値:
 
@@ -1735,7 +1745,7 @@ Python の `grp.getgrall()` から指定 group を検索し、GID と member 名
 
 処理内容:
 
-`pwd` / `grp` の公開情報、一般的な admin group、読み取り可能な `/etc/sudoers` と `/etc/sudoers.d/*` の非コメント行を固定 Python wrapper で確認し、存在有無、admin group 該当、sudoers match 件数、match source path だけを返します。
+固定 shell wrapper から `getent` / `id` と、読み取り可能な `/etc/sudoers` / `/etc/sudoers.d/*` の非コメント行を確認し、存在有無、admin group 該当、sudoers match 件数、match source path だけを返します。`python3` は必要ありません。
 
 戻り値:
 
@@ -1777,7 +1787,7 @@ Python の `grp.getgrall()` から指定 group を検索し、GID と member 名
 
 処理内容:
 
-固定 Python wrapper で user / group の存在、systemd service の `User` / `Group` / `SupplementaryGroups`、system cron の実行 user、`/var/www` / `/var/log` / `/etc` 直下の owner/group 該当件数を bounded scan で確認します。
+固定 shell wrapper から `getent` / `systemctl` / `find` / `stat` を使い、user / group の存在、systemd service の `User` / `Group` / `SupplementaryGroups`、主要 root 配下の owner/group 該当件数を bounded scan で確認します。`python3` は必要ありません。
 
 戻り値:
 
@@ -1992,7 +2002,7 @@ Python の `grp.getgrall()` から指定 group を検索し、GID と member 名
 
 処理内容:
 
-固定 Python wrapper で `scanRoot` 配下を `depth` と `limit` の範囲で `lstat` し、owner / group が一致した path と owner/group 名を返します。
+固定 shell wrapper から `find` / `stat` / `getent` を使い、`scanRoot` 配下を `depth` と `limit` の範囲で確認し、owner / group が一致した path と owner/group 名を返します。`python3` は必要ありません。
 
 戻り値:
 
@@ -2372,7 +2382,7 @@ Kelpie audit log から support 向けの sanitized summary を出力します�
 
 処理内容:
 
-Python の `urllib.request` で `http://127.0.0.1:<port>/` だけを取得します。任意 host や任意 URL は受け付けません。
+固定 shell wrapper から `curl` または `wget` を使い、`http://127.0.0.1:<port>/` だけを確認します。任意 host や任意 URL は受け付けません。`python3` は必要ありません。
 
 戻り値:
 
@@ -2409,7 +2419,7 @@ Python の `urllib.request` で `http://127.0.0.1:<port>/` だけを取得しま
 
 処理内容:
 
-Python の `socket.create_connection` で `127.0.0.1:<port>` だけへ接続し、接続後すぐ close します。任意 host は受け付けません。
+固定 shell wrapper から `nc` または `bash` の `/dev/tcp` を使い、`127.0.0.1:<port>` だけへ接続確認します。任意 host は受け付けません。`python3` は必要ありません。
 
 戻り値:
 
@@ -2677,7 +2687,7 @@ systemd service unit 一覧を取得します。
 
 処理内容:
 
-固定の `python3 -c` wrapper から `systemctl list-units --type=service --state=<state> --no-pager --plain --all --no-legend` を実行し、先頭 `limit` 行だけを返します。
+固定の shell wrapper から `systemctl list-units --type=service --state=<state> --no-pager --plain --all --no-legend` を実行し、先頭 `limit` 行だけを返します。`python3` は必要ありません。
 
 戻り値:
 
@@ -3441,6 +3451,110 @@ Confirmation is required: pkg_install:nginx
 
 - 現時点では確認要求のみです。確認済み remove tool を追加する場合は別途定義します。
 
+### `ssh_certbot_check_install`
+
+目的:
+
+Let's Encrypt 用 Certbot を対象 profile に install できるか、実変更なしで確認します。
+
+入力引数:
+
+- `profileName`: SSH プロファイル名。
+- `plugin`: install 対象 plugin。`nginx` / `apache` / `none` のいずれか。省略時は `nginx`。
+
+引数サンプル:
+
+```json
+{
+  "profileName": "vps01",
+  "plugin": "nginx"
+}
+```
+
+確認文字列:
+
+- 戻り値の `StandardOutput` に `confirmation=certbot_install:<plugin>` を含みます。
+
+処理内容:
+
+Certbot の有無、Web server command の有無、選択 plugin に対応する候補 package を確認し、package manager の候補情報と確認文字列を返します。package install、証明書発行、Web server 設定変更、reload は行いません。
+
+戻り値:
+
+- `SshToolResult`
+
+実行結果サンプル:
+
+```json
+{
+  "ProfileName": "vps01",
+  "CommandName": "certbot_check_install",
+  "ExitCode": 0,
+  "StandardOutput": "packageManager=apt\nplugin=nginx\ncertbotInstalled=false\nnginxInstalled=true\ncandidatePackages=certbot python3-certbot-nginx\nconfirmation=certbot_install:nginx\n"
+}
+```
+
+安全上の注意:
+
+- 読み取り専用です。
+- 実 install には `ssh_certbot_install` を使い、ここで返った確認文字列をそのまま渡します。
+
+### `ssh_certbot_install`
+
+目的:
+
+Let's Encrypt 用 Certbot と選択 plugin の package を確認付きで install します。
+
+入力引数:
+
+- `profileName`: SSH プロファイル名。
+- `plugin`: install 対象 plugin。`nginx` / `apache` / `none` のいずれか。省略時は `nginx`。
+- `confirmation`: `certbot_install:<plugin>`。
+
+引数サンプル:
+
+```json
+{
+  "profileName": "vps01",
+  "plugin": "nginx",
+  "confirmation": "certbot_install:nginx"
+}
+```
+
+確認文字列:
+
+- `certbot_install:<plugin>`
+
+処理内容:
+
+確認文字列と `plugin` を検証し、package install と sudo policy を確認してから、固定 package set だけを install します。`nginx` の場合は `certbot` と nginx plugin、`apache` の場合は `certbot` と apache plugin、`none` の場合は `certbot` のみを対象にします。
+
+戻り値:
+
+- `SshToolResult`
+
+実行結果サンプル:
+
+```json
+{
+  "ProfileName": "vps01",
+  "CommandName": "certbot_install",
+  "ExitCode": 0,
+  "StandardOutput": "<package-manager output>"
+}
+```
+
+確認文字列が不一致の場合:
+
+```text
+Confirmation is required: certbot_install:nginx
+```
+
+安全上の注意:
+
+- SSH 先の package 状態を変更します。
+- この P1 tool は Certbot と選択 plugin の install のみを行います。証明書発行、Web server 設定変更、reload、renew dry-run は別 tool として扱います。
+
 ### `ssh_service_enable_now`
 
 目的:
@@ -4199,7 +4313,7 @@ provider 管理の設定テストコマンドを実行します。
 
 目的:
 
-provider が許可した nginx site 設定に、PHP-FPM 連携用の固定テンプレートを適用します。
+provider が許可した nginx site 設定に、PHP-FPM 連携用の固定テンプレートを適用し、対象 listen の既定 server として応答できるようにします。
 
 入力引数:
 
@@ -4232,6 +4346,7 @@ Kelpie は nginx site key を `/etc/nginx/conf.d/<site>.conf` や `/etc/nginx/si
 Kelpie は対象ファイルを読み取り、次の固定テンプレートだけを適用します。対象 site file が存在しない場合は、最小限の固定 server block を新規作成してから同じテンプレートを適用します。
 
 ```nginx
+listen 80 default_server;
 index index.php ...
 
 location ~ \.php$ {
@@ -4240,7 +4355,7 @@ location ~ \.php$ {
 }
 ```
 
-任意の nginx block、`proxy_pass`、`root`、`alias` は受け取りません。書き込み後に `nginx -t` を実行し、失敗した場合は作成済み backup から rollback します。nginx の reload はこの tool では行いません。成功後に `ssh_service_reload` を別途実行します。
+任意の nginx block、`proxy_pass`、`root`、`alias` は受け取りません。設定テスト前に、`/etc/nginx/sites-enabled/<name>` の symlink 先が `listen 80 ... default_server` を含む場合は競合する有効 site とみなし、symlink target を `/etc/nginx/.kelpie-disabled-sites/` 配下へ記録してから `sites-enabled` 上の symlink だけを削除します。これにより一般的な `include /etc/nginx/sites-enabled/*;` の対象外へ退避します。regular file や provider 外の `sites-available` 本文は編集しません。書き込みと競合解消後に `nginx -t` を実行し、失敗した場合は作成済み backup から rollback し、この実行で退避した symlink も復元します。nginx の reload はこの tool では行いません。成功後に `ssh_service_reload` を別途実行します。
 
 戻り値:
 
@@ -4249,6 +4364,7 @@ location ~ \.php$ {
 - `tested`: `nginx -t` を実行した場合は `true`。
 - `rolledBack`: 書き込み後の `nginx -t` 失敗により rollback した場合は `true`。
 - `committed`: `nginx -t` 成功後に backup commit まで完了した場合は `true`。
+- `warnings`: 競合する Nginx `default_server` site link を退避した場合、件数だけを含む警告が入ることがあります。
 
 実行結果サンプル:
 
@@ -4294,6 +4410,7 @@ location ~ \.php$ {
 - SSH 先の nginx 設定ファイルを変更します。
 - 固定テンプレートだけを適用し、任意設定 block は受け取りません。
 - provider が許可した nginx site 設定ファイルだけを編集します。解決済み site file が存在しない場合は新規作成できます。
+- 既存の `sites-enabled` 競合は symlink を include glob 外へ退避するだけで解消し、provider 外の `sites-available` 本文は編集しません。
 - `nginx -t` 成功を必須とし、失敗時は rollback を試行します。
 - nginx の reload は別操作です。結果確認後に `ssh_service_reload` を実行してください。
 
@@ -4611,6 +4728,7 @@ provider の許可範囲、path 検証、content type 検証、親ディレク�
 戻り値:
 
 - web file write check result。
+- `canWrite: false` の場合、`reasonCode` と `guidance` で不足している policy、拡張子許可、content type 書き込み許可、またはリモートファイルシステム権限を説明します。AI クライアントはこの値を使って「どの権限が足りないため書き込めないか」を説明できます。
 
 実行結果サンプル:
 
@@ -4626,6 +4744,8 @@ provider の許可範囲、path 検証、content type 検証、親ディレク�
   "confirmation": "web_file_write:default:/kelpie-mcp-test.txt",
   "contentType": "text/plain",
   "reason": null,
+  "reasonCode": null,
+  "guidance": null,
   "warnings": []
 }
 ```
@@ -4635,6 +4755,71 @@ provider の許可範囲、path 検証、content type 検証、親ディレク�
 - 実際のファイル本文は変更しません。
 - TOCTOU を避けるため、`web_file_write` 側の検証は省略しません。
 - `canWrite: true` は「同時点の事前診断で書き込み可能と判断した」ことを示します。実 write 成功を保証するものではありません。
+
+### `web_secret_file_check_write`
+
+目的:
+
+`kelpiemcp secret put` で登録済みの secret reference を使い、`.env` などの秘密ファイルを書き込めるか実変更なしで確認します。
+
+入力引数:
+
+- `profileName`: SSH プロファイル名。
+- `siteKey`: Web 公開サイト設定のキー。
+- `path`: site-relative absolute secret file path。例: `/.env`。
+- `secretName`: `kelpiemcp secret put` で登録した secret name。
+- `contentType`: MIME type。省略時は `text/plain`。
+- `owner`: 書き込み時に適用する `owner[:group]`。省略可。
+- `mode`: 書き込み時に適用する3桁 octal mode。省略可。
+
+引数サンプル:
+
+```json
+{
+  "profileName": "vps01",
+  "siteKey": "default",
+  "path": "/.env",
+  "secretName": "prod-web-env"
+}
+```
+
+処理内容:
+
+secret reference の存在、secret file name、`AllowedFiles` の明示的な書き込み許可、`owner` / `mode` 指定の妥当性、親ディレクトリ、既存対象の通常ファイル性、現在の SSH ユーザーでの書き込み可否を確認します。
+
+戻り値:
+
+- web file write check result。
+- `canWrite: false` の場合、`reasonCode` と `guidance` で不足している policy、拡張子許可、content type 書き込み許可、またはリモートファイルシステム権限を説明します。AI クライアントはこの値を使って「どの権限が足りないため書き込めないか」を説明できます。
+- `canWrite: true` の場合、`confirmation` は `web_secret_file_write:<siteKey>:<path>:<secretName>` 形式です。
+- `owner` または `mode` を指定した場合、確認文字列は `web_file_write` と同じ `:<owner>:<mode>` suffix を含みます。片方を省略した場合は空フィールドになります。
+- 秘密本文、プレビュー、ハッシュ、差分は返しません。
+
+実行結果サンプル:
+
+```json
+{
+  "siteKey": "default",
+  "displayName": "Default Web Site",
+  "path": "/.env",
+  "resolvedPath": "/var/www/html/.env",
+  "exists": false,
+  "canWrite": true,
+  "requiresConfirmation": true,
+  "confirmation": "web_secret_file_write:default:/.env:prod-web-env",
+  "contentType": "text/plain",
+  "reason": null,
+  "reasonCode": null,
+  "guidance": null,
+  "warnings": []
+}
+```
+
+安全上の注意:
+
+- 先に `kelpiemcp secret put` で secret reference を登録します。
+- `AllowedFiles` に `.env*` などの書き込み許可が明示されていない場合は拒否します。
+- MCP tool 引数へ秘密本文を直接渡さないでください。
 
 ### `web_file_check_permissions`
 
@@ -4880,6 +5065,7 @@ Web 公開ルート外へ出ないこと、読み取り許可、content type 許
 戻り値:
 
 - web file write result。
+- 書き込みが拒否された場合、`reasonCode` と `guidance` で不足している policy、拡張子許可、content type 書き込み許可、またはリモートファイルシステム権限を説明します。AI クライアントはこの値を使って「どの権限が足りないため PHP ファイルを置けないか」を説明できます。
 
 実行結果サンプル:
 
@@ -4897,6 +5083,8 @@ Web 公開ルート外へ出ないこと、読み取り許可、content type 許
   "owner": "www-data",
   "group": "www-data",
   "mode": "775",
+  "reasonCode": null,
+  "guidance": null,
   "warnings": []
 }
 ```
@@ -4920,6 +5108,77 @@ Web 公開ルート外へ出ないこと、読み取り許可、content type 許
 - 解決後の対象パスが Web 公開ルート外へ出る場合は拒否します。
 - `.php` などの実行可能な Web 拡張子は既定では書き込み拒否です。対象プロファイルのサイト設定で `WritableExecutableExtensions` に明示列挙されている場合だけ書き込みできます。
 - `WritableExecutableExtensions` は、その書き込みについて実行可能拡張子の拒否と `AllowedExtensions` 不足だけを解除します。パストラバーサル拒否、ドットファイル拒否、秘密ファイル拒否、サイズ上限、MIME type 判定は従来どおり適用されます。
+
+### `web_secret_file_write`
+
+目的:
+
+`kelpiemcp secret put` で登録済みの secret reference から、provider が明示許可した `.env` などの秘密ファイルを書き込みます。秘密本文は MCP tool 引数として直接受け取りません。
+
+入力引数:
+
+- `profileName`: SSH プロファイル名。
+- `siteKey`: Web 公開サイト設定のキー。
+- `path`: site-relative absolute secret file path。例: `/.env`。
+- `secretName`: `kelpiemcp secret put` で登録した secret name。
+- `confirmation`: `web_secret_file_check_write` が返した確認文字列。
+- `contentType`: MIME type。省略時は `text/plain`。
+- `owner`: `owner[:group]` 形式。省略可。
+- `mode`: 3桁 octal mode。省略可。
+- `forgetOnSuccess`: 成功時に secret reference を削除するか。省略時は `true`。
+
+引数サンプル:
+
+```json
+{
+  "profileName": "vps01",
+  "siteKey": "default",
+  "path": "/.env",
+  "secretName": "prod-web-env",
+  "confirmation": "web_secret_file_write:default:/.env:prod-web-env"
+}
+```
+
+確認文字列:
+
+- `web_secret_file_write:<siteKey>:<path>:<secretName>`
+- `owner` / `mode` 指定付き: `web_secret_file_write:<siteKey>:<path>:<secretName>:<owner>:<mode>`
+- `owner` だけ指定: `web_secret_file_write:<siteKey>:<path>:<secretName>:<owner>:`
+- `mode` だけ指定: `web_secret_file_write:<siteKey>:<path>:<secretName>::<mode>`
+
+処理内容:
+
+確認文字列を検証し、server process 内の secret store から本文を取得し、secret path と provider 許可を再検証してから書き込みます。`owner` または `mode` を指定する場合は、`web_secret_file_check_write` で同じ指定を使って取得した確認文字列が必要です。`forgetOnSuccess` が `true` の場合、成功後に secret reference を削除します。
+
+戻り値:
+
+- web file write result。
+- 秘密本文、プレビュー、ハッシュ、差分は返しません。
+
+実行結果サンプル:
+
+```json
+{
+  "siteKey": "default",
+  "displayName": "Default Web Site",
+  "path": "/.env",
+  "resolvedPath": "/var/www/html/.env",
+  "written": true,
+  "created": true,
+  "overwritten": false,
+  "contentType": "text/plain",
+  "size": 128,
+  "warnings": [
+    "Secret content was not returned."
+  ]
+}
+```
+
+安全上の注意:
+
+- 先に `web_secret_file_check_write` を呼び、その確認文字列をそのまま渡します。
+- `AllowedFiles` に `.env*` などの書き込み許可が明示されていない場合は拒否します。
+- `forgetOnSuccess=false` で使った場合は、作業後に `kelpiemcp secret forget <name>` を実行します。
 
 ### `web_change_owner`
 

@@ -1,6 +1,6 @@
 # KelpieSSH Configuration
 
-Last updated: 2026-06-18
+Last updated: 2026-06-28
 
 This file is the English reference for KelpieSSH configuration file locations and host-level settings.
 For Japanese documentation, see [docs/ja/CONFIG.ja.md](docs/ja/CONFIG.ja.md).
@@ -31,6 +31,14 @@ D:\Kelpie
 └─ bin
 ```
 
+Kelpie home is resolved in this order:
+
+1. If `--bin-dir <dir>` is specified as a runtime path override, the parent directory of `<dir>` is Kelpie home.
+2. If `KELPIE_HOME` is set and the directory exists, `KELPIE_HOME` is Kelpie home.
+3. Otherwise, the parent directory of the startup directory is Kelpie home.
+
+KelpieSSH does not read `KELPIEPRO_HOME`.
+
 ## File Generation
 
 `kelpie init` creates the local directory layout and sample files.
@@ -47,6 +55,15 @@ config_samples/
    └─ vps01.json
 ```
 
+For a safe validation workflow, copy `config_samples/servers/vps01.json` to `KelpieHome/profiles/vps01.json`, edit it for a disposable SSH target such as a local Docker SSH container, and run:
+
+```powershell
+kelpie config check
+kelpie profile check vps01
+```
+
+The check commands validate local configuration and profile files before opening an SSH connection. Do not copy real host names, real user names, private keys, passwords, passphrases, or raw operational logs into sample files.
+
 ## Main Settings
 
 ### `config/kelpie.json`
@@ -55,38 +72,40 @@ Used by the `kelpie` command.
 
 Important values:
 
-| Setting | Purpose |
-| :--- | :--- |
-| `LogDirectory` | Directory for CLI logs. |
-| `OpenProfile` | Last selected profile name for commands that use the open profile. |
-| `Server:ControlPipeName` | Local named pipe used by `kelpie` / `kelpiemcp` to control the server. |
-| `Commands:ExecutablePath` | Optional explicit `kelpie` command path. |
-| `Commands:WorkingDirectory` | Optional command working directory. |
-| `editor` | Optional editor command used by `kelpie profile edit <profile>` editor mode. Arguments are allowed. |
+| Setting | Required | Initial value | Purpose |
+| :--- | :---: | :--- | :--- |
+| `LogDirectory` | no | `KelpieHome\logs` | Directory for CLI logs. |
+| `OpenProfile` | no | none | Last selected profile name for commands that use the open profile. Runtime state is normally stored in `dat/storm_state.dat`. |
+| `Server:ControlPipeName` | no | none | Local named pipe used by `kelpie` / `kelpiemcp` to control the server. Usually configured in `kelpiemcp.json`; commands that contact the server require an effective value. |
+| `Commands:ExecutablePath` | no | none | Optional explicit `kelpie` command path. |
+| `Commands:WorkingDirectory` | no | none | Optional command working directory. |
+| `Editor` | no | empty string | Optional editor command used by `kelpie profile edit <profile>` editor mode. Arguments are allowed. |
 
 Minimal example:
 
 ```json
 {
   "LogDirectory": "D:\\Kelpie\\logs",
-  "editor": ""
+  "Editor": ""
 }
 ```
 
 `kelpie profile edit <profile>` resolves the editor in this order:
 
-1. `config/kelpie.json` `editor`
+1. `config/kelpie.json` `Editor`
 2. `KELPIE_EDITOR`
 3. `VISUAL`
 4. `EDITOR`
 5. OS default: `notepad` on Windows, `vi` on Unix
+
+Legacy lowercase `editor` is accepted for compatibility. When `kelpie.json` contains `editor`, every `kelpie` command prints a standard-output warning asking the user to rename it to `Editor`. The key is normalized to `Editor` when Kelpie updates the config file.
 
 The editor process is started in blocking mode and Kelpie waits for it to exit before validating the profile.
 Editors that normally return immediately must be configured with a wait option, for example:
 
 ```json
 {
-  "editor": "code --wait"
+  "Editor": "code --wait"
 }
 ```
 
@@ -94,6 +113,7 @@ Special values:
 
 | Value | Meaning |
 | :--- | :--- |
+| `vscode` | Case-insensitive alias for the VS Code `code` CLI. On Windows, Kelpie resolves `code` from `PATH` / `PATHEXT` when available, so `"Editor": "vscode --wait"` can use the installed `code.cmd` path without hard-coding it. |
 | `Notepad` | Case-insensitive. Starts Windows Notepad. |
 | `default` | Case-insensitive. Opens the profile `.json` file with the application associated by the OS. |
 
@@ -103,14 +123,14 @@ Used by `kelpiemcp` and `KelpieMCPServer`.
 
 Important values:
 
-| Setting | Purpose |
-| :--- | :--- |
-| `AllowedHosts` | HTTP Host allow-list for the local MCP server. |
-| `Server:ControlPipeName` | Local named pipe used by `kelpiemcp` to control the server. |
-| `LogDirectory` | Directory for MCP server logs. |
-| `Commands:ExecutablePath` | Optional explicit `KelpieMCPServer` executable path. |
-| `Commands:WorkingDirectory` | Optional server working directory. |
-| `ProfileOperations` | Allows or denies profile trust operations by caller channel. Defaults allow CLI operations and deny MCP operations. |
+| Setting | Required | Initial value | Purpose |
+| :--- | :---: | :--- | :--- |
+| `AllowedHosts` | no | `localhost;127.0.0.1;[::1]` | HTTP Host allow-list for the local MCP server. |
+| `Server:ControlPipeName` | yes | `KelpieMCPServer.Control` | Local named pipe used by `kelpiemcp` to control the server. |
+| `LogDirectory` | no | `KelpieHome\logs` | Directory for MCP server logs. |
+| `Commands:ExecutablePath` | no | `KelpieHome\bin\mcp\KelpieMCPServer.exe` on Windows | Optional explicit `KelpieMCPServer` executable path. |
+| `Commands:WorkingDirectory` | no | `KelpieHome\bin` | Optional server working directory. |
+| `ProfileOperations` | no | CLI `Allow`, MCP `Deny` | Allows or denies profile trust operations by caller channel. Defaults allow CLI operations and deny MCP operations. |
 
 By default, the MCP endpoint is:
 
@@ -132,6 +152,7 @@ Minimal example:
 {
   "LogDirectory": "D:\\Kelpie\\logs",
   "Server": {
+    "Port": 45432,
     "ControlPipeName": "KelpieMCPServer.Control"
   },
   "ProfileOperations": {
@@ -167,14 +188,14 @@ The current implementation also accepts legacy values for compatibility: `Allowe
 
 Default policy:
 
-| Setting | Default | Purpose |
-| :--- | :--- | :--- |
-| `ProfileOperations:Add:CLI` | `Allow` | Allows `kelpiemcp profile add <profile>`. |
-| `ProfileOperations:Reload:CLI` | `Allow` | Allows `kelpiemcp profile reload <profile>`. |
-| `ProfileOperations:Revoke:CLI` | `Allow` | Allows `kelpiemcp profile revoke <profile>`. |
-| `ProfileOperations:Add:MCP` | `Deny` | MCP profile add is not exposed. |
-| `ProfileOperations:Reload:MCP` | `Deny` | Controls the `ReloadAllowed` value returned by `ssh_profile_capabilities`. |
-| `ProfileOperations:Revoke:MCP` | `Deny` | MCP profile revoke is not exposed. |
+| Setting | Required | Initial value | Purpose |
+| :--- | :---: | :--- | :--- |
+| `ProfileOperations:Add:CLI` | no | `Allow` | Allows `kelpiemcp profile add <profile>`. |
+| `ProfileOperations:Reload:CLI` | no | `Allow` | Allows `kelpiemcp profile reload <profile>`. |
+| `ProfileOperations:Revoke:CLI` | no | `Allow` | Allows `kelpiemcp profile revoke <profile>`. |
+| `ProfileOperations:Add:MCP` | no | `Deny` | MCP profile add is not exposed. |
+| `ProfileOperations:Reload:MCP` | no | `Deny` | Controls the `ReloadAllowed` value returned by `ssh_profile_capabilities`. |
+| `ProfileOperations:Revoke:MCP` | no | `Deny` | MCP profile revoke is not exposed. |
 
 When a CLI operation is denied, the corresponding command returns a JSON result with `Success: false` and `Status: disabled-by-config`.
 `kelpiemcp profile-capabilities [profile]` returns `AddAllowed`, `ReloadAllowed`, and `RevokeAllowed` after applying both the trust-store state and the `ProfileOperations:*:CLI` settings.
@@ -207,10 +228,10 @@ Example:
 }
 ```
 
-| Setting | Purpose |
-| :--- | :--- |
-| `OpenProfile` | Last profile opened with `kelpie open <profile>`. `kelpie login` uses this value. |
-| `ClientMode` | Client mode selected by commands such as `kelpie gui` or `kelpie cli`. |
+| Setting | Required | Initial value | Purpose |
+| :--- | :---: | :--- | :--- |
+| `OpenProfile` | no | none | Last profile opened with `kelpie open <profile>`. `kelpie login` uses this value. |
+| `ClientMode` | no | none | Client mode selected by commands such as `kelpie gui` or `kelpie cli`. |
 
 ## SSH Profiles
 
@@ -223,6 +244,8 @@ Common commands:
 
 ```powershell
 kelpie init vps01
+kelpie config check
+kelpie profile check vps01
 kelpie profile show vps01
 kelpie open vps01
 kelpie login

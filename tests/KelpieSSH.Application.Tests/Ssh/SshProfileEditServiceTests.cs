@@ -35,6 +35,20 @@ public sealed class SshProfileEditServiceTests
         ReadProfile(profile.Path)["Host"]!["Port"]!.GetValue<int>().Should().Be(2224);
     }
 
+    [Fact]
+    public void SetHostKeyFingerprint_ShouldSetNormalizedSha256Fingerprint()
+    {
+        using var profile = TestProfile.Create();
+        var service = CreateService();
+
+        var result = service.SetHostKeyFingerprint(profile.Path, "abc123=");
+
+        result.Success.Should().BeTrue();
+        var node = ReadProfile(profile.Path);
+        node["Host"]!["HostKeyFingerprintSha256"]!.GetValue<string>().Should().Be("SHA256:abc123");
+        SshConnectionProfileFileLoader.LoadFile(profile.Path).HostKeyFingerprintSha256.Should().Be("SHA256:abc123");
+    }
+
     [Theory]
     [InlineData("0")]
     [InlineData("65536")]
@@ -157,16 +171,54 @@ public sealed class SshProfileEditServiceTests
             ["VISUAL"] = "code --wait",
             ["EDITOR"] = "vi",
         };
+        string? GetEnv(string key) => env.TryGetValue(key, out var value) ? value : null;
 
-        ProfileEditorCommandResolver.Resolve("notepad", key => env[key], isWindows: true).Should().Be("notepad");
-        ProfileEditorCommandResolver.Resolve("", key => env[key], isWindows: true).Should().Be("nano");
+        ProfileEditorCommandResolver.Resolve("notepad", GetEnv, isWindows: true).Should().Be("notepad");
+        ProfileEditorCommandResolver.Resolve("vscode --wait", GetEnv, isWindows: true).Should().Be("code --wait");
+        ProfileEditorCommandResolver.Resolve("\"vscode\" --wait", GetEnv, isWindows: true).Should().Be("code --wait");
+        ProfileEditorCommandResolver.Resolve("", GetEnv, isWindows: true).Should().Be("nano");
         env["KELPIE_EDITOR"] = "";
-        ProfileEditorCommandResolver.Resolve("", key => env[key], isWindows: true).Should().Be("code --wait");
+        ProfileEditorCommandResolver.Resolve("", GetEnv, isWindows: true).Should().Be("code --wait");
         env["VISUAL"] = "";
-        ProfileEditorCommandResolver.Resolve("", key => env[key], isWindows: false).Should().Be("vi");
+        ProfileEditorCommandResolver.Resolve("", GetEnv, isWindows: false).Should().Be("vi");
         env["EDITOR"] = "";
-        ProfileEditorCommandResolver.Resolve("", key => env[key], isWindows: true).Should().Be("notepad");
-        ProfileEditorCommandResolver.Resolve("", key => env[key], isWindows: false).Should().Be("vi");
+        ProfileEditorCommandResolver.Resolve("", GetEnv, isWindows: true).Should().Be("notepad");
+        ProfileEditorCommandResolver.Resolve("", GetEnv, isWindows: false).Should().Be("vi");
+    }
+
+    [Fact]
+    public void EditWithEditor_ShouldResolveVscodeAliasFromPath()
+    {
+        var directory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"kelpie-code-path-{Guid.NewGuid():N}", "VS Code Bin");
+        Directory.CreateDirectory(directory);
+        var codePath = System.IO.Path.Combine(directory, "code.cmd");
+        File.WriteAllText(codePath, string.Empty);
+        var env = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["PATH"] = directory,
+            ["PATHEXT"] = ".EXE;.CMD",
+        };
+        string? GetEnv(string key) => env.TryGetValue(key, out var value) ? value : null;
+
+        ProfileEditorCommandResolver.Resolve("vscode --wait", GetEnv, isWindows: true)
+            .Should().Be($"\"{codePath}\" --wait");
+        ProfileEditorCommandResolver.Resolve("\"vscode\" --wait", GetEnv, isWindows: true)
+            .Should().Be($"\"{codePath}\" --wait");
+    }
+
+    [Fact]
+    public void EditWithEditor_ShouldLaunchCmdEditorPath()
+    {
+        using var profile = TestProfile.Create();
+        var directory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"kelpie-cmd-editor-{Guid.NewGuid():N}", "Editor Bin");
+        Directory.CreateDirectory(directory);
+        var editorPath = System.IO.Path.Combine(directory, "editor.cmd");
+        File.WriteAllText(editorPath, "@exit /b 0");
+        var launcher = new ProcessEditorLauncher();
+
+        var result = launcher.Launch($"\"{editorPath}\"", profile.Path);
+
+        result.Success.Should().BeTrue(result.ErrorMessage);
     }
 
     [Fact]

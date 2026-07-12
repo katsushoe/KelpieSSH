@@ -1,6 +1,7 @@
 using System.IO.Pipes;
 using System.Security.AccessControl;
 using System.Security.Principal;
+using System.Text;
 using System.Text.Json;
 using Kelpie.Core;
 using KelpieSSH.Application.Ssh;
@@ -15,9 +16,15 @@ namespace KelpieMCPServer;
 /// </summary>
 public sealed class NamedPipeShutdownService : BackgroundService
 {
+    private static readonly UTF8Encoding ControlPipeEncoding = new(
+        encoderShouldEmitUTF8Identifier: false,
+        throwOnInvalidBytes: true);
+
     private readonly IHostApplicationLifetime _applicationLifetime;
     private readonly ISshConnectionProfileCatalog _profileCatalog;
     private readonly ISshPasswordSessionStore _passwordSessionStore;
+    private readonly IKelpieSecretStore _secretStore;
+    private readonly IKelpieEnvironmentOverrideStore _environmentOverrideStore;
     private readonly SshCommandService _sshCommandService;
     private readonly ILogger<NamedPipeShutdownService> _logger;
     private readonly KelpieServerControlOptions _options;
@@ -34,6 +41,8 @@ public sealed class NamedPipeShutdownService : BackgroundService
     /// <param name="passwordSessionStore">The SSH password session store.</param>
     /// <param name="sshCommandService">The SSH command service.</param>
     /// <param name="isWindowsService">The optional Windows Service execution detector.</param>
+    /// <param name="secretStore">The optional short-lived secret store.</param>
+    /// <param name="environmentOverrideStore">The optional short-lived environment override store.</param>
     public NamedPipeShutdownService(
         IHostApplicationLifetime applicationLifetime,
         ILogger<NamedPipeShutdownService> logger,
@@ -42,13 +51,17 @@ public sealed class NamedPipeShutdownService : BackgroundService
         ISshPasswordSessionStore passwordSessionStore,
         SshCommandService sshCommandService,
         Func<bool>? isWindowsService = null,
-        KelpieProfileOperationsOptions? profileOperations = null)
+        KelpieProfileOperationsOptions? profileOperations = null,
+        IKelpieSecretStore? secretStore = null,
+        IKelpieEnvironmentOverrideStore? environmentOverrideStore = null)
     {
         _applicationLifetime = applicationLifetime;
         _logger = logger;
         _options = options;
         _profileCatalog = profileCatalog;
         _passwordSessionStore = passwordSessionStore;
+        _secretStore = secretStore ?? new InMemoryKelpieSecretStore();
+        _environmentOverrideStore = environmentOverrideStore ?? new InMemoryKelpieEnvironmentOverrideStore();
         _sshCommandService = sshCommandService;
         _profileOperations = profileOperations ?? KelpieProfileOperationsOptions.Default;
         _isWindowsService = isWindowsService ?? WindowsServiceHelpers.IsWindowsService;
@@ -61,12 +74,12 @@ public sealed class NamedPipeShutdownService : BackgroundService
         {
             try
             {
-                await using var pipe = CreateControlPipe(_options.PipeName);
+                await using var pipe = CreateControlPipe(_options.PipeName, _isWindowsService());
 
                 await pipe.WaitForConnectionAsync(stoppingToken);
 
-                using var reader = new StreamReader(pipe);
-                var writer = new StreamWriter(pipe)
+                using var reader = new StreamReader(pipe, ControlPipeEncoding);
+                var writer = new StreamWriter(pipe, ControlPipeEncoding)
                 {
                     AutoFlush = true,
                 };
@@ -123,6 +136,48 @@ public sealed class NamedPipeShutdownService : BackgroundService
                 if (TryGetArgument(message, "logout", out var logoutProfileName))
                 {
                     await HandleLogoutAsync(logoutProfileName, writer, stoppingToken);
+                    continue;
+                }
+
+                if (TryGetArgument(message, "secret-put", out var secretPutRequestJson))
+                {
+                    await HandleSecretPutAsync(secretPutRequestJson, reader, writer, stoppingToken);
+                    continue;
+                }
+
+                if (string.Equals(message, "secret-list", StringComparison.OrdinalIgnoreCase))
+                {
+                    await HandleSecretListAsync(writer, stoppingToken);
+                    continue;
+                }
+
+                if (TryGetArgument(message, "secret-forget", out var secretName))
+                {
+                    await HandleSecretForgetAsync(secretName, writer, stoppingToken);
+                    continue;
+                }
+
+                if (TryGetArgument(message, "env-put", out var envPutRequestJson))
+                {
+                    await HandleEnvPutAsync(envPutRequestJson, reader, writer, stoppingToken);
+                    continue;
+                }
+
+                if (TryGetArgument(message, "env-list", out var envListRequestJson))
+                {
+                    await HandleEnvListAsync(envListRequestJson, writer, stoppingToken);
+                    continue;
+                }
+
+                if (TryGetArgument(message, "env-forget", out var envForgetRequestJson))
+                {
+                    await HandleEnvForgetAsync(envForgetRequestJson, writer, stoppingToken);
+                    continue;
+                }
+
+                if (TryGetArgument(message, "env-clear", out var envClearRequestJson))
+                {
+                    await HandleEnvClearAsync(envClearRequestJson, writer, stoppingToken);
                     continue;
                 }
 
@@ -255,6 +310,269 @@ public sealed class NamedPipeShutdownService : BackgroundService
         _passwordSessionStore.ClearPassword(profile.PasswordSecretName);
         KpLog.Info($"SSH password session cleared. profile={profile.Name}");
         await writer.WriteLineAsync("logged-out");
+        await writer.FlushAsync(cancellationToken);
+    }
+
+    private async Task HandleSecretPutAsync(
+        string requestJson,
+        TextReader reader,
+        TextWriter writer,
+        CancellationToken cancellationToken)
+    {
+        SecretPutRequest? request;
+        try
+        {
+            request = JsonSerializer.Deserialize<SecretPutRequest>(requestJson);
+        }
+        catch (JsonException)
+        {
+            await writer.WriteLineAsync("invalid-request");
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        if (request is null || string.IsNullOrWhiteSpace(request.Name))
+        {
+            await writer.WriteLineAsync("secret-name-required");
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        await writer.WriteLineAsync("secret-required");
+        await writer.FlushAsync(cancellationToken);
+
+        var contentBase64 = await reader.ReadLineAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(contentBase64))
+        {
+            await writer.WriteLineAsync("secret-empty");
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        byte[] content;
+        try
+        {
+            content = Convert.FromBase64String(contentBase64);
+        }
+        catch (FormatException)
+        {
+            await writer.WriteLineAsync("secret-invalid-base64");
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        try
+        {
+            var ttl = request.TtlSeconds is > 0
+                ? TimeSpan.FromSeconds(request.TtlSeconds.Value)
+                : TimeSpan.FromMinutes(10);
+            var info = _secretStore.Put(request.Name, content, ttl);
+            KpLog.Info($"Secret stored for MCP session. name={info.Name}, size={info.Size}, expiresAtUtc={info.ExpiresAtUtc:O}");
+            await writer.WriteLineAsync(JsonSerializer.Serialize(info));
+            await writer.FlushAsync(cancellationToken);
+        }
+        catch (ArgumentException ex)
+        {
+            await writer.WriteLineAsync("secret-rejected:" + ex.Message);
+            await writer.FlushAsync(cancellationToken);
+        }
+    }
+
+    private async Task HandleSecretListAsync(
+        TextWriter writer,
+        CancellationToken cancellationToken)
+    {
+        await writer.WriteLineAsync(JsonSerializer.Serialize(_secretStore.List()));
+        await writer.FlushAsync(cancellationToken);
+    }
+
+    private async Task HandleSecretForgetAsync(
+        string secretName,
+        TextWriter writer,
+        CancellationToken cancellationToken)
+    {
+        var removed = _secretStore.Forget(secretName);
+        KpLog.Info($"Secret forget requested. name={secretName}, removed={removed}");
+        await writer.WriteLineAsync(removed ? "secret-forgotten" : "secret-not-found");
+        await writer.FlushAsync(cancellationToken);
+    }
+
+    private async Task HandleEnvPutAsync(
+        string requestJson,
+        TextReader reader,
+        TextWriter writer,
+        CancellationToken cancellationToken)
+    {
+        EnvPutRequest? request;
+        try
+        {
+            request = JsonSerializer.Deserialize<EnvPutRequest>(requestJson);
+        }
+        catch (JsonException)
+        {
+            await writer.WriteLineAsync("invalid-request");
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        if (request is null || string.IsNullOrWhiteSpace(request.ProfileName) || string.IsNullOrWhiteSpace(request.Key))
+        {
+            await writer.WriteLineAsync("invalid-request");
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        if (!TryValidateEnvironmentOverride(request.ProfileName, request.Key, out var profile, out var failure))
+        {
+            await writer.WriteLineAsync(failure);
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        await writer.WriteLineAsync("env-value-required");
+        await writer.FlushAsync(cancellationToken);
+
+        var valueBase64 = await reader.ReadLineAsync(cancellationToken);
+        if (valueBase64 is null)
+        {
+            await writer.WriteLineAsync("env-value-missing");
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        string value;
+        try
+        {
+            value = Encoding.UTF8.GetString(Convert.FromBase64String(valueBase64));
+        }
+        catch (FormatException)
+        {
+            await writer.WriteLineAsync("env-value-invalid-base64");
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        try
+        {
+            var info = _environmentOverrideStore.Put(profile.Name, request.Key.Trim(), value);
+            KpLog.Info($"Environment override stored for MCP session. profile={info.ProfileName}, key={info.Key}, valueLength={info.ValueLength}");
+            await writer.WriteLineAsync(JsonSerializer.Serialize(info));
+            await writer.FlushAsync(cancellationToken);
+        }
+        catch (ArgumentException ex)
+        {
+            await writer.WriteLineAsync("env-rejected:" + ex.Message);
+            await writer.FlushAsync(cancellationToken);
+        }
+    }
+
+    private async Task HandleEnvListAsync(
+        string requestJson,
+        TextWriter writer,
+        CancellationToken cancellationToken)
+    {
+        EnvListRequest? request;
+        try
+        {
+            request = JsonSerializer.Deserialize<EnvListRequest>(requestJson);
+        }
+        catch (JsonException)
+        {
+            await writer.WriteLineAsync("invalid-request");
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        var profileName = request?.ProfileName?.Trim();
+        if (!string.IsNullOrWhiteSpace(profileName) && !_profileCatalog.TryGet(profileName, out _))
+        {
+            await writer.WriteLineAsync("profile-not-found");
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        await writer.WriteLineAsync(JsonSerializer.Serialize(_environmentOverrideStore.List(profileName)));
+        await writer.FlushAsync(cancellationToken);
+    }
+
+    private async Task HandleEnvForgetAsync(
+        string requestJson,
+        TextWriter writer,
+        CancellationToken cancellationToken)
+    {
+        EnvForgetRequest? request;
+        try
+        {
+            request = JsonSerializer.Deserialize<EnvForgetRequest>(requestJson);
+        }
+        catch (JsonException)
+        {
+            await writer.WriteLineAsync("invalid-request");
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        if (request is null || string.IsNullOrWhiteSpace(request.ProfileName) || string.IsNullOrWhiteSpace(request.Key))
+        {
+            await writer.WriteLineAsync("invalid-request");
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        if (!TryValidateEnvironmentOverride(request.ProfileName, request.Key, out var profile, out var failure))
+        {
+            await writer.WriteLineAsync(failure);
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        var removed = _environmentOverrideStore.Forget(profile.Name, request.Key.Trim());
+        KpLog.Info($"Environment override forget requested. profile={profile.Name}, key={request.Key.Trim()}, removed={removed}");
+        await writer.WriteLineAsync(removed ? "env-forgotten" : "env-not-found");
+        await writer.FlushAsync(cancellationToken);
+    }
+
+    private async Task HandleEnvClearAsync(
+        string requestJson,
+        TextWriter writer,
+        CancellationToken cancellationToken)
+    {
+        EnvClearRequest? request;
+        try
+        {
+            request = JsonSerializer.Deserialize<EnvClearRequest>(requestJson);
+        }
+        catch (JsonException)
+        {
+            await writer.WriteLineAsync("invalid-request");
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        if (request is null || string.IsNullOrWhiteSpace(request.ProfileName))
+        {
+            await writer.WriteLineAsync("invalid-request");
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        if (!_profileCatalog.TryGet(request.ProfileName, out var profile))
+        {
+            await writer.WriteLineAsync("profile-not-found");
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        if (!profile.Capabilities.Allows(KelpiePolicyNames.AllowSetEnvironmentValues))
+        {
+            await writer.WriteLineAsync("env-set-not-allowed");
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
+        var removed = _environmentOverrideStore.Clear(profile.Name);
+        KpLog.Info($"Environment overrides cleared for MCP session. profile={profile.Name}, removed={removed}");
+        await writer.WriteLineAsync(JsonSerializer.Serialize(new EnvClearResponse(profile.Name, removed)));
         await writer.FlushAsync(cancellationToken);
     }
 
@@ -440,7 +758,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
                 request.Arguments,
                 timeout,
                 KelpieExecutionChannel.Cli,
-                cancellationToken);
+                cancellationToken: cancellationToken);
 
             await WriteSendCommandResponseAsync(
                 writer,
@@ -485,6 +803,57 @@ public sealed class NamedPipeShutdownService : BackgroundService
     private static bool IsUnknownAllowedCommandError(InvalidOperationException ex)
     {
         return ex.Message.StartsWith("SSH command is not allowed:", StringComparison.Ordinal);
+    }
+
+    private bool TryValidateEnvironmentOverride(
+        string profileName,
+        string key,
+        out SshConnectionProfile profile,
+        out string failure)
+    {
+        profile = default!;
+        failure = string.Empty;
+        if (!_profileCatalog.TryGet(profileName, out profile))
+        {
+            failure = "profile-not-found";
+            return false;
+        }
+
+        if (!profile.Capabilities.Allows(KelpiePolicyNames.AllowSetEnvironmentValues))
+        {
+            failure = "env-set-not-allowed";
+            return false;
+        }
+
+        try
+        {
+            ValidateEnvironmentKey(key);
+        }
+        catch (InvalidOperationException)
+        {
+            failure = "env-key-invalid";
+            return false;
+        }
+
+        var rule = profile.EnvironmentValues.FirstOrDefault(rule =>
+            string.Equals(rule.Key, key.Trim(), StringComparison.Ordinal));
+        if (rule is null || !rule.AllowsSetValue || rule.IsHidden)
+        {
+            failure = "env-key-not-allowed";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static void ValidateEnvironmentKey(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key)
+            || !key.Trim().All(ch => char.IsAsciiLetterOrDigit(ch) || ch == '_')
+            || char.IsDigit(key.Trim()[0]))
+        {
+            throw new InvalidOperationException($"Environment variable key is invalid: {key}");
+        }
     }
 
     private static async Task WriteSendCommandResponseAsync(
@@ -550,7 +919,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
         return ex.Message.Contains("Pipe is broken", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static NamedPipeServerStream CreateControlPipe(string pipeName)
+    private static NamedPipeServerStream CreateControlPipe(string pipeName, bool isWindowsService)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -563,10 +932,24 @@ public sealed class NamedPipeShutdownService : BackgroundService
         }
 
         var security = new PipeSecurity();
-        var users = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
+        using var identity = WindowsIdentity.GetCurrent();
+        var currentUser = identity.User;
         var admins = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
-        security.AddAccessRule(new PipeAccessRule(users, PipeAccessRights.ReadWrite, AccessControlType.Allow));
+        var localSystem = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+        if (currentUser is not null)
+        {
+            security.AddAccessRule(new PipeAccessRule(currentUser, PipeAccessRights.ReadWrite, AccessControlType.Allow));
+        }
+
         security.AddAccessRule(new PipeAccessRule(admins, PipeAccessRights.FullControl, AccessControlType.Allow));
+        security.AddAccessRule(new PipeAccessRule(localSystem, PipeAccessRights.FullControl, AccessControlType.Allow));
+        if (isWindowsService)
+        {
+            var interactiveUsers = new SecurityIdentifier(WellKnownSidType.InteractiveSid, null);
+            var remoteInteractiveUsers = new SecurityIdentifier("S-1-5-14");
+            security.AddAccessRule(new PipeAccessRule(interactiveUsers, PipeAccessRights.ReadWrite, AccessControlType.Allow));
+            security.AddAccessRule(new PipeAccessRule(remoteInteractiveUsers, PipeAccessRights.ReadWrite, AccessControlType.Allow));
+        }
 
         return NamedPipeServerStreamAcl.Create(
             pipeName,
@@ -583,6 +966,28 @@ public sealed class NamedPipeShutdownService : BackgroundService
         string CommandName,
         IReadOnlyDictionary<string, string>? Arguments,
         int? TimeoutSeconds);
+
+    private sealed record SecretPutRequest(
+        string Name,
+        int? TtlSeconds);
+
+    private sealed record EnvPutRequest(
+        string ProfileName,
+        string Key);
+
+    private sealed record EnvListRequest(
+        string? ProfileName);
+
+    private sealed record EnvForgetRequest(
+        string ProfileName,
+        string Key);
+
+    private sealed record EnvClearRequest(
+        string ProfileName);
+
+    private sealed record EnvClearResponse(
+        string ProfileName,
+        int Removed);
 
     private sealed record SendCommandResponse(
         string Handle,

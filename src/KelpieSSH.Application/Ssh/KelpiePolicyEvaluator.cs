@@ -119,6 +119,8 @@ public sealed class KelpiePolicyEvaluator
             "pkg_simulate_remove" => KelpiePolicyNames.AllowListPackage,
             "pkg_install" => KelpiePolicyNames.AllowInstallPackage,
             "pkg_remove" => KelpiePolicyNames.AllowRemovePackage,
+            "certbot_check_install" => KelpiePolicyNames.AllowListPackage,
+            "certbot_install" => KelpiePolicyNames.AllowInstallPackage,
             _ => null,
         };
     }

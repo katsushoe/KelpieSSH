@@ -25,6 +25,8 @@ public sealed class SshNetInteractiveShellSession : IAsyncDisposable
     private readonly SshConnectionProfile _profile;
     private readonly SshNetAuthenticationFactory _authenticationFactory;
     private readonly object _syncRoot = new();
+    private readonly Utf8ChunkDecoder _outputDecoder = new();
+    private readonly byte[] _readBuffer = new byte[4096];
     private SshClient? _client;
     private ShellStream? _shell;
 
@@ -60,6 +62,11 @@ public sealed class SshNetInteractiveShellSession : IAsyncDisposable
             throw new InvalidOperationException("Direct root SSH login is not allowed.");
         }
 
+        if (!SshHostKeyVerifier.HasPinnedFingerprint(_profile.HostKeyFingerprintSha256))
+        {
+            KpLog.Warn($"SSH host key is not pinned. profile={_profile.Name}, host={_profile.Host}. Verify the first connection out of band and set Host.HostKeyFingerprintSha256.");
+        }
+
         var authenticationMethod = await _authenticationFactory.CreateAsync(_profile, cancellationToken);
         var connectionInfo = new ConnectionInfo(
             _profile.Host,
@@ -71,6 +78,13 @@ public sealed class SshNetInteractiveShellSession : IAsyncDisposable
         };
 
         _client = new SshClient(connectionInfo);
+        _client.HostKeyReceived += (_, args) =>
+        {
+            args.CanTrust = SshHostKeyVerifier.IsTrusted(
+                _profile.HostKeyFingerprintSha256,
+                args.FingerPrintSHA256);
+        };
+
         await ConnectClientAsync(_client, cancellationToken);
         _shell = _client.CreateShellStream(
             TerminalName,
@@ -153,7 +167,7 @@ public sealed class SshNetInteractiveShellSession : IAsyncDisposable
         var shell = _shell ?? throw new InvalidOperationException("SSH shell is not connected.");
         return await RunShellOperationAsync(() =>
         {
-            return shell.DataAvailable ? shell.Read() : string.Empty;
+            return ReadAvailableDecodedOutput(shell);
         }, cancellationToken);
     }
 
@@ -223,7 +237,7 @@ public sealed class SshNetInteractiveShellSession : IAsyncDisposable
             string currentOutput;
             lock (_syncRoot)
             {
-                currentOutput = shell.DataAvailable ? shell.Read() : string.Empty;
+                currentOutput = ReadAvailableDecodedOutput(shell);
             }
 
             if (!string.IsNullOrEmpty(currentOutput))
@@ -239,6 +253,28 @@ public sealed class SshNetInteractiveShellSession : IAsyncDisposable
             }
 
             await Task.Delay(ReadInterval, cancellationToken);
+        }
+
+        return output.ToString();
+    }
+
+    private string ReadAvailableDecodedOutput(ShellStream shell)
+    {
+        if (!shell.DataAvailable)
+        {
+            return string.Empty;
+        }
+
+        var output = new StringBuilder();
+        while (shell.DataAvailable)
+        {
+            var read = shell.Read(_readBuffer, 0, _readBuffer.Length);
+            if (read <= 0)
+            {
+                break;
+            }
+
+            output.Append(_outputDecoder.Decode(_readBuffer.AsSpan(0, read)));
         }
 
         return output.ToString();

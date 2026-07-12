@@ -8,6 +8,16 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+if (!KelpieRuntimePathOverrideParser.TryParse(args, out var commandArgs, out var runtimePathOverrides, out var runtimePathError))
+{
+    Console.Error.WriteLine(runtimePathError);
+    Environment.ExitCode = 2;
+    return;
+}
+
+KelpieRuntimePaths.SetOverrides(runtimePathOverrides);
+args = commandArgs;
+
 if (McpServerCliOptions.IsHelpRequested(args))
 {
     Console.WriteLine(McpServerCliOptions.HelpText);
@@ -95,6 +105,8 @@ builder.Services.AddSingleton<ISshConnectionProfileCatalog>(serviceProvider =>
 builder.Services.AddSingleton(CommandProcessingProviderCatalog.CreateDefault());
 builder.Services.AddSingleton(ServiceConfigPathsProviderCatalog.CreateDefault());
 builder.Services.AddSingleton<IWebPublicFileProvider, WebPublicFileProvider>();
+builder.Services.AddSingleton<IKelpieSecretStore, InMemoryKelpieSecretStore>();
+builder.Services.AddSingleton<IKelpieEnvironmentOverrideStore, InMemoryKelpieEnvironmentOverrideStore>();
 builder.Services.AddSingleton<ISshPasswordSessionStore, InMemorySshPasswordSessionStore>();
 builder.Services.AddSingleton<ISshPasswordProvider>(serviceProvider =>
     serviceProvider.GetRequiredService<ISshPasswordSessionStore>());
@@ -102,7 +114,8 @@ builder.Services.AddSingleton<SshTerminalSessionManager>();
 builder.Services.AddSingleton<ISshCommandRunner, SshNetCommandRunner>();
 builder.Services.AddSingleton(serviceProvider => new SshCommandService(
     serviceProvider.GetRequiredService<IReadOnlyCollection<ICommandProcessingProvider>>(),
-    serviceProvider.GetRequiredService<ISshCommandRunner>()));
+    serviceProvider.GetRequiredService<ISshCommandRunner>(),
+    serviceProvider.GetRequiredService<IKelpieEnvironmentOverrideStore>()));
 builder.Services.AddHostedService<NamedPipeShutdownService>();
 
 builder.Services
@@ -111,7 +124,7 @@ builder.Services
         options.ServerInfo = new()
         {
             Name = "KelpieSSH",
-            Version = "0.2.4.0",
+            Version = "0.3.8.0",
         };
     })
     .WithHttpTransport(options =>

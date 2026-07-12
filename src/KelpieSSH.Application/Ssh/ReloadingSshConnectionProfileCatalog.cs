@@ -85,12 +85,16 @@ public sealed class ReloadingSshConnectionProfileCatalog : ISshConnectionProfile
             try
             {
                 var next = LoadCatalog(_profilesDirectory, _trustStorePath, _reloadProfileNames, out var loadErrors);
-                _current = next;
                 ProfileLoadErrors = loadErrors;
                 LastReloadError = loadErrors.Count == 0
                     ? null
                     : new InvalidOperationException(string.Join("; ", loadErrors.Select(error => error.Message)));
-                var profiles = next.List();
+                if (loadErrors.Count == 0)
+                {
+                    _current = next;
+                }
+
+                var profiles = _current.List();
                 return new SshConnectionProfileReloadResult(
                     Success: loadErrors.Count == 0,
                     ProfilesDirectory: _profilesDirectory,
@@ -274,9 +278,9 @@ public sealed class ReloadingSshConnectionProfileCatalog : ISshConnectionProfile
     {
         if (string.IsNullOrWhiteSpace(trustStorePath))
         {
-            loadErrors = [];
-            return new SshConnectionProfileCatalog(
-                SshConnectionProfileFileLoader.LoadDirectory(profilesDirectory));
+            var result = SshConnectionProfileFileLoader.LoadDirectoryWithErrors(profilesDirectory);
+            loadErrors = result.Errors;
+            return new SshConnectionProfileCatalog(result.Profiles);
         }
 
         return LoadTrustedCatalog(profilesDirectory, trustStorePath, reloadProfileNames, out loadErrors);

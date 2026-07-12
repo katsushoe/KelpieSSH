@@ -47,7 +47,7 @@ public sealed class RhelNginxCommandProvider : IAllowedCommandProvider
             SshCommandRiskLevel.ConfirmRequired),
         new(
             "http_get_local",
-            "python3 -c \"import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:' + {port} + '/', timeout=5).read().decode('utf-8'))\"",
+            "sh -c \"if command -v curl >/dev/null 2>&1; then curl -fsS --max-time 5 \\\"http://127.0.0.1:$1/\\\"; elif command -v wget >/dev/null 2>&1; then wget -qO- -T 5 \\\"http://127.0.0.1:$1/\\\"; else printf '%s\\n' 'ERROR: curl or wget is required' >&2; exit 127; fi\" -- {port}",
             TimeSpan.FromSeconds(10),
             [PortParameter]),
     ];

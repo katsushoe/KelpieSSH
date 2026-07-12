@@ -198,6 +198,69 @@ public sealed partial class KelpieTools
     }
 
     /// <summary>
+    /// Checks whether one explicitly allowed web secret file can be written without exposing the secret value.
+    /// </summary>
+    /// <param name="sshCommandService">The SSH command service.</param>
+    /// <param name="profileCatalog">The SSH profile catalog.</param>
+    /// <param name="webPublicFileProvider">The web public file provider.</param>
+    /// <param name="secretStore">The in-memory secret store.</param>
+    /// <param name="profileName">The SSH profile name.</param>
+    /// <param name="siteKey">The web public site key.</param>
+    /// <param name="path">The absolute site-relative secret file path.</param>
+    /// <param name="secretName">The server-side secret reference name.</param>
+    /// <param name="contentType">The optional MIME content type. Defaults to text/plain.</param>
+    /// <param name="owner">The optional target Linux owner spec in owner[:group] form.</param>
+    /// <param name="mode">The optional target 3-digit octal mode.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The web secret file write check result.</returns>
+    [McpServerTool(Name = "web_secret_file_check_write")]
+    [Description("Checks whether one explicitly allowed web secret file can be written from a server-side secret reference without exposing its value.")]
+    public static async Task<WebPublicFileWriteCheckResult> CheckWriteWebSecretFileAsync(
+        SshCommandService sshCommandService,
+        ISshConnectionProfileCatalog profileCatalog,
+        IWebPublicFileProvider webPublicFileProvider,
+        IKelpieSecretStore secretStore,
+        string profileName,
+        string siteKey,
+        string path,
+        string secretName,
+        string? contentType = null,
+        string? owner = null,
+        string? mode = null,
+        CancellationToken cancellationToken = default)
+    {
+        KpLog.Info($"MCP SSH tool called: web_secret_file_check_write siteKey={siteKey}, profile={profileName}, path={path}, secretName={secretName}");
+        if (!secretStore.TryGetContentBase64(secretName, out _, out _))
+        {
+            return new WebPublicFileWriteCheckResult(
+                siteKey,
+                DisplayName: string.Empty,
+                path,
+                ResolvedPath: string.Empty,
+                Exists: false,
+                CanWrite: false,
+                RequiresConfirmation: false,
+                Confirmation: string.Empty,
+                ContentType: contentType ?? "text/plain",
+                Reason: "Secret reference was not found or has expired.",
+                Warnings: [],
+                Error: "Secret reference was not found or has expired.");
+        }
+
+        var profile = ResolveSshProfile(profileCatalog, profileName);
+        return await webPublicFileProvider.CheckSecretWriteAsync(
+            sshCommandService,
+            profile,
+            siteKey,
+            path,
+            secretName,
+            contentType,
+            owner,
+            mode,
+            cancellationToken);
+    }
+
+    /// <summary>
     /// Checks whether one web public path is eligible for permission changes without changing it.
     /// </summary>
     /// <param name="sshCommandService">The SSH command service.</param>
@@ -413,6 +476,95 @@ public sealed partial class KelpieTools
             owner,
             mode,
             cancellationToken);
+    }
+
+    /// <summary>
+    /// Writes one explicitly allowed web secret file from a server-side secret reference.
+    /// </summary>
+    /// <param name="sshCommandService">The SSH command service.</param>
+    /// <param name="profileCatalog">The SSH profile catalog.</param>
+    /// <param name="webPublicFileProvider">The web public file provider.</param>
+    /// <param name="secretStore">The in-memory secret store.</param>
+    /// <param name="profileName">The SSH profile name.</param>
+    /// <param name="siteKey">The web public site key.</param>
+    /// <param name="path">The absolute site-relative secret file path.</param>
+    /// <param name="secretName">The server-side secret reference name.</param>
+    /// <param name="confirmation">The required confirmation token: web_secret_file_write:&lt;siteKey&gt;:&lt;path&gt;:&lt;secretName&gt;.</param>
+    /// <param name="contentType">The optional MIME content type. Defaults to text/plain.</param>
+    /// <param name="owner">The optional target Linux owner spec in owner[:group] form.</param>
+    /// <param name="mode">The optional target 3-digit octal mode.</param>
+    /// <param name="forgetOnSuccess">Whether to remove the secret reference after a successful write.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The web secret file write result.</returns>
+    [McpServerTool(Name = "web_secret_file_write")]
+    [Description("Writes one explicitly allowed web secret file from a server-side secret reference after explicit confirmation. The secret value is never returned.")]
+    public static async Task<WebPublicFileWriteResult> WriteWebSecretFileAsync(
+        SshCommandService sshCommandService,
+        ISshConnectionProfileCatalog profileCatalog,
+        IWebPublicFileProvider webPublicFileProvider,
+        IKelpieSecretStore secretStore,
+        string profileName,
+        string siteKey,
+        string path,
+        string secretName,
+        string confirmation,
+        string? contentType = null,
+        string? owner = null,
+        string? mode = null,
+        bool forgetOnSuccess = true,
+        CancellationToken cancellationToken = default)
+    {
+        KpLog.Info($"MCP SSH tool called: web_secret_file_write siteKey={siteKey}, profile={profileName}, path={path}, secretName={secretName}");
+        var permissionSuffix = CreateWritePermissionConfirmationSuffix(owner, mode);
+        if (!TryGetConfirmationError("web_secret_file_write", $"{siteKey}:{path}:{secretName}{permissionSuffix}", confirmation, out var confirmationError))
+        {
+            return new WebPublicFileWriteResult(
+                siteKey,
+                DisplayName: string.Empty,
+                path,
+                ResolvedPath: string.Empty,
+                Written: false,
+                Created: false,
+                Overwritten: false,
+                ContentType: contentType ?? "text/plain",
+                Size: 0,
+                Warnings: [],
+                Error: confirmationError);
+        }
+
+        if (!secretStore.TryGetContentBase64(secretName, out var contentBase64, out _))
+        {
+            return new WebPublicFileWriteResult(
+                siteKey,
+                DisplayName: string.Empty,
+                path,
+                ResolvedPath: string.Empty,
+                Written: false,
+                Created: false,
+                Overwritten: false,
+                ContentType: contentType ?? "text/plain",
+                Size: 0,
+                Warnings: [],
+                Error: "Secret reference was not found or has expired.");
+        }
+
+        var profile = ResolveSshProfile(profileCatalog, profileName);
+        var result = await webPublicFileProvider.WriteSecretFileAsync(
+            sshCommandService,
+            profile,
+            siteKey,
+            path,
+            contentBase64,
+            contentType,
+            owner,
+            mode,
+            cancellationToken);
+        if (result.Written && forgetOnSuccess)
+        {
+            secretStore.Forget(secretName);
+        }
+
+        return result;
     }
 
     private static string CreateWritePermissionConfirmationSuffix(

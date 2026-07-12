@@ -33,7 +33,7 @@ public sealed class SshCommandServiceTests
             });
 
         runner.LastRequest.Should().NotBeNull();
-        runner.LastRequest!.CommandText.Should().Be("sudo -n dnf install --assumeno 'nginx'");
+        runner.LastRequest!.CommandText.Should().Be("sudo -n dnf install -y --setopt=tsflags=test 'nginx'");
     }
 
     [Fact]
@@ -509,7 +509,46 @@ public sealed class SshCommandServiceTests
         await service.SetEnvironmentValueAsync(profile, "APP_ENV", "production", "uname -a");
 
         runner.LastRequest.Should().NotBeNull();
-        runner.LastRequest!.CommandText.Should().Be("if [ -f ~/.kelpie/.env ]; then . ~/.kelpie/.env; fi; env APP_ENV='production' uname -a");
+        runner.LastRequest!.CommandText.Should().Be("if [ -f ~/.kelpie/.env ]; then . ~/.kelpie/.env; fi; IFS= read -r __k_val; export APP_ENV=\"$__k_val\"; unset __k_val; uname -a");
+        runner.LastRequest.StandardInput.Should().Be("production\n");
+    }
+
+    [Fact]
+    public async Task SetEnvironmentValueAsync_ShouldPassSecretValueThroughStandardInput()
+    {
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profile = CreateProfile(
+            "deploy",
+            capabilities: PolicySet.FromNames([KelpiePolicyNames.AllowSetEnvironmentValues]),
+            environmentValues:
+            [
+                new EnvironmentValueRule("DEPLOY_TOKEN", EnvironmentValueAccess.SetSecret),
+            ]);
+        var secretValue = "token with $dollar 'single' \"double\" \\ slash";
+
+        await service.SetEnvironmentValueAsync(profile, "DEPLOY_TOKEN", secretValue, "uname -a");
+
+        runner.LastRequest.Should().NotBeNull();
+        runner.LastRequest!.CommandText.Should().NotContain(secretValue);
+        runner.LastRequest.CommandText.Should().Contain("export DEPLOY_TOKEN=\"$__k_val\"");
+        runner.LastRequest.StandardInput.Should().Be(secretValue + "\n");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldAttachMcpSessionEnvironmentOverrides()
+    {
+        var runner = new FakeSshCommandRunner();
+        var overrideStore = new InMemoryKelpieEnvironmentOverrideStore();
+        overrideStore.Put("test", "APP_ENV", "production");
+        var service = CreateProviderBackedService(runner, overrideStore);
+        var profile = CreateProfile("deploy");
+
+        await service.ExecuteAsync(profile, "get_system_info", TimeSpan.FromSeconds(10));
+
+        runner.LastRequest.Should().NotBeNull();
+        runner.LastRequest!.CommandText.Should().NotContain("production");
+        runner.LastRequest.EnvironmentOverrides.Should().Contain("APP_ENV", "production");
     }
 
     [Fact]
@@ -551,8 +590,31 @@ public sealed class SshCommandServiceTests
         runner.LastRequest!.CommandName.Should().Be("persist_environment_value");
         runner.LastRequest.CommandText.Should().Contain("mkdir -p ~/.kelpie");
         runner.LastRequest.CommandText.Should().Contain("APP_ENV=");
-        runner.LastRequest.CommandText.Should().Contain("production");
+        runner.LastRequest.CommandText.Should().NotContain("production");
+        runner.LastRequest.StandardInput.Should().Be("production\n");
         runner.LastRequest.CommandText.Should().Contain("chmod 600 ~/.kelpie/.env");
+    }
+
+    [Fact]
+    public async Task PersistEnvironmentValueAsync_ShouldPassSecretValueThroughStandardInput()
+    {
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profile = CreateProfile(
+            "deploy",
+            capabilities: PolicySet.FromNames([KelpiePolicyNames.AllowSetEnvironmentValues]),
+            environmentValues:
+            [
+                new EnvironmentValueRule("DEPLOY_TOKEN", EnvironmentValueAccess.SetSecret),
+            ]);
+        var secretValue = "token with $dollar 'single' \"double\" \\ slash";
+
+        await service.PersistEnvironmentValueAsync(profile, "DEPLOY_TOKEN", secretValue);
+
+        runner.LastRequest.Should().NotBeNull();
+        runner.LastRequest!.CommandText.Should().NotContain(secretValue);
+        runner.LastRequest.CommandText.Should().Contain("printf '%s\\n' \"DEPLOY_TOKEN=$__k_val\"");
+        runner.LastRequest.StandardInput.Should().Be(secretValue + "\n");
     }
 
     [Fact]
@@ -620,9 +682,11 @@ public sealed class SshCommandServiceTests
         };
     }
 
-    private static SshCommandService CreateProviderBackedService(ISshCommandRunner runner)
+    private static SshCommandService CreateProviderBackedService(
+        ISshCommandRunner runner,
+        IKelpieEnvironmentOverrideStore? environmentOverrideStore = null)
     {
-        return new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        return new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner, environmentOverrideStore);
     }
 
     private sealed class FakeSshCommandRunner : ISshCommandRunner

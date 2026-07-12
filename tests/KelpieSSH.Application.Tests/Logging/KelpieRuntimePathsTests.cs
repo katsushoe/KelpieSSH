@@ -151,6 +151,178 @@ public sealed class KelpieRuntimePathsTests
         resolvedPath.Should().Be(Path.GetFullPath(homeDirectory));
     }
 
+    [Fact]
+    public void GetHomeDirectory_ShouldUseKelpieHomeEnvironmentVariableWhenDirectoryExists()
+    {
+        var homeDirectory = CreateHomeDirectory();
+        var baseDirectoryHome = CreateHomeDirectory();
+        var baseDirectory = Path.Combine(baseDirectoryHome, "bin");
+        var originalKelpieHome = Environment.GetEnvironmentVariable("KELPIE_HOME");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("KELPIE_HOME", homeDirectory);
+
+            var resolvedPath = KelpieRuntimePaths.GetHomeDirectory(baseDirectory);
+
+            resolvedPath.Should().Be(Path.GetFullPath(homeDirectory));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("KELPIE_HOME", originalKelpieHome);
+        }
+    }
+
+    [Fact]
+    public void GetHomeDirectory_ShouldIgnoreKelpieHomeEnvironmentVariableWhenDirectoryDoesNotExist()
+    {
+        var homeDirectory = CreateHomeDirectory();
+        var baseDirectory = Path.Combine(homeDirectory, "bin");
+        var missingHomeDirectory = Path.Combine(Path.GetTempPath(), "kelpie-missing-" + Guid.NewGuid().ToString("N"));
+        var originalKelpieHome = Environment.GetEnvironmentVariable("KELPIE_HOME");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("KELPIE_HOME", missingHomeDirectory);
+
+            var resolvedPath = KelpieRuntimePaths.GetHomeDirectory(baseDirectory);
+
+            resolvedPath.Should().Be(Path.GetFullPath(homeDirectory));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("KELPIE_HOME", originalKelpieHome);
+        }
+    }
+
+    [Fact]
+    public void GetHomeDirectory_ShouldPreferBinDirectoryOverrideBeforeKelpieHomeEnvironmentVariable()
+    {
+        var homeDirectory = CreateHomeDirectory();
+        var baseDirectory = Path.Combine(homeDirectory, "bin");
+        var overrideRoot = Path.Combine(Path.GetTempPath(), "kelpie-overrides-" + Guid.NewGuid().ToString("N"));
+        var environmentHomeDirectory = CreateHomeDirectory();
+        var originalKelpieHome = Environment.GetEnvironmentVariable("KELPIE_HOME");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("KELPIE_HOME", environmentHomeDirectory);
+            KelpieRuntimePaths.SetOverrides(new KelpieRuntimePathOverrides(BinDirectory: Path.Combine(overrideRoot, "bin")));
+
+            var resolvedPath = KelpieRuntimePaths.GetHomeDirectory(baseDirectory);
+
+            resolvedPath.Should().Be(Path.GetFullPath(overrideRoot));
+        }
+        finally
+        {
+            KelpieRuntimePaths.SetOverrides(KelpieRuntimePathOverrides.Empty);
+            Environment.SetEnvironmentVariable("KELPIE_HOME", originalKelpieHome);
+        }
+    }
+
+    [Fact]
+    public void RuntimePathOverrides_ShouldOverrideIndividualDirectories()
+    {
+        var homeDirectory = CreateHomeDirectory();
+        var baseDirectory = Path.Combine(homeDirectory, "bin");
+        var overrideRoot = Path.Combine(Path.GetTempPath(), "kelpie-overrides-" + Guid.NewGuid().ToString("N"));
+        var overrides = new KelpieRuntimePathOverrides(
+            ConfigDirectory: Path.Combine(overrideRoot, "cfg"),
+            ProfilesDirectory: Path.Combine(overrideRoot, "ssh-profiles"),
+            LogsDirectory: Path.Combine(overrideRoot, "logs"),
+            BinDirectory: Path.Combine(overrideRoot, "runtime-bin"),
+            KeysDirectory: Path.Combine(overrideRoot, "secret-keys"),
+            DataDirectory: Path.Combine(overrideRoot, "state"));
+
+        try
+        {
+            KelpieRuntimePaths.SetOverrides(overrides);
+
+            KelpieRuntimePaths.GetConfigDirectory(baseDirectory).Should().Be(Path.GetFullPath(overrides.ConfigDirectory!));
+            KelpieRuntimePaths.GetProfilesDirectory(baseDirectory).Should().Be(Path.GetFullPath(overrides.ProfilesDirectory!));
+            KelpieRuntimePaths.GetLogDirectory(baseDirectory).Should().Be(Path.GetFullPath(overrides.LogsDirectory!));
+            KelpieRuntimePaths.GetBinDirectory(baseDirectory).Should().Be(Path.GetFullPath(overrides.BinDirectory!));
+            KelpieRuntimePaths.GetKeysDirectory(baseDirectory).Should().Be(Path.GetFullPath(overrides.KeysDirectory!));
+            KelpieRuntimePaths.GetDataDirectory(baseDirectory).Should().Be(Path.GetFullPath(overrides.DataDirectory!));
+            KelpieRuntimePaths.GetHomeDirectory(baseDirectory).Should().Be(Path.GetFullPath(overrideRoot));
+        }
+        finally
+        {
+            KelpieRuntimePaths.SetOverrides(KelpieRuntimePathOverrides.Empty);
+        }
+    }
+
+    [Fact]
+    public void RuntimePathOverrideParser_ShouldRemoveGlobalDirectoryOptions()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "kelpie-overrides-" + Guid.NewGuid().ToString("N"));
+
+        var parsed = KelpieRuntimePathOverrideParser.TryParse(
+            [
+                "--config-dir",
+                Path.Combine(root, "config"),
+                "profile",
+                "show",
+                "vps01",
+                "--profiles-dir",
+                Path.Combine(root, "profiles"),
+                "--logs-dir",
+                Path.Combine(root, "logs"),
+                "--bin-dir",
+                Path.Combine(root, "bin"),
+                "--keys-dir",
+                Path.Combine(root, "keys"),
+                "--dat-dir",
+                Path.Combine(root, "dat"),
+            ],
+            out var remainingArgs,
+            out var overrides,
+            out var errorMessage);
+
+        parsed.Should().BeTrue(errorMessage);
+        remainingArgs.Should().Equal("profile", "show", "vps01");
+        overrides.ConfigDirectory.Should().Be(Path.GetFullPath(Path.Combine(root, "config")));
+        overrides.ProfilesDirectory.Should().Be(Path.GetFullPath(Path.Combine(root, "profiles")));
+        overrides.LogsDirectory.Should().Be(Path.GetFullPath(Path.Combine(root, "logs")));
+        overrides.BinDirectory.Should().Be(Path.GetFullPath(Path.Combine(root, "bin")));
+        overrides.KeysDirectory.Should().Be(Path.GetFullPath(Path.Combine(root, "keys")));
+        overrides.DataDirectory.Should().Be(Path.GetFullPath(Path.Combine(root, "dat")));
+    }
+
+    [Fact]
+    public void RuntimePathOverrideParser_ShouldPreserveArgumentsAfterDoubleDash()
+    {
+        var parsed = KelpieRuntimePathOverrideParser.TryParse(
+            [
+                "--config-dir",
+                Path.Combine(Path.GetTempPath(), "kelpie-config"),
+                "env",
+                "set",
+                "vps01",
+                "KEY",
+                "VALUE",
+                "--",
+                "tool",
+                "--profiles-dir",
+                "remote-value",
+            ],
+            out var remainingArgs,
+            out _,
+            out var errorMessage);
+
+        parsed.Should().BeTrue(errorMessage);
+        remainingArgs.Should().Equal(
+            "env",
+            "set",
+            "vps01",
+            "KEY",
+            "VALUE",
+            "--",
+            "tool",
+            "--profiles-dir",
+            "remote-value");
+    }
+
     private static string CreateHomeDirectory()
     {
         var homeDirectory = Path.Combine(Path.GetTempPath(), "kelpie-" + Guid.NewGuid().ToString("N"));

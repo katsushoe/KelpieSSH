@@ -1,6 +1,6 @@
 # KelpieSSH 設定
 
-最終更新: 2026-06-18
+最終更新: 2026-06-28
 
 この文書は、KelpieSSH の設定ファイル配置と host level settings をまとめる公開リファレンスです。
 Profile の詳細な設定ガイダンスは [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) を参照してください。
@@ -30,6 +30,14 @@ D:\Kelpie
 └─ bin
 ```
 
+Kelpie home は次の順で解決します。
+
+1. runtime path override として `--bin-dir <dir>` が指定されている場合、`<dir>` の親ディレクトリを Kelpie home とします。
+2. `KELPIE_HOME` が設定され、そのディレクトリが存在する場合、`KELPIE_HOME` を Kelpie home とします。
+3. それ以外の場合、startup directory の親ディレクトリを Kelpie home とします。
+
+KelpieSSH は `KELPIEPRO_HOME` を読みません。
+
 ## ファイル生成
 
 `kelpie init` はローカルの directory layout と sample files を作成します。
@@ -46,44 +54,55 @@ config_samples/
    └─ vps01.json
 ```
 
+安全に検証する場合は、`config_samples/servers/vps01.json` を `KelpieHome/profiles/vps01.json` へコピーし、ローカル Docker SSH コンテナなどの使い捨て SSH ターゲット向けに編集してから、次を実行します。
+
+```powershell
+kelpie config check
+kelpie profile check vps01
+```
+
+check コマンドは、SSH 接続を開始する前にローカル設定とプロファイルファイルを検証します。実ホスト名、実ユーザー名、秘密鍵、パスワード、パスフレーズ、raw log をサンプルファイルへコピーしないでください。
+
 ## Main Settings
 
 ### `config/kelpie.json`
 
 `kelpie` command が読む設定ファイルです。
 
-| Setting | Purpose |
-| :--- | :--- |
-| `LogDirectory` | CLI logs の出力先。 |
-| `OpenProfile` | `kelpie open <profile>` で最後に開いた profile 名。 |
-| `Server:ControlPipeName` | `kelpie` / `kelpiemcp` が server control に使う local named pipe。 |
-| `Commands:ExecutablePath` | 任意の `kelpie` command 明示 path。 |
-| `Commands:WorkingDirectory` | 任意の command working directory。 |
-| `editor` | `kelpie profile edit <profile>` のエディタモードで使う任意の editor command。引数も指定できます。 |
+| Setting | 必須 | 初期値 | Purpose |
+| :--- | :---: | :--- | :--- |
+| `LogDirectory` | いいえ | `KelpieHome\logs` | CLI logs の出力先。 |
+| `OpenProfile` | いいえ | なし | `kelpie open <profile>` で最後に開いた profile 名。通常は runtime state として `dat/storm_state.dat` に保存します。 |
+| `Server:ControlPipeName` | いいえ | なし | `kelpie` / `kelpiemcp` が server control に使う local named pipe。通常は `kelpiemcp.json` に設定し、server へ接続する command では有効値が必要です。 |
+| `Commands:ExecutablePath` | いいえ | なし | 任意の `kelpie` command 明示 path。 |
+| `Commands:WorkingDirectory` | いいえ | なし | 任意の command working directory。 |
+| `Editor` | いいえ | 空文字 | `kelpie profile edit <profile>` のエディタモードで使う任意の editor command。引数も指定できます。 |
 
 最小例:
 
 ```json
 {
   "LogDirectory": "D:\\Kelpie\\logs",
-  "editor": ""
+  "Editor": ""
 }
 ```
 
 `kelpie profile edit <profile>` は editor を次の順に解決します。
 
-1. `config/kelpie.json` の `editor`
+1. `config/kelpie.json` の `Editor`
 2. `KELPIE_EDITOR`
 3. `VISUAL`
 4. `EDITOR`
 5. OS 既定: Windows は `notepad`、Unix は `vi`
+
+互換性のため、旧小文字 `editor` も受理します。`kelpie.json` に `editor` が含まれる場合、`kelpie` コマンドは実行ごとに標準出力へ `Editor` へのリネームを促す warning を表示します。Kelpie が設定ファイルを更新するタイミングでは `Editor` に正規化します。
 
 エディタプロセスはブロッキング起動し、Kelpie はエディタ終了後に profile を検証します。
 通常は即時終了するエディタを使う場合は、次のように待機オプション付きで設定します。
 
 ```json
 {
-  "editor": "code --wait"
+  "Editor": "code --wait"
 }
 ```
 
@@ -91,6 +110,7 @@ special value:
 
 | Value | 意味 |
 | :--- | :--- |
+| `vscode` | 大文字小文字を区別しない VS Code `code` CLI の別名です。Windows では可能な場合に `PATH` / `PATHEXT` から `code` を解決するため、`"Editor": "vscode --wait"` でインストール済みの `code.cmd` を実パス決め打ちなしに使えます。 |
 | `Notepad` | 大文字小文字を区別せず Windows Notepad を起動します。 |
 | `default` | 大文字小文字を区別せず、OS が `.json` に関連付けたアプリで profile file を開きます。 |
 
@@ -98,14 +118,14 @@ special value:
 
 `kelpiemcp` と `KelpieMCPServer` が読む設定ファイルです。
 
-| Setting | Purpose |
-| :--- | :--- |
-| `AllowedHosts` | local MCP server の HTTP Host allow-list。 |
-| `Server:ControlPipeName` | `kelpiemcp` が server control に使う local named pipe。 |
-| `LogDirectory` | MCP server logs の出力先。 |
-| `Commands:ExecutablePath` | 任意の `KelpieMCPServer` executable path。 |
-| `Commands:WorkingDirectory` | 任意の server working directory。 |
-| `ProfileOperations` | profile trust 操作を呼び出し経路ごとに許可または拒否する設定。既定では CLI 操作を許可し、MCP 操作を拒否する。 |
+| Setting | 必須 | 初期値 | Purpose |
+| :--- | :---: | :--- | :--- |
+| `AllowedHosts` | いいえ | `localhost;127.0.0.1;[::1]` | local MCP server の HTTP Host allow-list。 |
+| `Server:ControlPipeName` | はい | `KelpieMCPServer.Control` | `kelpiemcp` が server control に使う local named pipe。 |
+| `LogDirectory` | いいえ | `KelpieHome\logs` | MCP server logs の出力先。 |
+| `Commands:ExecutablePath` | いいえ | Windows では `KelpieHome\bin\mcp\KelpieMCPServer.exe` | 任意の `KelpieMCPServer` executable path。 |
+| `Commands:WorkingDirectory` | いいえ | `KelpieHome\bin` | 任意の server working directory。 |
+| `ProfileOperations` | いいえ | CLI `Allow`、MCP `Deny` | profile trust 操作を呼び出し経路ごとに許可または拒否する設定。既定では CLI 操作を許可し、MCP 操作を拒否する。 |
 
 既定の MCP endpoint は次のとおりです。
 
@@ -127,6 +147,7 @@ http://127.0.0.1:45432/health
 {
   "LogDirectory": "D:\\Kelpie\\logs",
   "Server": {
+    "Port": 45432,
     "ControlPipeName": "KelpieMCPServer.Control"
   },
   "ProfileOperations": {
@@ -162,14 +183,14 @@ http://127.0.0.1:45432/health
 
 既定値:
 
-| Setting | 既定値 | 目的 |
-| :--- | :--- | :--- |
-| `ProfileOperations:Add:CLI` | `Allow` | `kelpiemcp profile add <profile>` を許可する。 |
-| `ProfileOperations:Reload:CLI` | `Allow` | `kelpiemcp profile reload <profile>` を許可する。 |
-| `ProfileOperations:Revoke:CLI` | `Allow` | `kelpiemcp profile revoke <profile>` を許可する。 |
-| `ProfileOperations:Add:MCP` | `Deny` | MCP 経由の profile add は公開しない。 |
-| `ProfileOperations:Reload:MCP` | `Deny` | `ssh_profile_capabilities` が返す `ReloadAllowed` を制御する。 |
-| `ProfileOperations:Revoke:MCP` | `Deny` | MCP 経由の profile revoke は公開しない。 |
+| Setting | 必須 | 初期値 | 目的 |
+| :--- | :---: | :--- | :--- |
+| `ProfileOperations:Add:CLI` | いいえ | `Allow` | `kelpiemcp profile add <profile>` を許可する。 |
+| `ProfileOperations:Reload:CLI` | いいえ | `Allow` | `kelpiemcp profile reload <profile>` を許可する。 |
+| `ProfileOperations:Revoke:CLI` | いいえ | `Allow` | `kelpiemcp profile revoke <profile>` を許可する。 |
+| `ProfileOperations:Add:MCP` | いいえ | `Deny` | MCP 経由の profile add は公開しない。 |
+| `ProfileOperations:Reload:MCP` | いいえ | `Deny` | `ssh_profile_capabilities` が返す `ReloadAllowed` を制御する。 |
+| `ProfileOperations:Revoke:MCP` | いいえ | `Deny` | MCP 経由の profile revoke は公開しない。 |
 
 CLI 操作が拒否されている場合、該当 command は `Success: false`、`Status: disabled-by-config` の JSON を返します。
 `kelpiemcp profile-capabilities [profile]` は trust store の状態と `ProfileOperations:*:CLI` の両方を反映した `AddAllowed`、`ReloadAllowed`、`RevokeAllowed` を返します。
@@ -202,10 +223,10 @@ kelpiemcp profile revoke <profile>
 }
 ```
 
-| Setting | Purpose |
-| :--- | :--- |
-| `OpenProfile` | `kelpie open <profile>` で最後に開いた profile。`kelpie login` が参照します。 |
-| `ClientMode` | `kelpie gui` / `kelpie cli` などで選択した client mode。 |
+| Setting | 必須 | 初期値 | Purpose |
+| :--- | :---: | :--- | :--- |
+| `OpenProfile` | いいえ | なし | `kelpie open <profile>` で最後に開いた profile。`kelpie login` が参照します。 |
+| `ClientMode` | いいえ | なし | `kelpie gui` / `kelpie cli` などで選択した client mode。 |
 
 ## SSH Profiles
 
@@ -218,6 +239,8 @@ Profile 詳細は [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) を参照してく�
 
 ```powershell
 kelpie init vps01
+kelpie config check
+kelpie profile check vps01
 kelpie profile show vps01
 kelpie open vps01
 kelpie login

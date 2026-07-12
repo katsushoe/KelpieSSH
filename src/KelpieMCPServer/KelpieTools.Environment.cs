@@ -24,12 +24,19 @@ public sealed partial class KelpieTools
         CancellationToken cancellationToken = default)
     {
         KpLog.Info($"MCP SSH tool called: get_environment_keys profile={profileName}");
-        var profile = ResolveSshProfile(profileCatalog, profileName);
-        var result = await sshCommandService.GetEnvironmentKeysAsync(
-            profile,
-            cancellationToken: cancellationToken);
+        try
+        {
+            var profile = ResolveSshProfile(profileCatalog, profileName);
+            var result = await sshCommandService.GetEnvironmentKeysAsync(
+                profile,
+                cancellationToken: cancellationToken);
 
-        return CreateSshToolResult(profile, result);
+            return CreateSshToolResult(profile, result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return CreateRejectedSshToolResult(profileName, "get_environment_keys", ex.Message);
+        }
     }
 
     /// <summary>
@@ -51,13 +58,20 @@ public sealed partial class KelpieTools
         CancellationToken cancellationToken = default)
     {
         KpLog.Info($"MCP SSH tool called: peek_environment_value profile={profileName}, key={key}");
-        var profile = ResolveSshProfile(profileCatalog, profileName);
-        var result = await sshCommandService.PeekEnvironmentValueAsync(
-            profile,
-            key,
-            cancellationToken: cancellationToken);
+        try
+        {
+            var profile = ResolveSshProfile(profileCatalog, profileName);
+            var result = await sshCommandService.PeekEnvironmentValueAsync(
+                profile,
+                key,
+                cancellationToken: cancellationToken);
 
-        return CreateSshToolResult(profile, result);
+            return CreateSshToolResult(profile, result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return CreateRejectedSshToolResult(profileName, "peek_environment_value", ex.Message);
+        }
     }
 
     /// <summary>
@@ -83,19 +97,26 @@ public sealed partial class KelpieTools
         CancellationToken cancellationToken = default)
     {
         KpLog.Info($"MCP SSH tool called: set_environment_value profile={profileName}, key={key}");
-        var profile = ResolveSshProfile(profileCatalog, profileName);
-        var result = await sshCommandService.SetEnvironmentValueAsync(
-            profile,
-            key,
-            value,
-            command,
-            channel: KelpieExecutionChannel.Mcp,
-            cancellationToken: cancellationToken);
+        try
+        {
+            var profile = ResolveSshProfile(profileCatalog, profileName);
+            var result = await sshCommandService.SetEnvironmentValueAsync(
+                profile,
+                key,
+                value,
+                command,
+                channel: KelpieExecutionChannel.Mcp,
+                cancellationToken: cancellationToken);
 
-        return CreateSshToolResult(
-            profile,
-            result,
-            sanitizedCommandText: $"env {key}=(hidden) {command.Trim()}");
+            return CreateSshToolResult(
+                profile,
+                result,
+                sanitizedCommandText: $"env {key}=(hidden) {command.Trim()}");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return CreateRejectedSshToolResult(profileName, "set_environment_value", ex.Message);
+        }
     }
 
     /// <summary>
@@ -115,12 +136,19 @@ public sealed partial class KelpieTools
         CancellationToken cancellationToken = default)
     {
         KpLog.Info($"MCP SSH tool called: list_persistent_environment_keys profile={profileName}");
-        var profile = ResolveSshProfile(profileCatalog, profileName);
-        var result = await sshCommandService.ListPersistentEnvironmentKeysAsync(
-            profile,
-            cancellationToken: cancellationToken);
+        try
+        {
+            var profile = ResolveSshProfile(profileCatalog, profileName);
+            var result = await sshCommandService.ListPersistentEnvironmentKeysAsync(
+                profile,
+                cancellationToken: cancellationToken);
 
-        return CreateSshToolResult(profile, result);
+            return CreateSshToolResult(profile, result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return CreateRejectedSshToolResult(profileName, "list_persistent_environment_keys", ex.Message);
+        }
     }
 
     /// <summary>
@@ -144,17 +172,24 @@ public sealed partial class KelpieTools
         CancellationToken cancellationToken = default)
     {
         KpLog.Info($"MCP SSH tool called: persist_environment_value profile={profileName}, key={key}");
-        var profile = ResolveSshProfile(profileCatalog, profileName);
-        var result = await sshCommandService.PersistEnvironmentValueAsync(
-            profile,
-            key,
-            value,
-            cancellationToken: cancellationToken);
+        try
+        {
+            var profile = ResolveSshProfile(profileCatalog, profileName);
+            var result = await sshCommandService.PersistEnvironmentValueAsync(
+                profile,
+                key,
+                value,
+                cancellationToken: cancellationToken);
 
-        return CreateSshToolResult(
-            profile,
-            result,
-            sanitizedCommandText: $"persist {key}=(hidden) ~/.kelpie/.env");
+            return CreateSshToolResult(
+                profile,
+                result,
+                sanitizedCommandText: $"persist {key}=(hidden) ~/.kelpie/.env");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return CreateRejectedSshToolResult(profileName, "persist_environment_value", ex.Message);
+        }
     }
 
     /// <summary>
@@ -176,36 +211,19 @@ public sealed partial class KelpieTools
         CancellationToken cancellationToken = default)
     {
         KpLog.Info($"MCP SSH tool called: remove_persistent_environment_value profile={profileName}, key={key}");
-        var profile = ResolveSshProfile(profileCatalog, profileName);
-        var result = await sshCommandService.RemovePersistentEnvironmentValueAsync(
-            profile,
-            key,
-            cancellationToken: cancellationToken);
+        try
+        {
+            var profile = ResolveSshProfile(profileCatalog, profileName);
+            var result = await sshCommandService.RemovePersistentEnvironmentValueAsync(
+                profile,
+                key,
+                cancellationToken: cancellationToken);
 
-        return CreateSshToolResult(profile, result);
-    }
-
-    private static SshToolResult CreateSshToolResult(
-        SshConnectionProfile profile,
-        SshCommandResult result,
-        string? sanitizedCommandText = null)
-    {
-        return new SshToolResult(
-            profile.Name,
-            profile.Host,
-            profile.Port,
-            profile.UserName,
-            result.CommandName,
-            sanitizedCommandText ?? result.CommandText,
-            result.ExitCode,
-            result.StandardOutput,
-            result.StandardError,
-            SplitOutputLines(result.StandardOutput),
-            SplitOutputLines(result.StandardError),
-            SplitOutputLines(RemoveAnsiEscapeSequences(result.StandardOutput)),
-            SplitOutputLines(RemoveAnsiEscapeSequences(result.StandardError)),
-            result.StartedAt,
-            result.CompletedAt,
-            result.TimedOut);
+            return CreateSshToolResult(profile, result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return CreateRejectedSshToolResult(profileName, "remove_persistent_environment_value", ex.Message);
+        }
     }
 }

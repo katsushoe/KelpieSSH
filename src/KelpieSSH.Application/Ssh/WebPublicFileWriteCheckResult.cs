@@ -15,5 +15,6 @@ public sealed record WebPublicFileWriteCheckResult(
     string ContentType,
     string? Reason,
     IReadOnlyList<string> Warnings,
-    string? Error = null);
-
+    string? Error = null,
+    string? ReasonCode = null,
+    string? Guidance = null);

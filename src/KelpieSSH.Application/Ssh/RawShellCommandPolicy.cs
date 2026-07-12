@@ -9,6 +9,7 @@ public sealed class RawShellCommandPolicy
     [
         "&&",
         "||",
+        "&",
         ";",
         "`",
         "$(",
@@ -20,7 +21,6 @@ public sealed class RawShellCommandPolicy
     ];
     private static readonly string[] ReadOnlyExecutables =
     [
-        "awk",
         "cat",
         "clear",
         "date",
@@ -28,13 +28,11 @@ public sealed class RawShellCommandPolicy
         "dnf",
         "du",
         "echo",
-        "find",
         "free",
         "grep",
         "head",
         "hostname",
         "id",
-        "ip",
         "journalctl",
         "less",
         "ls",
@@ -42,10 +40,8 @@ public sealed class RawShellCommandPolicy
         "ps",
         "pwd",
         "rpm",
-        "sed",
         "ss",
         "stat",
-        "systemctl",
         "tail",
         "top",
         "uname",
@@ -284,12 +280,6 @@ public sealed class RawShellCommandPolicy
 
     private static void EnsureDeleteTargetsAllowed(SshConnectionProfile profile, string commandText)
     {
-        var allowedRoots = GetAllowedRootRules(profile);
-        if (allowedRoots.Count == 0 || HasGlobalAllowedRoot(allowedRoots, AllowedRootAccess.Write))
-        {
-            return;
-        }
-
         var targets = SplitTokens(commandText)
             .Skip(1)
             .Where(token => !token.StartsWith("-", StringComparison.Ordinal))
@@ -298,6 +288,17 @@ public sealed class RawShellCommandPolicy
         if (targets.Length == 0)
         {
             throw new KelpiePolicyError("rm target is required.");
+        }
+
+        foreach (var target in targets)
+        {
+            EnsureDeleteTargetIsNotSystemRoot(target, profile.OsFamily);
+        }
+
+        var allowedRoots = GetAllowedRootRules(profile);
+        if (allowedRoots.Count == 0 || HasGlobalAllowedRoot(allowedRoots, AllowedRootAccess.Write))
+        {
+            return;
         }
 
         foreach (var target in targets)
@@ -313,6 +314,31 @@ public sealed class RawShellCommandPolicy
             }
 
             EnsureSpecialPathAllowsDelete(profile, target);
+        }
+    }
+
+    private static void EnsureDeleteTargetIsNotSystemRoot(string target, string osFamily)
+    {
+        var normalizedTarget = SshPathNormalizer.Normalize(target, allowGlob: true)
+            .TrimEnd('/', '\\');
+        if (string.IsNullOrWhiteSpace(normalizedTarget))
+        {
+            normalizedTarget = "/";
+        }
+
+        if (string.Equals(normalizedTarget, "/", StringComparison.Ordinal)
+            || string.Equals(normalizedTarget, "/*", StringComparison.Ordinal)
+            || string.Equals(normalizedTarget, @"\", StringComparison.Ordinal))
+        {
+            throw new KelpiePolicyError($"rm target is forbidden: {target}");
+        }
+
+        if (string.Equals(osFamily, "windows", StringComparison.OrdinalIgnoreCase)
+            && normalizedTarget.Length == 2
+            && char.IsLetter(normalizedTarget[0])
+            && normalizedTarget[1] == ':')
+        {
+            throw new KelpiePolicyError($"rm target is forbidden: {target}");
         }
     }
 

@@ -1,4 +1,4 @@
 {
   "LogDirectory": "/path/to/kelpieHome/logs",
-  "editor": ""
+  "Editor": "notepad"
 }

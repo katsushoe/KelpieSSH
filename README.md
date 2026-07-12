@@ -6,6 +6,8 @@ Japanese documentation is available in [README.ja.md](README.ja.md).
 
 Command details are documented in [COMMANDS.md](COMMANDS.md).
 
+Command-line options are documented in [CLI_OPTIONS.md](CLI_OPTIONS.md).
+
 MCP command details are documented in [MCP_COMMANDS.md](MCP_COMMANDS.md).
 
 Configuration details are documented in [CONFIG.md](CONFIG.md).
@@ -27,17 +29,21 @@ config_samples/
    └─ vps01.json
 ```
 
+The public samples use placeholder values. For validation, copy a sample profile into your local `KelpieHome/profiles` directory, edit it for a disposable SSH target such as a local Docker SSH container, and run the check commands before opening the profile. Keep real hosts, user names, private keys, passwords, and raw logs outside this repository.
+
 ## Getting Started
 
-Choose the setup path that matches how you want to use KelpieSSH.
+Choose the setup path that matches how you want to use KelpieSSH. For the Alpha release, the Windows zip is the primary binary distribution. An MSI may be attached to a release when it is available, but it is optional and may be unsigned.
 
-### Binary users
+### Alpha binary users
 
-#### 1. Installing binary (`.msi`)
+#### 1. Downloading a release binary
 
-For normal use, download the KelpieSSH `.msi` installer from GitHub Releases and run it.
+For the Alpha release, download `KelpieSSH-x.x.x.x-win-x64.zip` from GitHub Releases and follow the zip setup steps below.
 
-After installation, open a new terminal.
+If an MSI is attached to the same release, you may use it instead. The Alpha MSI can be unsigned, so Windows may show an unknown publisher or SmartScreen warning.
+
+After installation or `PATH` setup, open a new terminal.
 
 Verify that the command is available:
 
@@ -48,7 +54,7 @@ kelpie version
 Expected output:
 
 ```text
-kelpie 0.3.1.1
+kelpie 0.3.4.0
 ```
 
 #### 2. Initializing Kelpie home and creating a profile
@@ -74,7 +80,7 @@ MCP log directory [D:\Kelpie\logs]: D:\Kelpie\logs
 MCP control pipe name [KelpieMCPServer.Control]: KelpieMCPServer.Control
 Create SSH profile template.
 Press Enter to use the default value.
-Host address [example.invalid]: example.org
+Host address [localhost]: example.org
 Port [22]: 2222
 SSH user [deploy]: ops
 Authentication method (privateKey/password) [privateKey]: password
@@ -108,6 +114,15 @@ For profile syntax and field details, see [PROFILE_GUIDE.md](PROFILE_GUIDE.md).
 
 Set the target host, SSH user, authentication method, and key or password secret reference in that file. For private key authentication, place the private key file under `<KelpieHome>\keys` and set `Auth.PrivateKeyFile` to that file name. The matching public key must already be registered on the server. For password authentication, set `Auth.Method` to `password` and set `Auth.PasswordSecretName`; do not store the plain text password in the profile.
 
+Before connecting, validate the local configuration and the profile without opening an SSH connection:
+
+```powershell
+kelpie config check
+kelpie profile check vps01
+```
+
+For a safe first run, use a disposable SSH target such as a local Docker SSH container. `kelpie config check` and `kelpie profile check <profile>` validate local files, JSON, schema, authentication references, providers, policies, allowed roots, special paths, users, and pending backup state before any SSH connection is opened.
+
 #### 3. Connecting to server
 
 After editing the profile, open the target server:
@@ -122,19 +137,21 @@ For password-based profiles, sign in after opening the target:
 kelpie login
 ```
 
-If Windows shows an unknown publisher or SmartScreen warning, confirm that the MSI was downloaded from the official GitHub Release and compare the published checksum if one is provided.
+If Windows shows an unknown publisher or SmartScreen warning for an MSI, confirm that the MSI was downloaded from the official GitHub Release and compare the published checksum if one is provided.
 
 ### Zip distribution users
 
 #### 1. Placing the zip binaries
 
-Extract `KelpieSSH-x.x.x.x-x64.zip` to `D:\Kelpie`. The CLI-related files are placed like this:
+Extract `KelpieSSH-x.x.x.x-win-x64.zip` to `D:\Kelpie`. The CLI-related files are placed like this:
 
 ```text
 D:\Kelpie
 ├─ bin
 │  ├─ kelpie.exe
-│  └─ kelpiemcp.exe
+│  ├─ kelpiemcp.exe
+│  └─ mcp
+│     └─ KelpieMCPServer.exe
 ├─ config_samples
 ├─ docs
 ├─ README.md
@@ -169,7 +186,7 @@ kelpie version
 Expected output:
 
 ```text
-kelpie 0.3.1.1
+kelpie 0.3.4.0
 ```
 
 If you do not want to update `PATH`, keep using full paths such as `D:\Kelpie\bin\kelpie.exe`.
@@ -211,6 +228,15 @@ D:\Kelpie\profiles\vps01.json
 For profile syntax and field details, see [PROFILE_GUIDE.md](PROFILE_GUIDE.md).
 
 Set the target host, SSH user, authentication method, and key or password secret reference in that file. For private key authentication, place the private key file under `D:\Kelpie\keys` and set `Auth.PrivateKeyFile` to that file name. The matching public key must already be registered on the server. For password authentication, set `Auth.Method` to `password` and set `Auth.PasswordSecretName`; do not store the plain text password in the profile.
+
+Before connecting, validate the local configuration and the profile without opening an SSH connection:
+
+```powershell
+kelpie config check
+kelpie profile check vps01
+```
+
+For a safe first run, use a disposable SSH target such as a local Docker SSH container. `kelpie config check` and `kelpie profile check <profile>` validate local files, JSON, schema, authentication references, providers, policies, allowed roots, special paths, users, and pending backup state before any SSH connection is opened.
 
 #### 4. Connecting to server
 
@@ -261,6 +287,13 @@ For profile syntax and field details, see [PROFILE_GUIDE.md](PROFILE_GUIDE.md).
 
 Set the host, user, authentication method, and private key file name or password secret reference before running `kelpie open vps01`.
 
+Before opening the profile, validate the local configuration and the profile:
+
+```powershell
+D:\Kelpie\bin\kelpie.exe config check
+D:\Kelpie\bin\kelpie.exe profile check vps01
+```
+
 ### AI users
 
 When using Kelpie as an AI MCP server, configure and start the server by following [MCP_GUIDE.md](MCP_GUIDE.md).
@@ -291,12 +324,21 @@ kelpie version
 kelpie --version
 ```
 
+Validate local configuration and SSH profiles with:
+
+```powershell
+kelpie config check
+kelpie profile check vps01
+```
+
+These check commands are intended for normal operation before `kelpie open`, `kelpie login`, `kelpie diag`, or MCP use. They do not open an SSH connection, so they are also suitable for disposable test targets such as a local Docker SSH container.
+
 Inspect configured SSH profiles with:
 
 ```powershell
 kelpie profiles
-kelpie profile show vps01
 kelpie status vps01
+kelpie profile show vps01
 ```
 
 Run an interactive SSH session with:
@@ -316,6 +358,81 @@ kelpie logs vps01 nginx.service 200
 
 `kelpie login`, `kelpie diag`, and `kelpie logs` run SSH operations directly from the CLI process. For password profiles, the CLI asks for the password at runtime and keeps it only in the current command process. `kelpie status` can also report whether the local MCP server is running, but the server is not required for the command-line tools above.
 
+## How to validate and inspect a profile
+
+Use `kelpie profile check <profile>` first during normal operation. It validates one profile file without opening an SSH connection and reports file, JSON, schema, authentication reference, provider, policy, user, and pending backup checks.
+
+```powershell
+kelpie config check
+kelpie profile check vps01
+```
+
+Example `kelpie profile check vps01` output:
+
+```text
+Profile file: OK
+Profile JSON: OK
+Profile schema: OK
+Host.Address: OK
+Host.Port: OK
+User: OK
+Auth.Method: OK
+Auth.PrivateKeyFile: OK
+Platform.OsFamily: OK
+Platform.PackageManager: OK
+Mode: OK
+Command providers:
+  DebianDiagnosticCommandProvider: OK
+Capabilities:
+  (empty list): OK
+Roles:
+  Safe: OK
+Allowed roots:
+  /var/www: OK
+Special paths:
+  **/.env: OK
+Users:
+  deploy: OK
+Pending backup: OK
+Check summary: OK=18/18 NG=0/18
+```
+
+Use `kelpie profile show <profile>` when you want to inspect the sanitized values that Kelpie resolved from the profile.
+
+```powershell
+kelpie profile show vps01
+```
+
+Example `kelpie profile show vps01` output:
+
+```text
+Profile: vps01
+Host: example.invalid
+Port: 22
+User: deploy
+OS family: debian
+Package manager: apt
+Command OS family: debian
+Command providers:
+  CommonDiagnosticCommandProvider
+  DebianAptCommandProvider
+Capabilities:
+  (empty list)
+Roles:
+  Safe
+Effective mode: Safe
+Allowed roots:
+  /var/www  => @Read|@List|@Write|@CD
+Special paths:
+  **/.env  => Deny
+Services:
+  (empty list)
+Users:
+  deploy  => Safe
+Authentication: privateKey
+Private key: (configured)
+```
+
 ## How to create new profile in initialized directory
 
 After `KelpieHome` has already been initialized, use `kelpie profile create <profile>` to add one new profile template without recreating configuration files or directories.
@@ -329,21 +446,29 @@ Example interactive output:
 ```text
 Create SSH profile template.
 Press Enter to use the default value.
-Host address [example.invalid]: example.org
+Host address [localhost]: example.org
 Port [22]: 2222
 SSH user [deploy]: ops
 Authentication method (privateKey/password) [privateKey]: password
 Password secret name [kelpie:vps02]: kelpie:vps02
 OS family [debian]: ubuntu
 Mode (ReadOnly/Safe/Maintenance/Expert) [Safe]: ReadOnly
-Read-only root, '-' to omit [/var/log]: /var/log/nginx
-Read-write root, '-' to omit [/var/www]: -
-Deny pattern, '-' to omit [**/.env]: **/.secret
+Read-only root [Return to skip]: /var/log/nginx
+Read-only root [Return to skip]:
+Read-write root [Return to skip]:
+Deny pattern [Return to skip]: **/.secret
+Deny pattern [Return to skip]:
 Created profile: vps02
 Profile file: D:\Kelpie\profiles\vps02.json
 ```
 
-If `profiles\vps02.json` already exists, the command fails and does not overwrite it.
+If `profiles\vps02.json` already exists, the command asks whether to overwrite it. When overwritten, the old file is kept as `profiles\vps02.json.kelpie` until you commit or roll back the profile change.
+
+## Command-line options
+
+Kelpie supports command-line options for non-interactive profile creation, dry-run previews, runtime directory overrides, and profile transaction behavior.
+
+For options related to dry-run previews, silent mode, runtime directory overrides, and immediate-commit profile operations, see [CLI_OPTIONS.md](CLI_OPTIONS.md).
 
 ## Contributing
 

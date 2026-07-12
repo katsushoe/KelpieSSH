@@ -1,30 +1,36 @@
-# KelpieSSH Commands
+# KelpieSSH コマンド
 
-最終更新: 2026-06-18
+最終更新: 2026-07-10
 
 このファイルは、利用者が通常のターミナルから直接実行する `kelpie` / `kelpiemcp` CLI コマンドの正本です。
+コマンドラインオプションの詳細は [CLI_OPTIONS.md](../../CLI_OPTIONS.md) を参照してください。
 MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とします。
 
-## Command Groups
+## コマンド分類
 
-| Group | Command | 内容 |
+| 分類 | コマンド | 内容 |
 | :--- | :--- | :--- |
 | MCP server control | `kelpiemcp start [--reload-config]`, `kelpiemcp stop`, `kelpiemcp status` | `KelpieMCPServer` の起動、停止、状態確認を行う。 |
 | MCP profile trust | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile>`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | SSH profile の信頼 baseline 追加、更新、取り消し、確認を行う。 |
 | MCP Windows Service | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Windows Service 登録、登録解除、登録状態確認を行う。 |
 | MCP password session | `kelpiemcp password`, `kelpiemcp forget` | 起動中の MCP server に SSH パスワードを一時保存、削除する。 |
+| MCP secret session | `kelpiemcp secret put`, `kelpiemcp secret list`, `kelpiemcp secret forget` | 起動中の MCP server に短命の秘密ファイル内容を一時保存、一覧表示、削除する。 |
+| MCP environment session | `kelpiemcp env put`, `kelpiemcp env list`, `kelpiemcp env forget`, `kelpiemcp env clear` | 起動中の MCP server に短命の環境変数 override を一時保存、一覧表示、削除する。 |
 | Compatibility | `kelpiemcp login`, `kelpiemcp logout` | 旧名互換。新規利用では `password` / `forget` を使う。 |
-| Initialization | `kelpie init [--silent] [profile]` | `KelpieHome` 配下の初期ディレクトリとサンプル設定を作成する。 |
-| Profile/session | `kelpie profile create`, `kelpie profile edit`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイルひな形作成・編集、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
+| Initialization | `kelpie init [--silent] [profile]`, `kelpie config --check` | `KelpieHome` 配下の初期ディレクトリとサンプル設定を作成・検証する。 |
+| Profile/session | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie profile trust-host-key`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイルひな形作成・編集・ホスト鍵信頼登録・削除、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
 | Mode/UI | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | CLI/GUI モードや一時的な起動方式を切り替える。 |
-| Diagnostics | `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie logs` | プロファイル情報、MCP server 状態、SSH 診断、サービスログを表示する。 |
-| Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env set`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | profile policy に従って remote 環境変数の key 表示、値参照、一時設定、永続化を行う。 |
-| Help/version | `kelpie version`, `kelpie help` | バージョンとヘルプを表示する。 |
-| Candidates | `kelpie services`, `kelpie pkg ...` | 今後追加候補。 |
+| Diagnostics | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie inventory`, `kelpie logs` | プロファイル検証、プロファイル情報、MCP server 状態、SSH 診断、接続先 inventory、サービスログを表示する。 |
+| Packages | `kelpie pkg check-updates`, `kelpie pkg info`, `kelpie pkg search`, `kelpie pkg list-installed`, `kelpie pkg simulate-install`, `kelpie pkg simulate-remove`, `kelpie pkg install`, `kelpie pkg remove` | SSH profile の package provider を使って package 確認と確認付き変更を行う。 |
+| Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | profile policy に従って remote 環境変数の key 表示、値参照、永続化を行う。 |
+| Help/version | `kelpie version`, `kelpie help`, `kelpiemcp version`, `kelpiemcp help` | バージョンとヘルプを表示する。 |
+| Candidates | `kelpie services` | 今後追加候補。 |
 
-## Common Options
+## 共通ルール
 
 `KelpieHome` は `kelpie` / `kelpiemcp` の配置ディレクトリの1つ上に固定します。たとえば `D:\Kelpie\bin\kelpie.exe` から実行した場合、`KelpieHome` は `D:\Kelpie` です。
+
+runtime directory override、dry-run、Silent モード、profile transaction option の詳細は [CLI_OPTIONS.md](../../CLI_OPTIONS.md) を参照してください。
 
 設定ファイルはコマンド単位で分けます。
 
@@ -51,11 +57,11 @@ SSHプロファイルの認証設定は、同じ `profiles/<profile>.json` の�
 | Provider | OS family | Package manager | 未指定時の既定値 | 主な許可コマンド |
 | :--- | :--- | :--- | :--- | :--- |
 | `CommonDiagnosticCommandProvider` | `*` | 任意 | なし | `get_system_info`, `get_disk_usage`, `get_memory_usage`, `get_listening_ports`, `get_failed_services`, `tail_log` |
-| `DebianAptCommandProvider` | `debian` | `apt` | `apt` | `pkg_check_updates`, `pkg_simulate_install`, `pkg_install`, `pkg_simulate_remove`, `pkg_remove` |
+| `DebianAptCommandProvider` | `debian` | `apt` | `apt` | `pkg_check_updates`, `pkg_info`, `pkg_search`, `pkg_list_installed`, `pkg_simulate_install`, `pkg_install`, `pkg_simulate_remove`, `pkg_remove` |
 | `DebianNginxCommandProvider` | `debian` | any | systemd | `service_enable_now`, `service_reload`, `service_restart`, `service_stop`, `service_disable`, `http_get_local` |
-| `RhelDnfCommandProvider` | `rhel` | `dnf` | `dnf` | `pkg_check_updates`, `pkg_simulate_install`, `pkg_install`, `pkg_simulate_remove`, `pkg_remove` |
+| `RhelDnfCommandProvider` | `rhel` | `dnf` | `dnf` | `pkg_check_updates`, `pkg_info`, `pkg_search`, `pkg_list_installed`, `pkg_simulate_install`, `pkg_install`, `pkg_simulate_remove`, `pkg_remove` |
 
-## Commands
+## コマンド
 
 この章では、各コマンドに目的、構文、引数詳細、引数サンプル、処理内容、実行結果サンプル、安全上の注意を記載します。
 
@@ -616,6 +622,133 @@ kelpiemcp logout vps01
 
 現在は `kelpiemcp forget <profile>` と同じ形式で表示します。
 
+### `kelpiemcp secret put --name <name> --from-file <path> [--ttl <duration>]`
+
+目的:
+
+ローカルファイルの内容を、起動中の `KelpieMCPServer` のメモリ上に短時間だけ保存します。`.env` などを `web_secret_file_check_write` / `web_secret_file_write` で転送するための前処理です。
+
+構文:
+
+```powershell
+kelpiemcp secret put --name prod-web-env --from-file .env --ttl 10m
+```
+
+引数詳細:
+
+- `--name <name>`: MCP tool から参照する secret name。
+- `--from-file <path>`: 読み込むローカルファイル。
+- `--ttl <duration>`: 任意。`600`、`600s`、`10m`、`1h` のように指定します。server 側では最大1時間に丸めます。
+
+処理内容:
+
+ファイル内容は local control pipe 経由で server process のメモリに保存します。標準出力、ログ、MCP tool の戻り値には秘密本文を出しません。
+
+実行結果サンプル:
+
+```text
+Secret stored for this KelpieMCPServer session.
+Name: prod-web-env
+Size: 128 bytes
+ExpiresAtUtc: 2026-07-03T12:00:00.0000000+00:00
+```
+
+### `kelpiemcp secret list`
+
+目的:
+
+起動中の `KelpieMCPServer` が保持している未期限切れ secret reference を一覧表示します。
+
+構文:
+
+```powershell
+kelpiemcp secret list
+```
+
+処理内容:
+
+secret name、サイズ、期限だけを表示します。秘密本文やハッシュは表示しません。
+
+### `kelpiemcp secret forget <name>`
+
+目的:
+
+起動中の `KelpieMCPServer` から短命 secret reference を削除します。
+
+構文:
+
+```powershell
+kelpiemcp secret forget prod-web-env
+```
+
+処理内容:
+
+指定した secret name のメモリ上の内容を削除します。`web_secret_file_write` は既定で成功時に secret を自動削除しますが、`forgetOnSuccess=false` で使った場合や中断時はこのコマンドで削除します。
+
+### `kelpiemcp env put <profile> <key> <value>`
+
+目的:
+
+起動中の `KelpieMCPServer` のメモリ上に、profile 別の環境変数 override を保存します。保存した override は、同じ profile に対する以後の MCP tool / interactive session command 実行時に適用されます。
+
+構文:
+
+```powershell
+kelpiemcp env put vps01 APP_ENV production
+```
+
+処理内容:
+
+profile の `Capabilities` に `AllowSetEnvironmentValues` が必要です。さらに、対象 key が `EnvironmentValues` で `SetCommon` または `SetSecret` として許可されている必要があります。値は local control pipe の本文として転送し、標準出力には profile、key、値の長さ、更新時刻だけを表示します。
+
+### `kelpiemcp env list [profile]`
+
+目的:
+
+起動中の `KelpieMCPServer` が保持している環境変数 override の metadata を一覧表示します。
+
+構文:
+
+```powershell
+kelpiemcp env list vps01
+```
+
+処理内容:
+
+profile、key、値の長さ、更新時刻だけを表示します。値そのものは表示しません。profile を省略した場合は、server が保持している全 profile の override metadata を表示します。
+
+### `kelpiemcp env forget <profile> <key>`
+
+目的:
+
+起動中の `KelpieMCPServer` から、指定 profile / key の環境変数 override を削除します。
+
+構文:
+
+```powershell
+kelpiemcp env forget vps01 APP_ENV
+```
+
+処理内容:
+
+指定した override をメモリ上から削除します。削除には `AllowSetEnvironmentValues` と、対象 key の `SetCommon` または `SetSecret` rule が必要です。
+
+### `kelpiemcp env clear <profile>`
+
+目的:
+
+起動中の `KelpieMCPServer` から、指定 profile の環境変数 override をすべて削除します。
+
+構文:
+
+```powershell
+kelpiemcp env clear vps01
+```
+
+処理内容:
+
+指定した profile の override をメモリ上から削除し、削除件数を表示します。override は process memory だけに保存されるため、`KelpieMCPServer` 停止時にも消えます。
+
 ### `kelpie init [--silent] [profile]`
 
 目的:
@@ -660,6 +793,50 @@ Created files:
   D:\Kelpie\config\kelpie.json
   D:\Kelpie\config\kelpiemcp.json
   D:\Kelpie\profiles\vps01.json
+```
+
+### `kelpie config --check`
+
+目的:
+
+SSH 接続を行わず、Kelpie CLI と MCP のローカル設定ファイルを検証します。
+`kelpie init` 後、`config/kelpie.json` や `config/kelpiemcp.json` の編集後、SSH 側の問題を調べる前のローカル健全性確認として使います。
+
+構文:
+
+```powershell
+kelpie config --check
+kelpie config check
+kelpie config check --no-pager
+```
+
+処理内容:
+
+`config/kelpie.json` と `config/kelpiemcp.json` を読み、ファイル存在、JSON 構文、正規 `Editor` キー、MCP server 設定、runtime directory を確認します。
+結果は `項目名: OK` または `項目名: NG (理由)` で表示します。複数値の項目は最初に項目名を表示し、1件ずつインデントして表示します。
+最後に `Check summary: OK=<OK件数>/<check件数> NG=<NG件数>/<check件数>` を表示します。
+対話 terminal では、1画面を超える長い出力を `-- more -- (Return to continue, q to quit)` でページングします。
+`--no-pager` でページングを無効化できます。`--pager` でページングを要求できますが、redirect や非対話出力では停止せず全出力します。
+
+実行結果サンプル:
+
+```text
+Kelpie config file: OK
+Kelpie config JSON: OK
+Editor: OK
+MCP config file: OK
+MCP config JSON: OK
+Server: OK
+Server.ControlPipeName: OK
+Server.Port: OK
+Directories:
+  config: OK
+  profiles: OK
+  logs: OK
+  bin: OK
+  keys: OK
+  dat: OK
+Check summary: OK=14/14 NG=0/14
 ```
 
 ### `kelpie open <profile>`
@@ -1013,24 +1190,44 @@ SSH session was not found: ssh-missing
 
 ```powershell
 kelpie profile create vps02
+kelpie profile create vps02 --silent
+kelpie profile create vps02 --silent --host-address: demo
+kelpie profile create vps02 --dry-run --host-address: demo
+kelpie profile create vps02 --no-backup
 ```
 
 引数詳細:
 
-- `profile`: 作成するプロファイル名。`KelpieHome/profiles/<profile>.json` として作成されます。パス区切り文字やファイル名に使えない文字は拒否します。
+- `profile`: 作成する単一プロファイル名。`KelpieHome/profiles/<profile>.json` として作成されます。wildcard、パス区切り文字、ファイル名に使えない文字は拒否します。
+- `--silent`: prompt を出さず、既定値または指定された template option だけで profile を作成します。
+- `--host-address <value>`: `Host.Address` を上書きします。`--host-address: <value>` 形式も受け付けます。
+- `--port <value>`: `Host.Port` を上書きします。`1` から `65535` の整数です。
+- `--ssh-user <value>`: `DefaultUser` を上書きします。
+- `--auth-method <privateKey|password>`: `Auth.Method` を上書きします。
+- `--private-key-file <value>`: `Auth.PrivateKeyFile` を上書きします。`privateKey` 認証時に使います。
+- `--password-secret-name <value>`: `Auth.PasswordSecretName` を上書きします。`password` 認証時に使います。
+- `--os-family <value>`: `Platform.OsFamily` を上書きします。
+- `--mode <ReadOnly|Safe|Maintenance|Expert>`: 生成する default user の `Mode` を上書きします。
+- `--read-only-root <value>`: 生成する read-only root を上書きします。複数回指定できます。`-` で空リストにできます。
+- `--read-write-root <value>`: 生成する read-write root を上書きします。複数回指定できます。`-` で空リストにできます。
+- `--allowed-root <key=value[;...]>`: 生成する `AllowedRoots` map entry を上書きします。複数回指定できます。`ReadOnly` / `ReadWrite` は `$ReadOnly` / `$ReadWrite` に正規化し、`$Write` などの値はそのまま保持します。
+- `--deny-pattern <value>`: 生成する deny pattern を上書きします。複数回指定できます。`-` で空リストにできます。
+- `--special-path <key=value[;...]>`: 生成する `SpecialPaths` map entry を上書きします。複数回指定できます。`deny` / `confirm` / `allow` は `Deny` / `Confirm` / `Allow` に正規化します。
+- `--dry-run`: 作成・上書き予定の profile path、backup 計画、生成 JSON を表示し、ファイルを変更しません。
+- `--no-backup`: 既存 profile を上書きする場合に `.kelpie` backup を作成せず、即コミットとして書き込みます。
 
 処理内容:
 
-`kelpie init` 済みの `KelpieHome` を前提に、`profiles/<profile>.json` だけを新規作成します。`config/kelpie.json`、`config/kelpiemcp.json`、ディレクトリ、trust store、open profile 状態は作成・更新しません。既に同名 profile がある場合はエラーにします。
+`kelpie init` 済みの `KelpieHome` を前提に、`profiles/<profile>.json` だけを新規作成します。`config/kelpie.json`、`config/kelpiemcp.json`、ディレクトリ、trust store、open profile 状態は作成・更新しません。既に同名 profile がある場合は上書き確認を行い、上書き時は旧ファイルを `profiles/<profile>.json.kelpie` として保存します。既に `.kelpie` backup がある場合は、先に `kelpie profile commit <profile>` または `kelpie profile rollback <profile>` を実行するよう案内して失敗します。`--no-backup` 指定時は、上書き時も `.kelpie` backup を作成せず、`Commit profile? [Y/n]:` も尋ねません。`--silent` 指定時は template 値の prompt を出さず、既定値 `Host.Address = localhost`、`Host.Port = 22`、`DefaultUser = deploy`、private-key auth、`Mode = Safe`、`Platform.OsFamily = debian`、read-only root `/var/log`、read-write root `/var/www`、deny pattern `**/.env` で作成します。`--dry-run` 指定時は prompt を出さず、作成先 profile path、backup 計画、生成 JSON を表示し、ファイルは書き込みません。dry-run では template option を `--silent` なしでも指定できます。silent template option は `<profile>` の前後どちらにも指定でき、`--name value`、`--name=value`、`--name: value` 形式を受け付けます。`--allowed-root` と `--special-path` は `;` 区切りの map entry を受け付けます。`;` を含む値は quote してください。PowerShell で `$` を含む場合は、`--allowed-root '/srv/www=$ReadWrite;/tmp=$Write'` のように single quote を推奨します。`--allowed-root` を指定すると既定 allowed-root map は置き換わります。ただし `--read-only-root` / `--read-write-root` も指定した場合は併用されます。`--special-path` を指定すると既定 special-path map は置き換わります。ただし `--deny-pattern` も指定した場合は併用されます。
 
-host address、port、SSH user、authentication method、private key file または password secret name、OS family、mode、allowed roots、deny pattern を対話入力します。password authentication の場合も入力するのは `PasswordSecretName` だけで、パスワード実値は入力・保存しません。optional な allowed-root / deny-pattern prompt では `-` を入力すると値を省略します。
+host address、port、SSH user、authentication method、private key file または password secret name、OS family、mode、allowed roots、deny pattern を対話入力します。password authentication の場合も入力するのは `PasswordSecretName` だけで、パスワード実値は入力・保存しません。optional な allowed-root / deny-pattern prompt では1行に1 pattern を入力できます。空 Enter または `-` で、その prompt を省略または終了します。既存 profile を上書きした場合は最後に `Commit profile? [Y/n]:` を尋ね、`Y` なら `.kelpie` backup を削除し、`n` なら後で commit / rollback できるよう backup を残します。
 
 MCPサーバーの protected trust store へ反映する場合は、作成した profile 内容を確認した後に `kelpiemcp profile add <profile>` を実行します。
 
 戻り値:
 
 - exit code `0`: profile ひな形を作成した。
-- exit code non-zero: profile 名不足、profile 名不正、`KelpieHome` 未初期化、同名 profile 既存、またはファイル作成失敗。
+- exit code non-zero: profile 名不足、profile 名不正、`KelpieHome` 未初期化、上書き拒否、pending backup 既存、またはファイル作成失敗。
 - standard output: 作成した profile 名とファイルパス。
 - standard error: 検証エラーまたはファイル操作エラー。
 
@@ -1039,24 +1236,63 @@ MCPサーバーの protected trust store へ反映する場合は、作成した
 ```text
 Create SSH profile template.
 Press Enter to use the default value.
-Host address [example.invalid]:
+Host address [localhost]:
 Port [22]:
 SSH user [deploy]:
 Authentication method (privateKey/password) [privateKey]:
 Private key file [vps02_ed25519]:
 OS family [debian]:
 Mode (ReadOnly/Safe/Maintenance/Expert) [Safe]:
-Read-only root, '-' to omit [/var/log]:
-Read-write root, '-' to omit [/var/www]:
-Deny pattern, '-' to omit [**/.env]:
+Read-only root [Returnで続行]: /var/log/nginx
+Read-only root [Returnで続行]:
+Read-write root [Returnで続行]:
+Deny pattern [Returnで続行]: **/.secret
+Deny pattern [Returnで続行]:
 Created profile: vps02
 Profile file: D:\Kelpie\profiles\vps02.json
+```
+
+silent 実行結果サンプル:
+
+```text
+kelpie profile create demo --silent --host-address: demo
+Created profile: demo
+Profile file: D:\Kelpie\profiles\demo.json
+```
+
+dry-run 実行結果サンプル:
+
+```text
+kelpie profile create demo --dry-run --host-address: demo
+Dry run: profile create
+Would create profile: demo
+Profile file: D:\Kelpie\profiles\demo.json
+Would write:
+{
+  "Host": {
+    "Address": "demo",
+    "Port": 22
+  }
+}
+No files were changed.
+```
+
+silent map 指定サンプル:
+
+```powershell
+kelpie profile create demo --silent `
+  --allowed-root '/srv/www=$ReadWrite;/tmp=$Write' `
+  --special-path '**/.env=Deny;**/.tmp=Allow'
 ```
 
 既に存在する場合:
 
 ```text
-SSH profile already exists: vps02
+Profile already exists: vps02. Overwrite? [Y/n]: Y
+...
+Commit profile? [Y/n]: n
+Profile backup is pending: D:\Kelpie\profiles\vps02.json.kelpie
+Run `kelpie profile commit vps02` or `kelpie profile rollback vps02`.
 ```
 
 ### `kelpie profile edit <profile>`
@@ -1075,33 +1311,51 @@ kelpie profile edit vps02 add-root /etc/nginx ReadWrite
 kelpie profile edit vps02 rm-root /etc/nginx
 kelpie profile edit vps02 add-deny "**/.htpasswd"
 kelpie profile edit vps02 rm-deny "**/.htpasswd"
+kelpie profile edit vps02 set Host.Port 2222 --no-backup
+kelpie profile edit vps02 set Host.Port 2222 --dry-run
+kelpie profile delete vps02
+kelpie profile delete "vps-*"
+kelpie profile clean vps02
+kelpie profile commit vps02
+kelpie profile rollback vps02
 ```
 
 引数詳細:
 
 - `profile`: 編集する profile 名。現在の `KelpieHome/profiles` から解決します。
-- `dotPath`: `set` で更新する scalar path。許可値は `Host.Address`、`Host.Port`、`Auth.Method`、`Auth.PrivateKeyFile`、`Auth.PasswordSecretName`、`DefaultUser`、`Users.<user>.Mode`、`Platform.OsFamily`、`Platform.PackageManager` です。
+- `dotPath`: `set` で更新する scalar path。許可値は `Host.Address`、`Host.Port`、`Host.HostKeyFingerprintSha256`、`Auth.Method`、`Auth.PrivateKeyFile`、`Auth.PasswordSecretName`、`DefaultUser`、`Users.<user>.Mode`、`Platform.OsFamily`、`Platform.PackageManager` です。
 - `value`: `set` の新しい値。`Host.Port` は `1` から `65535` の整数です。
 - `path`: `add-root` / `rm-root` の allowed root path または glob です。
 - `access`: `add-root` の権限。`ReadOnly`、`ReadWrite`、`$ReadOnly`、`$ReadWrite` を受け付け、`$...` 形式へ正規化します。
 - `pattern`: `add-deny` / `rm-deny` の special path glob です。`**/.htpasswd` のように dot を含む pattern も扱えます。
+- `--no-backup`: `.kelpie` backup を作成せず、編集結果を即コミットとして書き込みます。
+- `--dry-run`: 明示的な編集操作を検証し、書き込み予定の JSON を表示します。ファイルは変更しません。
 
 処理内容:
 
 - `set` は scalar path のみを更新します。object、dictionary、array に相当する path は拒否し、`add-root` / `rm-root` / `add-deny` / `rm-deny` の利用を案内します。
+- `profile edit` は単一 profile 名だけを受け入れます。wildcard は拒否します。
 - `add-root`、`rm-root`、`add-deny`、`rm-deny` は `Users.<DefaultUser>` が object の場合はその user-level 設定を編集し、それ以外は profile 直下の設定を編集します。
+- 既存 profile を変更する前に、現在のファイルを `profiles/<profile>.json.kelpie` として保存します。既に backup がある場合は、commit または rollback するまで編集を拒否します。
+- 編集成功後は `Commit profile? [Y/n]:` を尋ねます。`Y` は backup を削除し、`n` は後で `kelpie profile commit <profile>` または `kelpie profile rollback <profile>` できるよう backup を残します。
+- `--no-backup` 指定時は `.kelpie` backup を作成せず、`Commit profile? [Y/n]:` も尋ねません。
+- `--dry-run` 指定時は `set`、`add-root`、`rm-root`、`add-deny`、`rm-deny` の編集を一時ファイル上で検証し、書き込み予定 JSON を表示します。backup 作成、profile 書き換え、commit prompt は行いません。エディタモード `kelpie profile edit <profile>` では `--dry-run` をサポートせず、明示的な編集操作の利用を案内します。
+- `kelpie profile commit <profile-pattern>` は pending `.kelpie` backup を削除し、削除 pending を含む現在の profile JSON 状態を確定扱いにします。
+- `kelpie profile rollback <profile-pattern>` は `.kelpie` backup を現在の profile JSON へ戻します。削除 pending の場合は削除済み profile file を復元します。一致する backup がない場合はエラーです。
 - 非エディタ操作では、書き込み前に profile 全体を既存 loader/parser で再検証します。検証に失敗した場合は書き込みません。
 - 非エディタ操作の書き込みは temp file からの置換で行い、UTF-8 BOMなし、LF 改行で保存します。
-- エディタは `config/kelpie.json` の `editor`、`KELPIE_EDITOR`、`VISUAL`、`EDITOR`、OS既定（Windows は `notepad`、Unix は `vi`）の順に解決します。
+- エディタは `config/kelpie.json` の `Editor`、`KELPIE_EDITOR`、`VISUAL`、`EDITOR`、OS既定（Windows は `notepad`、Unix は `vi`）の順に解決します。
+- `config/kelpie.json` に旧小文字 `editor` が残っている場合、`kelpie` コマンドは実行ごとに標準出力へ `Editor` へのリネームを促す warning を表示します。
+- editor command alias の `vscode` は VS Code `code` CLI として解釈します。Windows では可能な場合に `PATH` / `PATHEXT` から `code` を解決するため、`"Editor": "vscode --wait"` でインストール済みの `code.cmd` を実パス決め打ちなしに使えます。
 - special value の `default` は大文字小文字を区別せず、`.json` に関連付けられたアプリで profile file を開きます。`Notepad` も大文字小文字を区別せず Windows Notepad を起動します。
-- エディタ起動は終了待ちします。`code` など即時終了するエディタは `"editor": "code --wait"` のように待機オプション付きで設定します。
+- エディタ起動は終了待ちします。`code` など即時終了するエディタは `"Editor": "code --wait"` のように待機オプション付きで設定します。
 - エディタ終了後の検証に失敗した場合は、再編集または中止を選べます。中止すると元内容へ戻します。
 - エディタモードは対話コンソール専用です。標準入力リダイレクト中はエラーにします。
 
 戻り値:
 
 - exit code `0`: profile を更新し、検証に成功した。
-- exit code non-zero: profile 不存在、path または値の不正、profile 検証失敗、エディタ起動失敗、または非対話でのエディタモード実行。
+- exit code non-zero: profile 不存在、pending backup 既存、path または値の不正、profile 検証失敗、エディタ起動失敗、または非対話でのエディタモード実行。
 - standard output: 更新した profile 名と解決済み profile file path。
 - standard error: 検証エラーまたはエディタエラー。
 - 秘密鍵、パスフレーズ、パスワード実値は表示しません。
@@ -1111,6 +1365,25 @@ kelpie profile edit vps02 rm-deny "**/.htpasswd"
 ```text
 Updated profile: vps02
 Profile file: D:\Kelpie\profiles\vps02.json
+Commit profile? [Y/n]:
+```
+
+dry-run 実行結果サンプル:
+
+```text
+kelpie profile edit vps02 set Host.Port 2222 --dry-run
+Dry run: profile edit
+Would update profile: vps02
+Profile file: D:\Kelpie\profiles\vps02.json
+Would create backup: D:\Kelpie\profiles\vps02.json.kelpie
+Would write:
+{
+  "Host": {
+    "Address": "localhost",
+    "Port": 2222
+  }
+}
+No files were changed.
 ```
 
 profile が存在しない場合:
@@ -1120,7 +1393,307 @@ SSH profile was not found: vps02
 Use `kelpie profile create vps02` to create it.
 ```
 
-### `kelpie profile show <profile>`
+### `kelpie profile delete <profile-pattern>`
+
+目的:
+
+既存 SSH profile を、profile create/edit と同じ `.kelpie` transaction 方式で1件または複数件削除します。
+
+構文:
+
+```powershell
+kelpie profile delete vps02
+kelpie profile delete "vps-*"
+kelpie profile delete "vps-*" --no-backup
+kelpie profile delete "vps-*" --dry-run
+```
+
+引数詳細:
+
+| 引数 | 必須 | 説明 |
+| :--- | :---: | :--- |
+| `<profile-pattern>` | yes | SSH profile 名、または wildcard pattern。`*` は0文字以上、`?` は1文字に一致します。path separator と `*` / `?` 以外の不正ファイル名文字は拒否します。 |
+| `--no-backup` | no | `.kelpie` backup を作成せず、一致 profile の削除を即コミットとして扱います。 |
+| `--dry-run` | no | 一致 profile、backup 計画、削除計画を表示し、ファイルは変更しません。 |
+
+処理内容:
+
+- wildcard を含まない場合は、既存の `profiles/<profile>.json` が必要です。
+- wildcard を含む場合は、設定済み Kelpie home の `profiles/*.json` の file name に対して一致する profile を解決します。コマンドは確認前に一致した profile 名を表示します。
+- 一致対象に `.kelpie` backup が既にある場合は warning を表示し、その profile を skip します。pending backup がない他の一致 profile は削除できます。
+- 単一 profile の場合は、ファイル変更前に `Delete profile: <profile>? [Y/n]:` を尋ねます。
+- wildcard pattern の場合は、ファイル変更前に ``Delete <count> profiles matching `<profile-pattern>`? [Y/n]:`` を尋ねます。
+- 確認後、現在の各 profile を `profiles/<profile>.json.kelpie` として保存し、`profiles/<profile>.json` を削除します。
+- 最後に、単一 profile では `Commit profile? [Y/n]:`、複数 wildcard match では `Commit profiles? [Y/n]:` を尋ねます。`Y` は backup を削除して削除を確定します。`n` は後で `kelpie profile rollback <profile>` で削除済み profile を復元、または `kelpie profile commit <profile>` で削除を確定できるよう backup を残します。
+- `--no-backup` 指定時は `.kelpie` backup を作成せず、削除後の commit 確認も行いません。
+- `--dry-run` 指定時は確認 prompt を出さず、backup 作成も profile 削除も行いません。
+
+戻り値:
+
+- profile 削除 transaction の作成またはユーザーによるキャンセル時は exit code `0`。
+- profile file と pending backup のどちらにも一致がない、profile pattern が不正、backup または削除に失敗した場合は non-zero exit code。
+- 標準出力には一致した profile 名、削除対象 profile 名、file path、pending transaction の案内を出します。
+- 標準エラーには検証エラーとファイルシステムエラーを出します。
+
+実行結果サンプル:
+
+```text
+Delete profile: vps02? [Y/n]: Y
+Deleted profile: vps02
+Profile file: D:\Kelpie\profiles\vps02.json
+Commit profile? [Y/n]: n
+Profile backup is pending: D:\Kelpie\profiles\vps02.json.kelpie
+Run `kelpie profile commit vps02` or `kelpie profile rollback vps02`.
+```
+
+wildcard 実行結果サンプル:
+
+```text
+Matched profiles: 2
+  vps-alpha
+  vps-beta
+Delete 2 profiles matching `vps-*`? [Y/n]: Y
+Deleted profiles: 2
+  vps-alpha: D:\Kelpie\profiles\vps-alpha.json
+  vps-beta: D:\Kelpie\profiles\vps-beta.json
+Commit profiles? [Y/n]: n
+Profile backups are pending:
+  D:\Kelpie\profiles\vps-alpha.json.kelpie
+  D:\Kelpie\profiles\vps-beta.json.kelpie
+Run `kelpie profile commit <profile>` or `kelpie profile rollback <profile>` for each pending profile.
+```
+
+### `kelpie profile clean <profile-pattern>`
+
+目的:
+
+profile file と pending `.kelpie` backup file をまとめて削除します。これは即時 cleanup コマンドであり、新しい backup は作成しません。cleanup 後の profile は `kelpie profile rollback` では復元できません。
+
+構文:
+
+```powershell
+kelpie profile clean vps02
+kelpie profile clean "vps-*"
+kelpie profile clean "vps-*" --dry-run
+```
+
+引数詳細:
+
+| 引数 | 必須 | 説明 |
+| :--- | :---: | :--- |
+| `<profile-pattern>` | yes | SSH profile 名、または wildcard pattern。`*` は0文字以上、`?` は1文字に一致します。path separator と `*` / `?` 以外の不正ファイル名文字は拒否します。 |
+| `--dry-run` | no | 削除予定の profile file と backup file を表示し、ファイルは変更しません。 |
+
+処理内容:
+
+- wildcard を含まない場合は、存在する `profiles/<profile>.json` と `profiles/<profile>.json.kelpie` を削除します。
+- wildcard を含む場合は、設定済み Kelpie home の `profiles/*.json` と `profiles/*.json.kelpie` の file name に対して一致する profile を重複なしで解決します。
+- コマンドは確認前に一致した profile 名を表示します。
+- 単一 profile の場合は、ファイル変更前に `Clean profile and backup: <profile>? [Y/n]:` を尋ねます。
+- wildcard pattern の場合は、ファイル変更前に ``Clean <count> profiles and backups matching `<profile-pattern>`? [Y/n]:`` を尋ねます。
+- 確認後、一致 profile の JSON file と `.kelpie` backup file を、存在するものだけ削除します。
+- `--dry-run` 指定時は確認 prompt を出さず、profile file も backup file も削除しません。
+
+戻り値:
+
+- cleanup 実行またはユーザーによるキャンセル時は exit code `0`。
+- profile file と pending backup のどちらにも一致がない、profile pattern が不正、または削除に失敗した場合は non-zero exit code。
+- 標準出力には一致した profile 名、cleanup 対象 profile 名、file path を出します。
+- 標準エラーには検証エラーとファイルシステムエラーを出します。
+
+実行結果サンプル:
+
+```text
+Clean profile and backup: vps02? [Y/n]: Y
+Cleaned profile: vps02
+Removed profile file: D:\Kelpie\profiles\vps02.json
+Removed backup: D:\Kelpie\profiles\vps02.json.kelpie
+```
+
+wildcard 実行結果サンプル:
+
+```text
+Matched profiles: 2
+  vps-alpha
+  vps-beta
+Clean 2 profiles and backups matching `vps-*`? [Y/n]: Y
+Cleaned profiles: 2
+  vps-alpha: D:\Kelpie\profiles\vps-alpha.json
+  vps-beta: D:\Kelpie\profiles\vps-beta.json
+```
+
+### `kelpie profile commit <profile-pattern>`
+
+目的:
+
+pending `.kelpie` backup を削除し、profile create/edit/delete の pending transaction を確定扱いにします。
+
+構文:
+
+```powershell
+kelpie profile commit vps02
+kelpie profile commit "vps-*"
+kelpie profile commit "vps-*" --dry-run
+```
+
+引数詳細:
+
+| 引数 | 必須 | 説明 |
+| :--- | :---: | :--- |
+| `<profile-pattern>` | yes | SSH profile 名、または wildcard pattern。`*` は0文字以上、`?` は1文字に一致します。path separator と `*` / `?` 以外の不正ファイル名文字は拒否します。 |
+| `--dry-run` | no | 削除予定の backup file を表示し、ファイルは変更しません。 |
+
+処理内容:
+
+- wildcard を含まない場合は `profiles/<profile>.json.kelpie` が必要です。
+- wildcard を含む場合は `profiles/*.json.kelpie` から一致する pending backup を解決します。
+- `--dry-run` 指定時は確認 prompt を出さず、backup file を削除しません。
+- `--dry-run` なしの場合、単一 profile は即時 backup を削除し、wildcard は確認後に一致 backup を削除します。
+
+### `kelpie profile rollback <profile-pattern>`
+
+目的:
+
+pending `.kelpie` backup を profile JSON path へ戻し、profile create/edit/delete の pending transaction を取り消します。
+
+構文:
+
+```powershell
+kelpie profile rollback vps02
+kelpie profile rollback "vps-*"
+kelpie profile rollback "vps-*" --dry-run
+```
+
+引数詳細:
+
+| 引数 | 必須 | 説明 |
+| :--- | :---: | :--- |
+| `<profile-pattern>` | yes | SSH profile 名、または wildcard pattern。`*` は0文字以上、`?` は1文字に一致します。path separator と `*` / `?` 以外の不正ファイル名文字は拒否します。 |
+| `--dry-run` | no | 復元予定の backup file と書き込み先 profile file を表示し、ファイルは変更しません。 |
+
+処理内容:
+
+- wildcard を含まない場合は `profiles/<profile>.json.kelpie` が必要です。
+- wildcard を含む場合は `profiles/*.json.kelpie` から一致する pending backup を解決します。
+- `--dry-run` 指定時は確認 prompt を出さず、profile file の復元も backup file の削除も行いません。
+- `--dry-run` なしの場合、単一 profile は即時復元し、wildcard は確認後に一致 backup を復元します。
+
+### `kelpie profile trust-host-key <profile>`
+
+目的:
+
+接続先 SSH サーバーのホスト鍵 SHA256 fingerprint を読み取り、明示確認後に `Host.HostKeyFingerprintSha256` へ記録します。
+表示された fingerprint は、VPS 管理画面など信頼できる別経路で確認してから信頼してください。
+
+構文:
+
+```powershell
+kelpie profile trust-host-key vps01
+kelpie profile trust-host-key vps01 --dry-run
+kelpie profile trust-host-key vps01 --no-backup
+```
+
+引数詳細:
+
+| 引数 | 必須 | 説明 |
+| :--- | :---: | :--- |
+| `<profile>` | はい | SSH profile 名。wildcard は拒否します。 |
+| `--dry-run` | いいえ | fingerprint を読み取り表示し、一時ファイル上で JSON 更新を検証して書き込み予定 JSON を表示します。実ファイルは変更しません。 |
+| `--no-backup` | いいえ | `profiles/<profile>.json.kelpie` backup を作成せず、profile 更新を即時反映します。 |
+
+処理内容:
+
+- 既存の `profiles/<profile>.json` が必要です。
+- `profiles/<profile>.json.kelpie` が pending の場合は拒否します。
+- 既に `Host.HostKeyFingerprintSha256` が設定済みの場合は上書きしません。
+- SSH handshake で server host key fingerprint を読み取ります。remote command は実行しません。
+- 受信した fingerprint を表示し、ユーザーに `TRUST` の入力を求めます。
+- 確認後、fingerprint を `Host.HostKeyFingerprintSha256` に書き込み、更新後 profile JSON を検証します。
+- `--no-backup` なしでは、元 profile を `profiles/<profile>.json.kelpie` として保存し、更新後に `Commit profile? [Y/n]:` を尋ねます。
+
+戻り値:
+
+- fingerprint を記録した場合、既に pin 済みの場合、または dry-run 完了時は exit code `0`。
+- profile 不存在、pending backup あり、fingerprint 読み取り失敗、`TRUST` 未入力、profile 更新検証失敗時は non-zero exit code。
+- 標準出力には対象 profile、host、port、受信 fingerprint、profile transaction 結果を出します。
+- 標準エラーには検証、SSH、確認に関するエラーを出します。
+
+実行結果サンプル:
+
+```text
+Reading SSH host key fingerprint for profile: vps01
+Host: example.invalid
+Port: 22
+Received SSH host key fingerprint:
+SHA256:abc123
+Only trust this key if you verified it through your VPS provider console or another trusted channel.
+Type TRUST to record this fingerprint for `vps01`: TRUST
+Updated profile: vps01
+Profile file: D:\Kelpie\profiles\vps01.json
+Commit profile? [Y/n]: Y
+Committed profile: vps01
+```
+
+安全メモ:
+
+- TOFU は、最初に観測した fingerprint を別経路で確認できる場合にのみ安全です。
+- 初回 SSH 接続が中間者攻撃を受けている場合、攻撃者のホスト鍵を pin する危険があります。
+- 実ホスト名、実ユーザー名、本番 fingerprint をコミット対象の例に含めないでください。
+
+### `kelpie profile check <profile>`
+
+目的:
+
+SSH 接続を行わず、単一 SSH profile file を検証します。wildcard は対応しません。
+`kelpie open` の前、profile 編集後、MCP profile baseline の信頼追加や再読み込み前の確認に使います。
+
+構文:
+
+```powershell
+kelpie profile check vps01
+kelpie profile check vps01 --no-pager
+```
+
+処理内容:
+
+`profiles/<profile>.json` を読み、ファイル存在、JSON 構文、profile schema、接続項目、認証参照、command provider 対応、policy list、user、pending `.kelpie` backup を確認します。
+結果は `項目名: OK` または `項目名: NG (理由)` で表示します。複数値の項目は `kelpie profile show` と同様に、最初に項目名を表示し、1件ずつインデントして表示します。空リストは `(empty list): OK` と表示します。
+最後に `Check summary: OK=<OK件数>/<check件数> NG=<NG件数>/<check件数>` を表示します。
+対話 terminal では、1画面を超える長い出力を `-- more -- (Return to continue, q to quit)` でページングします。
+`--no-pager` でページングを無効化できます。`--pager` でページングを要求できますが、redirect や非対話出力では停止せず全出力します。
+`User` または `Users` に直接 `root` login がある場合は NG です。private-key 認証では、解決後の秘密鍵ファイルが存在するかを確認します。
+
+実行結果サンプル:
+
+```text
+Profile file: OK
+Profile JSON: OK
+Profile schema: OK
+Host.Address: OK
+Host.Port: OK
+User: OK
+Auth.Method: OK
+Auth.PrivateKeyFile: OK
+Platform.OsFamily: OK
+Platform.PackageManager: OK
+Mode: OK
+Command providers:
+  DebianDiagnosticCommandProvider: OK
+Capabilities:
+  (empty list): OK
+Roles:
+  Safe: OK
+Allowed roots:
+  /var/www: OK
+Special paths:
+  **/.env: OK
+Users:
+  deploy: OK
+Pending backup: OK
+Check summary: OK=18/18 NG=0/18
+```
+
+### `kelpie profile show <profile-pattern>`
 
 目的:
 
@@ -1130,6 +1703,7 @@ Use `kelpie profile create vps02` to create it.
 
 ```powershell
 kelpie profile show vps01
+kelpie profile show vps01 --no-pager
 ```
 
 引数詳細:
@@ -1143,6 +1717,10 @@ kelpie profile show vps01
 処理内容:
 
 対象プロファイルを読み込み、接続先、OS family、command provider、mode、認証方式などの概要を表示します。
+`Command providers`、`Capabilities`、`Roles`、`Allowed roots`、`Special paths`、`Services`、`Users` などの複数値項目は、インデント付きで1行に1件ずつ表示します。
+空の複数値項目は `(empty list)` と表示します。マップ形式の複数値項目では key と value の間に `=>` を表示し、key 列の幅を揃えて value 列を見やすくします。
+対話 terminal では、1画面を超える長い出力を `-- more -- (Return to continue, q to quit)` でページングします。
+`--no-pager` でページングを無効化できます。`--pager` でページングを要求できますが、redirect や非対話出力では停止せず全出力します。
 
 実行結果サンプル:
 
@@ -1154,10 +1732,22 @@ User: deploy
 OS family: alma
 Package manager: dnf
 Command OS family: rhel
-Command providers: CommonDiagnosticCommandProvider, RhelDnfCommandProvider
-Mode: Safe
-Capabilities: AllowListPackage
-Allowed roots: /var/www
+Command providers:
+  CommonDiagnosticCommandProvider
+  RhelDnfCommandProvider
+Capabilities:
+  AllowListPackage
+Roles:
+  Safe
+Effective mode: Safe
+Allowed roots:
+  /var/www  => @Read|@List|@CD|@Write
+Special paths:
+  **/.env  => Deny
+Services:
+  (empty list)
+Users:
+  deploy  => Safe
 Authentication: privateKey
 Private key: (configured)
 ```
@@ -1202,8 +1792,22 @@ User: deploy
 OS family: alma
 Package manager: dnf
 Command OS family: rhel
-Command providers: CommonDiagnosticCommandProvider, RhelDnfCommandProvider
-Mode: Safe
+Command providers:
+  CommonDiagnosticCommandProvider
+  RhelDnfCommandProvider
+Capabilities:
+  AllowListPackage
+Roles:
+  Safe
+Effective mode: Safe
+Allowed roots:
+  /var/www  => @Read|@List|@CD|@Write
+Special paths:
+  **/.env  => Deny
+Services:
+  (empty list)
+Users:
+  deploy  => Safe
 Authentication: privateKey
 
 KelpieMCPServer: running
@@ -1237,6 +1841,7 @@ kelpie diag vps01
 
 対象プロファイルに対して、許可済み診断コマンドをまとめて SSH 実行します。
 password profile の場合、CLI は最初に1回だけパスワードを尋ね、現在の `kelpie diag` プロセス内で各診断コマンドに使い回します。
+SSH接続失敗は raw stack trace ではなく、短い standard error メッセージとして表示します。
 
 実行結果サンプル:
 
@@ -1255,6 +1860,52 @@ tcp   LISTEN 0      128          0.0.0.0:22        0.0.0.0:*
 # get_failed_services
 0 loaded units listed.
 ```
+
+### `kelpie inventory <profile>`
+
+目的:
+
+対象プロファイルに対して、読み取り専用の接続先 inventory probe を SSH 経由で実行します。
+
+構文:
+
+```powershell
+kelpie inventory vps01
+```
+
+引数詳細:
+
+- `profile`: inventory を確認するプロファイル名。
+
+引数サンプル:
+
+- `vps01`
+
+処理内容:
+
+MCP tool の `get_target_inventory` と同じ `target_inventory` SSH コマンドを実行します。
+`/etc/os-release` と、`python3`、`php`、`node`、`systemctl`、`journalctl`、`findmnt`、`ss`、`ip` などの helper / software command の有無と version 概要を確認します。
+検出結果は実行時の probe 結果として表示し、プロファイルファイルへ書き戻しません。
+
+実行結果サンプル:
+
+```text
+# target_inventory
+OS	Ubuntu	24.04	ubuntu
+ITEM	helper	Python	python3	0	Python 3.12.3
+ITEM	helper	PHP	php	127	command not found
+ITEM	software	Node.js	node	127	command not found
+ITEM	software	systemctl	systemctl	0	systemd 255 (255.4-1ubuntu8)
+ITEM	software	journalctl	journalctl	0	systemd 255 (255.4-1ubuntu8)
+ITEM	software	findmnt	findmnt	0	findmnt from util-linux 2.39.3
+ITEM	software	ss	ss	0	ss utility, iproute2-6.1.0
+ITEM	software	ip	ip	0	ip utility, iproute2-6.1.0
+```
+
+注意:
+
+- inventory にはインストール済み software 名や version が含まれる場合があります。公開 issue などへ貼る前に内容を確認してください。
+- 実ホスト名、実ユーザー名、秘密情報、本番パス、顧客データを記録しないでください。
 
 ### `kelpie logs <profile> <service> [lines]`
 
@@ -1285,6 +1936,7 @@ kelpie logs vps01 nginx.service 200
 
 対象プロファイルで `tail_log` 相当の許可済み SSH コマンドを実行し、指定 service のログを取得します。
 password profile の場合、CLI は現在の `kelpie logs` プロセス用にパスワードを尋ねます。
+SSH接続失敗は raw stack trace ではなく、短い standard error メッセージとして表示します。
 
 実行結果サンプル:
 
@@ -1374,46 +2026,6 @@ masked の場合:
 
 ```text
 ************ (length=12)
-```
-
-### `kelpie env set <profile> <key> <value> -- <command>`
-
-目的:
-
-1回の command execution にだけ remote 環境変数値を付与して実行します。remote host に新しい値を永続保存しません。
-実行前に `~/.kelpie/.env` が存在する場合は source してから、指定した `<key> <value>` で上書きします。
-
-構文:
-
-```powershell
-kelpie env set vps01 APP_ENV production -- printenv APP_ENV
-```
-
-引数詳細:
-
-- `profile`: 環境変数を一時設定して command を実行するプロファイル名。
-- `key`: 設定する環境変数名。
-- `value`: 1回の command execution に付与する値。
-- `command`: `--` 以降に書く実行コマンド。
-
-引数サンプル:
-
-- `profile`: `vps01`
-- `key`: `APP_ENV`
-- `value`: `production`
-- `command`: `printenv APP_ENV`
-
-処理内容:
-
-profile の `Capabilities` に `AllowSetEnvironmentValues` が必要です。
-さらに、対象 key が `EnvironmentValues` で `SetCommon` または `SetSecret` として許可されている必要があります。
-`--` 以降の command は `kelpie login` の対話コマンドと同じ raw-command policy で検査されます。
-環境変数値を公開ログや issue に貼り付けないでください。
-
-実行結果サンプル:
-
-```text
-production
 ```
 
 ### `kelpie env list <profile>`
@@ -1598,20 +2210,26 @@ Usage:
   kelpie profiles
   kelpie sessions
   kelpie kill <handle>
-  kelpie profile create <profile>
-  kelpie profile edit <profile>
-  kelpie profile edit <profile> set <dotPath> <value>
-  kelpie profile edit <profile> add-root <path> <access>
-  kelpie profile edit <profile> rm-root <path>
-  kelpie profile edit <profile> add-deny <pattern>
-  kelpie profile edit <profile> rm-deny <pattern>
-  kelpie profile show <profile>
+  kelpie profile create <profile> [--silent] [--no-backup] [--dry-run] [options]
+  kelpie profile edit <profile> [--no-backup]
+  kelpie profile edit <profile> set <dotPath> <value> [--no-backup] [--dry-run]
+  kelpie profile edit <profile> add-root <path> <access> [--no-backup] [--dry-run]
+  kelpie profile edit <profile> rm-root <path> [--no-backup] [--dry-run]
+  kelpie profile edit <profile> add-deny <pattern> [--no-backup] [--dry-run]
+  kelpie profile edit <profile> rm-deny <pattern> [--no-backup] [--dry-run]
+  kelpie profile delete <profile-pattern> [--no-backup] [--dry-run]
+  kelpie profile clean <profile-pattern> [--dry-run]
+  kelpie profile commit <profile-pattern> [--dry-run]
+  kelpie profile rollback <profile-pattern> [--dry-run]
+  kelpie profile trust-host-key <profile> [--no-backup] [--dry-run]
+  kelpie profile check <profile>
+  kelpie profile show <profile-pattern>
   kelpie status <profile>
   kelpie diag <profile>
+  kelpie inventory <profile>
   kelpie logs <profile> <service> [lines]
   kelpie env keys <profile>
   kelpie env peek <profile> <key>
-  kelpie env set <profile> <key> <value> -- <command>
   kelpie env list <profile>
   kelpie env persist <profile> <key> <value>
   kelpie env remove <profile> <key>
@@ -1621,6 +2239,100 @@ Usage:
 Options:
   --version, -v  Show version information.
   --help, -h     Show command help.
+  --config-dir <dir>    Override the config directory.
+  --profiles-dir <dir>  Override the SSH profile directory.
+  --logs-dir <dir>      Override the log directory.
+  --bin-dir <dir>       Override the binary directory.
+  --keys-dir <dir>      Override the key directory.
+  --dat-dir <dir>       Override the runtime data directory.
+```
+
+### `kelpiemcp version`
+
+目的:
+
+`kelpiemcp` のバージョン情報を表示します。
+
+構文:
+
+```powershell
+kelpiemcp version
+kelpiemcp --version
+kelpiemcp -v
+```
+
+引数詳細:
+
+- なし。`--version` / `-v` は別名です。
+
+引数サンプル:
+
+- なし。
+
+処理内容:
+
+`kelpiemcp` のバージョン情報を表示します。
+
+実行結果サンプル:
+
+```text
+kelpiemcp 0.3.4.0
+```
+
+### `kelpiemcp help`
+
+目的:
+
+`kelpiemcp` のコマンドヘルプを表示します。
+
+構文:
+
+```powershell
+kelpiemcp help
+kelpiemcp --help
+kelpiemcp -h
+```
+
+引数詳細:
+
+- なし。`--help` / `-h` は別名です。
+
+引数サンプル:
+
+- なし。
+
+処理内容:
+
+利用可能な `kelpiemcp` コマンドと option を表示します。
+
+実行結果サンプル:
+
+```text
+Usage:
+  kelpiemcp start [--reload-config]
+  kelpiemcp stop
+  kelpiemcp status
+  kelpiemcp service register
+  kelpiemcp service unregister
+  kelpiemcp service status
+  kelpiemcp profile add <profile>
+  kelpiemcp profile reload <profile>
+  kelpiemcp profile revoke <profile>
+  kelpiemcp profile-capabilities [profile]
+  kelpiemcp password <profile>
+  kelpiemcp forget <profile>
+  kelpiemcp version
+  kelpiemcp help
+
+Options:
+  --version, -v  Show version information.
+  --help, -h     Show command help.
+  --config-dir <dir>    Override the config directory.
+  --profiles-dir <dir>  Override the SSH profile directory.
+  --logs-dir <dir>      Override the log directory.
+  --bin-dir <dir>       Override the binary directory.
+  --keys-dir <dir>      Override the key directory.
+  --dat-dir <dir>       Override the runtime data directory.
 ```
 
 ### `kelpie services <profile>`
@@ -1657,40 +2369,74 @@ Not implemented.
 
 目的:
 
-パッケージ操作系 CLI コマンドの候補です。現時点では未実装です。MCP tool としては `MCP_COMMANDS.ja.md` の package tools を正とします。
+SSH profile の package provider を使って、package 情報確認、dry-run、確認付き install / remove を行います。
 
 構文:
 
 ```powershell
 kelpie pkg check-updates vps01
+kelpie pkg info vps01 nginx
+kelpie pkg search vps01 nginx 20
+kelpie pkg list-installed vps01 nginx 50
 kelpie pkg simulate-install vps01 nginx
+kelpie pkg simulate-remove vps01 nginx
 kelpie pkg install vps01 nginx
+kelpie pkg install vps01 nginx --confirm pkg_install:nginx
+kelpie pkg remove vps01 nginx
+kelpie pkg remove vps01 nginx --confirm pkg_remove:nginx
 ```
 
 引数詳細:
 
-- `check-updates`: 更新可能な package を確認する候補。
-- `simulate-install <profile> <package>`: 対象 package の install dry-run 候補。
-- `install <profile> <package>`: 対象 package の確認付き install 候補。
+- `check-updates <profile>`: 更新可能な package を確認します。
+- `info <profile> <package>`: 対象 package の情報を表示します。
+- `search <profile> <query> [limit]`: package を検索します。`limit` 省略時は `20` です。
+- `list-installed <profile> <filter> [limit]`: installed package を絞り込み表示します。`limit` 省略時は `50` です。
+- `simulate-install <profile> <package>`: 対象 package の install dry-run を実行します。
+- `simulate-remove <profile> <package>`: 対象 package の remove dry-run を実行します。
+- `install <profile> <package>`: 確認 token を返し、package install は実行しません。
+- `install <profile> <package> --confirm <token>`: exact confirmation token が一致した場合だけ install を実行します。
+- `remove <profile> <package>`: 確認 token を返し、package remove は実行しません。
+- `remove <profile> <package> --confirm <token>`: exact confirmation token が一致した場合だけ remove を実行します。
 - `profile`: 操作対象のプロファイル名。
 - `package`: 操作対象の package 名。
+- `query`: package search の検索語。
+- `filter`: installed package list の絞り込み語。
+- `token`: `pkg_install:<package>` または `pkg_remove:<package>` の形式の確認 token。
 
 引数サンプル:
 
 - `profile`: `vps01`
 - `package`: `nginx`
+- `query`: `nginx`
+- `filter`: `nginx`
+- `token`: `pkg_install:nginx`
 
 処理内容:
 
-package 操作系 CLI コマンドの候補です。現時点では未実装です。
+read-only 系 command は remote package manager の出力を表示します。
+`install` / `remove` は、`--confirm` なしでは command preview と confirmation token を表示するだけで remote state を変更しません。
+`--confirm` 指定時も、profile mode / policy / provider / 入力値を実行直前に再評価します。
+token が空、不一致、別 operation 用の場合は実行せず non-zero exit で終了します。
 
 実行結果サンプル:
 
 ```text
-Not implemented.
+# pkg_install
+Requires confirmation: true
+Confirmation: pkg_install:nginx
+Command preview: sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y 'nginx'
+Not executed.
+Run after review: kelpie pkg install vps01 nginx --confirm pkg_install:nginx
 ```
 
-## Safety Notes
+安全上の注意:
+
+- 確認付き変更の前に `simulate-install` / `simulate-remove` を実行してください。
+- 初回確認ではローカル Docker SSH コンテナなどの使い捨て target を使ってください。
+- package manager の raw log に host、repository、customer data が含まれる場合、公開 issue や公開ログへ貼り付けないでください。
+
+## 安全上の注意
 
 - `COMMANDS.ja.md` は通常のターミナルから直接実行する CLI コマンドの正本です。MCP callable tool は `MCP_COMMANDS.ja.md` を参照してください。
 - 平文パスワードは `profiles/<profile>.json` に保存しません。

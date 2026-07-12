@@ -1,6 +1,6 @@
 # KelpieSSH Profile Guide
 
-Last updated: 2026-06-18
+Last updated: 2026-07-05
 
 This guide explains how to configure SSH profiles for KelpieSSH.
 For Japanese documentation, see [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md).
@@ -65,6 +65,30 @@ For private key authentication, place the private key under:
 ```
 
 The matching public key must already be registered on the server, usually in the remote user's `~/.ssh/authorized_keys`.
+
+## Host Key Pinning
+
+Set `Host.HostKeyFingerprintSha256` to pin the SSH server host key fingerprint.
+When the value is configured, KelpieSSH compares the received SSH host key fingerprint with the profile value before trusting the connection.
+
+```json
+{
+  "Host": {
+    "Address": "203.0.113.10",
+    "Port": 22,
+    "HostKeyFingerprintSha256": "SHA256:abc123"
+  }
+}
+```
+
+To record a fingerprint interactively, use:
+
+```powershell
+kelpie profile trust-host-key vps01
+```
+
+Only trust the displayed fingerprint after verifying it through a trusted channel such as the VPS provider console.
+If the first SSH connection is intercepted, recording that fingerprint can pin an attacker's host key.
 
 ## Minimal Private Key Profile
 
@@ -197,11 +221,12 @@ kelpiemcp forget vps01
 
 ### Profile schema summary
 
-| Field | Required | Type | Default | Values / constraints |
+| Field | Required | Type | Initial value | Values / constraints |
 | :--- | :---: | :--- | :--- | :--- |
 | `Host` | yes | object | none | SSH endpoint settings. |
 | `Host.Address` | yes | string | none | Host name or IP address. Must not be empty. |
 | `Host.Port` | no | integer | `22` | SSH port, normally `1` to `65535`. |
+| `Host.HostKeyFingerprintSha256` | no | string | none | Pinned SSH server host key SHA256 fingerprint. Use `kelpie profile trust-host-key <profile>` or verify and enter it manually. |
 | `Auth` | yes unless `Authentication` is used | object | none | Short alias for `Authentication`. Used by samples. |
 | `Authentication` | yes unless `Auth` is used | object | none | Formal authentication section. Takes priority over `Auth` when both are present. |
 | `Auth.UserName` / `Authentication.UserName` | yes for single-user profiles | string | none | SSH login user. Direct `root` login is rejected. |
@@ -495,10 +520,10 @@ Legacy compatibility samples:
 
 Target SSH endpoint.
 
-| Field | Required | Description |
-| :--- | :---: | :--- |
-| `Host.Address` | yes | Host name or IP address. |
-| `Host.Port` | no | SSH port. Default is `22`. |
+| Field | Required | Initial value | Description |
+| :--- | :---: | :--- | :--- |
+| `Host.Address` | yes | none | Host name or IP address. |
+| `Host.Port` | no | `22` | SSH port. |
 
 Troubleshooting:
 
@@ -512,14 +537,14 @@ SSH authentication settings.
 `Auth` is the short alias used by samples.
 If both are present, `Authentication` takes priority.
 
-| Field | Required | Description |
-| :--- | :---: | :--- |
-| `Auth.UserName` | yes for single-user profiles | SSH login user. Direct `root` login is rejected. |
-| `Auth.Method` | yes | `privateKey` or `password`. |
-| `Auth.PrivateKeyFile` | yes for `privateKey` | Private key file name under `KelpieHome\keys`, or an absolute path. |
-| `Auth.PrivateKeyPath` | no | Compatibility path. Prefer `PrivateKeyFile` for new profiles. |
-| `Auth.PrivateKeyPassphrase` | no | Private key passphrase. Do not expose it in logs or public files. |
-| `Auth.PasswordSecretName` | yes for `password` | Secret reference name. The password itself is entered at runtime. |
+| Field | Required | Initial value | Description |
+| :--- | :---: | :--- | :--- |
+| `Auth.UserName` | yes for single-user profiles | none | SSH login user. Direct `root` login is rejected. |
+| `Auth.Method` | yes | `privateKey` | `privateKey` or `password`. |
+| `Auth.PrivateKeyFile` | yes for `privateKey` | none | Private key file name under `KelpieHome\keys`, or an absolute path. |
+| `Auth.PrivateKeyPath` | no | none | Compatibility path. Prefer `PrivateKeyFile` for new profiles. |
+| `Auth.PrivateKeyPassphrase` | no | `null` | Private key passphrase. Do not expose it in logs or public files. |
+| `Auth.PasswordSecretName` | yes for `password` | `null` | Secret reference name. The password itself is entered at runtime. |
 
 Troubleshooting:
 
@@ -532,9 +557,9 @@ Troubleshooting:
 
 Connection behavior.
 
-| Field | Required | Description |
-| :--- | :---: | :--- |
-| `Connection.TimeoutSeconds` | no | SSH connection timeout in seconds. Default is `10`. |
+| Field | Required | Initial value | Description |
+| :--- | :---: | :--- | :--- |
+| `Connection.TimeoutSeconds` | no | `10` | SSH connection timeout in seconds. |
 
 Troubleshooting:
 
@@ -545,10 +570,10 @@ Troubleshooting:
 
 Target OS metadata used to select safe commands.
 
-| Field | Required | Description |
-| :--- | :---: | :--- |
-| `Platform.OsFamily` | yes | Target OS family or alias. |
-| `Platform.PackageManager` | no | `apt`, `dnf`, `yum`, etc. If omitted, it is inferred from `OsFamily` when possible. |
+| Field | Required | Initial value | Description |
+| :--- | :---: | :--- | :--- |
+| `Platform.OsFamily` | yes | none | Target OS family or alias. |
+| `Platform.PackageManager` | no | inferred from `OsFamily` | `apt`, `dnf`, `yum`, etc. |
 
 Common `OsFamily` values:
 
@@ -895,12 +920,12 @@ Example:
 }
 ```
 
-| Field | Required | Description |
-| :--- | :---: | :--- |
-| `Services.Nginx.User` | no | Nginx worker user. |
-| `Services.Nginx.Group` | no | Nginx worker group. |
-| `Services.Nginx.Port` | no | Nginx listen port. Must be 1 to 65535. |
-| `Services.Nginx.Root` | no | Web public root. Also used by `WebUser` role. |
+| Field | Required | Initial value | Description |
+| :--- | :---: | :--- | :--- |
+| `Services.Nginx.User` | no | none | Nginx worker user. |
+| `Services.Nginx.Group` | no | none | Nginx worker group. |
+| `Services.Nginx.Port` | no | none | Nginx listen port. Must be 1 to 65535. |
+| `Services.Nginx.Root` | no | none | Web public root. Also used by `WebUser` role. |
 
 ### `WebPublicSites`
 
@@ -942,16 +967,16 @@ Example:
 }
 ```
 
-| Field | Required | Description |
-| :--- | :---: | :--- |
-| `WebPublicSites.<siteKey>.Root` / `RootPath` | yes | Web public root for the site. |
-| `WebPublicSites.<siteKey>.AllowedExtensions` | no | Regular file extensions allowed for this site. Effective values are explicit single file extensions with a leading dot, such as `.html` or `.png`. Matching is case-insensitive. Do not specify paths, globs, MIME types, or executable extensions here. If omitted or empty, Kelpie uses its built-in safe static-file extension list. |
-| `WebPublicSites.<siteKey>.WritableExecutableExtensions` | no | Executable extensions allowed for writes on this site only. Values must be explicit dot-prefixed extensions such as `.php`; wildcards are rejected. |
-| `WebPublicSites.<siteKey>.AllowedContentTypes` | no | MIME content types allowed for this site. Array form grants read/write; object form maps MIME type to an access expression. |
-| `WebPublicSites.<siteKey>.AllowedFiles` | no | File-specific allow rules. Keys are file globs, `file:<glob>`, or `mime:<content-type>`; values are access expressions. |
-| `WebPublicSites.<siteKey>.CreateDirectories` | no | Allows missing parent directories to be created during write operations. |
-| `WebPublicSites.<siteKey>.MaxReadBytes` | no | Maximum bytes returned by web file read operations. |
-| `WebPublicSites.<siteKey>.MaxWriteBytes` | no | Maximum bytes accepted by web file write operations. |
+| Field | Required | Initial value | Description |
+| :--- | :---: | :--- | :--- |
+| `WebPublicSites.<siteKey>.Root` / `RootPath` | yes | none | Web public root for the site. |
+| `WebPublicSites.<siteKey>.AllowedExtensions` | no | built-in safe static extensions | Regular file extensions allowed for this site. Effective values are explicit single file extensions with a leading dot, such as `.html` or `.png`. Matching is case-insensitive. Do not specify paths, globs, MIME types, or executable extensions here. |
+| `WebPublicSites.<siteKey>.WritableExecutableExtensions` | no | empty | Executable extensions allowed for writes on this site only. Values must be explicit dot-prefixed extensions such as `.php`; wildcards are rejected. |
+| `WebPublicSites.<siteKey>.AllowedContentTypes` | no | built-in safe content types | MIME content types allowed for this site. Array form grants read/write; object form maps MIME type to an access expression. |
+| `WebPublicSites.<siteKey>.AllowedFiles` | no | empty | File-specific allow rules. Keys are file globs, `file:<glob>`, or `mime:<content-type>`; values are access expressions. |
+| `WebPublicSites.<siteKey>.CreateDirectories` | no | `true` | Allows missing parent directories to be created during write operations. |
+| `WebPublicSites.<siteKey>.MaxReadBytes` | no | `5242880` | Maximum bytes returned by web file read operations. |
+| `WebPublicSites.<siteKey>.MaxWriteBytes` | no | `5242880` | Maximum bytes accepted by web file write operations. |
 
 #### `WebPublicSites.<siteKey>`
 
@@ -1420,3 +1445,5 @@ For MCP, start the server and register the password:
 kelpiemcp start
 kelpiemcp password vps01
 ```
+
+

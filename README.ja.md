@@ -6,6 +6,8 @@ KelpieSSH は、SSH 越しの VPS 診断と保守を安全に補助するため�
 
 コマンドの詳細は [docs/ja/COMMANDS.ja.md](docs/ja/COMMANDS.ja.md) を参照してください。
 
+コマンドラインオプションは [CLI_OPTIONS.md](CLI_OPTIONS.md) を参照してください。
+
 MCP ツールの詳細は [docs/ja/MCP_COMMANDS.ja.md](docs/ja/MCP_COMMANDS.ja.md) を参照してください。
 
 設定の詳細は [docs/ja/CONFIG.ja.md](docs/ja/CONFIG.ja.md) を参照してください。
@@ -27,17 +29,21 @@ config_samples/
    └─ vps01.json
 ```
 
+公開サンプルはプレースホルダー値を使います。検証時は、サンプルプロファイルをローカルの `KelpieHome/profiles` へコピーし、ローカル Docker SSH コンテナなどの使い捨て SSH ターゲット向けに編集してから、接続前に check コマンドを実行してください。実ホスト名、実ユーザー名、秘密鍵、パスワード、raw log はこのリポジトリに入れないでください。
+
 ## はじめに
 
-KelpieSSH の使い方に合わせて導入方法を選んでください。
+KelpieSSH の使い方に合わせて導入方法を選んでください。Alpha リリースでは Windows ZIP を主なバイナリ配布物とします。MSI はリリースに添付される場合がありますが、任意であり、未署名の場合があります。
 
-### バイナリ利用者
+### Alpha バイナリ利用者
 
-#### 1. バイナリ（`.msi`）をインストールする
+#### 1. リリースバイナリをダウンロードする
 
-通常は、GitHub Releases から KelpieSSH の `.msi` インストーラーをダウンロードして実行します。
+Alpha リリースでは、GitHub Releases から `KelpieSSH-x.x.x.x-win-x64.zip` をダウンロードし、下の ZIP 配布版の手順に従ってください。
 
-インストール後、新しいターミナルを開いてください。
+同じリリースに MSI が添付されている場合は、MSI を使うこともできます。Alpha MSI は未署名の場合があるため、Windows が不明な発行元または SmartScreen 警告を表示することがあります。
+
+インストール後、または `PATH` 設定後に、新しいターミナルを開いてください。
 
 コマンドを実行できることを確認します。
 
@@ -48,7 +54,7 @@ kelpie version
 出力例:
 
 ```text
-kelpie 0.3.1.1
+kelpie 0.3.4.0
 ```
 
 #### 2. Kelpie home を初期化してプロファイルを作成する
@@ -74,7 +80,7 @@ MCP log directory [D:\Kelpie\logs]: D:\Kelpie\logs
 MCP control pipe name [KelpieMCPServer.Control]: KelpieMCPServer.Control
 Create SSH profile template.
 Press Enter to use the default value.
-Host address [example.invalid]: example.org
+Host address [localhost]: example.org
 Port [22]: 2222
 SSH user [deploy]: ops
 Authentication method (privateKey/password) [privateKey]: password
@@ -108,6 +114,15 @@ Created files:
 
 このファイルに、接続先ホスト、SSH ユーザー、認証方式、秘密鍵またはパスワード参照を設定します。秘密鍵認証では、秘密鍵ファイルを `<KelpieHome>\keys` 配下に置き、`Auth.PrivateKeyFile` にそのファイル名を設定します。対応する公開鍵は、事前にサーバー側へ登録しておく必要があります。パスワード認証では、`Auth.Method` を `password` にし、`Auth.PasswordSecretName` を設定します。平文パスワードをプロファイルに保存してはいけません。
 
+接続前に、SSH 接続を行わずローカル設定とプロファイルを検証します。
+
+```powershell
+kelpie config check
+kelpie profile check vps01
+```
+
+最初の確認には、ローカル Docker SSH コンテナなどの使い捨て SSH ターゲットを使うと安全です。`kelpie config check` と `kelpie profile check <profile>` は、SSH 接続を開始する前に、ローカルファイル、JSON、スキーマ、認証参照、プロバイダー、ポリシー、許可ルート、特別パス、ユーザー、保留中バックアップ状態を検証します。
+
 #### 3. サーバーに接続する
 
 プロファイルを編集したら、対象サーバーを開きます。
@@ -122,19 +137,21 @@ kelpie open vps01
 kelpie login
 ```
 
-Windows が不明な発行元または SmartScreen 警告を表示した場合は、MSI が公式 GitHub Release からダウンロードしたものか確認してください。チェックサムが公開されている場合は、あわせて照合してください。
+MSI で Windows が不明な発行元または SmartScreen 警告を表示した場合は、MSI が公式 GitHub Release からダウンロードしたものか確認してください。チェックサムが公開されている場合は、あわせて照合してください。
 
 ### ZIP 配布版の利用者
 
 #### 1. ZIP バイナリを配置する
 
-`KelpieSSH-x.x.x.x-x64.zip` を `D:\Kelpie` に展開します。CLI 利用に関係する主なファイルは次の構成で配置されます。
+`KelpieSSH-x.x.x.x-win-x64.zip` を `D:\Kelpie` に展開します。CLI 利用に関係する主なファイルは次の構成で配置されます。
 
 ```text
 D:\Kelpie
 ├─ bin
 │  ├─ kelpie.exe
-│  └─ kelpiemcp.exe
+│  ├─ kelpiemcp.exe
+│  └─ mcp
+│     └─ KelpieMCPServer.exe
 ├─ config_samples
 ├─ docs
 ├─ README.md
@@ -169,7 +186,7 @@ kelpie version
 出力例:
 
 ```text
-kelpie 0.3.1.1
+kelpie 0.3.4.0
 ```
 
 `PATH` を更新したくない場合は、`D:\Kelpie\bin\kelpie.exe` のようにフルパスで実行してください。
@@ -211,6 +228,15 @@ D:\Kelpie\profiles\vps01.json
 プロファイルの記述方法は [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md) を参照してください。
 
 このファイルに、接続先ホスト、SSH ユーザー、認証方式、秘密鍵またはパスワード参照を設定します。秘密鍵認証では、秘密鍵ファイルを `D:\Kelpie\keys` 配下に置き、`Auth.PrivateKeyFile` にそのファイル名を設定します。対応する公開鍵は、事前にサーバー側へ登録しておく必要があります。パスワード認証では、`Auth.Method` を `password` にし、`Auth.PasswordSecretName` を設定します。平文パスワードをプロファイルに保存してはいけません。
+
+接続前に、SSH 接続を行わずローカル設定とプロファイルを検証します。
+
+```powershell
+kelpie config check
+kelpie profile check vps01
+```
+
+最初の確認には、ローカル Docker SSH コンテナなどの使い捨て SSH ターゲットを使うと安全です。`kelpie config check` と `kelpie profile check <profile>` は、SSH 接続を開始する前に、ローカルファイル、JSON、スキーマ、認証参照、プロバイダー、ポリシー、許可ルート、特別パス、ユーザー、保留中バックアップ状態を検証します。
 
 #### 4. サーバーに接続する
 
@@ -261,6 +287,13 @@ D:\Kelpie\profiles\vps01.json
 
 `kelpie open vps01` を実行する前に、接続先ホスト、ユーザー、認証方式、秘密鍵ファイル名またはパスワード参照を設定します。
 
+プロファイルを開く前に、ローカル設定とプロファイルを検証します。
+
+```powershell
+D:\Kelpie\bin\kelpie.exe config check
+D:\Kelpie\bin\kelpie.exe profile check vps01
+```
+
 ### AI 利用者
 
 Kelpie を AI 用 MCP サーバーとして使う場合は、[docs/ja/MCP_GUIDE.ja.md](docs/ja/MCP_GUIDE.ja.md) にしたがってサーバーを設定、起動してください。
@@ -291,12 +324,21 @@ kelpie version
 kelpie --version
 ```
 
-設定済み SSH プロファイルを確認します。
+ローカル設定と SSH プロファイルを検証します。
+
+```powershell
+kelpie config check
+kelpie profile check vps01
+```
+
+これらの check コマンドは、通常運用で `kelpie open`、`kelpie login`、`kelpie diag`、MCP 利用の前に実行する想定です。SSH 接続を開始しないため、ローカル Docker SSH コンテナなどの使い捨てテスト対象にも向いています。
+
+設定済み SSH プロファイルを表示します。
 
 ```powershell
 kelpie profiles
-kelpie profile show vps01
 kelpie status vps01
+kelpie profile show vps01
 ```
 
 対話 SSH セッションを実行します。
@@ -316,6 +358,81 @@ kelpie logs vps01 nginx.service 200
 
 `kelpie login`、`kelpie diag`、`kelpie logs` は CLI プロセスから SSH 操作を直接実行します。パスワード認証のプロファイルでは、CLI が実行時にパスワードを尋ね、そのコマンドプロセス内だけに保持します。`kelpie status` はローカル MCP サーバーの状態も表示できますが、上記のコマンドラインツールを使うだけなら MCP サーバーは不要です。
 
+## プロファイルの検証と確認方法
+
+通常運用では、まず `kelpie profile check <profile>` を使います。このコマンドは SSH 接続を行わず、profile file、JSON 構文、schema、認証参照、command provider、policy、user、pending backup を検証します。
+
+```powershell
+kelpie config check
+kelpie profile check vps01
+```
+
+`kelpie profile check vps01` の出力例:
+
+```text
+Profile file: OK
+Profile JSON: OK
+Profile schema: OK
+Host.Address: OK
+Host.Port: OK
+User: OK
+Auth.Method: OK
+Auth.PrivateKeyFile: OK
+Platform.OsFamily: OK
+Platform.PackageManager: OK
+Mode: OK
+Command providers:
+  DebianDiagnosticCommandProvider: OK
+Capabilities:
+  (empty list): OK
+Roles:
+  Safe: OK
+Allowed roots:
+  /var/www: OK
+Special paths:
+  **/.env: OK
+Users:
+  deploy: OK
+Pending backup: OK
+Check summary: OK=18/18 NG=0/18
+```
+
+解決済みのプロファイル概要を安全に確認するには `kelpie profile show <profile>` を使います。
+
+```powershell
+kelpie profile show vps01
+```
+
+`kelpie profile show vps01` の出力例:
+
+```text
+Profile: vps01
+Host: example.invalid
+Port: 22
+User: deploy
+OS family: debian
+Package manager: apt
+Command OS family: debian
+Command providers:
+  CommonDiagnosticCommandProvider
+  DebianAptCommandProvider
+Capabilities:
+  (empty list)
+Roles:
+  Safe
+Effective mode: Safe
+Allowed roots:
+  /var/www  => @Read|@List|@Write|@CD
+Special paths:
+  **/.env  => Deny
+Services:
+  (empty list)
+Users:
+  deploy  => Safe
+Authentication: privateKey
+Private key: (configured)
+```
+
 ## 初期化済みディレクトリで新しいプロファイルを作成する
 
 `KelpieHome` がすでに初期化済みの場合は、`kelpie profile create <profile>` を使って、設定ファイルやディレクトリを作り直さずに新しいプロファイルのひな形を1つ追加できます。
@@ -329,7 +446,7 @@ kelpie profile create vps02
 ```text
 Create SSH profile template.
 Press Enter to use the default value.
-Host address [example.invalid]: example.org
+Host address [localhost]: example.org
 Port [22]: 2222
 SSH user [deploy]: ops
 Authentication method (privateKey/password) [privateKey]: password
@@ -343,7 +460,13 @@ Created profile: vps02
 Profile file: D:\Kelpie\profiles\vps02.json
 ```
 
-`profiles\vps02.json` がすでに存在する場合、このコマンドは失敗し、既存ファイルを上書きしません。
+`profiles\vps02.json` がすでに存在する場合、このコマンドは上書きするか確認します。上書きした場合、古いファイルは profile 変更を commit または rollback するまで `profiles\vps02.json.kelpie` として保持されます。
+
+## コマンドラインオプション
+
+Kelpie は、非対話 profile 作成、dry-run preview、runtime directory override、profile transaction の即コミット動作に関するコマンドラインオプションを提供します。
+
+Dry-run、Silent モード、runtime directory override、即コミット profile 操作に関するオプションは [CLI_OPTIONS.md](CLI_OPTIONS.md) を参照してください。
 
 ## コントリビューション
 

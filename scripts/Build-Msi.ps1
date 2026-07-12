@@ -19,9 +19,15 @@ function New-WixId {
         [string]$Value
     )
 
-    $hash = [System.Security.Cryptography.SHA256]::HashData([System.Text.Encoding]::UTF8.GetBytes($Value))
-    $suffix = -join ($hash[0..7] | ForEach-Object { $_.ToString("x2") })
-    return $Prefix + "_" + $suffix
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = $sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Value))
+        $suffix = -join ($hash[0..7] | ForEach-Object { $_.ToString("x2") })
+        return $Prefix + "_" + $suffix
+    }
+    finally {
+        $sha256.Dispose()
+    }
 }
 
 function Invoke-Checked {

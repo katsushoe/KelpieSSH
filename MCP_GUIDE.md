@@ -176,3 +176,4 @@ From an MCP client, use `ssh_logout` to clear the password session for a profile
 ## MCP command-line tools
 
 The MCP command-line tool list is documented in [MCP_COMMANDS.md](MCP_COMMANDS.md).
+

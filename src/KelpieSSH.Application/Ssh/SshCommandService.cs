@@ -12,14 +12,18 @@ public sealed class SshCommandService
     private readonly KelpiePolicyEvaluator _policyEvaluator;
     private readonly RawShellCommandPolicy _rawShellCommandPolicy;
     private readonly ISshCommandRunner _sshCommandRunner;
+    private readonly IKelpieEnvironmentOverrideStore? _environmentOverrideStore;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SshCommandService"/> class.
     /// </summary>
     /// <param name="allowedCommandCatalog">The allowed command catalog.</param>
     /// <param name="sshCommandRunner">The SSH command runner.</param>
-    public SshCommandService(IAllowedCommandCatalog allowedCommandCatalog, ISshCommandRunner sshCommandRunner)
-        : this(allowedCommandCatalog, KelpiePolicyEvaluator.Default, sshCommandRunner)
+    public SshCommandService(
+        IAllowedCommandCatalog allowedCommandCatalog,
+        ISshCommandRunner sshCommandRunner,
+        IKelpieEnvironmentOverrideStore? environmentOverrideStore = null)
+        : this(allowedCommandCatalog, KelpiePolicyEvaluator.Default, sshCommandRunner, environmentOverrideStore)
     {
     }
 
@@ -30,8 +34,9 @@ public sealed class SshCommandService
     /// <param name="sshCommandRunner">The SSH command runner.</param>
     public SshCommandService(
         IReadOnlyCollection<ICommandProcessingProvider> commandProcessingProviders,
-        ISshCommandRunner sshCommandRunner)
-        : this(commandProcessingProviders, KelpiePolicyEvaluator.Default, sshCommandRunner)
+        ISshCommandRunner sshCommandRunner,
+        IKelpieEnvironmentOverrideStore? environmentOverrideStore = null)
+        : this(commandProcessingProviders, KelpiePolicyEvaluator.Default, sshCommandRunner, environmentOverrideStore)
     {
     }
 
@@ -44,8 +49,9 @@ public sealed class SshCommandService
     public SshCommandService(
         IAllowedCommandCatalog allowedCommandCatalog,
         KelpiePolicyEvaluator policyEvaluator,
-        ISshCommandRunner sshCommandRunner)
-        : this(allowedCommandCatalog, policyEvaluator, RawShellCommandPolicy.Default, sshCommandRunner)
+        ISshCommandRunner sshCommandRunner,
+        IKelpieEnvironmentOverrideStore? environmentOverrideStore = null)
+        : this(allowedCommandCatalog, policyEvaluator, RawShellCommandPolicy.Default, sshCommandRunner, environmentOverrideStore)
     {
     }
 
@@ -60,12 +66,14 @@ public sealed class SshCommandService
         IAllowedCommandCatalog allowedCommandCatalog,
         KelpiePolicyEvaluator policyEvaluator,
         RawShellCommandPolicy rawShellCommandPolicy,
-        ISshCommandRunner sshCommandRunner)
+        ISshCommandRunner sshCommandRunner,
+        IKelpieEnvironmentOverrideStore? environmentOverrideStore = null)
     {
         _allowedCommandCatalog = allowedCommandCatalog;
         _policyEvaluator = policyEvaluator;
         _rawShellCommandPolicy = rawShellCommandPolicy;
         _sshCommandRunner = sshCommandRunner;
+        _environmentOverrideStore = environmentOverrideStore;
     }
 
     /// <summary>
@@ -77,8 +85,9 @@ public sealed class SshCommandService
     public SshCommandService(
         IReadOnlyCollection<ICommandProcessingProvider> commandProcessingProviders,
         KelpiePolicyEvaluator policyEvaluator,
-        ISshCommandRunner sshCommandRunner)
-        : this(commandProcessingProviders, policyEvaluator, RawShellCommandPolicy.Default, sshCommandRunner)
+        ISshCommandRunner sshCommandRunner,
+        IKelpieEnvironmentOverrideStore? environmentOverrideStore = null)
+        : this(commandProcessingProviders, policyEvaluator, RawShellCommandPolicy.Default, sshCommandRunner, environmentOverrideStore)
     {
     }
 
@@ -93,12 +102,14 @@ public sealed class SshCommandService
         IReadOnlyCollection<ICommandProcessingProvider> commandProcessingProviders,
         KelpiePolicyEvaluator policyEvaluator,
         RawShellCommandPolicy rawShellCommandPolicy,
-        ISshCommandRunner sshCommandRunner)
+        ISshCommandRunner sshCommandRunner,
+        IKelpieEnvironmentOverrideStore? environmentOverrideStore = null)
     {
         _commandProcessingProviders = commandProcessingProviders;
         _policyEvaluator = policyEvaluator;
         _rawShellCommandPolicy = rawShellCommandPolicy;
         _sshCommandRunner = sshCommandRunner;
+        _environmentOverrideStore = environmentOverrideStore;
     }
 
     /// <summary>
@@ -151,7 +162,7 @@ public sealed class SshCommandService
                 operation.Operation.Arguments,
                 timeout,
                 channel,
-                cancellationToken);
+                cancellationToken: cancellationToken);
         }
 
         if (string.Equals(operation.Operation.Kind, "raw", StringComparison.OrdinalIgnoreCase))
@@ -183,6 +194,7 @@ public sealed class SshCommandService
         IReadOnlyDictionary<string, string>? arguments = null,
         TimeSpan? timeout = null,
         KelpieExecutionChannel channel = KelpieExecutionChannel.Cli,
+        string? standardInput = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
@@ -209,7 +221,9 @@ public sealed class SshCommandService
             command.Name,
             commandText,
             timeout ?? command.DefaultTimeout,
-            commandArguments);
+            commandArguments,
+            standardInput,
+            GetEnvironmentOverrides(profile));
 
         return await _sshCommandRunner.ExecuteAsync(request, cancellationToken);
     }
@@ -253,6 +267,25 @@ public sealed class SshCommandService
             command.RiskLevel,
             command.RiskLevel == SshCommandRiskLevel.ConfirmRequired,
             commandArguments);
+    }
+
+    /// <summary>
+    /// Gets the risk level for one allowed SSH command without rendering its arguments.
+    /// </summary>
+    /// <param name="profile">The SSH connection profile.</param>
+    /// <param name="commandName">The allowed command name.</param>
+    /// <returns>The command risk level.</returns>
+    public SshCommandRiskLevel GetRiskLevel(SshConnectionProfile profile, string commandName)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var allowedCommandCatalog = ResolveAllowedCommandCatalog(profile);
+        if (!allowedCommandCatalog.TryGet(commandName, out var command))
+        {
+            throw new InvalidOperationException($"SSH command is not allowed: {commandName}");
+        }
+
+        return command.RiskLevel;
     }
 
     /// <summary>
@@ -310,7 +343,9 @@ public sealed class SshCommandService
             "raw_shell",
             trimmedCommandText,
             timeout ?? TimeSpan.FromSeconds(30),
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            null,
+            GetEnvironmentOverrides(profile));
 
         return await _sshCommandRunner.ExecuteAsync(request, cancellationToken);
     }
@@ -336,7 +371,9 @@ public sealed class SshCommandService
             "get_environment_keys",
             "printenv | cut -d= -f1 | sort",
             timeout ?? TimeSpan.FromSeconds(10),
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            null,
+            GetEnvironmentOverrides(profile));
         var result = await _sshCommandRunner.ExecuteAsync(request, cancellationToken);
         var hiddenKeys = profile.EnvironmentValues
             .Where(rule => rule.IsHidden)
@@ -394,7 +431,9 @@ public sealed class SshCommandService
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 ["key"] = key,
-            });
+            },
+            null,
+            GetEnvironmentOverrides(profile));
         var result = await _sshCommandRunner.ExecuteAsync(request, cancellationToken);
         if (!rule.Access.HasFlag(EnvironmentValueAccess.Masked))
         {
@@ -450,16 +489,19 @@ public sealed class SshCommandService
 
         var trimmedCommandText = commandText.Trim();
         _rawShellCommandPolicy.EnsureAllowed(profile, trimmedCommandText, channel);
+        var standardInput = value + "\n";
         var request = new SshCommandRequest(
             profile,
             "set_environment_value",
-            $"if [ -f {PersistentEnvironmentFilePath} ]; then . {PersistentEnvironmentFilePath}; fi; env {key}={QuoteShellArgument(value)} {trimmedCommandText}",
+            $"if [ -f {PersistentEnvironmentFilePath} ]; then . {PersistentEnvironmentFilePath}; fi; IFS= read -r __k_val; export {key}=\"$__k_val\"; unset __k_val; {trimmedCommandText}",
             timeout ?? TimeSpan.FromSeconds(30),
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 ["key"] = key,
                 ["command"] = trimmedCommandText,
-            });
+            },
+            standardInput,
+            GetEnvironmentOverrides(profile));
 
         return await _sshCommandRunner.ExecuteAsync(request, cancellationToken);
     }
@@ -485,7 +527,9 @@ public sealed class SshCommandService
             "list_persistent_environment_keys",
             $"if [ -f {PersistentEnvironmentFilePath} ]; then sed -n 's/^\\([A-Za-z_][A-Za-z0-9_]*\\)=.*/\\1/p' {PersistentEnvironmentFilePath} | sort; fi",
             timeout ?? TimeSpan.FromSeconds(10),
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            null,
+            GetEnvironmentOverrides(profile));
         var result = await _sshCommandRunner.ExecuteAsync(request, cancellationToken);
         var hiddenKeys = profile.EnvironmentValues
             .Where(rule => rule.IsHidden)
@@ -537,14 +581,14 @@ public sealed class SshCommandService
             throw new KelpiePolicyError($"environment value persist is not allowed: {key}");
         }
 
-        var line = $"{key}={QuoteShellArgument(value)}";
+        var standardInput = value + "\n";
         var commandText = string.Join(" && ", [
             "mkdir -p ~/.kelpie",
             $"touch {PersistentEnvironmentFilePath}",
             $"backup={PersistentEnvironmentFilePath}.$(date -u +%Y%m%dT%H%M%SZ).kelpie",
             $"cp {PersistentEnvironmentFilePath} \"$backup\"",
             $"awk -F= -v key={QuoteShellArgument(key)} '$1 != key {{ print }}' {PersistentEnvironmentFilePath} > {PersistentEnvironmentFilePath}.tmp",
-            $"printf '%s\\n' {QuoteShellArgument(line)} >> {PersistentEnvironmentFilePath}.tmp",
+            $"IFS= read -r __k_val; printf '%s\\n' \"{key}=$__k_val\" >> {PersistentEnvironmentFilePath}.tmp; unset __k_val",
             $"mv {PersistentEnvironmentFilePath}.tmp {PersistentEnvironmentFilePath}",
             $"chmod 600 {PersistentEnvironmentFilePath}",
             "printf 'Updated ~/.kelpie/.env\\nBackup: %s\\n' \"$backup\"",
@@ -557,7 +601,9 @@ public sealed class SshCommandService
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 ["key"] = key,
-            });
+            },
+            standardInput,
+            GetEnvironmentOverrides(profile));
 
         return await _sshCommandRunner.ExecuteAsync(request, cancellationToken);
     }
@@ -606,7 +652,9 @@ public sealed class SshCommandService
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 ["key"] = key,
-            });
+            },
+            null,
+            GetEnvironmentOverrides(profile));
 
         return await _sshCommandRunner.ExecuteAsync(request, cancellationToken);
     }
@@ -619,6 +667,16 @@ public sealed class SshCommandService
         }
 
         return AllowedCommandCatalog.CreateForProfile(profile, _commandProcessingProviders ?? []);
+    }
+
+    private IReadOnlyDictionary<string, string> GetEnvironmentOverrides(SshConnectionProfile profile)
+    {
+        if (_environmentOverrideStore is null)
+        {
+            return new Dictionary<string, string>(StringComparer.Ordinal);
+        }
+
+        return _environmentOverrideStore.GetValues(profile.Name);
     }
 
     private static void EnsureNonRoot(SshConnectionProfile profile)

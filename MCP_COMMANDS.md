@@ -1,6 +1,6 @@
 # KelpieSSH MCP Commands
 
-Last updated: 2026-06-18
+Last updated: 2026-07-03
 
 This file is the English command reference for MCP callable tools exposed by `KelpieMCPServer`.
 For Japanese documentation, see [docs/ja/MCP_COMMANDS.ja.md](docs/ja/MCP_COMMANDS.ja.md).
@@ -58,10 +58,10 @@ This document describes the `name` and `arguments` used inside `tools/call`. In 
 | [Environment](#environment) | `get_environment_keys`, `peek_environment_value`, `set_environment_value`, `list_persistent_environment_keys`, `persist_environment_value`, `remove_persistent_environment_value` | List, read, temporarily set, or persist remote environment variables under profile policy. |
 | [Generic execution](#generic-execution) | `ssh_run_allowed_command`, `ssh_run_remote_operation` | Run an allow-listed managed operation through policy checks. |
 | [Terminal and session cleanup](#terminal-and-session-cleanup) | `ssh_terminal_open`, `ssh_terminal_send`, `ssh_terminal_snapshot`, `ssh_terminal_close`, `ssh_connection_close`, `ssh_logout` | Manage an interactive SSH terminal session and clear MCP password sessions. |
-| [Packages](#packages) | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove` | Inspect packages and run confirmation-gated package operations. |
+| [Packages](#packages) | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove`, `ssh_certbot_check_install`, `ssh_certbot_install` | Inspect packages and run confirmation-gated package operations, including bounded Certbot installation. |
 | [Services](#services) | `ssh_service_status`, `ssh_service_is_active`, `ssh_service_is_enabled`, `ssh_list_services`, `ssh_service_enable_now`, `ssh_service_reload`, `ssh_service_restart`, `ssh_service_stop`, `ssh_service_disable` | Inspect and safely manage systemd services. |
 | [Service config/logs](#service-configlogs) | `service_config_paths`, `service_config_file_check_read`, `service_config_file_read`, `service_config_file_check_write`, `service_config_file_write`, `service_config_file_rollback`, `service_config_file_commit`, `service_config_test`, `ssh_service_config_nginx_enable_php`, `service_logfile_read` | Operate on provider-approved service configuration files and logs. |
-| [Web files](#web-files) | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | Operate on provider-approved web roots. |
+| [Web files](#web-files) | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_check_write`, `web_secret_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_secret_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | Operate on provider-approved web roots. |
 
 ## Common Inputs
 
@@ -78,6 +78,10 @@ Saved profiles are host-side persistence adapters. They are converted into `SshR
 
 SSH command tools usually return `SshToolResult`:
 
+- `Ok`: `true` when the SSH tool completed successfully with `ExitCode: 0` and no Kelpie-side error.
+- `Data`: structured command data when `Ok` is `true`. Existing top-level command fields are kept for compatibility.
+- `ErrorInfo`: structured error information when `Ok` is `false`. It contains `Code`, `Category`, `Message`, `Hint`, and `Retryable`.
+- `Meta`: response metadata. It contains `SchemaVersion`, `GeneratedAt`, `ProfileName`, `CommandName`, output line counts, and `Truncated`.
 - `ProfileName`: resolved SSH profile name.
 - `Host`: target host from the resolved profile or operation.
 - `Port`: target SSH port.
@@ -92,12 +96,15 @@ SSH command tools usually return `SshToolResult`:
 - `StartedAt`: UTC command start timestamp.
 - `CompletedAt`: UTC command completion timestamp.
 - `TimedOut`: `true` when Kelpie stopped waiting because the command timeout elapsed.
-- `Error`: Kelpie-side validation, policy, connection, or execution error message when the tool could not produce a normal SSH command result.
+- `Error`: legacy Kelpie-side validation, policy, connection, or execution error message when the tool could not produce a normal SSH command result.
+
+Expected validation and policy failures are returned as `SshToolResult` with `Ok: false` instead of an MCP invocation exception. Remote non-zero exit codes also set `Ok: false` and return `ErrorInfo.Code: "KELPIE_REMOTE_COMMAND_FAILED"` while preserving the legacy stdout/stderr fields.
 
 `SshToolResult` return value sample:
 
 ```json
 {
+  "Ok": true,
   "ProfileName": "vps01",
   "Host": "example.invalid",
   "Port": 22,
@@ -110,7 +117,45 @@ SSH command tools usually return `SshToolResult`:
   "StartedAt": "2026-06-17T12:00:00Z",
   "CompletedAt": "2026-06-17T12:00:01Z",
   "TimedOut": false,
-  "Error": ""
+  "Error": null,
+  "ErrorInfo": null,
+  "Meta": {
+    "SchemaVersion": "1",
+    "GeneratedAt": "2026-06-17T12:00:01Z",
+    "ProfileName": "vps01",
+    "CommandName": "get_disk_usage",
+    "LineCount": 3,
+    "ErrorLineCount": 0,
+    "Truncated": false
+  }
+}
+```
+
+`SshToolResult` policy rejection sample:
+
+```json
+{
+  "Ok": false,
+  "ProfileName": "vps01",
+  "CommandName": "pkg_install",
+  "ExitCode": -1,
+  "StandardOutput": "",
+  "StandardError": "KelpiePolicyError: AllowSudo is required for command: pkg_install",
+  "Error": "KelpiePolicyError: AllowSudo is required for command: pkg_install",
+  "ErrorInfo": {
+    "Code": "KELPIE_POLICY_COMMAND_DENIED",
+    "Category": "PolicyDenied",
+    "Message": "The requested SSH command is denied by the current profile policy.",
+    "Hint": "Check the profile mode and policy settings before retrying.",
+    "Retryable": false
+  },
+  "Data": null,
+  "Meta": {
+    "SchemaVersion": "1",
+    "ProfileName": "vps01",
+    "CommandName": "pkg_install",
+    "Truncated": false
+  }
 }
 ```
 
@@ -599,6 +644,7 @@ Safety notes:
 Purpose:
 
 Returns read-only OS, helper, and software inventory for a configured SSH profile.
+The inventory includes command-level availability probes for optional helpers and baseline OS tools such as `python3`, `php`, `node`, `systemctl`, `journalctl`, `findmnt`, `ss`, and `ip`.
 
 Input arguments:
 
@@ -618,6 +664,7 @@ Input arguments:
 Processing:
 
 KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+The detected inventory is an execution-time result. KelpieMCPServer does not persist the detected commands into the SSH profile file; clients should refresh this tool when they need current target state.
 
 Return value:
 
@@ -3629,6 +3676,7 @@ Safety notes:
 ### Environment
 
 List, read, temporarily set, or persist remote environment variables under profile policy.
+If `kelpiemcp env put <profile> <key> <value>` has stored an in-memory MCP server override, KelpieMCPServer applies that override to later command executions for the same profile while the server process is running. Override values are not returned in MCP tool results.
 
 Tools in this group:
 
@@ -4484,6 +4532,8 @@ Tools in this group:
 - [`ssh_pkg_install_confirmed`](#ssh_pkg_install_confirmed)
 - [`ssh_pkg_simulate_remove`](#ssh_pkg_simulate_remove)
 - [`ssh_pkg_remove`](#ssh_pkg_remove)
+- [`ssh_certbot_check_install`](#ssh_certbot_check_install)
+- [`ssh_certbot_install`](#ssh_certbot_install)
 
 #### `ssh_pkg_check_updates`
 
@@ -5019,6 +5069,121 @@ The MCP execution result body is the return value sample above, wrapped by the c
 Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+#### `ssh_certbot_check_install`
+
+Purpose:
+
+Checks whether Certbot for Let's Encrypt can be installed on the target through the configured package manager. It does not install packages.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `plugin`: Web server plugin package set. Allowed values are `nginx`, `apache`, and `none`. Defaults to `nginx`.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_certbot_check_install",
+  "arguments": {
+    "profileName": "vps01",
+    "plugin": "nginx"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer resolves the SSH profile, validates `plugin`, runs the read-oriented Certbot install check for the profile package manager, and returns package-manager output plus the confirmation token for `ssh_certbot_install`.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- `StandardOutput` includes `packageManager`, `plugin`, detected Certbot/web server state, candidate package names, package-manager candidate details, and `confirmation=certbot_install:<plugin>`.
+- Error fields contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "certbot_check_install",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "packageManager=apt\nplugin=nginx\ncertbotInstalled=false\nnginxInstalled=true\ncandidatePackages=certbot python3-certbot-nginx\nconfirmation=certbot_install:nginx\n",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Safety notes:
+
+- Read-oriented tool. It does not install Certbot and does not edit web server configuration.
+- Use `ssh_certbot_install` only with the exact confirmation token returned by this check.
+
+#### `ssh_certbot_install`
+
+Purpose:
+
+Installs Certbot for Let's Encrypt after explicit confirmation.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `confirmation`: Exact confirmation token returned by `ssh_certbot_check_install`.
+- `plugin`: Web server plugin package set. Allowed values are `nginx`, `apache`, and `none`. Defaults to `nginx`.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "ssh_certbot_install",
+  "arguments": {
+    "profileName": "vps01",
+    "plugin": "nginx",
+    "confirmation": "certbot_install:nginx"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the confirmation token and plugin, applies package-install and sudo policy checks, and installs only the fixed Certbot package set for the selected plugin.
+
+Return value:
+
+- Return type: `SshToolResult`.
+- The returned command name is `certbot_install`.
+- Error fields contain validation, policy, connection, or package-manager errors when the tool cannot complete normally.
+
+Return value sample:
+
+```json
+{
+  "CommandName": "certbot_install",
+  "Host": "example.invalid",
+  "ExitCode": 0,
+  "StandardOutput": "<package-manager output>",
+  "ProfileName": "vps01",
+  "Port": 22,
+  "CommandText": "<allow-listed command text>",
+  "TimedOut": false,
+  "StandardError": "",
+  "UserName": "deploy",
+  "Error": ""
+}
+```
+
+Safety notes:
+
+- This tool changes package state on the SSH target.
+- Empty or mismatched confirmation strings do not run package installation.
+- This P1 tool only installs Certbot and the selected package plugin. Certificate issuance, web server editing, reloads, and renewal tests are intentionally separate future commands.
 
 ### Services
 
@@ -6110,6 +6275,7 @@ Kelpie resolves the Nginx site key to a provider-approved site include file such
 Kelpie reads the target file and applies only the fixed PHP-FPM template. If the target site file does not exist, Kelpie creates a minimal fixed server block and then applies the same template:
 
 ```nginx
+listen 80 default_server;
 index index.php ...
 
 location ~ \.php$ {
@@ -6118,7 +6284,7 @@ location ~ \.php$ {
 }
 ```
 
-The tool does not accept arbitrary Nginx blocks, `proxy_pass`, `root`, or `alias` values. After writing, it runs `nginx -t`. If the test fails, Kelpie rolls the file back from the generated backup. Reloading Nginx is intentionally separate; use `ssh_service_reload` after this tool succeeds.
+The tool does not accept arbitrary Nginx blocks, `proxy_pass`, `root`, or `alias` values. Before testing, it disables conflicting `/etc/nginx/sites-enabled/<name>` symbolic links whose target contains `listen 80 ... default_server` by recording the symlink target under `/etc/nginx/.kelpie-disabled-sites/` and removing only the enabled symlink from `sites-enabled`. This keeps the disabled site outside the common `include /etc/nginx/sites-enabled/*;` glob. Regular files are not edited. After writing and conflict resolution, it runs `nginx -t`. If the test fails, Kelpie rolls the file back from the generated backup and restores any symlink disabled by this run. Reloading Nginx is intentionally separate; use `ssh_service_reload` after this tool succeeds.
 
 Return value:
 
@@ -6127,6 +6293,7 @@ Return value:
 - `Tested` is `true` only after `nginx -t` was executed.
 - `RolledBack` is `true` when the tool wrote a change and then restored it after `nginx -t` failed.
 - `Committed` is `true` when `nginx -t` passed and the generated backup was removed.
+- `Warnings` can include a sanitized count of conflicting Nginx `default_server` site links disabled by the tool.
 - Error fields are empty on success and contain validation, policy, connection, test, rollback, or execution errors when the tool cannot complete normally.
 
 Return value sample:
@@ -6157,6 +6324,7 @@ Safety notes:
 - This tool can change remote service configuration files.
 - It uses a fixed template and rejects arbitrary configuration blocks.
 - It edits only provider-approved Nginx site configuration files and can create the resolved site file when it is absent.
+- It may disable conflicting `/etc/nginx/sites-enabled` symlinks that would otherwise keep the stock `default_server` ahead of the generated PHP site. Disabled symlink targets are recorded outside the `sites-enabled/*` include glob for rollback.
 - `nginx -t` must pass. On failure, Kelpie attempts rollback before returning.
 - This tool does not reload Nginx. Call `ssh_service_reload` separately after reviewing the result.
 
@@ -6233,11 +6401,13 @@ Tools in this group:
 - [`web_file_search_text`](#web_file_search_text)
 - [`web_file_stat`](#web_file_stat)
 - [`web_file_check_write`](#web_file_check_write)
+- [`web_secret_file_check_write`](#web_secret_file_check_write)
 - [`web_file_check_permissions`](#web_file_check_permissions)
 - [`web_file_read`](#web_file_read)
 - [`web_file_head`](#web_file_head)
 - [`web_file_tail`](#web_file_tail)
 - [`web_file_write`](#web_file_write)
+- [`web_secret_file_write`](#web_secret_file_write)
 - [`web_change_owner`](#web_change_owner)
 - [`web_change_owner_recursive`](#web_change_owner_recursive)
 - [`web_change_mode`](#web_change_mode)
@@ -6535,6 +6705,7 @@ Return value:
 - Return type: `WebPublicFileWriteCheckResult`.
 - The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
 - Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+- When `CanWrite` is false, `ReasonCode` and `Guidance` describe the missing policy, extension, content-type, or remote filesystem permission so AI clients can explain the failure.
 
 Return value sample:
 
@@ -6550,6 +6721,8 @@ Return value sample:
   "Confirmation": "<value>",
   "ContentType": "<output text>",
   "Reason": "<value>",
+  "ReasonCode": null,
+  "Guidance": null,
   "Warnings": []
 }
 ```
@@ -6561,6 +6734,71 @@ The MCP execution result body is the return value sample above, wrapped by the c
 Safety notes:
 
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
+
+#### `web_secret_file_check_write`
+
+Purpose:
+
+Checks whether one explicitly allowed web secret file can be written from a server-side secret reference without exposing the secret value.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `siteKey`: Configured web site key.
+- `path`: Absolute site-relative secret file path such as `/.env`.
+- `secretName`: Secret reference previously stored with `kelpiemcp secret put`.
+- `contentType`: Optional content type metadata. Defaults to `text/plain`.
+- `owner`: Optional owner or owner:group spec to apply during the write.
+- `mode`: Optional three-digit octal mode to apply during the write.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "web_secret_file_check_write",
+  "arguments": {
+    "profileName": "vps01",
+    "siteKey": "default",
+    "path": "/.env",
+    "secretName": "prod-web-env"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer verifies that the secret reference exists, resolves the SSH profile, requires an explicitly writable `AllowedFiles` rule for the target secret file, validates any requested owner or mode, runs the bounded write check, and returns a confirmation token for `web_secret_file_write`.
+
+Return value:
+
+- Return type: `WebPublicFileWriteCheckResult`.
+- `Confirmation` has the form `web_secret_file_write:<siteKey>:<path>:<secretName>` when `CanWrite` is true.
+- If `owner` or `mode` is specified, the confirmation token includes the same permission suffix as `web_file_write`: `:<owner>:<mode>`, with an empty field for omitted owner or mode.
+- The secret value, preview, hash, and diff are never returned.
+
+Return value sample:
+
+```json
+{
+  "SiteKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/.env",
+  "ResolvedPath": "/var/www/html/.env",
+  "Exists": false,
+  "CanWrite": true,
+  "RequiresConfirmation": true,
+  "Confirmation": "web_secret_file_write:default:/.env:prod-web-env",
+  "ContentType": "text/plain",
+  "Reason": null,
+  "Warnings": []
+}
+```
+
+Safety notes:
+
+- Call `kelpiemcp secret put` before this tool.
+- Secret file writes require a writable `AllowedFiles` rule such as `.env*`.
+- Do not pass secret content directly as an MCP argument.
 
 #### `web_file_check_permissions`
 
@@ -6872,6 +7110,7 @@ Return value:
 - Return type: `WebPublicFileWriteResult`.
 - The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
 - Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
+- When a write is rejected, `ReasonCode` and `Guidance` describe the missing policy, extension, content-type, or remote filesystem permission so AI clients can explain the failure.
 
 Return value sample:
 
@@ -6886,6 +7125,8 @@ Return value sample:
   "Overwritten": true,
   "ContentType": "<output text>",
   "Size": 0,
+  "ReasonCode": null,
+  "Guidance": null,
   "Warnings": []
 }
 ```
@@ -6899,6 +7140,75 @@ Safety notes:
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 - Executable web extensions such as `.php` remain denied by default. They are writable only when the target profile site explicitly lists the extension in `WritableExecutableExtensions`.
 - `WritableExecutableExtensions` bypasses the executable extension write block and the `AllowedExtensions` shortage for that write only. Traversal checks, dotfile and secret-file denial, size limits, and content type rules still apply.
+
+#### `web_secret_file_write`
+
+Purpose:
+
+Writes one explicitly allowed web secret file from a server-side secret reference after explicit confirmation.
+The secret value is never accepted as a direct MCP argument and is never returned.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `siteKey`: Configured web site key.
+- `path`: Absolute site-relative secret file path such as `/.env`.
+- `secretName`: Secret reference previously stored with `kelpiemcp secret put`.
+- `confirmation`: Exact confirmation token returned by `web_secret_file_check_write`.
+- `contentType`: Optional content type metadata. Defaults to `text/plain`.
+- `owner`: Optional owner or owner:group spec.
+- `mode`: Optional three-digit octal mode.
+- `forgetOnSuccess`: Optional boolean. Defaults to true and removes the secret reference after a successful write.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "web_secret_file_write",
+  "arguments": {
+    "profileName": "vps01",
+    "siteKey": "default",
+    "path": "/.env",
+    "secretName": "prod-web-env",
+    "confirmation": "web_secret_file_write:default:/.env:prod-web-env"
+  }
+}
+```
+
+Processing:
+
+KelpieMCPServer validates the confirmation token, resolves the secret payload from the server-side secret store, re-runs the secret path and provider checks, writes the file through the bounded web write command, and removes the secret reference on success when `forgetOnSuccess` is true. If `owner` or `mode` is specified, it must be the same request that was used to obtain the confirmation token.
+
+Return value:
+
+- Return type: `WebPublicFileWriteResult`.
+- `Warnings` includes a note that secret content was not returned.
+- The secret value, preview, hash, and diff are never returned.
+
+Return value sample:
+
+```json
+{
+  "SiteKey": "default",
+  "DisplayName": "<display name>",
+  "Path": "/.env",
+  "ResolvedPath": "/var/www/html/.env",
+  "Written": true,
+  "Created": true,
+  "Overwritten": false,
+  "ContentType": "text/plain",
+  "Size": 128,
+  "Warnings": [
+    "Secret content was not returned."
+  ]
+}
+```
+
+Safety notes:
+
+- Call `web_secret_file_check_write` first and pass only its exact confirmation token.
+- Secret file writes require a writable `AllowedFiles` rule such as `.env*`.
+- Use `kelpiemcp secret forget <name>` if you set `forgetOnSuccess` to false.
 
 #### `web_change_owner`
 

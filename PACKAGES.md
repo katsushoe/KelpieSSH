@@ -1,7 +1,8 @@
 # PACKAGES.md Version
-2026.06.17
+2026.06.24
 
 # Change History
+- 2026.06.24
 - 2026.06.17
 
 # KelpieSSH Packages
@@ -20,6 +21,17 @@ For Japanese documentation, see [docs/ja/PACKAGES.ja.md](docs/ja/PACKAGES.ja.md)
 | `KelpieServerCommand` | `net8.0` | `kelpiemcp` CLI. |
 | `KelpieMCPServer` | `net8.0` | Streamable HTTP MCP server. |
 | `KelpieWebPermissionHelper` | `net8.0` | Linux-side helper for web permission operations. |
+
+## Distribution Units
+
+| Unit | Project | Version | Purpose | Placement |
+| :--- | :--- | :--- | :--- | :--- |
+| `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.4.0` | VPS operation CLI. | `KelpieHome/bin/kelpie.exe` |
+| `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.3.4.0` | MCP server control CLI. | `KelpieHome/bin/kelpiemcp.exe` |
+| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.4.0` | Streamable HTTP MCP server. | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
+| `kelpie-web-permission-helper` | `src/KelpieWebPermissionHelper/KelpieWebPermissionHelper.csproj` | `0.1.0.4` | Optional Linux-side helper for web permission operations. | `/usr/local/libexec/kelpie/kelpie-web-permission-helper` |
+
+For the Alpha release, the Windows zip is the primary binary distribution. MSI may be attached when available and may be unsigned. Internal NuGet packages are separate from the Alpha end-user binary distribution.
 
 ## Package Sources
 

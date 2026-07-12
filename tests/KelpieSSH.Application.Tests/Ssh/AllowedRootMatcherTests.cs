@@ -61,4 +61,26 @@ public sealed class AllowedRootMatcherTests
 
         result.Should().BeTrue();
     }
+
+    [Fact]
+    public void IsAllowed_ShouldResolveParentSegmentsBeforeMatching()
+    {
+        var result = AllowedRootMatcher.IsAllowed(
+            "/var/www/../../etc/shadow",
+            ["/var/www"],
+            "debian");
+
+        result.Should().BeFalse();
+    }
+
+    [Fact]
+    public void IsAllowed_ShouldAllowPathThatStaysUnderRootAfterParentResolution()
+    {
+        var result = AllowedRootMatcher.IsAllowed(
+            "/var/www/site/../html/index.html",
+            ["/var/www"],
+            "debian");
+
+        result.Should().BeTrue();
+    }
 }

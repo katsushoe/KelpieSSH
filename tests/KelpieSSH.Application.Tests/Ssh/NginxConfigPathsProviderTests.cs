@@ -199,7 +199,7 @@ public sealed class NginxConfigPathsProviderTests
         var profile = CreateProfile(KelpiePolicyMode.Expert);
         const string originalContent = """
             server {
-                server_name old.example.com;
+                server_name old.example.invalid;
             }
 
             """;
@@ -242,7 +242,8 @@ public sealed class NginxConfigPathsProviderTests
         DecodeArgument(runner.LastRequest, "pathBase64").Should().Be("/etc/nginx/conf.d/kelpie-test.conf");
         DecodeArgument(runner.LastRequest, "allowedPathsBase64").Should().Be("/etc/nginx/nginx.conf");
         DecodeArgument(runner.LastRequest, "allowedDirsBase64").Should().Be("/etc/nginx/conf.d");
-        DecodeArgument(runner.LastRequest, "contentBase64").Should().Be(NormalizeLf(updatedContent));
+        runner.LastRequest.Arguments.Should().NotContainKey("contentBase64");
+        DecodeStandardInput(runner.LastRequest).Should().Be(NormalizeLf(updatedContent));
     }
 
     [Fact]
@@ -285,7 +286,7 @@ public sealed class NginxConfigPathsProviderTests
 
         result.Error.Should().BeNull();
         result.BytesWritten.Should().Be(Encoding.UTF8.GetByteCount(NormalizeLf(updatedContent)));
-        DecodeArgument(runner.LastRequest!, "contentBase64").Should().Be(NormalizeLf(updatedContent));
+        DecodeStandardInput(runner.LastRequest!).Should().Be(NormalizeLf(updatedContent));
     }
 
     [Fact]
@@ -294,25 +295,25 @@ public sealed class NginxConfigPathsProviderTests
         var profile = CreateProfile(KelpiePolicyMode.Expert);
         const string originalContent = """
             server {
-                server_name one.example.com;
+                server_name one.example.invalid;
             }
 
             server {
-                server_name two.example.com;
+                server_name two.example.invalid;
             }
 
             server {
-                server_name three.example.com;
+                server_name three.example.invalid;
             }
 
             """;
         const string updatedContent = """
             server {
-                server_name one.example.com;
+                server_name one.example.invalid;
             }
 
             server {
-                server_name two.example.com;
+                server_name two.example.invalid;
             }
 
             server {
@@ -347,7 +348,7 @@ public sealed class NginxConfigPathsProviderTests
 
         result.Error.Should().BeNull();
         result.BytesWritten.Should().Be(Encoding.UTF8.GetByteCount(NormalizeLf(updatedContent)));
-        DecodeArgument(runner.LastRequest!, "contentBase64").Should().Be(NormalizeLf(updatedContent));
+        DecodeStandardInput(runner.LastRequest!).Should().Be(NormalizeLf(updatedContent));
     }
 
     [Fact]
@@ -356,11 +357,11 @@ public sealed class NginxConfigPathsProviderTests
         var profile = CreateProfile(KelpiePolicyMode.Expert);
         const string originalContent = """
             server {
-                server_name one.example.com;
+                server_name one.example.invalid;
             }
 
             server {
-                server_name two.example.com;
+                server_name two.example.invalid;
             }
 
             """;
@@ -399,7 +400,7 @@ public sealed class NginxConfigPathsProviderTests
         const string originalContent = """
             server {
                 listen 80;
-                server_name old.example.com;
+                server_name old.example.invalid;
             }
 
             """;
@@ -435,7 +436,7 @@ public sealed class NginxConfigPathsProviderTests
 
         result.Error.Should().BeNull();
         result.BytesWritten.Should().Be(Encoding.UTF8.GetByteCount(NormalizeLf(updatedContent)));
-        DecodeArgument(runner.LastRequest!, "contentBase64").Should().Be(NormalizeLf(updatedContent));
+        DecodeStandardInput(runner.LastRequest!).Should().Be(NormalizeLf(updatedContent));
     }
 
     [Fact]
@@ -558,6 +559,9 @@ public sealed class NginxConfigPathsProviderTests
                 StandardOutput: "256",
                 StandardError: string.Empty),
             new FakeSshCommandOutput(
+                StandardOutput: "/etc/nginx/sites-enabled/default\n",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
                 StandardOutput: string.Empty,
                 StandardError: "nginx: configuration file /etc/nginx/nginx.conf test is successful\n"),
             new FakeSshCommandOutput(
@@ -590,10 +594,10 @@ public sealed class NginxConfigPathsProviderTests
             "service_config_nginx_write_config",
             "service_config_nginx_test_config",
             "service_config_nginx_commit_config");
-        var writtenContent = DecodeArgument(
-            runner.Requests.Single(request => request.CommandName == "service_config_nginx_write_config"),
-            "contentBase64");
+        var writtenContent = DecodeStandardInput(
+            runner.Requests.Single(request => request.CommandName == "service_config_nginx_write_config"));
         writtenContent.Should().Contain("index index.php index.html index.htm;");
+        writtenContent.Should().Contain("listen 80 default_server;");
         writtenContent.Should().Contain("location ~ \\.php$");
         writtenContent.Should().Contain("include snippets/fastcgi-php.conf;");
         writtenContent.Should().Contain("fastcgi_pass unix:/run/php/php8.3-fpm.sock;");
@@ -634,6 +638,9 @@ public sealed class NginxConfigPathsProviderTests
                 StandardOutput: "256",
                 StandardError: string.Empty),
             new FakeSshCommandOutput(
+                StandardOutput: "/etc/nginx/sites-enabled/default\n",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
                 StandardOutput: string.Empty,
                 StandardError: "nginx: configuration file /etc/nginx/nginx.conf test is successful\n"),
             new FakeSshCommandOutput(
@@ -658,6 +665,8 @@ public sealed class NginxConfigPathsProviderTests
 
         result.Error.Should().BeNull();
         result.Path.Should().Be("/etc/nginx/conf.d/default.conf");
+        runner.Requests.Select(request => request.CommandName)
+            .Should().Contain("service_config_nginx_disable_default_sites");
         DecodeArgument(
             runner.Requests.Single(request => request.CommandName == "service_config_nginx_read_config" && DecodeArgument(request, "pathBase64").EndsWith("default.conf", StringComparison.Ordinal)),
             "pathBase64").Should().Be("/etc/nginx/conf.d/default.conf");
@@ -680,6 +689,9 @@ public sealed class NginxConfigPathsProviderTests
                 ExitCode: 1),
             new FakeSshCommandOutput(
                 StandardOutput: "256",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
                 StandardError: string.Empty),
             new FakeSshCommandOutput(
                 StandardOutput: string.Empty,
@@ -708,11 +720,11 @@ public sealed class NginxConfigPathsProviderTests
         result.Changed.Should().BeTrue();
         result.Committed.Should().BeTrue();
         result.Warnings.Should().Contain("Nginx site configuration file did not exist; generated a fixed default server block.");
-        var writtenContent = DecodeArgument(
-            runner.Requests.Single(request => request.CommandName == "service_config_nginx_write_config"),
-            "contentBase64");
+        var writtenContent = DecodeStandardInput(
+            runner.Requests.Single(request => request.CommandName == "service_config_nginx_write_config"));
         writtenContent.Should().Contain("server_name _;");
         writtenContent.Should().Contain("root /var/www/html;");
+        writtenContent.Should().Contain("listen 80 default_server;");
         writtenContent.Should().Contain("index index.php index.html index.htm;");
         writtenContent.Should().Contain("location ~ \\.php$");
         writtenContent.Should().Contain("fastcgi_pass unix:/run/php/php8.3-fpm.sock;");
@@ -724,7 +736,7 @@ public sealed class NginxConfigPathsProviderTests
         var profile = CreateProfile(KelpiePolicyMode.Expert);
         const string existingContent = """
             server {
-                listen 80;
+                listen 80 default_server;
                 root /var/www/html;
                 index index.php index.html index.htm;
 
@@ -745,6 +757,9 @@ public sealed class NginxConfigPathsProviderTests
             new FakeSshCommandOutput(
                 StandardOutput: existingContent,
                 StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: string.Empty),
         ]);
         var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
         var provider = new NginxConfigPathsProvider();
@@ -761,6 +776,67 @@ public sealed class NginxConfigPathsProviderTests
         result.Tested.Should().BeFalse();
         runner.Requests.Select(request => request.CommandName)
             .Should().NotContain("service_config_nginx_write_config");
+        runner.Requests.Select(request => request.CommandName)
+            .Should().Contain("service_config_nginx_disable_default_sites");
+    }
+
+    [Fact]
+    public async Task EnablePhpAsync_ShouldDisableConflictingDefaultServerSiteEvenWhenPhpTemplateExists()
+    {
+        var profile = CreateProfile(KelpiePolicyMode.Expert);
+        const string existingContent = """
+            server {
+                listen 80 default_server;
+                root /var/www/html;
+                index index.php index.html index.htm;
+
+                location ~ \.php$ {
+                    include snippets/fastcgi-php.conf;
+                    fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+                }
+            }
+
+            """;
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: "configure arguments: --conf-path=/etc/nginx/nginx.conf"),
+            new FakeSshCommandOutput(
+                StandardOutput: "include /etc/nginx/conf.d/*.conf;\ninclude /etc/nginx/sites-enabled/*;\n",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: existingContent,
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: "/etc/nginx/sites-enabled/default\n",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: "nginx: configuration file /etc/nginx/nginx.conf test is successful\n"),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new NginxConfigPathsProvider();
+
+        var result = await provider.EnablePhpAsync(
+            service,
+            profile,
+            "default",
+            "/run/php/php8.3-fpm.sock",
+            ".php");
+
+        result.Error.Should().BeNull();
+        result.Changed.Should().BeTrue();
+        result.Tested.Should().BeTrue();
+        result.Committed.Should().BeTrue();
+        result.BytesWritten.Should().Be(0);
+        result.Warnings.Should().Contain("Disabled 1 conflicting Nginx default_server site link(s).");
+        runner.Requests.Select(request => request.CommandName).Should().ContainInOrder(
+            "service_config_nginx_disable_default_sites",
+            "service_config_nginx_test_config");
+        runner.Requests.Select(request => request.CommandName)
+            .Should().NotContain("service_config_nginx_write_config");
+        runner.Requests.Select(request => request.CommandName)
+            .Should().NotContain("service_config_nginx_commit_config");
     }
 
     [Fact]
@@ -807,6 +883,9 @@ public sealed class NginxConfigPathsProviderTests
                 StandardOutput: "256",
                 StandardError: string.Empty),
             new FakeSshCommandOutput(
+                StandardOutput: "/etc/nginx/sites-enabled/default\n",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
                 StandardOutput: string.Empty,
                 StandardError: "nginx: [emerg] invalid test config\n",
                 ExitCode: 1),
@@ -818,6 +897,9 @@ public sealed class NginxConfigPathsProviderTests
                 StandardError: string.Empty),
             new FakeSshCommandOutput(
                 StandardOutput: "128",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: "/etc/nginx/sites-enabled/default\n",
                 StandardError: string.Empty),
         ]);
         var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
@@ -838,7 +920,11 @@ public sealed class NginxConfigPathsProviderTests
         runner.Requests.Select(request => request.CommandName).Should().ContainInOrder(
             "service_config_nginx_write_config",
             "service_config_nginx_test_config",
-            "service_config_nginx_rollback_config");
+            "service_config_nginx_rollback_config",
+            "service_config_nginx_rollback_default_sites");
+        DecodeArgument(
+            runner.Requests.Single(request => request.CommandName == "service_config_nginx_rollback_default_sites"),
+            "disabledPathsBase64").Should().Be("/etc/nginx/sites-enabled/default");
     }
 
     [Fact]
@@ -909,6 +995,12 @@ public sealed class NginxConfigPathsProviderTests
     private static string DecodeArgument(SshCommandRequest request, string name)
     {
         return Encoding.UTF8.GetString(Convert.FromBase64String(request.Arguments[name]));
+    }
+
+    private static string DecodeStandardInput(SshCommandRequest request)
+    {
+        request.StandardInput.Should().NotBeNull();
+        return Encoding.UTF8.GetString(Convert.FromBase64String(request.StandardInput!));
     }
 
     private static string NormalizeLf(string value)

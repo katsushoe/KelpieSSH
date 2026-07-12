@@ -96,6 +96,8 @@ public sealed class AllowedCommandProviderTests
             "service_config_nginx_write_config",
             "service_config_nginx_rollback_config",
             "service_config_nginx_commit_config",
+            "service_config_nginx_disable_default_sites",
+            "service_config_nginx_rollback_default_sites",
             "service_logfile_nginx_read",
         ]);
         commands.Single(command => command.Name == "service_config_nginx_write_config")
@@ -106,7 +108,11 @@ public sealed class AllowedCommandProviderTests
             .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
         commands.Single(command => command.Name == "service_config_nginx_test_config")
             .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
-        commands.Where(command => command.Name is not ("service_config_nginx_write_config" or "service_config_nginx_rollback_config" or "service_config_nginx_commit_config" or "service_config_nginx_test_config"))
+        commands.Single(command => command.Name == "service_config_nginx_disable_default_sites")
+            .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
+        commands.Single(command => command.Name == "service_config_nginx_rollback_default_sites")
+            .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
+        commands.Where(command => command.Name is not ("service_config_nginx_write_config" or "service_config_nginx_rollback_config" or "service_config_nginx_commit_config" or "service_config_nginx_test_config" or "service_config_nginx_disable_default_sites" or "service_config_nginx_rollback_default_sites"))
             .Should().OnlyContain(command => command.RiskLevel == SshCommandRiskLevel.ReadOnly);
     }
 
@@ -125,13 +131,11 @@ public sealed class AllowedCommandProviderTests
             ["lines"] = "500",
             ["sinceMinutes"] = "10",
         });
-        var scriptBase64 = Regex.Match(commandText, "b64decode\\('(?<script>[^']+)'\\)")
-            .Groups["script"]
-            .Value;
-        var script = Encoding.UTF8.GetString(Convert.FromBase64String(scriptBase64));
+        var script = DecodeEmbeddedShellScript(commandText);
 
         script.Should().Contain("tz = m.group(7)");
         script.Should().NotContain("tz = m.group(8)");
+        commandText.Should().NotContain("python3 -c");
     }
 
     [Fact]
@@ -146,22 +150,57 @@ public sealed class AllowedCommandProviderTests
             ["allowedPathsBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("\n")),
             ["allowedDirsBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("/etc/nginx/conf.d\n")),
         };
-        var writeArguments = new Dictionary<string, string>(baseArguments, StringComparer.OrdinalIgnoreCase)
-        {
-            ["contentBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("server {}\n")),
-        };
-
-        var writeCommand = commands.Single(command => command.Name == "service_config_nginx_write_config").BuildCommandText(writeArguments);
+        var writeCommand = commands.Single(command => command.Name == "service_config_nginx_write_config").BuildCommandText(baseArguments);
         var checkCommand = commands.Single(command => command.Name == "service_config_nginx_check_write_config").BuildCommandText(baseArguments);
         var rollbackCommand = commands.Single(command => command.Name == "service_config_nginx_rollback_config").BuildCommandText(baseArguments);
 
-        writeCommand.Should().Contain("KELPIE_CREATED_CONFIG_FILE_BACKUP_V1");
-        writeCommand.Should().Contain("exists=os.path.exists(rp)");
-        writeCommand.Should().Contain("exists and not os.path.isfile(rp)");
-        checkCommand.Should().Contain("exists=os.path.exists(rp)");
-        checkCommand.Should().Contain("exists and not os.path.isfile(rp)");
-        rollbackCommand.Should().Contain("KELPIE_CREATED_CONFIG_FILE_BACKUP_V1");
-        rollbackCommand.Should().Contain("os.remove(p)");
+        var writeScript = DecodeEmbeddedShellScript(writeCommand);
+        var checkScript = DecodeEmbeddedShellScript(checkCommand);
+        var rollbackScript = DecodeEmbeddedShellScript(rollbackCommand);
+
+        writeCommand.Should().Contain("python3 -c");
+        writeCommand.Should().NotContain(Convert.ToBase64String(Encoding.UTF8.GetBytes("server {}\n")));
+        checkCommand.Should().NotContain("python3 -c");
+        rollbackCommand.Should().NotContain("python3 -c");
+        writeScript.Should().Contain("KELPIE_CREATED_CONFIG_FILE_BACKUP_V1");
+        writeScript.Should().Contain("sys.stdin.read()");
+        writeScript.Should().Contain("exists=os.path.exists(rp)");
+        writeScript.Should().Contain("exists and not os.path.isfile(rp)");
+        checkScript.Should().Contain("exists=os.path.exists(rp)");
+        checkScript.Should().Contain("exists and not os.path.isfile(rp)");
+        rollbackScript.Should().Contain("KELPIE_CREATED_CONFIG_FILE_BACKUP_V1");
+        rollbackScript.Should().Contain("os.remove(p)");
+    }
+
+    [Fact]
+    public void NginxServiceConfigCommandProvider_ShouldDisableAndRollbackConflictingDefaultSiteLinks()
+    {
+        var provider = new NginxServiceConfigCommandProvider();
+        var profile = CreateProfile("debian", "apt");
+        var commands = provider.GetCommands(profile);
+
+        var disableCommand = commands.Single(command => command.Name == "service_config_nginx_disable_default_sites")
+            .BuildCommandText(new Dictionary<string, string>());
+        var rollbackCommand = commands.Single(command => command.Name == "service_config_nginx_rollback_default_sites")
+            .BuildCommandText(new Dictionary<string, string>
+            {
+                ["disabledPathsBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("/etc/nginx/sites-enabled/default\n")),
+            });
+        var disableScript = DecodeEmbeddedShellScript(disableCommand);
+        var rollbackScript = DecodeEmbeddedShellScript(rollbackCommand);
+
+        disableScript.Should().Contain("/etc/nginx/sites-enabled");
+        disableScript.Should().Contain("/etc/nginx/.kelpie-disabled-sites");
+        disableScript.Should().Contain("default_server");
+        disableScript.Should().Contain("os.path.islink(p)");
+        disableScript.Should().Contain("os.readlink(p)");
+        disableScript.Should().Contain("os.unlink(p)");
+        rollbackScript.Should().Contain("base64.b64decode(sys.argv[1])");
+        rollbackScript.Should().Contain("os.symlink(target,p)");
+        rollbackScript.Should().Contain("os.remove(marker)");
+        rollbackCommand.Should().Contain(Convert.ToBase64String(Encoding.UTF8.GetBytes("/etc/nginx/sites-enabled/default\n")));
+        disableCommand.Should().NotContain("python3 -c");
+        rollbackCommand.Should().NotContain("python3 -c");
     }
 
     [Theory]
@@ -301,6 +340,8 @@ public sealed class AllowedCommandProviderTests
             "pkg_install",
             "pkg_simulate_remove",
             "pkg_remove",
+            "certbot_check_install",
+            "certbot_install",
         ]);
     }
 
@@ -392,6 +433,8 @@ public sealed class AllowedCommandProviderTests
             "pkg_install",
             "pkg_simulate_remove",
             "pkg_remove",
+            "certbot_check_install",
+            "certbot_install",
         ]);
     }
 
@@ -421,6 +464,22 @@ public sealed class AllowedCommandProviderTests
     }
 
     [Fact]
+    public void RhelDnfCommandProvider_ShouldRenderCertbotInstallCommand()
+    {
+        var provider = new RhelDnfCommandProvider();
+        var profile = CreateProfile("alma", "dnf");
+        var command = provider.GetCommands(profile).Single(command => command.Name == "certbot_install");
+
+        var commandText = command.BuildCommandText(new Dictionary<string, string>
+        {
+            ["plugin"] = "apache",
+        });
+
+        commandText.Should().Contain("dnf install -y certbot python3-certbot-apache");
+        command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
+    }
+
+    [Fact]
     public void RhelDnfCommandProvider_ShouldRenderLimitedPackageSearch()
     {
         var provider = new RhelDnfCommandProvider();
@@ -435,8 +494,9 @@ public sealed class AllowedCommandProviderTests
 
         commandText.Should().Contain("dnf");
         commandText.Should().Contain("search");
-        commandText.Should().Contain("query='nginx'");
-        commandText.Should().Contain("limit=int('20')");
+        commandText.Should().Contain("'nginx'");
+        commandText.Should().Contain("'20'");
+        commandText.Should().NotContain("python3 -c");
     }
 
     [Fact]
@@ -455,8 +515,10 @@ public sealed class AllowedCommandProviderTests
         commandText.Should().Contain("dnf");
         commandText.Should().Contain("list");
         commandText.Should().Contain("installed");
-        commandText.Should().Contain("filter_text='nginx'.lower()");
-        commandText.Should().Contain("limit=int('20')");
+        commandText.Should().Contain("grep -i");
+        commandText.Should().Contain("'nginx'");
+        commandText.Should().Contain("'20'");
+        commandText.Should().NotContain("python3 -c");
     }
 
     [Fact]
@@ -509,6 +571,8 @@ public sealed class AllowedCommandProviderTests
         commands["pkg_install"].RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
         commands["pkg_simulate_remove"].RiskLevel.Should().Be(SshCommandRiskLevel.ReadOnly);
         commands["pkg_remove"].RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
+        commands["certbot_check_install"].RiskLevel.Should().Be(SshCommandRiskLevel.ReadOnly);
+        commands["certbot_install"].RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
     }
 
     [Theory]
@@ -542,6 +606,38 @@ public sealed class AllowedCommandProviderTests
         });
 
         commandText.Should().Be("apt-get -s install 'nginx-core'");
+    }
+
+    [Fact]
+    public void DebianAptCommandProvider_ShouldRenderCertbotInstallCommand()
+    {
+        var provider = new DebianAptCommandProvider();
+        var profile = CreateProfile("debian", "apt");
+        var command = provider.GetCommands(profile).Single(command => command.Name == "certbot_install");
+
+        var commandText = command.BuildCommandText(new Dictionary<string, string>
+        {
+            ["plugin"] = "nginx",
+        });
+
+        commandText.Should().Contain("apt-get install -y certbot python3-certbot-nginx");
+        command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
+    }
+
+    [Fact]
+    public void DebianAptCommandProvider_ShouldRejectUnsafeCertbotPlugin()
+    {
+        var provider = new DebianAptCommandProvider();
+        var profile = CreateProfile("debian", "apt");
+        var command = provider.GetCommands(profile).Single(command => command.Name == "certbot_install");
+
+        var action = () => command.BuildCommandText(new Dictionary<string, string>
+        {
+            ["plugin"] = "nginx;rm",
+        });
+
+        action.Should().Throw<InvalidOperationException>()
+            .WithMessage("SSH command argument contains a dangerous fragment: plugin");
     }
 
     [Fact]
@@ -619,7 +715,56 @@ public sealed class AllowedCommandProviderTests
         commandText.Should().StartWith("sh -c");
         commandText.Should().Contain("base64 -d");
         commandText.Should().NotContain("python3 -c");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("run_item helper Python python3 --version");
+        script.Should().Contain("run_item helper PHP php --version");
+        script.Should().Contain("run_item software Node.js node --version");
+        script.Should().Contain("run_item software systemctl systemctl --version");
+        script.Should().Contain("run_item software journalctl journalctl --version");
+        script.Should().Contain("run_item software findmnt findmnt --version");
+        script.Should().Contain("run_item software ss ss --version");
+        script.Should().Contain("run_item software ip ip -Version");
         command.RiskLevel.Should().Be(SshCommandRiskLevel.ReadOnly);
+    }
+
+    [Fact]
+    public void CommonDiagnosticCommandProvider_ShouldRenderProcessSummaryWithoutPython()
+    {
+        var provider = new CommonDiagnosticCommandProvider();
+        var profile = CreateProfile("debian", "apt");
+        var command = provider.GetCommands(profile).Single(command => command.Name == "get_process_summary");
+
+        var commandText = command.BuildCommandText(new Dictionary<string, string>
+        {
+            ["sortBy"] = "memory",
+            ["limit"] = "20",
+        });
+
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("ps -eo pid,ppid,user,comm,%cpu,%mem");
+        commandText.Should().Contain("head -n");
+        commandText.Should().Contain("'20' 'memory'");
+        commandText.Should().NotContain("python3");
+    }
+
+    [Fact]
+    public void CommonDiagnosticCommandProvider_ShouldRenderListServicesWithoutPython()
+    {
+        var provider = new CommonDiagnosticCommandProvider();
+        var profile = CreateProfile("debian", "apt");
+        var command = provider.GetCommands(profile).Single(command => command.Name == "list_services");
+
+        var commandText = command.BuildCommandText(new Dictionary<string, string>
+        {
+            ["state"] = "running",
+            ["limit"] = "20",
+        });
+
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("systemctl list-units");
+        commandText.Should().Contain("head -n");
+        commandText.Should().Contain("'running' '20'");
+        commandText.Should().NotContain("python3");
     }
 
     [Fact]
@@ -634,8 +779,14 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "20",
         });
 
-        commandText.Should().Contain("crontab");
-        commandText.Should().Contain("limit=int('20')");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- '20'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("/etc/crontab");
+        script.Should().Contain("/etc/cron.d/*");
+        script.Should().Contain("crontab -l");
     }
 
     [Fact]
@@ -653,10 +804,14 @@ public sealed class AllowedCommandProviderTests
             ["logPath"] = "/var/log/kelpie/job.log",
         });
 
-        commandText.Should().Contain("expr='*/5 * * * *'");
-        commandText.Should().Contain("run_user='deploy'");
-        commandText.Should().Contain("command='/usr/local/bin/job --once'");
-        commandText.Should().Contain("log_path='/var/log/kelpie/job.log'");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- '*/5 * * * *' 'deploy' '/usr/local/bin/job --once' '/var/log/kelpie/job.log'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("printf 'valid=%s");
+        script.Should().Contain("printf 'cronExpression=%s");
+        script.Should().Contain("printf 'logPath=%s");
     }
 
     [Fact]
@@ -675,10 +830,14 @@ public sealed class AllowedCommandProviderTests
             ["logPath"] = "/var/log/kelpie/job.log",
         });
 
-        commandText.Should().Contain("target='user'");
-        commandText.Should().Contain("confirmation=cron_write:");
-        commandText.Should().Contain("run_user='deploy'");
-        commandText.Should().Contain("log_path='/var/log/kelpie/job.log'");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- 'user' 'deploy' '*/5 * * * *' '/usr/local/bin/job --once' '/var/log/kelpie/job.log'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("getent passwd \"$run_user\"");
+        script.Should().Contain("printf 'confirmation=cron_write:%s:%s");
+        script.Should().Contain("printf 'rollbackSupported=true");
     }
 
     [Fact]
@@ -697,9 +856,12 @@ public sealed class AllowedCommandProviderTests
             ["logPath"] = "/var/log/kelpie/job.log",
         });
 
-        commandText.Should().StartWith("sudo -n python3");
-        commandText.Should().Contain("base64.b64decode");
+        commandText.Should().StartWith("sudo -n sh -c");
         commandText.Should().Contain("'user' 'deploy' '*/5 * * * *' '/usr/local/bin/job --once' '/var/log/kelpie/job.log'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("crontab -u \"$run_user\"");
+        script.Should().Contain("rollbackConfirmation=cron_rollback:%s:%s");
         command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
     }
 
@@ -716,9 +878,12 @@ public sealed class AllowedCommandProviderTests
             ["runUser"] = "deploy",
         });
 
-        commandText.Should().StartWith("sudo -n python3");
-        commandText.Should().Contain("base64.b64decode");
+        commandText.Should().StartWith("sudo -n sh -c");
         commandText.Should().Contain("'user' 'deploy'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("backupExists=false");
+        script.Should().Contain("crontab -u \"$run_user\"");
         command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
     }
 
@@ -750,10 +915,10 @@ public sealed class AllowedCommandProviderTests
 
         var commandText = command.BuildCommandText(new Dictionary<string, string>
         {
-            ["path"] = "/etc/letsencrypt/live/example.com/fullchain.pem",
+            ["path"] = "/etc/letsencrypt/live/example.invalid/fullchain.pem",
         });
 
-        commandText.Should().Be("openssl x509 -in '/etc/letsencrypt/live/example.com/fullchain.pem' -noout -issuer -subject -dates -ext subjectAltName");
+        commandText.Should().Be("openssl x509 -in '/etc/letsencrypt/live/example.invalid/fullchain.pem' -noout -issuer -subject -dates -ext subjectAltName");
     }
 
     [Fact]
@@ -785,9 +950,12 @@ public sealed class AllowedCommandProviderTests
             ["days"] = "30",
         });
 
-        commandText.Should().Contain("openssl");
-        commandText.Should().Contain("path='/etc/pki/tls/certs/example.crt'");
-        commandText.Should().Contain("days=int('30')");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("-- '/etc/pki/tls/certs/example.crt' '30'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("command -v openssl");
+        script.Should().Contain("openssl x509 -in \"$path\" -noout -checkend \"$seconds\" -enddate");
     }
 
     [Fact]
@@ -802,8 +970,12 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "50",
         });
 
-        commandText.Should().Contain("pwd.getpwall()");
-        commandText.Should().Contain("limit=int('50')");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("'50'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("getent passwd");
+        script.Should().Contain("NR <= limit");
     }
 
     [Fact]
@@ -818,9 +990,12 @@ public sealed class AllowedCommandProviderTests
             ["user"] = "deploy",
         });
 
-        commandText.Should().Contain("pwd.getpwall()");
-        commandText.Should().Contain("name='deploy'");
-        commandText.Should().Contain("supplementaryGroups=");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("'deploy'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("getent passwd \"$user\"");
+        script.Should().Contain("supplementaryGroups=%s");
     }
 
     [Fact]
@@ -835,8 +1010,12 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "50",
         });
 
-        commandText.Should().Contain("grp.getgrall()");
-        commandText.Should().Contain("limit=int('50')");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("'50'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("getent group");
+        script.Should().Contain("NR <= limit");
     }
 
     [Fact]
@@ -851,9 +1030,12 @@ public sealed class AllowedCommandProviderTests
             ["group"] = "wheel",
         });
 
-        commandText.Should().Contain("grp.getgrall()");
-        commandText.Should().Contain("name='wheel'");
-        commandText.Should().Contain("members=");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("'wheel'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("getent group \"$group\"");
+        script.Should().Contain("members=%s");
     }
 
     [Fact]
@@ -869,9 +1051,14 @@ public sealed class AllowedCommandProviderTests
             ["name"] = "deploy",
         });
 
-        commandText.Should().Contain("kind='user'");
-        commandText.Should().Contain("name='deploy'");
-        commandText.Should().Contain("sudoersMatches=");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- 'user' 'deploy'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("printf 'sudoersMatches=%s");
+        script.Should().Contain("getent passwd \"$name\"");
+        script.Should().Contain("/etc/sudoers");
     }
 
     [Fact]
@@ -888,10 +1075,14 @@ public sealed class AllowedCommandProviderTests
             ["mode"] = "append",
         });
 
-        commandText.Should().Contain("user='deploy'");
-        commandText.Should().Contain("groups='nginx,wheel'");
-        commandText.Should().Contain("mode='append'");
-        commandText.Should().Contain("confirmation=user_apply_group_change:");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- 'deploy' 'nginx,wheel' 'append'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("getent passwd \"$user\"");
+        script.Should().Contain("getent group \"$group\"");
+        script.Should().Contain("confirmation=user_apply_group_change:%s:%s:%s");
     }
 
     [Fact]
@@ -908,9 +1099,12 @@ public sealed class AllowedCommandProviderTests
             ["mode"] = "append",
         });
 
-        commandText.Should().StartWith("sudo -n python3");
-        commandText.Should().Contain("base64.b64decode");
+        commandText.Should().StartWith("sudo -n sh -c");
         commandText.Should().Contain("'deploy' 'nginx,wheel' 'append'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("usermod -aG \"$groups\" \"$user\"");
+        script.Should().Contain("rollbackConfirmation=user_rollback_group_change:%s");
         command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
     }
 
@@ -926,9 +1120,12 @@ public sealed class AllowedCommandProviderTests
             ["user"] = "deploy",
         });
 
-        commandText.Should().StartWith("sudo -n python3");
-        commandText.Should().Contain("base64.b64decode");
+        commandText.Should().StartWith("sudo -n sh -c");
         commandText.Should().Contain("'deploy'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("backupExists=false");
+        script.Should().Contain("usermod -G \"$groups\" \"$user\"");
         command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
     }
 
@@ -965,10 +1162,14 @@ public sealed class AllowedCommandProviderTests
             ["sudo"] = "present",
         });
 
-        commandText.Should().Contain("user='deploy'");
-        commandText.Should().Contain("shell='/bin/bash'");
-        commandText.Should().Contain("sudo='present'");
-        commandText.Should().Contain("confirmation=user_apply_permission_change:");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- 'deploy' '/bin/bash' 'unchanged' 'present'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("getent passwd \"$user\"");
+        script.Should().Contain("/etc/sudoers");
+        script.Should().Contain("confirmation=user_apply_permission_change:%s:%s:%s:%s");
     }
 
     [Fact]
@@ -986,9 +1187,12 @@ public sealed class AllowedCommandProviderTests
             ["sudo"] = "absent",
         });
 
-        commandText.Should().StartWith("sudo -n python3");
-        commandText.Should().Contain("base64.b64decode");
+        commandText.Should().StartWith("sudo -n sh -c");
         commandText.Should().Contain("'deploy' '/bin/bash' 'disabled' 'absent'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("usermod -s \"$shell_path\" \"$user\"");
+        script.Should().Contain("rollbackConfirmation=user_rollback_permission_change:%s");
         command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
     }
 
@@ -1004,9 +1208,12 @@ public sealed class AllowedCommandProviderTests
             ["user"] = "deploy",
         });
 
-        commandText.Should().StartWith("sudo -n python3");
-        commandText.Should().Contain("base64.b64decode");
+        commandText.Should().StartWith("sudo -n sh -c");
         commandText.Should().Contain("'deploy'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("backupExists=false");
+        script.Should().Contain("sudoRestored=%s");
         command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
     }
 
@@ -1060,8 +1267,14 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "20",
         });
 
-        commandText.Should().Contain("base64.b64decode");
-        commandText.Should().Contain("'user' 'deploy' '20'");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- 'user' 'deploy' '20'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("systemctl list-units");
+        script.Should().Contain("find \"$root\" -maxdepth 2");
+        script.Should().Contain("printf 'fileOwnershipMatches=%s");
     }
 
     [Fact]
@@ -1080,8 +1293,14 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "20",
         });
 
-        commandText.Should().Contain("base64.b64decode");
-        commandText.Should().Contain("'group' 'www-data' '/var/www' '2' '20'");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- 'group' 'www-data' '/var/www' '2' '20'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("find \"$root\"");
+        script.Should().Contain("stat -c '%u:%g'");
+        script.Should().Contain("printf 'entriesScanned=%s");
     }
 
     [Fact]
@@ -1104,6 +1323,28 @@ public sealed class AllowedCommandProviderTests
             .WithMessage("SSH command argument format is invalid: scanRoot");
     }
 
+    [Theory]
+    [InlineData("cert_inspect", "path", "/etc/letsencrypt/live/../privkey.pem")]
+    [InlineData("cron_validate", "logPath", "/var/log/../auth.log")]
+    [InlineData("user_file_ownership_check", "scanRoot", "/var/www/../log")]
+    [InlineData("backup_plan_check", "scanRoot", "/var/www/../log")]
+    public void CommonDiagnosticCommandProvider_ShouldRejectParentTraversalPathArguments(
+        string commandName,
+        string argumentName,
+        string argumentValue)
+    {
+        var provider = new CommonDiagnosticCommandProvider();
+        var profile = CreateProfile("debian", "apt");
+        var command = provider.GetCommands(profile).Single(command => command.Name == commandName);
+        var arguments = CreateValidArguments(commandName);
+        arguments[argumentName] = argumentValue;
+
+        var action = () => command.BuildCommandText(arguments);
+
+        action.Should().Throw<InvalidOperationException>()
+            .WithMessage($"SSH command argument format is invalid: {argumentName}");
+    }
+
     [Fact]
     public void CommonDiagnosticCommandProvider_ShouldRenderUserServiceUsageCheck()
     {
@@ -1118,10 +1359,14 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "20",
         });
 
-        commandText.Should().Contain("systemctl");
-        commandText.Should().Contain("kind='group'");
-        commandText.Should().Contain("name='www-data'");
-        commandText.Should().Contain("limit=int('20')");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- 'group' 'www-data' '20'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("systemctl list-units");
+        script.Should().Contain("systemctl show \"$unit\"");
+        script.Should().Contain("printf 'matches=%s");
     }
 
     [Fact]
@@ -1137,9 +1382,12 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "20",
         });
 
-        commandText.Should().Contain("service='nginx.service'");
-        commandText.Should().Contain("base=service[:-8]");
-        commandText.Should().Contain("limit=int('20')");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("-- 'nginx.service' '20'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("base=${base%\".service\"}");
+        script.Should().Contain("pathsChecked=%s");
     }
 
     [Fact]
@@ -1154,10 +1402,13 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "20",
         });
 
-        commandText.Should().Contain("reportVersion=1");
-        commandText.Should().Contain("platform.release()");
-        commandText.Should().Contain("systemctl");
-        commandText.Should().Contain("limit=int('20')");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- '20'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("reportVersion=1");
+        script.Should().Contain("uname -srm");
+        script.Should().Contain("systemctl --failed");
         commandText.Should().NotContain("hostname");
         commandText.Should().NotContain("ip addr");
     }
@@ -1171,9 +1422,12 @@ public sealed class AllowedCommandProviderTests
 
         var commandText = command.BuildCommandText();
 
-        commandText.Should().Contain("firewalldAvailable=");
-        commandText.Should().Contain("ufwAvailable=");
-        commandText.Should().Contain("firewalldServiceCount=");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("firewalldAvailable=%s");
+        script.Should().Contain("ufwAvailable=%s");
+        script.Should().Contain("firewalldServiceCount=%s");
         commandText.Should().NotContain("--list-all");
     }
 
@@ -1193,9 +1447,14 @@ public sealed class AllowedCommandProviderTests
             ["permanent"] = "false",
         });
 
-        commandText.Should().Contain("confirmation=firewall_apply_rule:");
-        commandText.Should().Contain("value='443/tcp'");
-        commandText.Should().Contain("zone='public'");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- 'add' 'port' '443/tcp' 'public' 'false'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("printf 'confirmation=firewall_apply_rule:%s:%s:%s:%s:%s");
+        script.Should().Contain("\"$firewall_cmd\" --state");
+        script.Should().Contain("\"--query-$target\"");
     }
 
     [Fact]
@@ -1214,8 +1473,12 @@ public sealed class AllowedCommandProviderTests
             ["permanent"] = "true",
         });
 
-        commandText.Should().StartWith("sudo -n python3");
+        commandText.Should().StartWith("sudo -n sh -c");
         commandText.Should().Contain("'remove' 'service' 'https' 'public' 'true'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("firewall-cmd");
+        script.Should().Contain("applyExitCode=%s");
         command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
     }
 
@@ -1274,9 +1537,14 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "20",
         });
 
-        commandText.Should().Contain("entriesScanned=");
-        commandText.Should().Contain("confirmation=backup_run:");
-        commandText.Should().Contain("'/var/www' '2' '20'");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- '/var/www' '2' '20'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("find \"$root\"");
+        script.Should().Contain("printf 'entriesScanned=%s");
+        script.Should().Contain("printf 'confirmation=backup_run:%s");
     }
 
     [Fact]
@@ -1293,9 +1561,12 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "20",
         });
 
-        commandText.Should().StartWith("sudo -n python3");
-        commandText.Should().Contain("backupCreated=true");
+        commandText.Should().StartWith("sudo -n sh -c");
         commandText.Should().Contain("'/var/www' '2' '20'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("backupCreated=%s");
+        script.Should().Contain("tar -C \"$root\" -czf \"$backup_path\" -T \"$list_path\"");
         command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
     }
 
@@ -1329,9 +1600,12 @@ public sealed class AllowedCommandProviderTests
             ["backupPath"] = "/var/backups/kelpie/site/full.tar.gz",
         });
 
-        commandText.Should().Contain("tar");
-        commandText.Should().Contain("archiveReadable=");
-        commandText.Should().Contain("'/var/backups/kelpie/site/full.tar.gz'");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- '/var/backups/kelpie/site/full.tar.gz'");
+        commandText.Should().NotContain("python3");
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("tar -tf \"$path\"");
+        script.Should().Contain("archiveReadable=%s");
     }
 
     [Fact]
@@ -1347,9 +1621,14 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "50",
         });
 
-        commandText.Should().Contain("chainBreaks=");
-        commandText.Should().Contain("path='/var/log/kelpie/audit.log'");
-        commandText.Should().Contain("limit=int('50')");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- '/var/log/kelpie/audit.log' '50'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("printf 'chainBreaks=%s");
+        script.Should().Contain("prevHash");
+        script.Should().Contain("previousHash");
     }
 
     [Fact]
@@ -1365,8 +1644,13 @@ public sealed class AllowedCommandProviderTests
             ["limit"] = "50",
         });
 
-        commandText.Should().Contain("exportVersion=1");
-        commandText.Should().Contain("allowed=['timestamp'");
+        commandText.Should().StartWith("sh -c");
+        commandText.Should().Contain("sh -s -- '/var/log/kelpie/audit.log' '50'");
+        commandText.Should().NotContain("python3");
+
+        var script = DecodeEmbeddedShellScript(commandText);
+        script.Should().Contain("exportVersion=1");
+        script.Should().Contain("for key in timestamp eventType toolName commandName exitCode result riskLevel");
         commandText.Should().NotContain("password");
         commandText.Should().NotContain("PrivateKey");
     }
@@ -1419,5 +1703,46 @@ public sealed class AllowedCommandProviderTests
             PackageManager = packageManager,
             Capabilities = PolicySet.Empty,
         };
+    }
+
+    private static Dictionary<string, string> CreateValidArguments(string commandName)
+    {
+        return commandName switch
+        {
+            "cert_inspect" => new Dictionary<string, string>
+            {
+                ["path"] = "/etc/letsencrypt/live/example.com/fullchain.pem",
+            },
+            "cron_validate" => new Dictionary<string, string>
+            {
+                ["cronExpression"] = "0 0 * * *",
+                ["runUser"] = "deploy",
+                ["command"] = "/usr/bin/true",
+                ["logPath"] = "/var/log/kelpie-cron.log",
+            },
+            "user_file_ownership_check" => new Dictionary<string, string>
+            {
+                ["targetType"] = "user",
+                ["name"] = "deploy",
+                ["scanRoot"] = "/var/www",
+                ["depth"] = "2",
+                ["limit"] = "20",
+            },
+            "backup_plan_check" => new Dictionary<string, string>
+            {
+                ["scanRoot"] = "/var/www",
+                ["depth"] = "2",
+                ["limit"] = "20",
+            },
+            _ => throw new InvalidOperationException("Unexpected command name."),
+        };
+    }
+
+    private static string DecodeEmbeddedShellScript(string commandText)
+    {
+        var scriptBase64 = Regex.Match(commandText, "printf %s '(?<script>[^']+)' \\| base64 -d")
+            .Groups["script"]
+            .Value;
+        return Encoding.UTF8.GetString(Convert.FromBase64String(scriptBase64));
     }
 }

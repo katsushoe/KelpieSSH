@@ -7,6 +7,7 @@ public sealed class RhelDnfCommandProvider : IAllowedCommandProvider
 {
     private const string PackageNamePattern = "^[a-zA-Z0-9][a-zA-Z0-9.+:_-]{0,127}$";
     private const string PackageQueryPattern = "^[a-zA-Z0-9][a-zA-Z0-9.+:_-]{0,63}$";
+    private const string CertbotPluginPattern = "^(none|nginx|apache)$";
     private const string LimitPattern = "^[0-9]{1,3}$";
 
     private static readonly AllowedCommandParameterDefinition PackageParameter =
@@ -18,6 +19,9 @@ public sealed class RhelDnfCommandProvider : IAllowedCommandProvider
     private static readonly AllowedCommandParameterDefinition FilterParameter =
         new("filter", MaxLength: 64, Pattern: PackageQueryPattern);
 
+    private static readonly AllowedCommandParameterDefinition CertbotPluginParameter =
+        new("plugin", Pattern: CertbotPluginPattern);
+
     private static readonly AllowedCommandParameterDefinition LimitParameter =
         new("limit", MaxLength: 3, Pattern: LimitPattern);
 
@@ -25,7 +29,7 @@ public sealed class RhelDnfCommandProvider : IAllowedCommandProvider
     [
         new(
             "pkg_check_updates",
-            "dnf check-update",
+            "sh -c 'dnf check-update; code=$?; if [ \"$code\" -eq 100 ]; then exit 0; fi; exit \"$code\"'",
             TimeSpan.FromSeconds(60)),
         new(
             "pkg_info",
@@ -34,17 +38,17 @@ public sealed class RhelDnfCommandProvider : IAllowedCommandProvider
             [PackageParameter]),
         new(
             "pkg_search",
-            "python3 -c \"import subprocess,sys; query={query}; limit=int({limit}); result=subprocess.run(['dnf','search',query], text=True, capture_output=True); print('\\n'.join(result.stdout.splitlines()[:limit])); print(result.stderr, end='', file=sys.stderr); raise SystemExit(result.returncode)\"",
+            "sh -c \"output=$(dnf search \\\"$1\\\"); code=$?; printf '%s\\n' \\\"$output\\\" | head -n \\\"$2\\\"; exit \\\"$code\\\"\" -- {query} {limit}",
             TimeSpan.FromSeconds(60),
             [QueryParameter, LimitParameter]),
         new(
             "pkg_list_installed",
-            "python3 -c \"import subprocess,sys; filter_text={filter}.lower(); limit=int({limit}); result=subprocess.run(['dnf','list','installed'], text=True, capture_output=True); lines=[line for line in result.stdout.splitlines() if filter_text in line.lower()]; print('\\n'.join(lines[:limit])); print(result.stderr, end='', file=sys.stderr); raise SystemExit(result.returncode)\"",
+            "sh -c \"output=$(dnf list installed); code=$?; printf '%s\\n' \\\"$output\\\" | grep -i -- \\\"$1\\\" | head -n \\\"$2\\\"; exit \\\"$code\\\"\" -- {filter} {limit}",
             TimeSpan.FromSeconds(60),
             [FilterParameter, LimitParameter]),
         new(
             "pkg_simulate_install",
-            "sudo -n dnf install --assumeno {package}",
+            "sudo -n dnf install -y --setopt=tsflags=test {package}",
             TimeSpan.FromSeconds(60),
             [PackageParameter]),
         new(
@@ -55,7 +59,7 @@ public sealed class RhelDnfCommandProvider : IAllowedCommandProvider
             SshCommandRiskLevel.ConfirmRequired),
         new(
             "pkg_simulate_remove",
-            "sudo -n dnf remove --assumeno {package}",
+            "sudo -n dnf remove -y --setopt=tsflags=test {package}",
             TimeSpan.FromSeconds(60),
             [PackageParameter]),
         new(
@@ -63,6 +67,17 @@ public sealed class RhelDnfCommandProvider : IAllowedCommandProvider
             "sudo -n dnf remove -y {package}",
             TimeSpan.FromMinutes(10),
             [PackageParameter],
+            SshCommandRiskLevel.ConfirmRequired),
+        new(
+            "certbot_check_install",
+            "sh -c \"plugin=$1; printf 'packageManager=dnf\\n'; printf 'plugin=%s\\n' \\\"$plugin\\\"; if command -v certbot >/dev/null 2>&1; then printf 'certbotInstalled=true\\n'; certbot --version 2>/dev/null | head -n 1; else printf 'certbotInstalled=false\\n'; fi; if command -v nginx >/dev/null 2>&1; then printf 'nginxInstalled=true\\n'; else printf 'nginxInstalled=false\\n'; fi; if command -v apache2 >/dev/null 2>&1 || command -v httpd >/dev/null 2>&1; then printf 'apacheInstalled=true\\n'; else printf 'apacheInstalled=false\\n'; fi; printf 'candidatePackages='; case \\\"$plugin\\\" in nginx) printf 'certbot python3-certbot-nginx\\n'; dnf list certbot python3-certbot-nginx 2>/dev/null || true ;; apache) printf 'certbot python3-certbot-apache\\n'; dnf list certbot python3-certbot-apache 2>/dev/null || true ;; none) printf 'certbot\\n'; dnf list certbot 2>/dev/null || true ;; *) printf 'unsupportedPlugin=%s\\n' \\\"$plugin\\\"; exit 2 ;; esac; printf 'confirmation=certbot_install:%s\\n' \\\"$plugin\\\"\" -- {plugin}",
+            TimeSpan.FromSeconds(60),
+            [CertbotPluginParameter]),
+        new(
+            "certbot_install",
+            "sudo -n sh -c \"plugin=$1; case \\\"$plugin\\\" in nginx) dnf install -y certbot python3-certbot-nginx ;; apache) dnf install -y certbot python3-certbot-apache ;; none) dnf install -y certbot ;; *) exit 2 ;; esac\" -- {plugin}",
+            TimeSpan.FromMinutes(10),
+            [CertbotPluginParameter],
             SshCommandRiskLevel.ConfirmRequired),
     ];
 
