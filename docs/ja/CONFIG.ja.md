@@ -56,7 +56,6 @@ config_samples/
 | :--- | :--- |
 | `LogDirectory` | CLI logs の出力先。 |
 | `OpenProfile` | `kelpie open <profile>` で最後に開いた profile 名。 |
-| `Server:Port` | MCP server が使う local HTTP port。 |
 | `Server:ControlPipeName` | `kelpie` / `kelpiemcp` が server control に使う local named pipe。 |
 | `Commands:ExecutablePath` | 任意の `kelpie` command 明示 path。 |
 | `Commands:WorkingDirectory` | 任意の command working directory。 |
@@ -102,7 +101,6 @@ special value:
 | Setting | Purpose |
 | :--- | :--- |
 | `AllowedHosts` | local MCP server の HTTP Host allow-list。 |
-| `Server:Port` | MCP endpoint の local HTTP port。 |
 | `Server:ControlPipeName` | `kelpiemcp` が server control に使う local named pipe。 |
 | `LogDirectory` | MCP server logs の出力先。 |
 | `Commands:ExecutablePath` | 任意の `KelpieMCPServer` executable path。 |
@@ -121,13 +119,14 @@ http://127.0.0.1:45432/mcp
 http://127.0.0.1:45432/health
 ```
 
+公開ポートは永続的な `kelpiemcp.json` 設定ではなく、起動時オプションです。`KelpieMCPServer` の起動時に `--port <port-number>` で指定します。設定範囲は `1`～`65535`、未指定時の既定値は `45432` です。既存ファイルに従来の `Server.Port` が残っていても無視され、server CLI から書き戻されません。
+
 最小例:
 
 ```json
 {
   "LogDirectory": "D:\\Kelpie\\logs",
   "Server": {
-    "Port": 45432,
     "ControlPipeName": "KelpieMCPServer.Control"
   },
   "ProfileOperations": {

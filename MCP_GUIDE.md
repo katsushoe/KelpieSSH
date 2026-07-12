@@ -39,13 +39,20 @@ dotnet publish src\KelpieMCPServer\KelpieMCPServer.csproj -c Release -o D:\Kelpi
 
 For general Kelpie configuration files and field details, see [CONFIG.md](CONFIG.md).
 
-The port and server options are configured in:
+Persistent server options are configured in:
 
 ```text
 <KelpieHome>\config\kelpiemcp.json
 ```
 
-The default server port is `45432`.
+The public port is selected when `KelpieMCPServer` starts:
+
+```powershell
+KelpieMCPServer --port 45432
+KelpieMCPServer --runtime-base "<runtime-home>" --port 45432
+```
+
+`--port` accepts values from `1` through `65535`. Its default is `45432`. The `Server.Port` value in `kelpiemcp.json` is not used, even when it remains in an existing configuration file.
 
 Profiles are loaded into the MCP server when it starts. After editing files under `<KelpieHome>\profiles`, the user runs `kelpiemcp profile reload <profile>` to update both the trust store and the in-memory profile catalog. The `profile_reload` MCP tool does not update trusted profile hashes and is not the acceptance path for intentional profile file edits. Changes to `kelpiemcp.json` require a server restart with `kelpiemcp start --reload-config`.
 
@@ -113,7 +120,7 @@ The default Streamable HTTP MCP endpoint is:
 http://127.0.0.1:45432/mcp
 ```
 
-If the port is changed in `kelpiemcp.json`, update the AI client MCP configuration to match.
+If a different runtime port is supplied with `--port`, update the AI client MCP configuration to match.
 
 ### Codex
 
@@ -169,4 +176,3 @@ From an MCP client, use `ssh_logout` to clear the password session for a profile
 ## MCP command-line tools
 
 The MCP command-line tool list is documented in [MCP_COMMANDS.md](MCP_COMMANDS.md).
-

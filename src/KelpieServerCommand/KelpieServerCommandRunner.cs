@@ -124,7 +124,7 @@ public static class KelpieServerCommandRunner
         }
 
         var serverCommand = ResolveServerCommand(options);
-        var binPath = CreateWindowsServiceBinPath(serverCommand);
+        var binPath = CreateWindowsServiceBinPath(serverCommand, options.ServerPort);
         var serviceExists = await WindowsServiceExistsAsync();
         var result = serviceExists
             ? await ConfigureWindowsServiceAsync(binPath)
@@ -879,19 +879,21 @@ public static class KelpieServerCommandRunner
         KpLog.Debug($"KelpieMCPServer process start issued. pid={process.Id}");
     }
 
-    private static string CreateWindowsServiceBinPath(ServerCommand serverCommand)
+    private static string CreateWindowsServiceBinPath(ServerCommand serverCommand, int port)
     {
         var runtimeBase = serverCommand.WorkingDirectory;
         var runtimeBaseArgument = "--runtime-base " + QuoteWindowsCommandLineArgument(runtimeBase);
+        var portArgument = "--port " + port.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
         if (string.Equals(serverCommand.FileName, "dotnet", StringComparison.OrdinalIgnoreCase))
         {
             return QuoteWindowsCommandLineArgument("dotnet") + " "
                 + serverCommand.Arguments + " "
-                + runtimeBaseArgument;
+                + runtimeBaseArgument + " "
+                + portArgument;
         }
 
-        return QuoteWindowsCommandLineArgument(serverCommand.FileName) + " " + runtimeBaseArgument;
+        return QuoteWindowsCommandLineArgument(serverCommand.FileName) + " " + runtimeBaseArgument + " " + portArgument;
     }
 
     private static string QuoteWindowsCommandLineArgument(string value)
@@ -1013,7 +1015,10 @@ public static class KelpieServerCommandRunner
 
     private static IReadOnlyCollection<string> CreateServerStartArguments(KelpieMcpServerOptions options)
     {
-        return CreateServerStartArguments(options.ReloadConfig, options.ReloadProfileNames);
+        var arguments = CreateServerStartArguments(options.ReloadConfig, options.ReloadProfileNames).ToList();
+        arguments.Add("--port");
+        arguments.Add(options.ServerPort.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        return arguments;
     }
 
     private static IReadOnlyCollection<string> CreateServerStartArguments(

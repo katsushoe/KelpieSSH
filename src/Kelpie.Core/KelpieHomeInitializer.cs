@@ -260,7 +260,6 @@ public static class KelpieHomeInitializer
             if (includeServerCommand)
             {
                 var server = GetOrCreateObject(node, "Server", ref updated);
-                updated |= SetIntIfMissingOrInvalid(server, "Port", mcpConfigOptions.Port);
                 updated |= SetStringIfMissingOrWhiteSpace(server, "ControlPipeName", mcpConfigOptions.ControlPipeName);
 
                 var commands = GetOrCreateObject(node, "Commands", ref updated);
@@ -388,7 +387,6 @@ public static class KelpieHomeInitializer
             LogDirectory = mcpConfigOptions.LogDirectory,
             Server = new
             {
-                Port = mcpConfigOptions.Port,
                 ControlPipeName = mcpConfigOptions.ControlPipeName,
             },
             Commands = new
@@ -515,7 +513,6 @@ public static class KelpieHomeInitializer
 
         return new KelpieMcpConfigTemplateOptions(
             LogDirectory: string.IsNullOrWhiteSpace(templateOptions.LogDirectory) ? defaults.LogDirectory : templateOptions.LogDirectory.Trim(),
-            Port: templateOptions.Port is >= 1 and <= 65535 ? templateOptions.Port : defaults.Port,
             ControlPipeName: string.IsNullOrWhiteSpace(templateOptions.ControlPipeName) ? defaults.ControlPipeName : templateOptions.ControlPipeName.Trim());
     }
 
@@ -646,7 +643,6 @@ public sealed record KelpieProfileTemplateOptions(
 /// </summary>
 public sealed record KelpieMcpConfigTemplateOptions(
     string LogDirectory,
-    int Port,
     string ControlPipeName)
 {
     /// <summary>
@@ -658,7 +654,6 @@ public sealed record KelpieMcpConfigTemplateOptions(
     {
         return new KelpieMcpConfigTemplateOptions(
             LogDirectory: logDirectory,
-            Port: 45432,
             ControlPipeName: "KelpieMCPServer.Control");
     }
 }

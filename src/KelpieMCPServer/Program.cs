@@ -8,6 +8,25 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+if (McpServerCliOptions.IsHelpRequested(args))
+{
+    Console.WriteLine(McpServerCliOptions.HelpText);
+    return;
+}
+
+McpServerStartupOptions startupOptions;
+try
+{
+    startupOptions = McpServerCliOptions.ParseStartupOptions(args);
+}
+catch (ArgumentException ex)
+{
+    Console.Error.WriteLine(ex.Message);
+    Console.Error.WriteLine("Use --help for usage information.");
+    Environment.ExitCode = 2;
+    return;
+}
+
 var runtimeBaseDirectory = ResolveRuntimeBaseDirectory(args);
 KpLogSetup.Configure(
     runtimeBaseDirectory,
@@ -37,16 +56,7 @@ builder.Configuration.AddJsonFile(
     optional: true,
     reloadOnChange: false);
 
-var configuredPort = builder.Configuration.GetValue<int?>("Server:Port");
 var controlPipeName = builder.Configuration["Server:ControlPipeName"];
-
-if (configuredPort is null or <= 0 or > 65535)
-{
-    KpLog.Err("Server:Port is not configured or invalid.");
-    Console.Error.WriteLine("Server:Port is not configured or invalid.");
-    Environment.ExitCode = 2;
-    return;
-}
 
 if (string.IsNullOrWhiteSpace(controlPipeName))
 {
@@ -56,7 +66,7 @@ if (string.IsNullOrWhiteSpace(controlPipeName))
     return;
 }
 
-var serverUrl = $"http://127.0.0.1:{configuredPort.Value}";
+var serverUrl = startupOptions.ServerUrl;
 var profilesDirectory = KelpieRuntimePaths.GetProfilesDirectory(runtimeBaseDirectory);
 var reloadProfileNames = ResolveReloadProfileNames(args);
 
@@ -68,6 +78,7 @@ builder.Logging.AddConsole(options =>
 });
 
 builder.Services.AddSingleton(new KelpieServerControlOptions(controlPipeName));
+builder.Services.AddSingleton(startupOptions);
 builder.Services.AddSingleton(KelpieProfileOperationsOptions.FromConfiguration(builder.Configuration));
 var profileCatalog = new ReloadingSshConnectionProfileCatalog(
     profilesDirectory,
@@ -100,7 +111,7 @@ builder.Services
         options.ServerInfo = new()
         {
             Name = "KelpieSSH",
-            Version = "0.2.3.1",
+            Version = "0.2.4.0",
         };
     })
     .WithHttpTransport(options =>

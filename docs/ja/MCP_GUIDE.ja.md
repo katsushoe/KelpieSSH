@@ -39,13 +39,20 @@ dotnet publish src\KelpieMCPServer\KelpieMCPServer.csproj -c Release -o D:\Kelpi
 
 Kelpie の設定ファイル全般と各項目の詳細は [CONFIG.ja.md](CONFIG.ja.md) を参照してください。
 
-port と server options は次のファイルで設定します。
+永続的な server options は次のファイルで設定します。
 
 ```text
 <KelpieHome>\config\kelpiemcp.json
 ```
 
-既定の server port は `45432` です。
+公開ポートは `KelpieMCPServer` の起動時に指定します。
+
+```powershell
+KelpieMCPServer --port 45432
+KelpieMCPServer --runtime-base "<runtime-home>" --port 45432
+```
+
+`--port` の設定範囲は `1`～`65535`、既定値は `45432` です。既存の `kelpiemcp.json` に `Server.Port` が残っていても使用しません。
 
 Profiles は MCP サーバー起動時にメモリへ読み込まれます。`<KelpieHome>\profiles` 配下のファイルを編集した後は、利用者が `kelpiemcp profile reload <profile>` を実行して trust store と in-memory profile catalog を更新します。`profile_reload` MCP tool は trust store の profile hash を更新しないため、正規の profile 編集を受け入れる操作には使いません。`kelpiemcp.json` の変更後は `kelpiemcp start --reload-config` による server restart が必要です。
 
@@ -113,7 +120,7 @@ Windows Service は通常の `kelpiemcp start` プロセスと同じ Kelpie home
 http://127.0.0.1:45432/mcp
 ```
 
-`kelpiemcp.json` で port を変更した場合は、AI client 側の MCP 設定も合わせて更新してください。
+`--port` で既定値以外を指定した場合は、AI client 側の MCP 設定も合わせて更新してください。
 
 ### Codex
 
@@ -169,4 +176,3 @@ MCP client からは、`ssh_logout` で profile の password session を削除�
 ## MCP コマンドラインツール
 
 MCP コマンドラインツールの一覧は [MCP_COMMANDS.ja.md](MCP_COMMANDS.ja.md) にありますので、そちらを参照してください。
-

@@ -29,7 +29,7 @@
 | :--- | :--- | :--- | :--- | :--- |
 | `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.1.0` | VPS 操作 CLI。初期化、プロファイル確認、診断、ログ取得、GUI/CLI モード切替を担当します。 | `KelpieHome/bin/kelpie.exe` |
 | `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.2.1.0` | MCP サーバー制御 CLI。`start` / `stop` / `status` / `service register` / `service unregister` / `password` / `forget` を担当します。 | `KelpieHome/bin/kelpiemcp.exe` |
-| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.2.1.0` | Streamable HTTP MCP サーバー本体。Codex などの MCP クライアントへ SSH 診断ツールを公開します。 | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
+| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.2.4.0` | Streamable HTTP MCP サーバー本体。Codex などの MCP クライアントへ SSH 診断ツールを公開します。 | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
 | `kelpie-web-permission-helper` | `src/KelpieWebPermissionHelper/KelpieWebPermissionHelper.csproj` | `0.1.0.4` | SSH先に配置する sudo helper。Web公開ルート配下に限定して権限指定付き atomic write と owner / mode 変更を行います。 | `/usr/local/libexec/kelpie/kelpie-web-permission-helper` |
 
 ## `kelpie`

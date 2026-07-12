@@ -656,12 +656,10 @@ static KelpieMcpConfigTemplateOptions ReadMcpConfigTemplateOptions(string defaul
     Console.WriteLine("Press Enter to use the default value.");
 
     var logDirectory = ReadPrompt("MCP log directory", defaults.LogDirectory);
-    var port = ReadPortPrompt("MCP server port", defaults.Port);
     var controlPipeName = ReadPrompt("MCP control pipe name", defaults.ControlPipeName);
 
     return new KelpieMcpConfigTemplateOptions(
         LogDirectory: logDirectory,
-        Port: port,
         ControlPipeName: controlPipeName);
 }
 

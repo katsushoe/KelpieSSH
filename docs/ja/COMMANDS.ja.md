@@ -644,7 +644,7 @@ kelpie init --silent vps01
 処理内容:
 
 `KelpieHome` 配下に `config`、`profiles`、`keys` などの初期ディレクトリとサンプル設定ファイルを作成します。既存ファイルは上書きしません。
-既定では、新規 `kelpiemcp.json` を作成する前に `LogDirectory`、`Server.Port`、`Server.ControlPipeName` を対話入力します。新規 profile file を作成する前には host address、port、SSH user、authentication method、private key file または password secret name、OS family、mode、allowed roots、deny pattern を対話入力します。Enter を押すと表示された既定値を使います。自動セットアップでは `--silent` を指定します。
+既定では、新規 `kelpiemcp.json` を作成する前に `LogDirectory` と `Server.ControlPipeName` を対話入力します。公開ポートは `KelpieMCPServer` の起動時に渡すため、`kelpie init` では保存しません。新規 profile file を作成する前には host address、port、SSH user、authentication method、private key file または password secret name、OS family、mode、allowed roots、deny pattern を対話入力します。Enter を押すと表示された既定値を使います。自動セットアップでは `--silent` を指定します。
 初期化済み `KelpieHome` に profile ひな形だけを追加する場合は `kelpie profile create <profile>` を使います。
 
 実行結果サンプル:

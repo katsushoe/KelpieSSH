@@ -674,7 +674,7 @@ kelpie init --silent vps01
 When a profile name is supplied, a named sample profile is created under `profiles/<profile>.json`.
 Existing configuration files are not overwritten.
 By default, the command prompts for MCP server configuration values and SSH profile template values before creating new files. Press Enter to use the displayed default value.
-The MCP configuration prompts cover `LogDirectory`, `Server.Port`, and `Server.ControlPipeName` in `config/kelpiemcp.json`.
+The MCP configuration prompts cover `LogDirectory` and `Server.ControlPipeName` in `config/kelpiemcp.json`. The public port is supplied to `KelpieMCPServer` at startup and is not persisted by `kelpie init`.
 Use `--silent` for non-interactive setup with the default configuration and profile template values.
 Use `kelpie profile create <profile>` when the Kelpie home is already initialized and only a new profile template should be created.
 
@@ -1666,4 +1666,3 @@ Safety notes:
 - Dangerous operations require dedicated commands, policy checks, and confirmation strings.
 - Passwords are session-only for the MCP server process.
 - Production profile files and private keys must stay outside the public repository.
-

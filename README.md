@@ -71,7 +71,6 @@ Example interactive output:
 Create MCP server configuration.
 Press Enter to use the default value.
 MCP log directory [D:\Kelpie\logs]: D:\Kelpie\logs
-MCP server port [45432]: 45432
 MCP control pipe name [KelpieMCPServer.Control]: KelpieMCPServer.Control
 Create SSH profile template.
 Press Enter to use the default value.

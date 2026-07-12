@@ -7,7 +7,7 @@ namespace KelpieSSH.Application.Tests.Command;
 public sealed class KelpieMcpServerOptionsTests
 {
     [Fact]
-    public void FromConfiguration_ShouldReadShortKelpieKeys()
+    public void FromConfiguration_ShouldReadShortKelpieKeysAndIgnoreLegacyServerPort()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -21,7 +21,7 @@ public sealed class KelpieMcpServerOptionsTests
 
         var options = KelpieMcpServerOptions.FromConfiguration(configuration);
 
-        options.ServerPort.Should().Be(45433);
+        options.ServerPort.Should().Be(45432);
         options.ControlPipeName.Should().Be("Kelpie.Test.Control");
         options.ServerExecutablePath.Should().Be("server.exe");
         options.ServerWorkingDirectory.Should().Be("server-work");

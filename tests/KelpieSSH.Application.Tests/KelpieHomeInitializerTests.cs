@@ -190,7 +190,6 @@ public sealed class KelpieHomeInitializerTests
                 profileName: "vps01",
                 mcpConfigOptions: new KelpieMcpConfigTemplateOptions(
                     LogDirectory: "D:\\KelpieLogs",
-                    Port: 55432,
                     ControlPipeName: "KelpieMCPServer.CustomControl"));
 
             var kelpieMcpConfigPath = Path.Combine(homeDirectory, "config", "kelpiemcp.json");
@@ -198,7 +197,7 @@ public sealed class KelpieHomeInitializerTests
             var root = document.RootElement;
 
             root.GetProperty("LogDirectory").GetString().Should().Be("D:\\KelpieLogs");
-            root.GetProperty("Server").GetProperty("Port").GetInt32().Should().Be(55432);
+            root.GetProperty("Server").TryGetProperty("Port", out _).Should().BeFalse();
             root.GetProperty("Server").GetProperty("ControlPipeName").GetString().Should().Be("KelpieMCPServer.CustomControl");
         }
         finally

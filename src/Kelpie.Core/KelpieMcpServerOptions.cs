@@ -55,14 +55,10 @@ public sealed class KelpieMcpServerOptions
             throw new InvalidOperationException("Server:ControlPipeName is not configured.");
         }
 
-        var configuredPort = int.TryParse(configuration["Server:Port"], out var port)
-            ? port
-            : 45432;
-
         return new KelpieMcpServerOptions
         {
             ControlPipeName = controlPipeName,
-            ServerPort = configuredPort,
+            ServerPort = 45432,
             ServerExecutablePath = configuration["Commands:ExecutablePath"],
             ServerWorkingDirectory = configuration["Commands:WorkingDirectory"],
             ProfileOperations = KelpieProfileOperationsOptions.FromConfiguration(configuration),
