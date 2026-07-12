@@ -153,6 +153,40 @@ public sealed class KelpieHomeInitializerTests
     }
 
     [Fact]
+    public void Initialize_removes_legacy_mcp_server_port()
+    {
+        var homeDirectory = CreateTempDirectory();
+
+        try
+        {
+            var configDirectory = Path.Combine(homeDirectory, "config");
+            Directory.CreateDirectory(configDirectory);
+            var configPath = Path.Combine(configDirectory, "kelpiemcp.json");
+            File.WriteAllText(
+                configPath,
+                """
+                {
+                  "Server": {
+                    "Port": 12345,
+                    "ControlPipeName": "KelpieMCPServer.Control"
+                  }
+                }
+                """);
+
+            KelpieHomeInitializer.Initialize(homeDirectory);
+
+            using var document = JsonDocument.Parse(File.ReadAllText(configPath));
+            var server = document.RootElement.GetProperty("Server");
+            server.TryGetProperty("Port", out _).Should().BeFalse();
+            server.GetProperty("ControlPipeName").GetString().Should().Be("KelpieMCPServer.Control");
+        }
+        finally
+        {
+            Directory.Delete(homeDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Initialize_creates_profile_operations_with_cli_and_mcp_policy()
     {
         var homeDirectory = CreateTempDirectory();

@@ -119,7 +119,7 @@ http://127.0.0.1:45432/mcp
 http://127.0.0.1:45432/health
 ```
 
-公開ポートは永続的な `kelpiemcp.json` 設定ではなく、起動時オプションです。`KelpieMCPServer` の起動時に `--port <port-number>` で指定します。設定範囲は `1`～`65535`、未指定時の既定値は `45432` です。既存ファイルに従来の `Server.Port` が残っていても無視され、server CLI から書き戻されません。
+公開ポートは永続的な `kelpiemcp.json` 設定ではなく、起動時オプションです。`KelpieMCPServer` の起動時に `--port <port-number>` で指定します。設定範囲は `1`～`65535`、未指定時の既定値は `45432` です。既存ファイルに従来の `Server.Port` が残っていても無視され、次回 `kelpie init` で設定を更新するときに削除されます。
 
 最小例:
 

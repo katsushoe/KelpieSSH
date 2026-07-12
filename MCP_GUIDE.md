@@ -52,7 +52,7 @@ KelpieMCPServer --port 45432
 KelpieMCPServer --runtime-base "<runtime-home>" --port 45432
 ```
 
-`--port` accepts values from `1` through `65535`. Its default is `45432`. The `Server.Port` value in `kelpiemcp.json` is not used, even when it remains in an existing configuration file.
+`--port` accepts values from `1` through `65535`. Its default is `45432`. The `Server.Port` value in `kelpiemcp.json` is not used and is removed when `kelpie init` next updates the configuration.
 
 Profiles are loaded into the MCP server when it starts. After editing files under `<KelpieHome>\profiles`, the user runs `kelpiemcp profile reload <profile>` to update both the trust store and the in-memory profile catalog. The `profile_reload` MCP tool does not update trusted profile hashes and is not the acceptance path for intentional profile file edits. Changes to `kelpiemcp.json` require a server restart with `kelpiemcp start --reload-config`.
 

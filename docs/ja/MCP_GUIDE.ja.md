@@ -52,7 +52,7 @@ KelpieMCPServer --port 45432
 KelpieMCPServer --runtime-base "<runtime-home>" --port 45432
 ```
 
-`--port` の設定範囲は `1`～`65535`、既定値は `45432` です。既存の `kelpiemcp.json` に `Server.Port` が残っていても使用しません。
+`--port` の設定範囲は `1`～`65535`、既定値は `45432` です。既存の `kelpiemcp.json` に `Server.Port` が残っていても使用せず、次回 `kelpie init` で設定を更新するときに削除します。
 
 Profiles は MCP サーバー起動時にメモリへ読み込まれます。`<KelpieHome>\profiles` 配下のファイルを編集した後は、利用者が `kelpiemcp profile reload <profile>` を実行して trust store と in-memory profile catalog を更新します。`profile_reload` MCP tool は trust store の profile hash を更新しないため、正規の profile 編集を受け入れる操作には使いません。`kelpiemcp.json` の変更後は `kelpiemcp start --reload-config` による server restart が必要です。
 

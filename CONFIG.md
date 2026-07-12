@@ -124,7 +124,7 @@ For browser-based health checks, use:
 http://127.0.0.1:45432/health
 ```
 
-The public port is a runtime option, not a persistent `kelpiemcp.json` setting. Start `KelpieMCPServer` with `--port <port-number>`, where the allowed range is `1` through `65535`. When `--port` is omitted, the default is `45432`. A legacy `Server.Port` value may remain in an existing file, but it is ignored and is not written by the server CLI.
+The public port is a runtime option, not a persistent `kelpiemcp.json` setting. Start `KelpieMCPServer` with `--port <port-number>`, where the allowed range is `1` through `65535`. When `--port` is omitted, the default is `45432`. A legacy `Server.Port` value is ignored and removed the next time `kelpie init` updates the configuration.
 
 Minimal example:
 

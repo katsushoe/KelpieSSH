@@ -260,6 +260,7 @@ public static class KelpieHomeInitializer
             if (includeServerCommand)
             {
                 var server = GetOrCreateObject(node, "Server", ref updated);
+                updated |= RemovePropertyIfExists(server, "Port");
                 updated |= SetStringIfMissingOrWhiteSpace(server, "ControlPipeName", mcpConfigOptions.ControlPipeName);
 
                 var commands = GetOrCreateObject(node, "Commands", ref updated);
