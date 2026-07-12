@@ -160,13 +160,13 @@ public static class SshProfileAuthorizationEvaluator
     {
         var oldUsers = baseline.ToDictionary(user => user.UserName, StringComparer.Ordinal);
         var newUsers = proposed.ToDictionary(user => user.UserName, StringComparer.Ordinal);
-        foreach (var userName in newUsers.Keys.Except(oldUsers.Keys, StringComparer.Ordinal)) expansions.Add($"Users.{userName}");
-        foreach (var userName in oldUsers.Keys.Except(newUsers.Keys, StringComparer.Ordinal)) reductions.Add($"Users.{userName}");
+        if (newUsers.Keys.Except(oldUsers.Keys, StringComparer.Ordinal).Any()) expansions.Add("Users");
+        if (oldUsers.Keys.Except(newUsers.Keys, StringComparer.Ordinal).Any()) reductions.Add("Users");
         foreach (var userName in oldUsers.Keys.Intersect(newUsers.Keys, StringComparer.Ordinal))
         {
             var oldUser = oldUsers[userName];
             var newUser = newUsers[userName];
-            var prefix = $"Users.{userName}.";
+            const string prefix = "Users[].";
             if (oldUser.AuthenticationMethod != newUser.AuthenticationMethod) expansions.Add(prefix + "AuthenticationMethod");
             if (oldUser.CredentialReference != newUser.CredentialReference) expansions.Add(prefix + "CredentialReference");
             CompareMode(prefix + "Mode", oldUser.Mode, newUser.Mode, expansions, reductions);
