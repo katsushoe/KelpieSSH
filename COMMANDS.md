@@ -19,7 +19,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | [MCP environment session](#mcp-environment-session) | `kelpiemcp env put`, `kelpiemcp env list`, `kelpiemcp env forget`, `kelpiemcp env clear` | Store, list, or clear short-lived environment overrides in the running MCP server session. |
 | [Initialization](#initialization) | `kelpie init [--silent] [profile]`, `kelpie config --check` | Create and validate the local Kelpie home configuration. |
 | [Profile/session](#profilesession) | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie profile trust-host-key`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | Create, edit, trust host keys for, and delete profile templates, select profiles, and manage interactive SSH sessions. |
-| [Mode/UI](#modeui) | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | Switch CLI/GUI mode or choose a temporary launch mode. |
+| [Mode/UI](#modeui) | `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | Select CLI behavior or choose a temporary launch mode. |
 | [Diagnostics](#diagnostics) | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie inventory`, `kelpie logs` | Validate profiles, show profile information, MCP server status, SSH diagnostics, target inventory, and service logs. |
 | [Packages](#packages) | `kelpie pkg check-updates`, `kelpie pkg info`, `kelpie pkg search`, `kelpie pkg list-installed`, `kelpie pkg simulate-install`, `kelpie pkg simulate-remove`, `kelpie pkg install`, `kelpie pkg remove` | Inspect packages and run confirmation-gated package operations through the selected SSH profile. |
 | [Environment](#environment) | `kelpie env keys`, `kelpie env peek`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | List, read, or persist remote environment variables under profile policy. |
@@ -1677,14 +1677,13 @@ Safety notes:
 
 ### Mode/UI
 
-Switch between CLI and GUI behavior or choose a temporary launch mode.
+Select CLI behavior or choose a temporary launch mode.
 
 Commands in this group:
 
 - [`kelpie login --console`](#kelpie-login---console)
 - [`kelpie login --desktop`](#kelpie-login---desktop)
 - [`kelpie cli`](#kelpie-cli)
-- [`kelpie gui`](#kelpie-gui)
 
 #### `kelpie login --console`
 
@@ -1766,37 +1765,6 @@ Return value:
 
 - Exit code `0` when CLI mode is selected.
 - Standard output confirms the mode change.
-
-Return value sample:
-
-```json
-{
-  "exitCode": 0,
-  "stdout": "<command-specific terminal output>",
-  "stderr": ""
-}
-```
-
-Execution result sample:
-
-The terminal execution result is represented by the return value sample above: process exit code, standard output, and standard error.
-
-Safety notes:
-
-- Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
-
-#### `kelpie gui`
-
-Starts or switches to GUI mode when a GUI frontend is available.
-
-```powershell
-kelpie gui
-```
-
-Return value:
-
-- Exit code `0` when GUI mode is selected or the GUI frontend is started.
-- Standard output contains a user-facing status message.
 
 Return value sample:
 

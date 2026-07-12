@@ -56,15 +56,6 @@ if (string.Equals(command, "init", StringComparison.OrdinalIgnoreCase))
     return;
 }
 
-if (string.Equals(command, "gui", StringComparison.OrdinalIgnoreCase))
-{
-    KpLog.Info("Kelpie CLI gui mode requested.");
-    SaveClientMode("gui");
-    StartDesktop(openProfileName: null);
-    Console.WriteLine("Kelpie mode: gui");
-    return;
-}
-
 if (string.Equals(command, "cli", StringComparison.OrdinalIgnoreCase))
 {
     KpLog.Info("Kelpie CLI cli mode requested.");
@@ -1022,7 +1013,6 @@ static void ShowUsage(string command = "")
     writer.WriteLine("Usage:");
     writer.WriteLine("  kelpie init [--silent] [profile]");
     writer.WriteLine("  kelpie open <profile>");
-    writer.WriteLine("  kelpie gui");
     writer.WriteLine("  kelpie cli");
     writer.WriteLine("  kelpie config --check [--pager|--no-pager]");
     writer.WriteLine("  kelpie login");

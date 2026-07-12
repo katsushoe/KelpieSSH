@@ -19,7 +19,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | Compatibility | `kelpiemcp login`, `kelpiemcp logout` | 旧名互換。新規利用では `password` / `forget` を使う。 |
 | Initialization | `kelpie init [--silent] [profile]`, `kelpie config --check` | `KelpieHome` 配下の初期ディレクトリとサンプル設定を作成・検証する。 |
 | Profile/session | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie profile trust-host-key`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイルひな形作成・編集・ホスト鍵信頼登録・削除、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
-| Mode/UI | `kelpie gui`, `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | CLI/GUI モードや一時的な起動方式を切り替える。 |
+| Mode/UI | `kelpie cli`, `kelpie login --console`, `kelpie login --desktop` | CLI動作を選択するか、一時的な起動方式を指定する。 |
 | Diagnostics | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie inventory`, `kelpie logs` | プロファイル検証、プロファイル情報、MCP server 状態、SSH 診断、接続先 inventory、サービスログを表示する。 |
 | Packages | `kelpie pkg check-updates`, `kelpie pkg info`, `kelpie pkg search`, `kelpie pkg list-installed`, `kelpie pkg simulate-install`, `kelpie pkg simulate-remove`, `kelpie pkg install`, `kelpie pkg remove` | SSH profile の package provider を使って package 確認と確認付き変更を行う。 |
 | Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | profile policy に従って remote 環境変数の key 表示、値参照、永続化を行う。 |
@@ -986,37 +986,6 @@ open済みプロファイルがない場合:
 ```text
 No profile is open.
 Use `kelpie open <profile>` first.
-```
-
-### `kelpie gui`
-
-目的:
-
-既定モードを GUI に切り替え、KelpieDesktop を起動します。以後、`kelpie login` は `--desktop` 相当として動作します。
-
-構文:
-
-```powershell
-kelpie gui
-```
-
-引数詳細:
-
-- なし。
-
-引数サンプル:
-
-- なし。
-
-処理内容:
-
-既定モードを GUI に切り替え、KelpieDesktop を起動します。
-
-実行結果サンプル:
-
-```text
-Kelpie GUI started.
-Kelpie mode: gui
 ```
 
 ### `kelpie cli`
@@ -2211,7 +2180,6 @@ kelpie -h
 Usage:
   kelpie init [--silent] [profile]
   kelpie open <profile>
-  kelpie gui
   kelpie cli
   kelpie login
   kelpie login --console

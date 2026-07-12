@@ -230,7 +230,7 @@ kelpiemcp profile revoke <profile>
 | Setting | 必須 | 初期値 | Purpose |
 | :--- | :---: | :--- | :--- |
 | `OpenProfile` | いいえ | なし | `kelpie open <profile>` で最後に開いた profile。`kelpie login` が参照します。 |
-| `ClientMode` | いいえ | なし | `kelpie gui` / `kelpie cli` などで選択した client mode。 |
+| `ClientMode` | いいえ | なし | CLIのlogin処理で使う、保存済みの既定client mode。 |
 
 ## SSH Profiles
 

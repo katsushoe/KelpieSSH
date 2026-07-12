@@ -235,7 +235,7 @@ Example:
 | Setting | Required | Initial value | Purpose |
 | :--- | :---: | :--- | :--- |
 | `OpenProfile` | no | none | Last profile opened with `kelpie open <profile>`. `kelpie login` uses this value. |
-| `ClientMode` | no | none | Client mode selected by commands such as `kelpie gui` or `kelpie cli`. |
+| `ClientMode` | no | none | Stored default client mode used by the CLI login flow. |
 
 ## SSH Profiles
 
