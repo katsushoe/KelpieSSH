@@ -1,6 +1,6 @@
 # KelpieSSH Configuration
 
-Last updated: 2026-06-28
+Last updated: 2026-07-12
 
 This file is the English reference for KelpieSSH configuration file locations and host-level settings.
 For Japanese documentation, see [docs/ja/CONFIG.ja.md](docs/ja/CONFIG.ja.md).
@@ -194,13 +194,13 @@ Default policy:
 | `ProfileOperations:Reload:CLI` | no | `Allow` | Allows `kelpiemcp profile reload <profile>`. |
 | `ProfileOperations:Revoke:CLI` | no | `Allow` | Allows `kelpiemcp profile revoke <profile>`. |
 | `ProfileOperations:Add:MCP` | no | `Deny` | MCP profile add is not exposed. |
-| `ProfileOperations:Reload:MCP` | no | `Deny` | Controls the `ReloadAllowed` value returned by `ssh_profile_capabilities`. |
+| `ProfileOperations:Reload:MCP` | no | `Deny` | Controls both `profile_reload` execution and the `ReloadAllowed` value returned by `ssh_profile_capabilities`. |
 | `ProfileOperations:Revoke:MCP` | no | `Deny` | MCP profile revoke is not exposed. |
 
 When a CLI operation is denied, the corresponding command returns a JSON result with `Success: false` and `Status: disabled-by-config`.
 `kelpiemcp profile-capabilities [profile]` returns `AddAllowed`, `ReloadAllowed`, and `RevokeAllowed` after applying both the trust-store state and the `ProfileOperations:*:CLI` settings.
 
-When `ProfileOperations:Reload:MCP` is `Deny`, `ssh_profile_capabilities` returns `ReloadAllowed: false` with `Reason: disabled-by-config`.
+When `ProfileOperations:Reload:MCP` is `Deny`, `profile_reload` returns `Status: forbidden` without changing the catalog, and `ssh_profile_capabilities` returns `ReloadAllowed: false` with `Reason: disabled-by-config`.
 This is the recommended default because profile file changes should be accepted by explicit user-side commands:
 
 ```powershell
@@ -209,7 +209,7 @@ kelpiemcp profile reload <profile>
 kelpiemcp profile revoke <profile>
 ```
 
-Set `ProfileOperations:Reload:MCP` to `Allow` only when the operator intentionally allows MCP clients to see reload capability for the connected profile.
+Set `ProfileOperations:Reload:MCP` to `Allow` only when the operator intentionally allows MCP clients to execute profile reload and see reload capability for the connected profile.
 Even then, trusted profile hash validation still applies; editing a profile file is not accepted just because this flag is enabled.
 
 ## Runtime State

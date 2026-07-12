@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Kelpie.Core;
 using KelpieMCPServer;
 using KelpieSSH.Application.Ssh;
 
@@ -14,13 +15,57 @@ public sealed class KelpieToolsSshTests
         var profiles = new ReloadingSshConnectionProfileCatalog(directory);
         File.WriteAllText(Path.Combine(directory, "vps02.json"), CreateProfileJson("ops"));
 
-        var result = KelpieTools.ReloadProfiles(profiles);
+        var result = KelpieTools.ReloadProfiles(profiles, CreateProfileOperations(reloadMcpAllowed: true));
 
         result.Success.Should().BeTrue();
         result.ProfileCount.Should().Be(2);
         result.ProfileNames.Should().Equal("vps01", "vps02");
         profiles.TryGet("vps02", out var profile).Should().BeTrue();
         profile.UserName.Should().Be("ops");
+        result.Status.Should().Be("ok");
+        result.Source.Should().Be("tool_request");
+        result.CorrelationId.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public void ReloadProfiles_WhenMcpReloadIsDenied_ShouldReturnForbiddenWithoutChangingCatalog()
+    {
+        var directory = CreateTempDirectory();
+        File.WriteAllText(Path.Combine(directory, "vps01.json"), CreateProfileJson("deploy"));
+        var profiles = new ReloadingSshConnectionProfileCatalog(directory);
+        File.WriteAllText(Path.Combine(directory, "vps02.json"), CreateProfileJson("ops"));
+
+        var result = KelpieTools.ReloadProfiles(profiles, KelpieProfileOperationsOptions.Default);
+
+        result.Success.Should().BeFalse();
+        result.Status.Should().Be("forbidden");
+        result.Reason.Should().Be("disabled-by-config");
+        result.Source.Should().Be("tool_request");
+        result.CorrelationId.Should().NotBeNullOrWhiteSpace();
+        result.ProfileNames.Should().Equal("vps01");
+        profiles.TryGet("vps02", out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public void ReloadProfiles_WhenTrustedHashDoesNotMatch_ShouldReturnBlockedAndKeepLastGoodProfile()
+    {
+        var directory = CreateTempDirectory();
+        var profilePath = Path.Combine(directory, "vps01.json");
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        File.WriteAllText(profilePath, CreateProfileJson("deploy"));
+        var profiles = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
+        File.WriteAllText(profilePath, CreateProfileJson("ops"));
+
+        var result = KelpieTools.ReloadProfiles(profiles, CreateProfileOperations(reloadMcpAllowed: true));
+
+        result.Success.Should().BeFalse();
+        result.Status.Should().Be("blocked");
+        result.Reason.Should().Be("profile-hash-mismatch");
+        result.Source.Should().Be("file_reload");
+        result.CorrelationId.Should().NotBeNullOrWhiteSpace();
+        result.AffectedProfiles.Should().Equal("vps01");
+        profiles.TryGet("vps01", out var activeProfile).Should().BeTrue();
+        activeProfile.UserName.Should().Be("deploy");
     }
 
     [Fact]
@@ -38,7 +83,7 @@ public sealed class KelpieToolsSshTests
         ]);
         var service = CreateProviderBackedService(runner);
 
-        var reloadResult = KelpieTools.ReloadProfiles(profiles);
+        var reloadResult = KelpieTools.ReloadProfiles(profiles, CreateProfileOperations(reloadMcpAllowed: true));
         var keysResult = await KelpieTools.GetEnvironmentKeysAsync(service, profiles, "vps01");
         var setResult = await KelpieTools.SetEnvironmentValueAsync(
             service,
@@ -3593,6 +3638,17 @@ public sealed class KelpieToolsSshTests
           }
         }
         """;
+    }
+
+    private static KelpieProfileOperationsOptions CreateProfileOperations(bool reloadMcpAllowed)
+    {
+        return new KelpieProfileOperationsOptions(
+            addCliAllowed: true,
+            addMcpAllowed: false,
+            reloadCliAllowed: true,
+            reloadMcpAllowed: reloadMcpAllowed,
+            revokeCliAllowed: true,
+            revokeMcpAllowed: false);
     }
 
     private sealed class FakeSshCommandRunner : ISshCommandRunner

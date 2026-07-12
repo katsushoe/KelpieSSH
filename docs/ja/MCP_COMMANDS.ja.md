@@ -141,20 +141,30 @@ KelpieSSH MCP server is running.
 
 処理内容:
 
-MCP server が `KelpieHome/profiles/*.json` を読み直し、reload が成功した場合だけ in-memory profile catalog を差し替えます。Profile JSON が不正、または読み取りに失敗した場合は、最後に正常読み込みした profile catalog を維持します。
+MCP server起動時に読み込んだ信頼済み `ProfileOperations` snapshotを使います。`ProfileOperations:Reload:MCP` が `Deny` の場合はprofile fileを読まず、in-memory catalogも変更せず `Status: forbidden` を返します。許可時も `mcp_trusted_store.dat` の信頼済みhashを検証し、未信頼またはhash不一致のprofileは拒否して最後の正常なcatalogを維持します。
 
 戻り値:
 
 - `ProfileReloadToolResult`
+- `Status`: `ok` / `forbidden` / `blocked`
+- `Reason`: `disabled-by-config` や `profile-hash-mismatch` などの安定した理由コード
+- `Source`: policy判定は `tool_request`、file検証失敗は `file_reload`
+- `CorrelationId`: profile内容や秘密情報を含まない監査相関ID
+- `AffectedProfiles`: 検証失敗に関係するprofile名のみ。policy拒否時と成功時は空配列
 
 実行結果サンプル:
 
 ```json
 {
   "Success": true,
+  "Status": "ok",
+  "Reason": "",
+  "Source": "tool_request",
+  "CorrelationId": "5fb58435c7f94b56a46f0f2e28883bcc",
   "ProfilesDirectory": "D:\\Kelpie\\profiles",
   "ProfileCount": 2,
   "ProfileNames": ["vps01", "vps02"],
+  "AffectedProfiles": [],
   "ErrorMessage": null
 }
 ```
@@ -166,6 +176,7 @@ MCP server が `KelpieHome/profiles/*.json` を読み直し、reload が成功�
 - この tool が変更するのは MCP server の in-memory profile catalog だけです。
 - 既存の SSH terminal session は現在の接続を維持します。新しい tool call は再読み込み後の profile を使います。
 - `kelpiemcp.json` は再読み込みしません。server configuration を変更した場合は MCP server を再起動してください。
+- MCP経由reloadの既定値は `Deny` です。profile変更は通常 `kelpiemcp profile reload <profile>` で明示承認します。
 
 ### `ssh_profile_capabilities`
 

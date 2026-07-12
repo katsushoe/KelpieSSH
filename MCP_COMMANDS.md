@@ -279,25 +279,34 @@ Input arguments:
 
 Processing:
 
-KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+KelpieMCPServer uses the trusted `ProfileOperations` snapshot loaded at server startup. When `ProfileOperations:Reload:MCP` is `Deny`, the tool returns `Status: forbidden` without reading profile files or changing the in-memory catalog. When allowed, every profile is still checked against `mcp_trusted_store.dat`; an untrusted or hash-mismatched file is blocked and the last good catalog remains active.
 
 Return value:
 
 - Return type: `ProfileReloadToolResult`.
+- `Status` is `ok`, `forbidden`, or `blocked`.
+- `Reason` contains a stable policy or validation reason such as `disabled-by-config` or `profile-hash-mismatch`.
+- `Source` is `tool_request` for policy decisions and `file_reload` for file validation failures.
+- `CorrelationId` identifies the corresponding audit event without exposing profile contents or secrets.
+- `AffectedProfiles` lists only profile names associated with validation failures; it is empty for policy denial and success.
 - The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
-- Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
 
 Return value sample:
 
 ```json
 {
   "Success": true,
+  "Status": "ok",
+  "Reason": "",
+  "Source": "tool_request",
+  "CorrelationId": "5fb58435c7f94b56a46f0f2e28883bcc",
   "ProfilesDirectory": "D:\\Kelpie\\profiles",
   "ProfileCount": 2,
   "ProfileNames": [
     "vps01",
     "vps02"
   ],
+  "AffectedProfiles": [],
   "ErrorMessage": null
 }
 ```
@@ -309,6 +318,7 @@ The MCP execution result body is the return value sample above, wrapped by the c
 Safety notes:
 
 - This tool does not contact SSH targets. It updates only the MCP server's in-memory profile catalog, and existing terminal sessions keep their current connections.
+- The default MCP reload policy is `Deny`. Profile changes must normally be approved through `kelpiemcp profile reload <profile>`.
 
 #### `ssh_profile_capabilities`
 

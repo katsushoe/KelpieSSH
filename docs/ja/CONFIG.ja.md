@@ -1,6 +1,6 @@
 # KelpieSSH 設定
 
-最終更新: 2026-06-28
+最終更新: 2026-07-12
 
 この文書は、KelpieSSH の設定ファイル配置と host level settings をまとめる公開リファレンスです。
 Profile の詳細な設定ガイダンスは [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) を参照してください。
@@ -189,13 +189,13 @@ http://127.0.0.1:45432/health
 | `ProfileOperations:Reload:CLI` | いいえ | `Allow` | `kelpiemcp profile reload <profile>` を許可する。 |
 | `ProfileOperations:Revoke:CLI` | いいえ | `Allow` | `kelpiemcp profile revoke <profile>` を許可する。 |
 | `ProfileOperations:Add:MCP` | いいえ | `Deny` | MCP 経由の profile add は公開しない。 |
-| `ProfileOperations:Reload:MCP` | いいえ | `Deny` | `ssh_profile_capabilities` が返す `ReloadAllowed` を制御する。 |
+| `ProfileOperations:Reload:MCP` | いいえ | `Deny` | `profile_reload` の実行と `ssh_profile_capabilities` が返す `ReloadAllowed` の両方を制御する。 |
 | `ProfileOperations:Revoke:MCP` | いいえ | `Deny` | MCP 経由の profile revoke は公開しない。 |
 
 CLI 操作が拒否されている場合、該当 command は `Success: false`、`Status: disabled-by-config` の JSON を返します。
 `kelpiemcp profile-capabilities [profile]` は trust store の状態と `ProfileOperations:*:CLI` の両方を反映した `AddAllowed`、`ReloadAllowed`、`RevokeAllowed` を返します。
 
-`ProfileOperations:Reload:MCP` が `Deny` の場合、`ssh_profile_capabilities` は `ReloadAllowed: false` と `Reason: disabled-by-config` を返します。
+`ProfileOperations:Reload:MCP` が `Deny` の場合、`profile_reload` はcatalogを変更せず `Status: forbidden` を返し、`ssh_profile_capabilities` は `ReloadAllowed: false` と `Reason: disabled-by-config` を返します。
 profile file の変更受け入れは、既定では次のユーザー側明示 command で行う設計です。
 
 ```powershell
@@ -204,7 +204,7 @@ kelpiemcp profile reload <profile>
 kelpiemcp profile revoke <profile>
 ```
 
-`ProfileOperations:Reload:MCP` を `Allow` にするのは、運用者が MCP client へ接続中 profile の reload capability を見せることを明示的に許可する場合だけにしてください。
+`ProfileOperations:Reload:MCP` を `Allow` にするのは、運用者が MCP client にprofile reloadの実行と接続中profileの reload capability表示を明示的に許可する場合だけにしてください。
 その場合でも trusted profile hash validation は引き続き適用されるため、この flag だけで編集済み profile file が無条件に受け入れられることはありません。
 
 ## Runtime State
