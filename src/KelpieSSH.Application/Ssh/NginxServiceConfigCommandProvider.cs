@@ -123,7 +123,7 @@ public sealed class NginxServiceConfigCommandProvider : IAllowedCommandProvider
     private static string CreateEncodedPythonStdinCommand(string encodedScript, string arguments, bool sudo)
     {
         var argumentSuffix = string.IsNullOrWhiteSpace(arguments) ? string.Empty : " " + arguments;
-        var command = $"sh -c \"printf %s '{encodedScript}' | base64 -d | python3 - --{argumentSuffix}\"";
+        var command = $"sh -c \"printf %s '{encodedScript}' | base64 -d | python3 -{argumentSuffix}\"";
         return sudo ? "sudo -n " + command : command;
     }
 
@@ -131,7 +131,7 @@ public sealed class NginxServiceConfigCommandProvider : IAllowedCommandProvider
     {
         var encoded = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(script));
         var argumentSuffix = string.IsNullOrWhiteSpace(arguments) ? string.Empty : " " + arguments;
-        var command = $"sh -c \"python3 -c \\\"$(printf %s '{encoded}' | base64 -d)\\\" --{argumentSuffix}\"";
+        var command = $"sh -c \"python3 -c \\\"$(printf %s '{encoded}' | base64 -d)\\\"{argumentSuffix}\"";
         return sudo ? "sudo -n " + command : command;
     }
 }

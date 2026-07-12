@@ -136,6 +136,7 @@ public sealed class AllowedCommandProviderTests
         script.Should().Contain("tz = m.group(7)");
         script.Should().NotContain("tz = m.group(8)");
         commandText.Should().NotContain("python3 -c");
+        commandText.Should().NotContain("python3 - --");
     }
 
     [Fact]
@@ -159,9 +160,12 @@ public sealed class AllowedCommandProviderTests
         var rollbackScript = DecodeEmbeddedShellScript(rollbackCommand);
 
         writeCommand.Should().Contain("python3 -c");
+        writeCommand.Should().NotContain("\" --");
         writeCommand.Should().NotContain(Convert.ToBase64String(Encoding.UTF8.GetBytes("server {}\n")));
         checkCommand.Should().NotContain("python3 -c");
+        checkCommand.Should().NotContain("python3 - --");
         rollbackCommand.Should().NotContain("python3 -c");
+        rollbackCommand.Should().NotContain("python3 - --");
         writeScript.Should().Contain("KELPIE_CREATED_CONFIG_FILE_BACKUP_V1");
         writeScript.Should().Contain("sys.stdin.read()");
         writeScript.Should().Contain("exists=os.path.exists(rp)");
@@ -188,6 +192,9 @@ public sealed class AllowedCommandProviderTests
             });
         var disableScript = DecodeEmbeddedShellScript(disableCommand);
         var rollbackScript = DecodeEmbeddedShellScript(rollbackCommand);
+
+        disableCommand.Should().NotContain("python3 - --");
+        rollbackCommand.Should().NotContain("python3 - --");
 
         disableScript.Should().Contain("/etc/nginx/sites-enabled");
         disableScript.Should().Contain("/etc/nginx/.kelpie-disabled-sites");

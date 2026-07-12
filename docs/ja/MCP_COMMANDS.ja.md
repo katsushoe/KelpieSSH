@@ -1,6 +1,6 @@
 # KelpieSSH MCP コマンド
 
-最終更新: 2026-07-03
+最終更新: 2026-07-12
 
 このファイルは、KelpieSSH が MCP callable tool として公開するコマンドの正本です。
 通常のターミナルで実行する `kelpie` / `kelpiemcp` CLI コマンドは `COMMANDS.ja.md` を正本とします。
@@ -4342,6 +4342,8 @@ provider が許可した nginx site 設定に、PHP-FPM 連携用の固定テン
 処理内容:
 
 Kelpie は nginx site key を `/etc/nginx/conf.d/<site>.conf` や `/etc/nginx/sites-enabled/<site>` のような provider 許可済み site include file に解決します。`/etc/nginx/modules-enabled/*.conf` のような module include file は PHP site 設定の対象にしません。
+
+provider で検証済みの path、許可リスト、size、rollback 引数は、余分な位置引数を挿入せず、限定された nginx helper script の第1引数以降に渡します。
 
 Kelpie は対象ファイルを読み取り、次の固定テンプレートだけを適用します。対象 site file が存在しない場合は、最小限の固定 server block を新規作成してから同じテンプレートを適用します。
 
