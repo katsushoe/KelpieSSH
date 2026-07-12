@@ -72,7 +72,7 @@ check コマンドは、SSH 接続を開始する前にローカル設定とプ�
 | Setting | 必須 | 初期値 | Purpose |
 | :--- | :---: | :--- | :--- |
 | `LogDirectory` | いいえ | `KelpieHome\logs` | CLI logs の出力先。 |
-| `OpenProfile` | いいえ | なし | `kelpie open <profile>` で最後に開いた profile 名。通常は runtime state として `dat/storm_state.dat` に保存します。 |
+| `OpenProfile` | いいえ | なし | `kelpie open <profile>` で最後に開いた profile 名。通常は runtime state として `dat/kelpie_client_state.json` に保存します。 |
 | `Server:ControlPipeName` | いいえ | なし | `kelpie` / `kelpiemcp` が server control に使う local named pipe。通常は `kelpiemcp.json` に設定し、server へ接続する command では有効値が必要です。 |
 | `Commands:ExecutablePath` | いいえ | なし | 任意の `kelpie` command 明示 path。 |
 | `Commands:WorkingDirectory` | いいえ | なし | 任意の command working directory。 |
@@ -211,10 +211,12 @@ kelpiemcp profile revoke <profile>
 
 ## Runtime State
 
-### `dat/storm_state.dat`
+### `dat/kelpie_client_state.json`
 
-`storm_state.dat` は `kelpie` CLI の runtime state を保存します。
+`kelpie_client_state.json` は `kelpie` CLI の runtime state を保存します。
 ユーザーが通常編集する設定ファイルではありません。
+
+`kelpie_client_state.json`が存在せず、旧`storm_state.dat`が存在する場合は一度だけrename移行します。正規fileがすでに存在する場合は正規fileを優先し、旧fileを読み取りfallbackや上書き対象にしません。
 
 例:
 

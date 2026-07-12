@@ -75,7 +75,7 @@ Important values:
 | Setting | Required | Initial value | Purpose |
 | :--- | :---: | :--- | :--- |
 | `LogDirectory` | no | `KelpieHome\logs` | Directory for CLI logs. |
-| `OpenProfile` | no | none | Last selected profile name for commands that use the open profile. Runtime state is normally stored in `dat/storm_state.dat`. |
+| `OpenProfile` | no | none | Last selected profile name for commands that use the open profile. Runtime state is normally stored in `dat/kelpie_client_state.json`. |
 | `Server:ControlPipeName` | no | none | Local named pipe used by `kelpie` / `kelpiemcp` to control the server. Usually configured in `kelpiemcp.json`; commands that contact the server require an effective value. |
 | `Commands:ExecutablePath` | no | none | Optional explicit `kelpie` command path. |
 | `Commands:WorkingDirectory` | no | none | Optional command working directory. |
@@ -216,10 +216,12 @@ The encrypted trust store also records a normalized authorization snapshot for e
 
 ## Runtime State
 
-### `dat/storm_state.dat`
+### `dat/kelpie_client_state.json`
 
-`storm_state.dat` stores runtime state for the `kelpie` CLI.
+`kelpie_client_state.json` stores runtime state for the `kelpie` CLI.
 It is not a user-edited configuration file.
+
+When `kelpie_client_state.json` does not exist and the legacy `storm_state.dat` exists, Kelpie renames the legacy file once. If the canonical file already exists, Kelpie uses it and does not read or overwrite the legacy file.
 
 Example:
 

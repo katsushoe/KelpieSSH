@@ -12,6 +12,56 @@ public sealed class KelpieRuntimePathsTests
         KelpieRuntimePaths.ConfigFileName.Should().Be("kelpie.json");
         KelpieRuntimePaths.KelpieConfigFileName.Should().Be("kelpie.json");
         KelpieRuntimePaths.KelpieMcpConfigFileName.Should().Be("kelpiemcp.json");
+        KelpieRuntimePaths.KelpieClientStateFileName.Should().Be("kelpie_client_state.json");
+        KelpieRuntimePaths.LegacyStormStateFileName.Should().Be("storm_state.dat");
+    }
+
+    [Fact]
+    public void MigrateLegacyClientStateFile_WhenCanonicalFileIsMissing_ShouldRenameOnce()
+    {
+        var dataDirectory = Path.Combine(Path.GetTempPath(), "kelpie-state-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dataDirectory);
+        var legacyPath = Path.Combine(dataDirectory, KelpieRuntimePaths.LegacyStormStateFileName);
+        var canonicalPath = Path.Combine(dataDirectory, KelpieRuntimePaths.KelpieClientStateFileName);
+        File.WriteAllText(legacyPath, "{\"OpenProfile\":\"vps01\"}");
+        KelpieRuntimePaths.SetOverrides(new KelpieRuntimePathOverrides(DataDirectory: dataDirectory));
+
+        try
+        {
+            var migrated = KelpieRuntimePaths.MigrateLegacyClientStateFile(AppContext.BaseDirectory);
+
+            migrated.Should().BeTrue();
+            File.Exists(legacyPath).Should().BeFalse();
+            File.ReadAllText(canonicalPath).Should().Contain("vps01");
+            KelpieRuntimePaths.MigrateLegacyClientStateFile(AppContext.BaseDirectory).Should().BeFalse();
+        }
+        finally
+        {
+            KelpieRuntimePaths.SetOverrides(KelpieRuntimePathOverrides.Empty);
+        }
+    }
+
+    [Fact]
+    public void MigrateLegacyClientStateFile_WhenCanonicalFileExists_ShouldKeepBothFiles()
+    {
+        var dataDirectory = Path.Combine(Path.GetTempPath(), "kelpie-state-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dataDirectory);
+        var legacyPath = Path.Combine(dataDirectory, KelpieRuntimePaths.LegacyStormStateFileName);
+        var canonicalPath = Path.Combine(dataDirectory, KelpieRuntimePaths.KelpieClientStateFileName);
+        File.WriteAllText(legacyPath, "legacy");
+        File.WriteAllText(canonicalPath, "canonical");
+        KelpieRuntimePaths.SetOverrides(new KelpieRuntimePathOverrides(DataDirectory: dataDirectory));
+
+        try
+        {
+            KelpieRuntimePaths.MigrateLegacyClientStateFile(AppContext.BaseDirectory).Should().BeFalse();
+            File.ReadAllText(canonicalPath).Should().Be("canonical");
+            File.ReadAllText(legacyPath).Should().Be("legacy");
+        }
+        finally
+        {
+            KelpieRuntimePaths.SetOverrides(KelpieRuntimePathOverrides.Empty);
+        }
     }
 
     [Fact]

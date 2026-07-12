@@ -1255,7 +1255,20 @@ public static class KelpieServerCommandRunner
 
     private static string? LoadOpenProfileName()
     {
-        var statePath = Path.Combine(KelpieRuntimePaths.GetDataDirectory(AppContext.BaseDirectory), "storm_state.dat");
+        try
+        {
+            _ = KelpieRuntimePaths.MigrateLegacyClientStateFile(AppContext.BaseDirectory);
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
+
+        var statePath = KelpieRuntimePaths.GetClientStatePath(AppContext.BaseDirectory);
         if (!File.Exists(statePath))
         {
             return null;

@@ -4308,9 +4308,9 @@ static string GetClientModeStatePath()
     return KelpieRuntimePaths.GetConfigFilePath(AppContext.BaseDirectory, "kelpie-client-mode.txt");
 }
 
-static string GetStormStatePath()
+static string GetClientStatePath()
 {
-    return Path.Combine(KelpieRuntimePaths.GetDataDirectory(AppContext.BaseDirectory), "storm_state.dat");
+    return KelpieRuntimePaths.GetClientStatePath(AppContext.BaseDirectory);
 }
 
 static string? LoadOpenProfileName()
@@ -4337,7 +4337,8 @@ static void SaveClientMode(string mode)
 
 static KelpieClientState LoadClientState()
 {
-    var statePath = GetStormStatePath();
+    TryMigrateLegacyClientState();
+    var statePath = GetClientStatePath();
     if (File.Exists(statePath))
     {
         try
@@ -4359,6 +4360,25 @@ static KelpieClientState LoadClientState()
     }
 
     return LoadLegacyClientState();
+}
+
+static void TryMigrateLegacyClientState()
+{
+    try
+    {
+        if (KelpieRuntimePaths.MigrateLegacyClientStateFile(AppContext.BaseDirectory))
+        {
+            KpLog.Info("Migrated legacy Kelpie client state to kelpie_client_state.json.");
+        }
+    }
+    catch (IOException ex)
+    {
+        KpLog.Warn($"Failed to migrate legacy Kelpie client state. reason={ex.GetType().Name}");
+    }
+    catch (UnauthorizedAccessException ex)
+    {
+        KpLog.Warn($"Failed to migrate legacy Kelpie client state. reason={ex.GetType().Name}");
+    }
 }
 
 static KelpieClientState LoadLegacyClientState()
@@ -4390,7 +4410,8 @@ static string? ReadLegacyStateValue(string statePath)
 
 static void SaveClientState(KelpieClientState state)
 {
-    var statePath = GetStormStatePath();
+    TryMigrateLegacyClientState();
+    var statePath = GetClientStatePath();
     var stateDirectory = Path.GetDirectoryName(statePath);
     if (!string.IsNullOrWhiteSpace(stateDirectory))
     {

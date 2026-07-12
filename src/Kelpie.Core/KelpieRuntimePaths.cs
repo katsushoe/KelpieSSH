@@ -31,6 +31,16 @@ public static class KelpieRuntimePaths
     public const string KelpieMcpTrustStoreFileName = "mcp_trusted_store.dat";
 
     /// <summary>
+    /// Gets the canonical Kelpie CLI client-state file name.
+    /// </summary>
+    public const string KelpieClientStateFileName = "kelpie_client_state.json";
+
+    /// <summary>
+    /// Gets the legacy Kelpie CLI client-state file name.
+    /// </summary>
+    public const string LegacyStormStateFileName = "storm_state.dat";
+
+    /// <summary>
     /// Gets the Kelpie Desktop configuration file name.
     /// </summary>
     public const string KelpieDesktopConfigFileName = "kelpie_desktop.json";
@@ -47,6 +57,57 @@ public static class KelpieRuntimePaths
     public static void SetOverrides(KelpieRuntimePathOverrides pathOverrides)
     {
         CurrentOverrides.Value = pathOverrides;
+    }
+
+    /// <summary>
+    /// Gets the canonical Kelpie CLI client-state path.
+    /// </summary>
+    public static string GetClientStatePath(string baseDirectory)
+    {
+        return Path.Combine(GetDataDirectory(baseDirectory), KelpieClientStateFileName);
+    }
+
+    /// <summary>
+    /// Gets the legacy Kelpie CLI client-state path.
+    /// </summary>
+    public static string GetLegacyClientStatePath(string baseDirectory)
+    {
+        return Path.Combine(GetDataDirectory(baseDirectory), LegacyStormStateFileName);
+    }
+
+    /// <summary>
+    /// Renames the legacy client-state file once when the canonical file does not exist.
+    /// </summary>
+    /// <returns><c>true</c> when migration occurred.</returns>
+    public static bool MigrateLegacyClientStateFile(string baseDirectory)
+    {
+        var clientStatePath = GetClientStatePath(baseDirectory);
+        if (File.Exists(clientStatePath))
+        {
+            return false;
+        }
+
+        var legacyStatePath = GetLegacyClientStatePath(baseDirectory);
+        if (!File.Exists(legacyStatePath))
+        {
+            return false;
+        }
+
+        var directory = Path.GetDirectoryName(clientStatePath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        try
+        {
+            File.Move(legacyStatePath, clientStatePath);
+            return true;
+        }
+        catch (IOException) when (File.Exists(clientStatePath))
+        {
+            return false;
+        }
     }
 
     /// <summary>
