@@ -212,6 +212,8 @@ kelpiemcp profile revoke <profile>
 Set `ProfileOperations:Reload:MCP` to `Allow` only when the operator intentionally allows MCP clients to execute profile reload and see reload capability for the connected profile.
 Even then, trusted profile hash validation still applies; editing a profile file is not accepted just because this flag is enabled.
 
+The encrypted trust store also records a normalized authorization snapshot for each trusted profile. `kelpiemcp profile reload <profile>` rejects permission expansion until an administrator reviews the returned changed fields and repeats the command with `--approve-privilege-expansion`.
+
 ## Runtime State
 
 ### `dat/storm_state.dat`

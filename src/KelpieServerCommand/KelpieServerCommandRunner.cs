@@ -302,9 +302,18 @@ public static class KelpieServerCommandRunner
     /// </summary>
     /// <param name="options">The command options.</param>
     /// <param name="profileName">The profile name.</param>
-    public static Task ProfileReloadAsync(KelpieMcpServerOptions options, string profileName)
+    public static Task ProfileReloadAsync(
+        KelpieMcpServerOptions options,
+        string profileName,
+        bool approvePrivilegeExpansion = false)
     {
-        return RunProfileTrustOperationAsync(options, "reload", "profile-reload", profileName, profile => CreateOfflineCatalog().ReloadTrustedProfile(profile));
+        var pipeCommand = approvePrivilegeExpansion ? "profile-reload-approved" : "profile-reload";
+        return RunProfileTrustOperationAsync(
+            options,
+            "reload",
+            pipeCommand,
+            profileName,
+            profile => CreateOfflineCatalog().ReloadTrustedProfile(profile, approvePrivilegeExpansion));
     }
 
     /// <summary>

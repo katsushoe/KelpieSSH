@@ -12,7 +12,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | Group | Commands | Purpose |
 | :--- | :--- | :--- |
 | [MCP server control](#mcp-server-control) | `kelpiemcp start [--reload-config]`, `kelpiemcp stop`, `kelpiemcp status` | Start, stop, and inspect `KelpieMCPServer`. |
-| [MCP profile trust](#mcp-profile-trust) | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile>`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | Add, reload, revoke, and inspect trusted SSH profile baselines. |
+| [MCP profile trust](#mcp-profile-trust) | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile> [--approve-privilege-expansion]`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | Add, reload, revoke, and inspect trusted SSH profile baselines. |
 | [MCP Windows Service](#mcp-windows-service) | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Register, unregister, and inspect the Windows Service entry. |
 | [MCP password session](#mcp-password-session) | `kelpiemcp password`, `kelpiemcp forget`, `kelpiemcp login`, `kelpiemcp logout` | Store or clear an SSH password in the running MCP server session. |
 | [MCP secret session](#mcp-secret-session) | `kelpiemcp secret put`, `kelpiemcp secret list`, `kelpiemcp secret forget` | Store, list, or clear short-lived secret file payloads in the running MCP server session. |
@@ -266,13 +266,21 @@ Safety notes:
 
 - Use only after verifying that the new profile file is intentional and safe.
 
-#### `kelpiemcp profile reload <profile>`
+#### `kelpiemcp profile reload <profile> [--approve-privilege-expansion]`
 
 Accepts an intentionally edited SSH profile JSON file as the new trusted baseline.
 
 ```powershell
 kelpiemcp profile reload vps01
 ```
+
+Kelpie compares the edited profile with the authorization snapshot stored in the encrypted trust store. Permission expansion is rejected with `profile-privilege-expansion` and a list of changed authorization fields. After reviewing that list, an administrator may explicitly approve the expansion:
+
+```powershell
+kelpiemcp profile reload vps01 --approve-privilege-expansion
+```
+
+Permission reductions and changes outside the normalized authorization snapshot do not require this flag. Connection target, login user, authentication method, credential reference, mode, capabilities, roles, allowed roots, special paths, and selectable users are authorization-sensitive.
 
 Arguments:
 

@@ -319,6 +319,7 @@ Safety notes:
 
 - This tool does not contact SSH targets. It updates only the MCP server's in-memory profile catalog, and existing terminal sessions keep their current connections.
 - The default MCP reload policy is `Deny`. Profile changes must normally be approved through `kelpiemcp profile reload <profile>`.
+- MCP clients cannot approve semantic permission expansion. An administrator must review the CLI diff and use `--approve-privilege-expansion` explicitly.
 
 #### `ssh_profile_capabilities`
 

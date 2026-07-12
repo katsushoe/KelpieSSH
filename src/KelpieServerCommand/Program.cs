@@ -112,7 +112,9 @@ if (string.Equals(command, "profile", StringComparison.OrdinalIgnoreCase))
 
     if (string.Equals(subcommand, "reload", StringComparison.OrdinalIgnoreCase))
     {
-        await KelpieServerCommandRunner.ProfileReloadAsync(options, profileName);
+        var approvePrivilegeExpansion = args.Skip(3).Any(argument =>
+            string.Equals(argument, "--approve-privilege-expansion", StringComparison.OrdinalIgnoreCase));
+        await KelpieServerCommandRunner.ProfileReloadAsync(options, profileName, approvePrivilegeExpansion);
         return;
     }
 
@@ -124,7 +126,7 @@ if (string.Equals(command, "profile", StringComparison.OrdinalIgnoreCase))
 
     Console.Error.WriteLine("Usage:");
     Console.Error.WriteLine("  kelpiemcp profile add <profile>");
-    Console.Error.WriteLine("  kelpiemcp profile reload <profile>");
+    Console.Error.WriteLine("  kelpiemcp profile reload <profile> [--approve-privilege-expansion]");
     Console.Error.WriteLine("  kelpiemcp profile revoke <profile>");
     Environment.ExitCode = 1;
     return;
@@ -321,7 +323,7 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpiemcp service unregister");
     writer.WriteLine("  kelpiemcp service status");
     writer.WriteLine("  kelpiemcp profile add <profile>");
-    writer.WriteLine("  kelpiemcp profile reload <profile>");
+    writer.WriteLine("  kelpiemcp profile reload <profile> [--approve-privilege-expansion]");
     writer.WriteLine("  kelpiemcp profile revoke <profile>");
     writer.WriteLine("  kelpiemcp profile-capabilities [profile]");
     writer.WriteLine("  kelpiemcp secret put --name <name> --from-file <path> [--ttl <duration>]");

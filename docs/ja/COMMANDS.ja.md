@@ -11,7 +11,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | 分類 | コマンド | 内容 |
 | :--- | :--- | :--- |
 | MCP server control | `kelpiemcp start [--reload-config]`, `kelpiemcp stop`, `kelpiemcp status` | `KelpieMCPServer` の起動、停止、状態確認を行う。 |
-| MCP profile trust | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile>`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | SSH profile の信頼 baseline 追加、更新、取り消し、確認を行う。 |
+| MCP profile trust | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile> [--approve-privilege-expansion]`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | SSH profile の信頼 baseline 追加、更新、取り消し、確認を行う。 |
 | MCP Windows Service | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Windows Service 登録、登録解除、登録状態確認を行う。 |
 | MCP password session | `kelpiemcp password`, `kelpiemcp forget` | 起動中の MCP server に SSH パスワードを一時保存、削除する。 |
 | MCP secret session | `kelpiemcp secret put`, `kelpiemcp secret list`, `kelpiemcp secret forget` | 起動中の MCP server に短命の秘密ファイル内容を一時保存、一覧表示、削除する。 |
@@ -265,7 +265,7 @@ kelpiemcp profile add vps02
 
 - 新規 profile の内容が意図したものか確認してから実行してください。
 
-### `kelpiemcp profile reload <profile>`
+### `kelpiemcp profile reload <profile> [--approve-privilege-expansion]`
 
 目的:
 
@@ -276,6 +276,14 @@ kelpiemcp profile add vps02
 ```powershell
 kelpiemcp profile reload vps01
 ```
+
+編集済みprofileと暗号化trust store内のauthorization snapshotを比較します。権限拡張を検出した場合は、変更した権限項目の一覧と `profile-privilege-expansion` を返して拒否します。一覧を確認した管理者だけが次の明示フラグで承認できます。
+
+```powershell
+kelpiemcp profile reload vps01 --approve-privilege-expansion
+```
+
+権限縮小と正規化したauthorization snapshot外の変更には、このflagは不要です。接続先、接続user、認証方式、認証情報参照先、mode、capability、role、allowed root、special path、選択可能userを権限関連項目として比較します。
 
 引数詳細:
 
@@ -2318,7 +2326,7 @@ Usage:
   kelpiemcp service unregister
   kelpiemcp service status
   kelpiemcp profile add <profile>
-  kelpiemcp profile reload <profile>
+  kelpiemcp profile reload <profile> [--approve-privilege-expansion]
   kelpiemcp profile revoke <profile>
   kelpiemcp profile-capabilities [profile]
   kelpiemcp password <profile>

@@ -177,6 +177,7 @@ MCP server起動時に読み込んだ信頼済み `ProfileOperations` snapshot�
 - 既存の SSH terminal session は現在の接続を維持します。新しい tool call は再読み込み後の profile を使います。
 - `kelpiemcp.json` は再読み込みしません。server configuration を変更した場合は MCP server を再起動してください。
 - MCP経由reloadの既定値は `Deny` です。profile変更は通常 `kelpiemcp profile reload <profile>` で明示承認します。
+- MCP clientは意味上の権限拡張を承認できません。管理者がCLIの差分を確認し、`--approve-privilege-expansion`を明示指定する必要があります。
 
 ### `ssh_profile_capabilities`
 

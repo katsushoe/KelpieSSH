@@ -22,6 +22,7 @@ public sealed class SshProfileTrustStore
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
+        Converters = { new JsonStringEnumConverter() },
     };
 
     private readonly Dictionary<string, SshProfileTrustEntry> _profiles;
@@ -189,13 +190,28 @@ public sealed class SshProfileTrustStore
     }
 
     /// <summary>
+    /// Tries to get the trusted authorization snapshot for one profile.
+    /// </summary>
+    public bool TryGetAuthorizationSnapshot(string profileName, out SshProfileAuthorizationSnapshot? snapshot)
+    {
+        if (_profiles.TryGetValue(profileName, out var entry) && entry.AuthorizationSnapshot is not null)
+        {
+            snapshot = entry.AuthorizationSnapshot;
+            return true;
+        }
+
+        snapshot = null;
+        return false;
+    }
+
+    /// <summary>
     /// Stores the trusted hash for one profile.
     /// </summary>
     /// <param name="profileName">The profile name.</param>
     /// <param name="hashSha256">The SHA-256 hash.</param>
-    public void SetHash(string profileName, string hashSha256)
+    public void SetHash(string profileName, string hashSha256, SshProfileAuthorizationSnapshot? authorizationSnapshot = null)
     {
-        _profiles[profileName] = new SshProfileTrustEntry(profileName, hashSha256);
+        _profiles[profileName] = new SshProfileTrustEntry(profileName, hashSha256, authorizationSnapshot);
         _profileUpdates[profileName] = _profiles[profileName];
         _profileRemovals.Remove(profileName);
     }
@@ -487,6 +503,8 @@ public sealed record SshConfigTrustEntry(string HashSha256);
 /// </summary>
 /// <param name="Name">The profile name.</param>
 /// <param name="HashSha256">The trusted profile file SHA-256 hash.</param>
+/// <param name="AuthorizationSnapshot">The trusted normalized authorization snapshot.</param>
 public sealed record SshProfileTrustEntry(
     string Name,
-    string HashSha256);
+    string HashSha256,
+    SshProfileAuthorizationSnapshot? AuthorizationSnapshot = null);

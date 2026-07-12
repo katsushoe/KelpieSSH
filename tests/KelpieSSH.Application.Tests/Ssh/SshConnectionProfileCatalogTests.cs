@@ -212,11 +212,12 @@ public sealed class SshConnectionProfileCatalogTests
         var catalog = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
 
         File.WriteAllText(profilePath, CreateProfileJson("ops"));
-        var result = catalog.ReloadTrustedProfile("vps01");
+        var result = catalog.ReloadTrustedProfile("vps01", approvePrivilegeExpansion: true);
         var nextCatalog = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
 
         result.Success.Should().BeTrue();
         result.Status.Should().Be("reload");
+        result.AuthorizationChange.Should().Be(SshProfileAuthorizationChangeKind.PrivilegeExpansion);
         nextCatalog.TryGet("vps01", out var profile).Should().BeTrue();
         profile.UserName.Should().Be("ops");
         nextCatalog.ProfileLoadErrors.Should().BeEmpty();

@@ -193,6 +193,16 @@ public sealed class NamedPipeShutdownService : BackgroundService
                     continue;
                 }
 
+                if (TryGetArgument(message, "profile-reload-approved", out var approvedProfileReloadName))
+                {
+                    await HandleProfileTrustOperationAsync(
+                        approvedProfileReloadName,
+                        "reload-approved",
+                        writer,
+                        stoppingToken);
+                    continue;
+                }
+
                 if (TryGetArgument(message, "profile-revoke", out var profileRevokeName))
                 {
                     await HandleProfileTrustOperationAsync(profileRevokeName, "revoke", writer, stoppingToken);
@@ -601,7 +611,10 @@ public sealed class NamedPipeShutdownService : BackgroundService
         TextWriter writer,
         CancellationToken cancellationToken)
     {
-        if (!_profileOperations.IsAllowed(operation, "CLI"))
+        var policyOperation = string.Equals(operation, "reload-approved", StringComparison.Ordinal)
+            ? "reload"
+            : operation;
+        if (!_profileOperations.IsAllowed(policyOperation, "CLI"))
         {
             await writer.WriteLineAsync(JsonSerializer.Serialize(new SshProfileTrustOperationResult(
                 false,
@@ -627,9 +640,17 @@ public sealed class NamedPipeShutdownService : BackgroundService
         {
             "add" => reloadingCatalog.AddTrustedProfile(profileName),
             "reload" => reloadingCatalog.ReloadTrustedProfile(profileName),
+            "reload-approved" => reloadingCatalog.ReloadTrustedProfile(profileName, approvePrivilegeExpansion: true),
             "revoke" => reloadingCatalog.RevokeTrustedProfile(profileName),
             _ => new SshProfileTrustOperationResult(false, profileName, "unknown-operation", "Unknown profile trust operation."),
         };
+
+        if (result.AuthorizationChange == SshProfileAuthorizationChangeKind.PrivilegeExpansion)
+        {
+            var correlationId = Guid.NewGuid().ToString("N");
+            var fields = string.Join(",", result.ChangedFields ?? []);
+            KpLog.Warn($"Profile authorization expansion evaluated. profile={profileName}, status={result.Status}, fields={fields}, source=cli_named_pipe, correlationId={correlationId}");
+        }
 
         await writer.WriteLineAsync(JsonSerializer.Serialize(result));
         await writer.FlushAsync(cancellationToken);

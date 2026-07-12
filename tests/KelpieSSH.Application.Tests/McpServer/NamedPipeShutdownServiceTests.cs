@@ -11,6 +11,41 @@ namespace KelpieSSH.Application.Tests.McpServer;
 public sealed class NamedPipeShutdownServiceTests
 {
     [Fact]
+    public async Task ExecuteAsync_ProfileReloadApproved_ShouldRequireExplicitPrivilegeExpansionApproval()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "kelpie-pipe-auth-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var profilePath = Path.Combine(directory, "vps01.json");
+        var trustStorePath = Path.Combine(directory, "mcp_trusted_store.dat");
+        File.WriteAllText(profilePath, CreateAuthorizationProfileJson("ReadOnly"));
+        var catalog = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
+        File.WriteAllText(profilePath, CreateAuthorizationProfileJson("Expert"));
+        var lifetime = new FakeHostApplicationLifetime();
+        var pipeName = "KelpieTest." + Guid.NewGuid().ToString("N");
+        using var service = new NamedPipeShutdownService(
+            lifetime,
+            NullLogger<NamedPipeShutdownService>.Instance,
+            new KelpieServerControlOptions(pipeName),
+            catalog,
+            new InMemorySshPasswordSessionStore(),
+            CreateSshCommandService());
+
+        await service.StartAsync(CancellationToken.None);
+        var blockedJson = await SendControlCommandAsync(pipeName, "profile-reload vps01");
+        var approvedJson = await SendControlCommandAsync(pipeName, "profile-reload-approved vps01");
+        await service.StopAsync(CancellationToken.None);
+
+        var blocked = JsonSerializer.Deserialize<SshProfileTrustOperationResult>(blockedJson!);
+        var approved = JsonSerializer.Deserialize<SshProfileTrustOperationResult>(approvedJson!);
+        blocked!.Status.Should().Be("profile-privilege-expansion");
+        blocked.ChangedFields.Should().Contain("Mode");
+        approved!.Success.Should().BeTrue();
+        approved.AuthorizationChange.Should().Be(SshProfileAuthorizationChangeKind.PrivilegeExpansion);
+        catalog.TryGet("vps01", out var active).Should().BeTrue();
+        active.Mode.Should().Be(KelpiePolicyMode.Expert);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_ShouldRespondToPingAndStop()
     {
         var lifetime = new FakeHostApplicationLifetime();
@@ -595,6 +630,19 @@ public sealed class NamedPipeShutdownServiceTests
                     : [],
             },
         ]);
+    }
+
+    private static string CreateAuthorizationProfileJson(string mode)
+    {
+        return $$"""
+        {
+          "Host": { "Address": "example.com", "Port": 22 },
+          "Auth": { "Method": "privateKey", "PrivateKeyFile": "id_ed25519" },
+          "DefaultUser": "deploy",
+          "Users": { "deploy": "{{mode}}" },
+          "Platform": { "OsFamily": "debian" }
+        }
+        """;
     }
 
     private static SshCommandService CreateSshCommandService()

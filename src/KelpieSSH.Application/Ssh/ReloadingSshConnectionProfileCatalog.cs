@@ -135,9 +135,11 @@ public sealed class ReloadingSshConnectionProfileCatalog : ISshConnectionProfile
     /// </summary>
     /// <param name="profileName">The profile name.</param>
     /// <returns>The operation result.</returns>
-    public SshProfileTrustOperationResult ReloadTrustedProfile(string profileName)
+    public SshProfileTrustOperationResult ReloadTrustedProfile(
+        string profileName,
+        bool approvePrivilegeExpansion = false)
     {
-        return UpdateProfileTrust(profileName, SshProfileTrustOperation.Reload);
+        return UpdateProfileTrust(profileName, SshProfileTrustOperation.Reload, approvePrivilegeExpansion);
     }
 
     /// <summary>
@@ -223,7 +225,10 @@ public sealed class ReloadingSshConnectionProfileCatalog : ISshConnectionProfile
             reason);
     }
 
-    private SshProfileTrustOperationResult UpdateProfileTrust(string profileName, SshProfileTrustOperation operation)
+    private SshProfileTrustOperationResult UpdateProfileTrust(
+        string profileName,
+        SshProfileTrustOperation operation,
+        bool approvePrivilegeExpansion = false)
     {
         if (string.IsNullOrWhiteSpace(_trustStorePath))
         {
@@ -237,9 +242,10 @@ public sealed class ReloadingSshConnectionProfileCatalog : ISshConnectionProfile
             return new SshProfileTrustOperationResult(false, normalizedProfileName, "profile-file-not-found", "SSH profile file was not found.");
         }
 
+        SshConnectionProfile proposedProfile;
         try
         {
-            _ = SshConnectionProfileFileLoader.LoadFile(profilePath);
+            proposedProfile = SshConnectionProfileFileLoader.LoadFile(profilePath);
         }
         catch (Exception ex) when (ex is IOException
             or UnauthorizedAccessException
@@ -263,10 +269,49 @@ public sealed class ReloadingSshConnectionProfileCatalog : ISshConnectionProfile
                 return new SshProfileTrustOperationResult(false, normalizedProfileName, "profile-not-trusted", "SSH profile is not trusted.");
             }
 
-            trustStore.SetHash(normalizedProfileName, SshProfileTrustStore.ComputeFileHash(profilePath));
+            var proposedSnapshot = SshProfileAuthorizationSnapshot.FromProfile(proposedProfile);
+            SshProfileAuthorizationDiff? authorizationDiff = null;
+            if (operation == SshProfileTrustOperation.Reload)
+            {
+                authorizationDiff = trustStore.TryGetAuthorizationSnapshot(normalizedProfileName, out var trustedSnapshot)
+                    && trustedSnapshot is not null
+                    ? SshProfileAuthorizationEvaluator.Compare(trustedSnapshot, proposedSnapshot)
+                    : new SshProfileAuthorizationDiff(
+                        SshProfileAuthorizationChangeKind.PrivilegeExpansion,
+                        ["AuthorizationBaseline"]);
+                if (authorizationDiff.Kind == SshProfileAuthorizationChangeKind.None)
+                {
+                    authorizationDiff = authorizationDiff with
+                    {
+                        Kind = SshProfileAuthorizationChangeKind.NonPrivilegeChange,
+                    };
+                }
+                if (authorizationDiff.Kind == SshProfileAuthorizationChangeKind.PrivilegeExpansion
+                    && !approvePrivilegeExpansion)
+                {
+                    return new SshProfileTrustOperationResult(
+                        false,
+                        normalizedProfileName,
+                        "profile-privilege-expansion",
+                        "SSH profile authorization expansion requires explicit administrator confirmation.",
+                        authorizationDiff.Kind,
+                        authorizationDiff.ChangedFields);
+                }
+            }
+
+            trustStore.SetHash(
+                normalizedProfileName,
+                SshProfileTrustStore.ComputeFileHash(profilePath),
+                proposedSnapshot);
             trustStore.Save(_trustStorePath);
             Reload();
-            return new SshProfileTrustOperationResult(true, normalizedProfileName, operation.ToString().ToLowerInvariant(), string.Empty);
+            return new SshProfileTrustOperationResult(
+                true,
+                normalizedProfileName,
+                operation.ToString().ToLowerInvariant(),
+                string.Empty,
+                authorizationDiff?.Kind ?? SshProfileAuthorizationChangeKind.None,
+                authorizationDiff?.ChangedFields ?? []);
         }
     }
 
@@ -312,6 +357,7 @@ public sealed class ReloadingSshConnectionProfileCatalog : ISshConnectionProfile
 
                 var currentHash = SshProfileTrustStore.ComputeFileHash(filePath);
                 var explicitReload = reloadProfileSet.Contains(profileName);
+                var authorizationSnapshotMissing = !trustStore.TryGetAuthorizationSnapshot(profileName, out _);
                 if (!trustStore.TryGetHash(profileName, out var trustedHash))
                 {
                     if (trustStore.FileExisted && !explicitReload)
@@ -354,9 +400,13 @@ public sealed class ReloadingSshConnectionProfileCatalog : ISshConnectionProfile
                     continue;
                 }
 
-                if (explicitReload || !trustStore.FileExisted)
+                if (explicitReload || !trustStore.FileExisted || authorizationSnapshotMissing)
                 {
-                    trustStore.SetHash(profileName, currentHash);
+                    var loadedProfile = profiles[^1];
+                    trustStore.SetHash(
+                        profileName,
+                        currentHash,
+                        SshProfileAuthorizationSnapshot.FromProfile(loadedProfile));
                     trustStoreChanged = true;
                 }
             }
@@ -451,7 +501,9 @@ public sealed record SshProfileTrustOperationResult(
     bool Success,
     string ProfileName,
     string Status,
-    string Message);
+    string Message,
+    SshProfileAuthorizationChangeKind AuthorizationChange = SshProfileAuthorizationChangeKind.None,
+    IReadOnlyCollection<string>? ChangedFields = null);
 
 /// <summary>
 /// Represents profile trust operation capabilities.
