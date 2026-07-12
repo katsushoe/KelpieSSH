@@ -140,11 +140,11 @@ public sealed class WebPublicFileCommandProvider : IAllowedCommandProvider
 
     private static string CreateEncodedPythonStdinCommand(string encodedScript, string arguments)
     {
-        return $"sh -c \"printf %s '{encodedScript}' | base64 -d | python3 - -- {arguments}\"";
+        return $"sh -c \"printf %s '{encodedScript}' | base64 -d | python3 - {arguments}\"";
     }
 
     private static string CreateEncodedPythonCommand(string encodedScript, string arguments)
     {
-        return $"sh -c \"python3 -c \\\"$(printf %s '{encodedScript}' | base64 -d)\\\" -- {arguments}\"";
+        return $"sh -c \"python3 -c \\\"$(printf %s '{encodedScript}' | base64 -d)\\\" {arguments}\"";
     }
 }

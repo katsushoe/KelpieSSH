@@ -304,6 +304,35 @@ public sealed class AllowedCommandProviderTests
     }
 
     [Fact]
+    public void WebPublicFileCommandProvider_ShouldPassPythonArgumentsWithoutSeparatorArgument()
+    {
+        var provider = new WebPublicFileCommandProvider();
+        var profile = CreateProfile("debian", "apt");
+        var commands = provider.GetCommands(profile);
+        var readArguments = new Dictionary<string, string>
+        {
+            ["siteRootBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("/var/www/html")),
+            ["pathBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("/index.html")),
+            ["maxBytes"] = "1024",
+        };
+        var writeArguments = new Dictionary<string, string>
+        {
+            ["siteRootBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("/var/www/html")),
+            ["pathBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("/index.html")),
+            ["maxBytes"] = "1024",
+            ["createDirectories"] = "0",
+        };
+
+        var readCommand = commands.Single(command => command.Name == "web_public_file_read_internal")
+            .BuildCommandText(readArguments);
+        var writeCommand = commands.Single(command => command.Name == "web_public_file_write_internal")
+            .BuildCommandText(writeArguments);
+
+        readCommand.Should().NotContain("python3 - --");
+        writeCommand.Should().NotContain("\" --");
+    }
+
+    [Fact]
     public void WebPublicFileCommandProvider_ShouldRenderSudoPermissionCommands()
     {
         var provider = new WebPublicFileCommandProvider();
