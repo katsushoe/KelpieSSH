@@ -1,6 +1,10 @@
 using FluentAssertions;
 using KelpieSSH.Application.Ssh;
 using KelpieSSH.Application.Tests.Logging;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace KelpieSSH.Application.Tests.Ssh;
 
@@ -305,7 +309,7 @@ public sealed class SshConnectionProfileCatalogTests
     }
 
     [Fact]
-    public void TrustStore_ShouldCreateSeparateKeyFile()
+    public void TrustStore_ShouldProtectKeyInsideEnvelopeWithoutSeparateKeyFile()
     {
         var directory = CreateTempDirectory();
         var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
@@ -315,24 +319,139 @@ public sealed class SshConnectionProfileCatalogTests
         trustStore.Save(trustStorePath);
 
         File.Exists(trustStorePath).Should().BeTrue();
-        File.Exists(trustStorePath + ".key").Should().BeTrue();
-        File.ReadAllText(trustStorePath).Should().Contain("\"KeyProtection\": \"file\"");
+        File.Exists(trustStorePath + ".key").Should().BeFalse();
+        File.ReadAllText(trustStorePath).Should().Contain("\"FormatVersion\": 3");
+        File.ReadAllText(trustStorePath).Should().Contain("\"KeyProtection\": \"dpapi-current-user\"");
+        File.ReadAllText(trustStorePath).Should().Contain("\"ProtectedKey\":");
     }
 
     [Fact]
-    public void TrustStore_ShouldRejectProtectedStoreWhenKeyFileIsMissing()
+    public void TrustStore_ShouldRejectTamperedKeyProtection()
     {
         var directory = CreateTempDirectory();
         var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
         var trustStore = SshProfileTrustStore.Load(trustStorePath);
         trustStore.SetConfigHash("abc123");
         trustStore.Save(trustStorePath);
-        File.Delete(trustStorePath + ".key");
+        var envelope = File.ReadAllText(trustStorePath)
+            .Replace("dpapi-current-user", "dpapi-current-users", StringComparison.Ordinal);
+        File.WriteAllText(trustStorePath, envelope);
 
         var action = () => SshProfileTrustStore.Load(trustStorePath);
 
         action.Should().Throw<InvalidOperationException>()
             .WithMessage("MCP trust store could not be read or verified.");
+    }
+
+    [Theory]
+    [InlineData("ProtectedKey")]
+    [InlineData("Nonce")]
+    [InlineData("Tag")]
+    [InlineData("Ciphertext")]
+    public void TrustStore_ShouldFailClosedWhenEnvelopeCryptographicElementIsTampered(string propertyName)
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        var trustStore = SshProfileTrustStore.Load(trustStorePath);
+        trustStore.SetConfigHash("abc123");
+        trustStore.Save(trustStorePath);
+        var envelope = JsonNode.Parse(File.ReadAllText(trustStorePath))!.AsObject();
+        var value = envelope[propertyName]!.GetValue<string>();
+        envelope[propertyName] = (value[0] == 'A' ? "B" : "A") + value[1..];
+        File.WriteAllText(trustStorePath, envelope.ToJsonString());
+
+        var action = () => SshProfileTrustStore.Load(trustStorePath);
+
+        action.Should().Throw<InvalidOperationException>()
+            .WithMessage("MCP trust store could not be read or verified.");
+    }
+
+    [Fact]
+    public async Task TrustStore_ShouldMergeConcurrentWritersWithoutLosingProfiles()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        var initial = SshProfileTrustStore.Load(trustStorePath);
+        initial.SetConfigHash("abc123");
+        initial.Save(trustStorePath);
+        var writers = Enumerable.Range(0, 12).Select(index => Task.Run(() =>
+        {
+            var store = SshProfileTrustStore.Load(trustStorePath);
+            store.SetHash("profile-" + index, "hash-" + index);
+            store.Save(trustStorePath);
+        }));
+
+        await Task.WhenAll(writers);
+
+        var loaded = SshProfileTrustStore.Load(trustStorePath);
+        foreach (var index in Enumerable.Range(0, 12))
+        {
+            loaded.TryGetHash("profile-" + index, out var hash).Should().BeTrue();
+            hash.Should().Be("hash-" + index);
+        }
+    }
+
+    [Fact]
+    public void TrustStore_ShouldMigrateValidVersion2StoreAndDeleteLegacyKeyAfterVerification()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        WriteLegacyVersion2Store(trustStorePath, "vps01", "trusted-hash");
+
+        var loaded = SshProfileTrustStore.Load(trustStorePath);
+
+        loaded.TryGetHash("vps01", out var hash).Should().BeTrue();
+        hash.Should().Be("trusted-hash");
+        File.Exists(trustStorePath + ".key").Should().BeFalse();
+        File.ReadAllText(trustStorePath).Should().Contain("\"FormatVersion\": 3");
+        SshProfileTrustStore.Load(trustStorePath).TryGetHash("vps01", out _).Should().BeTrue();
+    }
+
+    [Fact]
+    public void TrustStore_ShouldPreserveInconsistentVersion2FilesWhenMigrationFails()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        WriteLegacyVersion2Store(trustStorePath, "vps01", "trusted-hash");
+        var originalStore = File.ReadAllBytes(trustStorePath);
+        File.WriteAllText(trustStorePath + ".key", Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)));
+
+        var action = () => SshProfileTrustStore.Load(trustStorePath);
+
+        action.Should().Throw<InvalidOperationException>();
+        File.ReadAllBytes(trustStorePath).Should().Equal(originalStore);
+        File.Exists(trustStorePath + ".key").Should().BeTrue();
+    }
+
+    private static void WriteLegacyVersion2Store(string filePath, string profileName, string hash)
+    {
+        var manifest = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            FormatVersion = 2,
+            CreatorPathHashSha256 = string.Empty,
+            Config = (object?)null,
+            Profiles = new[] { new { Name = profileName, HashSha256 = hash } },
+        }, new JsonSerializerOptions { WriteIndented = true });
+        var key = RandomNumberGenerator.GetBytes(32);
+        var nonce = RandomNumberGenerator.GetBytes(12);
+        var ciphertext = new byte[manifest.Length];
+        var tag = new byte[16];
+        using (var aes = new AesGcm(key, 16))
+        {
+            aes.Encrypt(nonce, manifest, ciphertext, tag);
+        }
+
+        var envelope = new
+        {
+            FormatVersion = 2,
+            KeyProtection = "file",
+            ProtectedKey = string.Empty,
+            Nonce = Convert.ToBase64String(nonce),
+            Tag = Convert.ToBase64String(tag),
+            Ciphertext = Convert.ToBase64String(ciphertext),
+        };
+        File.WriteAllText(filePath, JsonSerializer.Serialize(envelope, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(filePath + ".key", Convert.ToBase64String(key));
     }
 
     [Fact]

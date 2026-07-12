@@ -72,6 +72,7 @@ Starts the local MCP server.
 On Windows, if `KelpieMCPServer` is registered as a Windows Service, this command starts the Windows Service. Run it from a terminal running as administrator in that case.
 Otherwise, it starts a normal local process.
 During startup, `KelpieMCPServer` verifies the MCP server configuration file and SSH profile file hashes against the protected trust store.
+On Windows, the version 3 trust store keeps the AES-256 data key inside the single-file envelope protected with DPAPI `CurrentUser`. Only processes running as the same Windows account can decrypt it. The format version and key-protection identifier are authenticated as AES-GCM associated data. Writes are serialized across processes and committed through a flushed temporary file and atomic replacement. A valid version 2 store and its `.key` file are migrated once; the legacy key is deleted only after the version 3 file is reread successfully.
 
 ```powershell
 kelpiemcp start [--reload-config]
@@ -100,7 +101,7 @@ Return value:
 - Exit code `0` when the start request is accepted.
 - Standard output reports whether a Windows Service start was requested, a local process was started, or the MCP server was already running.
 - Standard error contains startup failures, including service-control failures.
-- If the protected trust store cannot be decrypted or authenticated, the MCP server startup fails. The user must inspect `kelpiemcp.json` and all profile files, move or delete the trust store, and start again. Deleting the trust store makes the current configuration and every existing profile a new trusted baseline on the next successful start.
+- If the protected trust store cannot be decrypted or authenticated, including when it belongs to another Windows user, the MCP server startup fails without overwriting it. An administrator must preserve the failed store for diagnosis, verify `kelpiemcp.json` and all profile files, explicitly reinitialize the store, and reapprove profiles.
 - If the `kelpiemcp.json` hash differs from the trust store during normal startup, the MCP server startup fails.
 - If one profile hash differs from the trust store during normal startup, that profile is not loaded. Other profiles may continue to load.
 - `--reload-config` accepts the current MCP server configuration as the new trusted baseline.

@@ -13,19 +13,11 @@ public sealed class SshProfileTrustStore
     private const int NonceSize = 12;
     private const int TagSize = 16;
     private const int DataKeySize = 32;
+    private const int CurrentFormatVersion = 3;
+    private const int LegacyFormatVersion = 2;
+    private const string KeyProtectionDpapiCurrentUser = "dpapi-current-user";
     private const string KeyProtectionFile = "file";
-
-    private static readonly byte[] StoreSeed =
-    [
-        17, 14, 16, 253, 247, 202, 147, 130, 170, 221, 73, 86, 118, 25, 24, 43, 5,
-        29, 229, 241, 203, 235, 162, 148, 129, 119, 71, 81, 89, 53, 61, 71, 12, 186,
-    ];
-
-    private static readonly byte[] StoreMask =
-    [
-        90, 107, 124, 141, 158, 175, 192, 209, 226, 243, 4, 21, 38, 55, 72, 89, 106,
-        123, 140, 157, 174, 191, 208, 225, 242, 3, 20, 37, 54, 71, 88, 105, 122, 139,
-    ];
+    private const int MutexTimeoutSeconds = 30;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -33,8 +25,12 @@ public sealed class SshProfileTrustStore
     };
 
     private readonly Dictionary<string, SshProfileTrustEntry> _profiles;
+    private readonly Dictionary<string, SshProfileTrustEntry> _profileUpdates = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _profileRemovals = new(StringComparer.OrdinalIgnoreCase);
     private SshConfigTrustEntry? _config;
+    private bool _configChanged;
     private string _creatorPathHashSha256;
+    private bool _creatorPathHashChanged;
 
     private SshProfileTrustStore(
         string creatorPathHashSha256,
@@ -76,34 +72,16 @@ public sealed class SshProfileTrustStore
 
         try
         {
-            var envelope = JsonSerializer.Deserialize<StoreEnvelope>(
-                File.ReadAllText(filePath),
-                JsonOptions)
-                ?? throw new InvalidOperationException("MCP trust store is empty.");
-
-            var nonce = Convert.FromBase64String(envelope.Nonce);
-            var tag = Convert.FromBase64String(envelope.Tag);
-            var payload = Convert.FromBase64String(envelope.Payload);
-            var buffer = new byte[payload.Length];
-
-            if (!TryDecrypt(filePath, envelope, nonce, payload, tag, buffer))
+            using var mutex = AcquireMutex(filePath);
+            var store = ReadStore(filePath, allowLegacyKeyFile: true, out var requiresMigration);
+            if (requiresMigration)
             {
-                throw new CryptographicException("MCP trust store authentication failed.");
+                WriteStoreAtomic(filePath, store);
+                _ = ReadStore(filePath, allowLegacyKeyFile: false, out _);
+                File.Delete(GetKeyFilePath(filePath));
             }
 
-            var manifest = JsonSerializer.Deserialize<TrustStoreManifest>(
-                    Encoding.UTF8.GetString(buffer),
-                    JsonOptions)
-                ?? new TrustStoreManifest();
-
-            var profiles = manifest.Profiles
-                .Where(entry => !string.IsNullOrWhiteSpace(entry.Name))
-                .ToDictionary(entry => entry.Name, StringComparer.OrdinalIgnoreCase);
-
-            return new SshProfileTrustStore(manifest.CreatorPathHashSha256, manifest.Config, profiles)
-            {
-                FileExisted = true,
-            };
+            return store;
         }
         catch (Exception ex) when (ex is CryptographicException
             or FormatException
@@ -133,35 +111,12 @@ public sealed class SshProfileTrustStore
             Directory.CreateDirectory(directory);
         }
 
-        var manifest = new TrustStoreManifest
-        {
-            CreatorPathHashSha256 = _creatorPathHashSha256,
-            Config = _config,
-            Profiles = _profiles.Values
-                .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
-                .ToArray(),
-        };
-
-        var buffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(manifest, JsonOptions));
-        var nonce = RandomNumberGenerator.GetBytes(NonceSize);
-        var payload = new byte[buffer.Length];
-        var tag = new byte[TagSize];
-
-        var dataKey = CreateDataKey(filePath, out var keyProtection, out var protectedKey);
-        using var guard = new AesGcm(dataKey, TagSize);
-        guard.Encrypt(nonce, buffer, payload, tag);
-
-        var envelope = new StoreEnvelope
-        {
-            FormatVersion = 2,
-            KeyProtection = keyProtection,
-            ProtectedKey = protectedKey,
-            Nonce = Convert.ToBase64String(nonce),
-            Tag = Convert.ToBase64String(tag),
-            Payload = Convert.ToBase64String(payload),
-        };
-
-        File.WriteAllText(filePath, JsonSerializer.Serialize(envelope, JsonOptions));
+        using var mutex = AcquireMutex(filePath);
+        var target = File.Exists(filePath)
+            ? ReadStore(filePath, allowLegacyKeyFile: true, out _)
+            : new SshProfileTrustStore(string.Empty, null, new Dictionary<string, SshProfileTrustEntry>(StringComparer.OrdinalIgnoreCase));
+        ApplyChanges(target);
+        WriteStoreAtomic(filePath, target);
     }
 
     /// <summary>
@@ -184,6 +139,7 @@ public sealed class SshProfileTrustStore
         if (string.IsNullOrWhiteSpace(_creatorPathHashSha256))
         {
             _creatorPathHashSha256 = hashSha256;
+            _creatorPathHashChanged = true;
         }
     }
 
@@ -211,6 +167,7 @@ public sealed class SshProfileTrustStore
     public void SetConfigHash(string hashSha256)
     {
         _config = new SshConfigTrustEntry(hashSha256);
+        _configChanged = true;
     }
 
     /// <summary>
@@ -239,6 +196,8 @@ public sealed class SshProfileTrustStore
     public void SetHash(string profileName, string hashSha256)
     {
         _profiles[profileName] = new SshProfileTrustEntry(profileName, hashSha256);
+        _profileUpdates[profileName] = _profiles[profileName];
+        _profileRemovals.Remove(profileName);
     }
 
     /// <summary>
@@ -248,7 +207,14 @@ public sealed class SshProfileTrustStore
     /// <returns><c>true</c> when the profile was removed.</returns>
     public bool RemoveHash(string profileName)
     {
-        return _profiles.Remove(profileName);
+        var removed = _profiles.Remove(profileName);
+        if (removed)
+        {
+            _profileUpdates.Remove(profileName);
+            _profileRemovals.Add(profileName);
+        }
+
+        return removed;
     }
 
     /// <summary>
@@ -278,95 +244,194 @@ public sealed class SshProfileTrustStore
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalizedPath))).ToLowerInvariant();
     }
 
-    private static bool TryDecrypt(
-        string filePath,
-        StoreEnvelope envelope,
-        byte[] nonce,
-        byte[] payload,
-        byte[] tag,
-        byte[] buffer)
+    private void ApplyChanges(SshProfileTrustStore target)
     {
-        if (TryGetEnvelopeDataKey(filePath, envelope, out var envelopeKey)
-            && TryDecryptWithKey(envelopeKey, nonce, payload, tag, buffer))
+        if (_creatorPathHashChanged)
         {
-            return true;
+            target._creatorPathHashSha256 = _creatorPathHashSha256;
         }
 
-        Array.Clear(buffer);
-        if (TryDecryptWithKey(MaterializeCurrent(), nonce, payload, tag, buffer))
+        if (_configChanged)
         {
-            return true;
+            target._config = _config;
         }
 
-        Array.Clear(buffer);
-        return TryDecryptWithKey(MaterializeLegacy(), nonce, payload, tag, buffer);
-    }
-
-    private static bool TryDecryptWithKey(
-        byte[] key,
-        byte[] nonce,
-        byte[] payload,
-        byte[] tag,
-        byte[] buffer)
-    {
-        try
+        foreach (var profileName in _profileRemovals)
         {
-            using var guard = new AesGcm(key, TagSize);
-            guard.Decrypt(nonce, payload, tag, buffer);
-            return true;
+            target._profiles.Remove(profileName);
         }
-        catch (CryptographicException)
+
+        foreach (var update in _profileUpdates)
         {
-            return false;
+            target._profiles[update.Key] = update.Value;
         }
     }
 
-    private static bool TryGetEnvelopeDataKey(
+    private static SshProfileTrustStore ReadStore(
         string filePath,
-        StoreEnvelope envelope,
-        out byte[] dataKey)
+        bool allowLegacyKeyFile,
+        out bool requiresMigration)
     {
-        dataKey = [];
-        if (string.IsNullOrWhiteSpace(envelope.KeyProtection))
+        var envelope = JsonSerializer.Deserialize<StoreEnvelope>(File.ReadAllText(filePath), JsonOptions)
+            ?? throw new InvalidOperationException("MCP trust store is empty.");
+        if (envelope.FormatVersion is not (CurrentFormatVersion or LegacyFormatVersion))
         {
-            return false;
+            throw new InvalidOperationException("MCP trust store format version is not supported.");
         }
 
-        try
+        var dataKey = UnprotectDataKey(filePath, envelope, allowLegacyKeyFile, out requiresMigration);
+        var nonce = Convert.FromBase64String(envelope.Nonce);
+        var tag = Convert.FromBase64String(envelope.Tag);
+        var payload = Convert.FromBase64String(envelope.Payload);
+        if (nonce.Length != NonceSize || tag.Length != TagSize)
         {
-            if (string.Equals(envelope.KeyProtection, KeyProtectionFile, StringComparison.OrdinalIgnoreCase))
+            throw new CryptographicException("MCP trust store cryptographic parameters are invalid.");
+        }
+
+        var buffer = new byte[payload.Length];
+        using (var guard = new AesGcm(dataKey, TagSize))
+        {
+            var associatedData = envelope.FormatVersion == CurrentFormatVersion
+                ? CreateAssociatedData(envelope.FormatVersion, envelope.KeyProtection)
+                : null;
+            guard.Decrypt(nonce, payload, tag, buffer, associatedData);
+        }
+
+        var manifest = JsonSerializer.Deserialize<TrustStoreManifest>(Encoding.UTF8.GetString(buffer), JsonOptions)
+            ?? throw new InvalidOperationException("MCP trust store manifest is empty.");
+        var profiles = manifest.Profiles
+            .Where(entry => !string.IsNullOrWhiteSpace(entry.Name))
+            .ToDictionary(entry => entry.Name, StringComparer.OrdinalIgnoreCase);
+        return new SshProfileTrustStore(manifest.CreatorPathHashSha256, manifest.Config, profiles)
+        {
+            FileExisted = true,
+        };
+    }
+
+    private static byte[] UnprotectDataKey(
+        string filePath,
+        StoreEnvelope envelope,
+        bool allowLegacyKeyFile,
+        out bool requiresMigration)
+    {
+        requiresMigration = false;
+        if (envelope.FormatVersion == CurrentFormatVersion
+            && string.Equals(envelope.KeyProtection, KeyProtectionDpapiCurrentUser, StringComparison.Ordinal))
+        {
+            if (!OperatingSystem.IsWindows())
             {
-                var keyPath = GetKeyFilePath(filePath);
-                if (!File.Exists(keyPath))
-                {
-                    return false;
-                }
+                throw new PlatformNotSupportedException("MCP trust store DPAPI protection requires Windows.");
+            }
 
-                dataKey = Convert.FromBase64String(File.ReadAllText(keyPath));
-                return dataKey.Length == DataKeySize;
+            var protectedKey = Convert.FromBase64String(envelope.ProtectedKey);
+            var dataKey = ProtectedData.Unprotect(protectedKey, null, DataProtectionScope.CurrentUser);
+            return dataKey.Length == DataKeySize
+                ? dataKey
+                : throw new CryptographicException("MCP trust store data key length is invalid.");
+        }
+
+        if (allowLegacyKeyFile
+            && envelope.FormatVersion == LegacyFormatVersion
+            && string.Equals(envelope.KeyProtection, KeyProtectionFile, StringComparison.OrdinalIgnoreCase))
+        {
+            var keyPath = GetKeyFilePath(filePath);
+            if (!File.Exists(keyPath))
+            {
+                throw new CryptographicException("MCP trust store legacy key file is missing.");
+            }
+
+            var dataKey = Convert.FromBase64String(File.ReadAllText(keyPath));
+            requiresMigration = true;
+            return dataKey.Length == DataKeySize
+                ? dataKey
+                : throw new CryptographicException("MCP trust store legacy data key length is invalid.");
+        }
+
+        throw new CryptographicException("MCP trust store key protection is not supported.");
+    }
+
+    private static void WriteStoreAtomic(string filePath, SshProfileTrustStore store)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException("MCP trust store DPAPI protection requires Windows.");
+        }
+
+        var manifest = new TrustStoreManifest
+        {
+            CreatorPathHashSha256 = store._creatorPathHashSha256,
+            Config = store._config,
+            Profiles = store._profiles.Values.OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase).ToArray(),
+        };
+        var buffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(manifest, JsonOptions));
+        var dataKey = RandomNumberGenerator.GetBytes(DataKeySize);
+        var nonce = RandomNumberGenerator.GetBytes(NonceSize);
+        var payload = new byte[buffer.Length];
+        var tag = new byte[TagSize];
+        using (var guard = new AesGcm(dataKey, TagSize))
+        {
+            guard.Encrypt(nonce, buffer, payload, tag, CreateAssociatedData(CurrentFormatVersion, KeyProtectionDpapiCurrentUser));
+        }
+
+        var envelope = new StoreEnvelope
+        {
+            FormatVersion = CurrentFormatVersion,
+            KeyProtection = KeyProtectionDpapiCurrentUser,
+            ProtectedKey = Convert.ToBase64String(ProtectedData.Protect(dataKey, null, DataProtectionScope.CurrentUser)),
+            Nonce = Convert.ToBase64String(nonce),
+            Tag = Convert.ToBase64String(tag),
+            Payload = Convert.ToBase64String(payload),
+        };
+        var tempPath = filePath + ".tmp-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            using (var stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            using (var writer = new StreamWriter(stream, new UTF8Encoding(false)))
+            {
+                writer.Write(JsonSerializer.Serialize(envelope, JsonOptions));
+                writer.Flush();
+                stream.Flush(flushToDisk: true);
+            }
+
+            File.Move(tempPath, filePath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
             }
         }
-        catch (Exception ex) when (ex is CryptographicException
-            or FormatException
-            or IOException
-            or UnauthorizedAccessException)
-        {
-            return false;
-        }
-
-        return false;
     }
 
-    private static byte[] CreateDataKey(
-        string filePath,
-        out string keyProtection,
-        out string protectedKey)
+    private static byte[] CreateAssociatedData(int formatVersion, string keyProtection)
     {
-        var dataKey = RandomNumberGenerator.GetBytes(DataKeySize);
-        keyProtection = KeyProtectionFile;
-        protectedKey = string.Empty;
-        SaveKeyFile(filePath, dataKey);
-        return dataKey;
+        return Encoding.UTF8.GetBytes($"kelpie-mcp-trust-store|{formatVersion}|{keyProtection}");
+    }
+
+    private static MutexLease AcquireMutex(string filePath)
+    {
+        var normalizedPath = Path.GetFullPath(filePath).ToUpperInvariant();
+        var name = "Global\\KelpieMcpTrustStore-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalizedPath)));
+        var mutex = new Mutex(false, name);
+        try
+        {
+            if (!mutex.WaitOne(TimeSpan.FromSeconds(MutexTimeoutSeconds)))
+            {
+                throw new TimeoutException("Timed out waiting for the MCP trust store update lock.");
+            }
+
+            return new MutexLease(mutex);
+        }
+        catch (AbandonedMutexException)
+        {
+            return new MutexLease(mutex);
+        }
+        catch
+        {
+            mutex.Dispose();
+            throw;
+        }
     }
 
     private static string GetKeyFilePath(string trustStorePath)
@@ -374,37 +439,13 @@ public sealed class SshProfileTrustStore
         return trustStorePath + ".key";
     }
 
-    private static void SaveKeyFile(string trustStorePath, byte[] dataKey)
+    private sealed class MutexLease(Mutex mutex) : IDisposable
     {
-        var keyPath = GetKeyFilePath(trustStorePath);
-        File.WriteAllText(keyPath, Convert.ToBase64String(dataKey));
-        if (!OperatingSystem.IsWindows())
+        public void Dispose()
         {
-            File.SetUnixFileMode(
-                keyPath,
-                UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            mutex.ReleaseMutex();
+            mutex.Dispose();
         }
-    }
-
-    private static byte[] MaterializeCurrent()
-    {
-        var legacyMaterial = MaterializeLegacy();
-        var machineMaterial = Encoding.UTF8.GetBytes(Environment.MachineName.ToUpperInvariant());
-        var combined = new byte[legacyMaterial.Length + machineMaterial.Length];
-        Buffer.BlockCopy(legacyMaterial, 0, combined, 0, legacyMaterial.Length);
-        Buffer.BlockCopy(machineMaterial, 0, combined, legacyMaterial.Length, machineMaterial.Length);
-        return SHA256.HashData(combined);
-    }
-
-    private static byte[] MaterializeLegacy()
-    {
-        var material = new byte[StoreSeed.Length];
-        for (var index = 0; index < StoreSeed.Length; index++)
-        {
-            material[index] = (byte)(StoreSeed[index] ^ StoreMask[index]);
-        }
-
-        return SHA256.HashData(material);
     }
 
     private sealed class TrustStoreManifest

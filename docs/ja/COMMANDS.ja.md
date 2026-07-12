@@ -95,7 +95,9 @@ kelpiemcp start --reload-config
 
 起動中でなければ `KelpieMCPServer` の起動を要求します。Windows で `KelpieMCPServer` が Windows Service として登録済みの場合は Windows Service を開始します。この場合は管理者権限のターミナルから実行してください。未登録の場合は通常のローカルプロセスとして起動します。すでに起動中の場合は二重起動せず、起動中であることを返します。
 
-MCPサーバー起動時は、`kelpiemcp.json` と SSH profile ファイルの hash を protected trust store と照合します。通常起動で `kelpiemcp.json` の hash が一致しない場合、MCPサーバーは起動失敗します。通常起動で hash が一致しない profile は load エラーになり、他の profile はロード継続します。正規に `kelpiemcp.json` を編集した場合は `--reload-config` を指定して起動します。正規に profile を編集した場合は `kelpiemcp profile reload <profile>` で信頼 baseline を更新します。trust store の復号または認証に失敗した場合、MCPサーバーは起動失敗します。起動ユーザーは `kelpiemcp.json` と全 profile に不正がないことを確認し、trust store を退避または削除して再起動します。削除した場合、次回起動時に現在の `kelpiemcp.json` と全 profile が新規 baseline として登録されます。
+MCPサーバー起動時は、`kelpiemcp.json` と SSH profile ファイルの hash を protected trust store と照合します。通常起動で `kelpiemcp.json` の hash が一致しない場合、MCPサーバーは起動失敗します。通常起動で hash が一致しない profile は load エラーになり、他の profile はロード継続します。正規に `kelpiemcp.json` を編集した場合は `--reload-config` を指定して起動します。正規に profile を編集した場合は `kelpiemcp profile reload <profile>` で信頼 baseline を更新します。trust store の復号または認証に失敗した場合、MCPサーバーは起動失敗し、storeを上書きしません。
+
+Windowsのversion 3 trust storeは、AES-256データ鍵をDPAPI `CurrentUser`で保護し、単一ファイルのenvelope内へ保存します。同じWindowsアカウントで動くプロセスだけが復号できます。format versionと鍵保護方式もAES-GCMのassociated dataとして認証します。更新はプロセス間で直列化し、flush済み一時ファイルからatomic replaceします。正常なversion 2 storeと`.key`は一度だけ移行し、version 3を再読込して検証した後にだけ旧`.key`を削除します。復号・認証失敗時や別ユーザーのstoreは上書きせず、管理者が退避、内容確認、明示的な再初期化、profile再承認を行います。
 
 戻り値:
 
