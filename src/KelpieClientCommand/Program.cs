@@ -83,7 +83,6 @@ if (string.Equals(command, "login", StringComparison.OrdinalIgnoreCase))
     KpLog.Info("Kelpie CLI login requested.");
     var loginOption = args.Length > 1 ? args[1] : string.Empty;
     var openInConsole = string.Equals(loginOption, "--console", StringComparison.OrdinalIgnoreCase);
-    var openInDesktop = string.Equals(loginOption, "--desktop", StringComparison.OrdinalIgnoreCase);
     var forceConsoleSession = string.Equals(loginOption, "--console-session", StringComparison.OrdinalIgnoreCase);
 
     if (string.Equals(loginOption, "--window", StringComparison.OrdinalIgnoreCase))
@@ -94,8 +93,15 @@ if (string.Equals(command, "login", StringComparison.OrdinalIgnoreCase))
     }
 
     if (args.Length > 2
-        || (args.Length > 1 && !openInConsole && !openInDesktop && !forceConsoleSession))
+        || (args.Length > 1 && !openInConsole && !forceConsoleSession))
     {
+        if (loginOption.StartsWith("--", StringComparison.Ordinal))
+        {
+            Console.Error.WriteLine($"Unknown `kelpie login` option: {loginOption}");
+            Environment.ExitCode = 1;
+            return;
+        }
+
         Console.Error.WriteLine("`kelpie login` does not accept a profile argument.");
         Console.Error.WriteLine($"Use `kelpie open {args[1]}` then `kelpie login`.");
         Environment.ExitCode = 1;
@@ -117,7 +123,7 @@ if (string.Equals(command, "login", StringComparison.OrdinalIgnoreCase))
         return;
     }
 
-    if (openInDesktop || (!forceConsoleSession && IsGuiMode()))
+    if (!forceConsoleSession && IsGuiMode())
     {
         StartDesktop(openProfileName);
         return;
@@ -1017,7 +1023,6 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpie config --check [--pager|--no-pager]");
     writer.WriteLine("  kelpie login");
     writer.WriteLine("  kelpie login --console");
-    writer.WriteLine("  kelpie login --desktop");
     writer.WriteLine("  kelpie logout");
     writer.WriteLine("  kelpie profiles");
     writer.WriteLine("  kelpie sessions");
