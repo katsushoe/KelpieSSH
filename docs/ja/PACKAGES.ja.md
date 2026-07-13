@@ -43,7 +43,6 @@
 - `kelpie profiles` / `kelpie profile show` / `kelpie status` によるプロファイル確認。
 - `kelpie diag` による SSH 診断コマンドの一括実行。
 - `kelpie logs` によるサービスログ取得。
-- `kelpie cli` による既定CLIモードへの切替。
 
 主な参照:
 

@@ -56,14 +56,6 @@ if (string.Equals(command, "init", StringComparison.OrdinalIgnoreCase))
     return;
 }
 
-if (string.Equals(command, "cli", StringComparison.OrdinalIgnoreCase))
-{
-    KpLog.Info("Kelpie CLI cli mode requested.");
-    SaveClientMode("cli");
-    Console.WriteLine("Kelpie mode: cli");
-    return;
-}
-
 if (string.Equals(command, "config", StringComparison.OrdinalIgnoreCase))
 {
     KpLog.Info("Kelpie CLI config requested.");
@@ -1013,7 +1005,6 @@ static void ShowUsage(string command = "")
     writer.WriteLine("Usage:");
     writer.WriteLine("  kelpie init [--silent] [profile]");
     writer.WriteLine("  kelpie open <profile>");
-    writer.WriteLine("  kelpie cli");
     writer.WriteLine("  kelpie config --check [--pager|--no-pager]");
     writer.WriteLine("  kelpie login");
     writer.WriteLine("  kelpie login --console");
@@ -4213,11 +4204,6 @@ static string GetOpenProfileStatePath()
     return KelpieRuntimePaths.GetConfigFilePath(AppContext.BaseDirectory, "kelpie-open-profile.txt");
 }
 
-static string GetClientModeStatePath()
-{
-    return KelpieRuntimePaths.GetConfigFilePath(AppContext.BaseDirectory, "kelpie-client-mode.txt");
-}
-
 static string GetClientStatePath()
 {
     return KelpieRuntimePaths.GetClientStatePath(AppContext.BaseDirectory);
@@ -4231,12 +4217,6 @@ static string? LoadOpenProfileName()
 static void SaveOpenProfileName(string profileName)
 {
     var state = LoadClientState() with { OpenProfile = profileName };
-    SaveClientState(state);
-}
-
-static void SaveClientMode(string mode)
-{
-    var state = LoadClientState() with { ClientMode = mode };
     SaveClientState(state);
 }
 
@@ -4288,9 +4268,7 @@ static void TryMigrateLegacyClientState()
 
 static KelpieClientState LoadLegacyClientState()
 {
-    return new KelpieClientState(
-        ReadLegacyStateValue(GetOpenProfileStatePath()),
-        ReadLegacyStateValue(GetClientModeStatePath()));
+    return new KelpieClientState(ReadLegacyStateValue(GetOpenProfileStatePath()));
 }
 
 static string? ReadLegacyStateValue(string statePath)
@@ -4330,9 +4308,7 @@ static void SaveClientState(KelpieClientState state)
     File.WriteAllText(statePath, JsonSerializer.Serialize(state, options));
 }
 
-public sealed record KelpieClientState(
-    string? OpenProfile = null,
-    string? ClientMode = null);
+public sealed record KelpieClientState(string? OpenProfile = null);
 
 sealed record ProfileCreateCommandOptions(
     bool Silent,

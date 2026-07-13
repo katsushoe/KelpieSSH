@@ -222,15 +222,13 @@ kelpiemcp profile revoke <profile>
 
 ```json
 {
-  "OpenProfile": "vps01",
-  "ClientMode": "cli"
+  "OpenProfile": "vps01"
 }
 ```
 
 | Setting | 必須 | 初期値 | Purpose |
 | :--- | :---: | :--- | :--- |
 | `OpenProfile` | いいえ | なし | `kelpie open <profile>` で最後に開いた profile。`kelpie login` が参照します。 |
-| `ClientMode` | いいえ | なし | CLIのlogin処理で使う、保存済みの既定client mode。 |
 
 ## SSH Profiles
 

@@ -227,15 +227,13 @@ Example:
 
 ```json
 {
-  "OpenProfile": "vps01",
-  "ClientMode": "cli"
+  "OpenProfile": "vps01"
 }
 ```
 
 | Setting | Required | Initial value | Purpose |
 | :--- | :---: | :--- | :--- |
 | `OpenProfile` | no | none | Last profile opened with `kelpie open <profile>`. `kelpie login` uses this value. |
-| `ClientMode` | no | none | Stored default client mode used by the CLI login flow. |
 
 ## SSH Profiles
 
