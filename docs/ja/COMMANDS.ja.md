@@ -884,7 +884,7 @@ Use `kelpie login` to start a session.
 
 目的:
 
-現在 `kelpie open <profile>` で開いているプロファイルへログインします。既定モードが `cli` の場合は永続的な SSH 対話シェルを開始し、既定モードが `gui` の場合は KelpieDesktop を起動します。
+現在 `kelpie open <profile>` で開いているプロファイルへログインし、永続的な SSH 対話シェルを開始します。
 
 構文:
 
@@ -902,7 +902,7 @@ kelpie login
 
 処理内容:
 
-open 済みプロファイルへログインします。既定モードが `cli` の場合は SSH 対話シェル、`gui` の場合は KelpieDesktop を開始します。
+open 済みプロファイルへログインし、SSH 対話シェルを開始します。
 
 実行結果サンプル:
 

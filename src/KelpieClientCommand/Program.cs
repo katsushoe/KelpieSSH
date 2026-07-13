@@ -123,12 +123,6 @@ if (string.Equals(command, "login", StringComparison.OrdinalIgnoreCase))
         return;
     }
 
-    if (!forceConsoleSession && IsGuiMode())
-    {
-        StartDesktop(openProfileName);
-        return;
-    }
-
     var catalog = LoadProfileCatalog();
     if (!TryResolveProfile(catalog, openProfileName, out var profile))
     {
@@ -3242,85 +3236,6 @@ static string EscapeCmdArgument(string value)
     return value.Replace("\"", "\"\"", StringComparison.Ordinal);
 }
 
-static void StartDesktop(string? openProfileName)
-{
-    if (!OperatingSystem.IsWindows())
-    {
-        Console.Error.WriteLine("Kelpie GUI is supported on Windows only.");
-        Environment.ExitCode = 1;
-        return;
-    }
-
-    var desktopPath = ResolveDesktopPath();
-    var startInfo = new System.Diagnostics.ProcessStartInfo
-    {
-        FileName = desktopPath,
-        UseShellExecute = false,
-        CreateNoWindow = false,
-    };
-
-    if (!string.IsNullOrWhiteSpace(openProfileName))
-    {
-        startInfo.ArgumentList.Add("--open");
-        startInfo.ArgumentList.Add(openProfileName);
-    }
-
-    using var process = System.Diagnostics.Process.Start(startInfo);
-    if (process is null)
-    {
-        throw new InvalidOperationException("Failed to start KelpieDesktop.");
-    }
-
-    KpLog.Info($"KelpieDesktop started. profile={openProfileName ?? "(none)"}");
-    Console.WriteLine(string.IsNullOrWhiteSpace(openProfileName)
-        ? "Kelpie GUI started."
-        : $"Kelpie GUI started: {openProfileName}");
-}
-
-static string ResolveDesktopPath()
-{
-    foreach (var candidatePath in GetDesktopPathCandidates())
-    {
-        if (File.Exists(candidatePath))
-        {
-            return candidatePath;
-        }
-    }
-
-    throw new FileNotFoundException("KelpieDesktop executable was not found.");
-}
-
-static IEnumerable<string> GetDesktopPathCandidates()
-{
-    var baseDirectory = KelpieRuntimePaths.GetBinDirectory(AppContext.BaseDirectory);
-    yield return Path.Combine(baseDirectory, "desktop", "KelpieDesktop.exe");
-    yield return Path.Combine(baseDirectory, "KelpieDesktop.exe");
-
-    var sourceRoot = GetSourceRoot(baseDirectory);
-    if (sourceRoot is null)
-    {
-        yield break;
-    }
-
-    yield return Path.Combine(sourceRoot, "KelpieDesktop", "bin", "Debug", "net8.0-windows", "KelpieDesktop.exe");
-}
-
-static string? GetSourceRoot(string baseDirectory)
-{
-    var directory = new DirectoryInfo(baseDirectory);
-    while (directory is not null)
-    {
-        if (string.Equals(directory.Name, "src", StringComparison.OrdinalIgnoreCase))
-        {
-            return directory.FullName;
-        }
-
-        directory = directory.Parent;
-    }
-
-    return null;
-}
-
 static void ShowVersion()
 {
     var version = Assembly.GetEntryAssembly()?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
@@ -4311,11 +4226,6 @@ static string GetClientStatePath()
 static string? LoadOpenProfileName()
 {
     return LoadClientState().OpenProfile;
-}
-
-static bool IsGuiMode()
-{
-    return string.Equals(LoadClientState().ClientMode, "gui", StringComparison.OrdinalIgnoreCase);
 }
 
 static void SaveOpenProfileName(string profileName)

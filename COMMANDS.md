@@ -1548,7 +1548,7 @@ kelpie login
 ```
 
 `kelpie login` does not accept a profile argument. Select a profile first with `kelpie open <profile>`.
-When GUI mode is enabled, the command may start the desktop frontend instead of a console session.
+The command always starts a console SSH session.
 
 Return value:
 
