@@ -41,11 +41,6 @@ public static class KelpieRuntimePaths
     public const string LegacyStormStateFileName = "storm_state.dat";
 
     /// <summary>
-    /// Gets the Kelpie Desktop configuration file name.
-    /// </summary>
-    public const string KelpieDesktopConfigFileName = "kelpie_desktop.json";
-
-    /// <summary>
     /// Gets the current command-line runtime directory overrides.
     /// </summary>
     public static KelpieRuntimePathOverrides Overrides => CurrentOverrides.Value ?? KelpieRuntimePathOverrides.Empty;
