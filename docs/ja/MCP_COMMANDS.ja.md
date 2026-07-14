@@ -4741,6 +4741,7 @@ profile trust、site設定、`AllowedFiles`のread access、content typeのread 
 
 - `profileName`、`siteKey`、正規化済み`path`、`resolvedPath`、`algorithm`、`hash`、`size`、`owner`、`group`、`mode`、`isSymlink=false`、`warnings`、`error`を返します。
 - stable errorは`profile-not-trusted`、`site-not-found`、`invalid-path`、`path-outside-root`、`file-not-allowed`、`file-not-found`、`file-type-not-supported`、`file-too-large`、`algorithm-not-supported`、`remote-timeout`、`remote-read-failed`、`file-changed-during-read`、`invalid-provider-response`です。
+- SSH切断・接続失敗は`remote-read-failed`、timeout・cancellationは`remote-timeout`へ変換し、例外本文は返しません。
 
 実行結果サンプル:
 

@@ -86,7 +86,10 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
             };
             KpLog.Warn(
                 $"SSH command connection failed. profile={request.Profile.Name}, command={request.CommandName}, exceptionType={ex.GetType().FullName ?? "UnknownException"}, durationMs={(completedAt - startedAt).TotalMilliseconds:0.###}");
-            throw new SshConnectionException(message, ex);
+            throw new SshCommandConnectionException(
+                message,
+                timedOut: ex is SshOperationTimeoutException,
+                ex);
         }
         catch (Exception ex)
         {

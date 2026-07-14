@@ -6720,6 +6720,7 @@ Return value:
 - Return type: `WebPublicFileHashResult`.
 - Success includes `profileName`, `siteKey`, normalized `path`, `resolvedPath`, `algorithm`, `hash`, `size`, `owner`, `group`, `mode`, `isSymlink=false`, `warnings`, and `error=null`.
 - Stable errors include `profile-not-trusted`, `site-not-found`, `invalid-path`, `path-outside-root`, `file-not-allowed`, `file-not-found`, `file-type-not-supported`, `file-too-large`, `algorithm-not-supported`, `remote-timeout`, `remote-read-failed`, `file-changed-during-read`, and `invalid-provider-response`.
+- SSH disconnects and connection failures are converted to `remote-read-failed`; timeout and cancellation are converted to `remote-timeout` without exposing exception text.
 
 Return value sample:
 

@@ -200,6 +200,49 @@ public sealed class WebPublicFileProviderTests
     }
 
     [Fact]
+    public async Task HashAsync_ShouldReturnStructuredErrorWhenSshRunnerDisconnects()
+    {
+        const string secretFixture = "fixture-secret-content";
+        var logger = new TestLogger<WebPublicFileProvider>();
+        var runner = new ThrowingSshCommandRunner(new SshCommandConnectionException(secretFixture, timedOut: false));
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider(logger);
+
+        var result = await provider.HashAsync(service, CreateProfile(), "default", "/index.html");
+
+        result.Error!.Code.Should().Be("remote-read-failed");
+        result.ToString().Should().NotContain(secretFixture);
+        logger.Entries.Should().OnlyContain(entry => !entry.Message.Contains(secretFixture, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task HashAsync_ShouldReturnStructuredErrorWhenSshRunnerIsCancelled()
+    {
+        var runner = new ThrowingSshCommandRunner(new OperationCanceledException("fixture-secret-content"));
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.HashAsync(service, CreateProfile(), "default", "/index.html");
+
+        result.Error!.Code.Should().Be("remote-timeout");
+        result.ToString().Should().NotContain("fixture-secret-content");
+    }
+
+    [Fact]
+    public async Task HashAsync_ShouldReturnRemoteTimeoutWhenSshConnectionTimesOut()
+    {
+        var runner = new ThrowingSshCommandRunner(
+            new SshCommandConnectionException("fixture-secret-content", timedOut: true));
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.HashAsync(service, CreateProfile(), "default", "/index.html");
+
+        result.Error!.Code.Should().Be("remote-timeout");
+        result.ToString().Should().NotContain("fixture-secret-content");
+    }
+
+    [Fact]
     public async Task CheckWriteAsync_ShouldReturnConfirmationWithoutWriting()
     {
         var profile = CreateProfile(KelpiePolicyMode.Expert);
@@ -1380,6 +1423,16 @@ public sealed class WebPublicFileProviderTests
     }
 
     private sealed record TestLogEntry(LogLevel Level, string Message);
+
+    private sealed class ThrowingSshCommandRunner(Exception exception) : ISshCommandRunner
+    {
+        public Task<SshCommandResult> ExecuteAsync(
+            SshCommandRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromException<SshCommandResult>(exception);
+        }
+    }
 
     private sealed class FakeSshCommandRunner : ISshCommandRunner
     {

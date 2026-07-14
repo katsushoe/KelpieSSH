@@ -435,17 +435,60 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             return CreateHashError(profile.Name, site.SiteKey, normalizedPath, normalizedAlgorithm, "file-not-allowed", correlationId);
         }
 
-        var commandResult = await sshCommandService.ExecuteAsync(
-            profile,
-            HashCommandName,
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["siteRootBase64"] = EncodeArgument(site.RootPath),
-                ["pathBase64"] = EncodeArgument(normalizedPath),
-                ["maxBytes"] = site.MaxReadBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            },
-            channel: KelpieExecutionChannel.Mcp,
-            cancellationToken: cancellationToken);
+        SshCommandResult commandResult;
+        try
+        {
+            commandResult = await sshCommandService.ExecuteAsync(
+                profile,
+                HashCommandName,
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["siteRootBase64"] = EncodeArgument(site.RootPath),
+                    ["pathBase64"] = EncodeArgument(normalizedPath),
+                    ["maxBytes"] = site.MaxReadBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                },
+                channel: KelpieExecutionChannel.Mcp,
+                cancellationToken: cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning(
+                "web file hash cancelled or timed out. Profile={ProfileName}, SiteKey={SiteKey}, Path={Path}, Algorithm={Algorithm}, Result={Result}, CorrelationId={CorrelationId}",
+                profile.Name,
+                site.SiteKey,
+                normalizedPath,
+                normalizedAlgorithm,
+                "remote-timeout",
+                correlationId);
+            return CreateHashError(profile.Name, site.SiteKey, normalizedPath, normalizedAlgorithm, "remote-timeout", correlationId);
+        }
+        catch (SshCommandConnectionException ex)
+        {
+            var errorCode = ex.TimedOut ? "remote-timeout" : "remote-read-failed";
+            _logger.LogWarning(
+                "web file hash SSH connection failed. Profile={ProfileName}, SiteKey={SiteKey}, Path={Path}, Algorithm={Algorithm}, TimedOut={TimedOut}, Result={Result}, CorrelationId={CorrelationId}",
+                profile.Name,
+                site.SiteKey,
+                normalizedPath,
+                normalizedAlgorithm,
+                ex.TimedOut,
+                errorCode,
+                correlationId);
+            return CreateHashError(profile.Name, site.SiteKey, normalizedPath, normalizedAlgorithm, errorCode, correlationId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                "web file hash SSH execution failed. Profile={ProfileName}, SiteKey={SiteKey}, Path={Path}, Algorithm={Algorithm}, ExceptionType={ExceptionType}, Result={Result}, CorrelationId={CorrelationId}",
+                profile.Name,
+                site.SiteKey,
+                normalizedPath,
+                normalizedAlgorithm,
+                ex.GetType().FullName ?? "UnknownException",
+                "remote-read-failed",
+                correlationId);
+            return CreateHashError(profile.Name, site.SiteKey, normalizedPath, normalizedAlgorithm, "remote-read-failed", correlationId);
+        }
 
         if (commandResult.TimedOut)
         {
