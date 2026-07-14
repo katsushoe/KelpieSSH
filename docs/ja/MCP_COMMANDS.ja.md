@@ -56,7 +56,7 @@ HTTP request body は REST 形式ではなく JSON-RPC です。たとえば診�
 | パッケージ操作 | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove`, `ssh_certbot_check_install`, `ssh_certbot_install` | package の確認、検索、dry-run、確認付き変更、Certbot 専用 install。 |
 | サービス操作 | `ssh_service_status`, `ssh_service_is_active`, `ssh_service_is_enabled`, `ssh_list_services`, `ssh_service_enable_now`, `ssh_service_reload`, `ssh_service_restart`, `ssh_service_stop`, `ssh_service_disable` | systemd service の状態確認と確認付き変更。 |
 | サービス設定 / ログ | `service_config_paths`, `service_config_file_check_read`, `service_config_file_read`, `service_config_file_check_write`, `service_config_file_write`, `service_config_file_rollback`, `service_config_file_commit`, `service_config_test`, `ssh_service_config_nginx_enable_php`, `service_logfile_read` | provider が許可したサービス設定ファイルとログの操作。 |
-| Web ファイル | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_check_write`, `web_secret_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_secret_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | provider が許可した Web ルート配下のファイル操作、秘密ファイル転送、権限変更。 |
+| Web ファイル | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_hash`, `web_file_check_write`, `web_secret_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_secret_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | provider が許可した Web ルート配下のファイル操作、秘密ファイル転送、権限変更。 |
 
 ## 共通オプション
 
@@ -4706,6 +4706,66 @@ site root 配下に解決されるディレクトリだけを対象に、ファ�
 安全上の注意:
 
 - 解決後の対象パスが Web 公開ルート外へ出る場合は拒否します。
+
+### `web_file_hash`
+
+目的:
+
+providerが読み取りを許可した通常ファイルについて、本文を返さずSHA-256とメタデータだけを取得します。
+
+入力引数:
+
+- `profileName`: trust済みSSH profile名。
+- `siteKey`: `WebPublicSites`で解決可能なkey。
+- `path`: `/`で始まるsite-relative path。
+- `algorithm`: 省略可能。初期値と対応値は`sha256`だけです。
+
+引数サンプル:
+
+```json
+{
+  "profileName": "vps01",
+  "siteKey": "default",
+  "path": "/index.html",
+  "algorithm": "sha256"
+}
+```
+
+処理内容:
+
+profile trust、site設定、`AllowedFiles`のread access、content typeのread access、`MaxReadBytes`を確認します。専用provider commandはsymlinkを追跡せず対象を開き、bounded streamとしてhashを計算し、読取り前後のdevice、inode、size、mtimeが一致することを確認します。MCP serverはprovider JSON、path、size、algorithm、64文字の小文字hex hashを再検証します。
+
+戻り値:
+
+- `profileName`、`siteKey`、正規化済み`path`、`resolvedPath`、`algorithm`、`hash`、`size`、`owner`、`group`、`mode`、`isSymlink=false`、`warnings`、`error`を返します。
+- stable errorは`profile-not-trusted`、`site-not-found`、`invalid-path`、`path-outside-root`、`file-not-allowed`、`file-not-found`、`file-type-not-supported`、`file-too-large`、`algorithm-not-supported`、`remote-timeout`、`remote-read-failed`、`file-changed-during-read`、`invalid-provider-response`です。
+
+実行結果サンプル:
+
+```json
+{
+  "profileName": "vps01",
+  "siteKey": "default",
+  "path": "/index.html",
+  "resolvedPath": "/var/www/html/index.html",
+  "algorithm": "sha256",
+  "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "size": 128,
+  "owner": "nginx",
+  "group": "nginx",
+  "mode": "644",
+  "isSymlink": false,
+  "warnings": [],
+  "error": null
+}
+```
+
+安全上の注意:
+
+- read accessが必要であり、write-only許可では実行できません。
+- root逸脱、traversal、symlink、directory、device、socket、上限超過、hash中に変更されたfileを拒否します。
+- 本文、Base64本文、stdin、raw command、raw provider outputをresponse、通常ログ、監査ログへ含めません。
+- 内部provider commandは`ssh_run_allowed_command`から直接実行できません。
 
 ### `web_file_check_write`
 

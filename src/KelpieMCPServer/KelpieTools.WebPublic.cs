@@ -163,6 +163,55 @@ public sealed partial class KelpieTools
     }
 
     /// <summary>
+    /// Returns a metadata-only SHA-256 hash for one provider-approved web public file.
+    /// </summary>
+    [McpServerTool(Name = "web_file_hash")]
+    [Description("Returns a bounded metadata-only SHA-256 hash for one readable provider-approved web public file.")]
+    public static async Task<WebPublicFileHashResult> HashWebFileAsync(
+        SshCommandService sshCommandService,
+        ISshConnectionProfileCatalog profileCatalog,
+        IWebPublicFileProvider webPublicFileProvider,
+        string profileName,
+        string siteKey,
+        string path,
+        string? algorithm = null,
+        CancellationToken cancellationToken = default)
+    {
+        KpLog.Info($"MCP SSH tool called: web_file_hash siteKey={siteKey}, profile={profileName}, path={path}, algorithm={algorithm ?? "sha256"}");
+        SshConnectionProfile profile;
+        try
+        {
+            profile = ResolveSshProfile(profileCatalog, profileName);
+        }
+        catch (InvalidOperationException)
+        {
+            var correlationId = Guid.NewGuid().ToString("N");
+            return new WebPublicFileHashResult(
+                profileName?.Trim() ?? string.Empty,
+                siteKey?.Trim() ?? string.Empty,
+                path?.Trim() ?? string.Empty,
+                ResolvedPath: string.Empty,
+                string.IsNullOrWhiteSpace(algorithm) ? "sha256" : algorithm.Trim().ToLowerInvariant(),
+                Hash: null,
+                Size: 0,
+                Owner: string.Empty,
+                Group: string.Empty,
+                Mode: string.Empty,
+                IsSymlink: false,
+                Warnings: [],
+                Error: new WebPublicFileHashError("profile-not-trusted", "The SSH profile is not trusted or available.", correlationId));
+        }
+
+        return await webPublicFileProvider.HashAsync(
+            sshCommandService,
+            profile,
+            siteKey,
+            path,
+            algorithm,
+            cancellationToken);
+    }
+
+    /// <summary>
     /// Checks whether one web public file can be written without writing it.
     /// </summary>
     /// <param name="sshCommandService">The SSH command service.</param>

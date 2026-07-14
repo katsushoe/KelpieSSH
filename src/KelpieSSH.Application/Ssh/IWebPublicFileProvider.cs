@@ -55,6 +55,17 @@ public interface IWebPublicFileProvider
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Returns a metadata-only hash for one readable web public file.
+    /// </summary>
+    Task<WebPublicFileHashResult> HashAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        string? algorithm = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Checks whether one web public file can be written without writing it.
     /// </summary>
     Task<WebPublicFileWriteCheckResult> CheckWriteAsync(

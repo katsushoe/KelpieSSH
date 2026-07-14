@@ -61,7 +61,7 @@ This document describes the `name` and `arguments` used inside `tools/call`. In 
 | [Packages](#packages) | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove`, `ssh_certbot_check_install`, `ssh_certbot_install` | Inspect packages and run confirmation-gated package operations, including bounded Certbot installation. |
 | [Services](#services) | `ssh_service_status`, `ssh_service_is_active`, `ssh_service_is_enabled`, `ssh_list_services`, `ssh_service_enable_now`, `ssh_service_reload`, `ssh_service_restart`, `ssh_service_stop`, `ssh_service_disable` | Inspect and safely manage systemd services. |
 | [Service config/logs](#service-configlogs) | `service_config_paths`, `service_config_file_check_read`, `service_config_file_read`, `service_config_file_check_write`, `service_config_file_write`, `service_config_file_rollback`, `service_config_file_commit`, `service_config_test`, `ssh_service_config_nginx_enable_php`, `service_logfile_read` | Operate on provider-approved service configuration files and logs. |
-| [Web files](#web-files) | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_check_write`, `web_secret_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_secret_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | Operate on provider-approved web roots. |
+| [Web files](#web-files) | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_hash`, `web_file_check_write`, `web_secret_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_secret_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | Operate on provider-approved web roots. |
 
 ## Common Inputs
 
@@ -6413,6 +6413,7 @@ Tools in this group:
 - [`web_file_search_name`](#web_file_search_name)
 - [`web_file_search_text`](#web_file_search_text)
 - [`web_file_stat`](#web_file_stat)
+- [`web_file_hash`](#web_file_hash)
 - [`web_file_check_write`](#web_file_check_write)
 - [`web_secret_file_check_write`](#web_secret_file_check_write)
 - [`web_file_check_permissions`](#web_file_check_permissions)
@@ -6681,6 +6682,70 @@ The MCP execution result body is the return value sample above, wrapped by the c
 Safety notes:
 
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
+
+#### `web_file_hash`
+
+Purpose:
+
+Returns a metadata-only SHA-256 for one readable provider-approved regular file. File content is never returned.
+
+Input arguments:
+
+- `profileName`: Trusted SSH profile name.
+- `siteKey`: Configured `WebPublicSites` key.
+- `path`: Site-relative path beginning with `/`.
+- `algorithm`: Optional algorithm. The default and only supported value is `sha256`.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "web_file_hash",
+  "arguments": {
+    "profileName": "vps01",
+    "siteKey": "default",
+    "path": "/index.html",
+    "algorithm": "sha256"
+  }
+}
+```
+
+Processing:
+
+Kelpie verifies profile trust, site configuration, `AllowedFiles` read access, content-type read access, and `MaxReadBytes`. A dedicated provider command opens the target without following symlinks, hashes it as a bounded stream, and verifies device, inode, size, and modification time before and after reading. The MCP server validates the provider JSON, path, size, algorithm, and lowercase 64-character hash before returning success.
+
+Return value:
+
+- Return type: `WebPublicFileHashResult`.
+- Success includes `profileName`, `siteKey`, normalized `path`, `resolvedPath`, `algorithm`, `hash`, `size`, `owner`, `group`, `mode`, `isSymlink=false`, `warnings`, and `error=null`.
+- Stable errors include `profile-not-trusted`, `site-not-found`, `invalid-path`, `path-outside-root`, `file-not-allowed`, `file-not-found`, `file-type-not-supported`, `file-too-large`, `algorithm-not-supported`, `remote-timeout`, `remote-read-failed`, `file-changed-during-read`, and `invalid-provider-response`.
+
+Return value sample:
+
+```json
+{
+  "profileName": "vps01",
+  "siteKey": "default",
+  "path": "/index.html",
+  "resolvedPath": "/var/www/html/index.html",
+  "algorithm": "sha256",
+  "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "size": 128,
+  "owner": "nginx",
+  "group": "nginx",
+  "mode": "644",
+  "isSymlink": false,
+  "warnings": [],
+  "error": null
+}
+```
+
+Safety notes:
+
+- Requires read permission; write-only rules do not grant hash access.
+- Rejects traversal, paths outside the site root, symlinks, directories, devices, sockets, oversized files, and files changed during reading.
+- File content, Base64 content, standard input, raw command text, and raw provider output are not returned or written to normal or audit logs.
+- The internal provider command cannot be called through `ssh_run_allowed_command`.
 
 #### `web_file_check_write`
 

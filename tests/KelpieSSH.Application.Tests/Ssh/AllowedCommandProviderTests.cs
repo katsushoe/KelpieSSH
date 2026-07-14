@@ -294,6 +294,7 @@ public sealed class AllowedCommandProviderTests
         [
             "web_public_file_list_internal",
             "web_public_file_stat_internal",
+            "web_public_file_hash_internal",
             "web_public_file_check_write_internal",
             "web_public_file_read_internal",
             "web_public_file_slice_internal",
@@ -308,6 +309,8 @@ public sealed class AllowedCommandProviderTests
             .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
         commands.Single(command => command.Name == "web_change_mode_internal")
             .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
+        commands.Single(command => command.Name == "web_public_file_hash_internal")
+            .RiskLevel.Should().Be(SshCommandRiskLevel.ReadOnly);
     }
 
     [Fact]

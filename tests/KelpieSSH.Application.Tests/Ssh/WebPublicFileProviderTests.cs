@@ -62,6 +62,123 @@ public sealed class WebPublicFileProviderTests
     }
 
     [Fact]
+    public async Task HashAsync_ShouldReturnValidatedMetadataWithoutContent()
+    {
+        const string hash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        const string secretFixture = "fixture-secret-content";
+        var logger = new TestLogger<WebPublicFileProvider>();
+        var profile = CreateProfile();
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: $$"""{"resolvedPath":"/var/www/html/index.html","algorithm":"sha256","hash":"{{hash}}","size":22,"owner":"nginx","group":"nginx","mode":"640","isSymlink":false,"errorCode":null}""",
+                StandardError: string.Empty),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider(logger);
+
+        var result = await provider.HashAsync(service, profile, "default", "/index.html");
+
+        result.ProfileName.Should().Be("vps01");
+        result.Algorithm.Should().Be("sha256");
+        result.Hash.Should().Be(hash);
+        result.Size.Should().Be(22);
+        result.Owner.Should().Be("nginx");
+        result.Group.Should().Be("nginx");
+        result.Mode.Should().Be("640");
+        result.IsSymlink.Should().BeFalse();
+        result.Error.Should().BeNull();
+        runner.LastRequest!.CommandName.Should().Be("web_public_file_hash_internal");
+        runner.LastRequest.Arguments["maxBytes"].Should().Be((5 * 1024 * 1024).ToString());
+        runner.LastRequest.CommandText.Should().NotContain(secretFixture);
+        result.ToString().Should().NotContain(secretFixture);
+        logger.Entries.Should().OnlyContain(entry => !entry.Message.Contains(secretFixture, StringComparison.Ordinal));
+        logger.Entries.Should().OnlyContain(entry => !entry.Message.Contains(Convert.ToBase64String(Encoding.UTF8.GetBytes(secretFixture)), StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task HashAsync_ShouldRejectWriteOnlyAllowedFileWithoutCallingProvider()
+    {
+        var site = CreateSite([new WebPublicFileRule("*.html", AllowedRootAccess.Write)]);
+        var profile = CreateProfile(webPublicSites: [site]);
+        var runner = new FakeSshCommandRunner([]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.HashAsync(service, profile, "default", "/index.html");
+
+        result.Hash.Should().BeNull();
+        result.Error!.Code.Should().Be("file-not-allowed");
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("md5")]
+    [InlineData("sha512")]
+    public async Task HashAsync_ShouldRejectUnsupportedAlgorithm(string algorithm)
+    {
+        var runner = new FakeSshCommandRunner([]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.HashAsync(service, CreateProfile(), "default", "/index.html", algorithm);
+
+        result.Error!.Code.Should().Be("algorithm-not-supported");
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("file-not-found")]
+    [InlineData("file-too-large")]
+    [InlineData("file-type-not-supported")]
+    [InlineData("file-changed-during-read")]
+    public async Task HashAsync_ShouldReturnSafeProviderError(string errorCode)
+    {
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput($$"""{"errorCode":"{{errorCode}}"}""", string.Empty),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.HashAsync(service, CreateProfile(), "default", "/index.html");
+
+        result.Hash.Should().BeNull();
+        result.Error!.Code.Should().Be(errorCode);
+    }
+
+    [Fact]
+    public async Task HashAsync_ShouldRejectInvalidProviderResponse()
+    {
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput("fixture-secret-content", "raw-secret-error"),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.HashAsync(service, CreateProfile(), "default", "/index.html");
+
+        result.Hash.Should().BeNull();
+        result.Error!.Code.Should().Be("invalid-provider-response");
+        result.ToString().Should().NotContain("fixture-secret-content");
+        result.ToString().Should().NotContain("raw-secret-error");
+    }
+
+    [Fact]
+    public async Task HashAsync_ShouldReturnRemoteTimeoutWithoutProviderOutput()
+    {
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput("fixture-secret-content", "raw-secret-error", ExitCode: -1, TimedOut: true),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.HashAsync(service, CreateProfile(), "default", "/index.html");
+
+        result.Error!.Code.Should().Be("remote-timeout");
+        result.ToString().Should().NotContain("fixture-secret-content");
+        result.ToString().Should().NotContain("raw-secret-error");
+    }
+
+    [Fact]
     public async Task CheckWriteAsync_ShouldReturnConfirmationWithoutWriting()
     {
         var profile = CreateProfile(KelpiePolicyMode.Expert);
@@ -1268,12 +1385,13 @@ public sealed class WebPublicFileProviderTests
                 output.StandardError,
                 DateTimeOffset.UtcNow,
                 DateTimeOffset.UtcNow,
-                TimedOut: false));
+                output.TimedOut));
         }
     }
 
     private sealed record FakeSshCommandOutput(
         string StandardOutput,
         string StandardError,
-        int ExitCode = 0);
+        int ExitCode = 0,
+        bool TimedOut = false);
 }

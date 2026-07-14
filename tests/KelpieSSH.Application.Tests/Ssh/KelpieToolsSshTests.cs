@@ -1781,6 +1781,57 @@ public sealed class KelpieToolsSshTests
     }
 
     [Fact]
+    public async Task HashWebFileAsync_ShouldUseMetadataOnlyProviderCommand()
+    {
+        const string hash = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        var profile = CreateProfile("vps01");
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: $$"""{"resolvedPath":"/var/www/html/index.html","algorithm":"sha256","hash":"{{hash}}","size":128,"mode":"644","owner":"nginx","group":"nginx","isSymlink":false,"errorCode":null}""",
+                StandardError: string.Empty),
+        ]);
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+        var webProvider = new WebPublicFileProvider();
+
+        var result = await KelpieTools.HashWebFileAsync(
+            service,
+            profiles,
+            webProvider,
+            "vps01",
+            "default",
+            "/index.html");
+
+        result.Hash.Should().Be(hash);
+        result.Size.Should().Be(128);
+        result.Error.Should().BeNull();
+        runner.LastRequest!.CommandName.Should().Be("web_public_file_hash_internal");
+        runner.LastRequest.Arguments.Should().NotContainKey("content");
+        runner.LastRequest.StandardInput.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task HashWebFileAsync_ShouldReturnProfileNotTrustedWithoutProviderExecution()
+    {
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([]);
+        var webProvider = new WebPublicFileProvider();
+
+        var result = await KelpieTools.HashWebFileAsync(
+            service,
+            profiles,
+            webProvider,
+            "missing",
+            "default",
+            "/index.html");
+
+        result.Hash.Should().BeNull();
+        result.Error!.Code.Should().Be("profile-not-trusted");
+        runner.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
     public async Task CheckWriteWebFileAsync_ShouldUseProviderWithoutWriting()
     {
         var profile = CreateProfile("vps01", KelpiePolicyMode.Expert);

@@ -14,6 +14,7 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
     private const string OptionalArgumentNone = "\u001fKELPIE_NONE\u001f";
     private const string ListCommandName = "web_public_file_list_internal";
     private const string StatCommandName = "web_public_file_stat_internal";
+    private const string HashCommandName = "web_public_file_hash_internal";
     private const string CheckWriteCommandName = "web_public_file_check_write_internal";
     private const string ReadCommandName = "web_public_file_read_internal";
     private const string SliceCommandName = "web_public_file_slice_internal";
@@ -378,6 +379,144 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             remote.LastModified,
             remote.IsSymlink,
             Warnings: []);
+    }
+
+    /// <inheritdoc />
+    public async Task<WebPublicFileHashResult> HashAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        string? algorithm = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sshCommandService);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var correlationId = Guid.NewGuid().ToString("N");
+        var normalizedSiteKey = string.IsNullOrWhiteSpace(siteKey) ? string.Empty : siteKey.Trim();
+        var normalizedPath = NormalizePath(path);
+        var normalizedAlgorithm = string.IsNullOrWhiteSpace(algorithm) ? "sha256" : algorithm.Trim().ToLowerInvariant();
+        if (!string.Equals(normalizedAlgorithm, "sha256", StringComparison.Ordinal))
+        {
+            return CreateHashError(profile.Name, normalizedSiteKey, normalizedPath, normalizedAlgorithm, "algorithm-not-supported", correlationId);
+        }
+
+        if (string.IsNullOrWhiteSpace(normalizedSiteKey))
+        {
+            return CreateHashError(profile.Name, normalizedSiteKey, normalizedPath, normalizedAlgorithm, "site-not-found", correlationId);
+        }
+
+        if (string.IsNullOrWhiteSpace(path) || !path.Trim().StartsWith("/", StringComparison.Ordinal))
+        {
+            return CreateHashError(profile.Name, normalizedSiteKey, normalizedPath, normalizedAlgorithm, "invalid-path", correlationId);
+        }
+
+        WebPublicSite site;
+        try
+        {
+            site = ResolveSite(profile, normalizedSiteKey);
+        }
+        catch (InvalidOperationException)
+        {
+            return CreateHashError(profile.Name, normalizedSiteKey, normalizedPath, normalizedAlgorithm, "site-not-found", correlationId);
+        }
+
+        var access = ValidatePath(normalizedPath, site, requireWrite: false);
+        if (access.Error is not null)
+        {
+            var code = IsSafeSiteRelativePath(normalizedPath) ? "file-not-allowed" : "invalid-path";
+            return CreateHashError(profile.Name, site.SiteKey, normalizedPath, normalizedAlgorithm, code, correlationId);
+        }
+
+        var contentType = ResolveContentType(normalizedPath, site, null);
+        if (!IsContentTypeAllowed(contentType, site, requireWrite: false, access.IsExplicitRule))
+        {
+            return CreateHashError(profile.Name, site.SiteKey, normalizedPath, normalizedAlgorithm, "file-not-allowed", correlationId);
+        }
+
+        var commandResult = await sshCommandService.ExecuteAsync(
+            profile,
+            HashCommandName,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["siteRootBase64"] = EncodeArgument(site.RootPath),
+                ["pathBase64"] = EncodeArgument(normalizedPath),
+                ["maxBytes"] = site.MaxReadBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            },
+            channel: KelpieExecutionChannel.Mcp,
+            cancellationToken: cancellationToken);
+
+        if (commandResult.TimedOut)
+        {
+            return CreateHashError(profile.Name, site.SiteKey, normalizedPath, normalizedAlgorithm, "remote-timeout", correlationId);
+        }
+
+        if (commandResult.ExitCode != 0)
+        {
+            return CreateHashError(profile.Name, site.SiteKey, normalizedPath, normalizedAlgorithm, "remote-read-failed", correlationId);
+        }
+
+        RemoteHashResult? remote;
+        try
+        {
+            remote = JsonSerializer.Deserialize<RemoteHashResult>(commandResult.StandardOutput, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            remote = null;
+        }
+
+        if (remote is null)
+        {
+            return CreateHashError(profile.Name, site.SiteKey, normalizedPath, normalizedAlgorithm, "invalid-provider-response", correlationId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(remote.ErrorCode))
+        {
+            var safeCode = IsHashErrorCode(remote.ErrorCode) ? remote.ErrorCode : "invalid-provider-response";
+            return CreateHashError(profile.Name, site.SiteKey, normalizedPath, normalizedAlgorithm, safeCode, correlationId);
+        }
+
+        var expectedResolvedPath = site.RootPath.TrimEnd('/') + normalizedPath;
+        if (!string.Equals(remote.Algorithm, "sha256", StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(remote.Hash)
+            || !Sha256Regex().IsMatch(remote.Hash)
+            || remote.Size < 0
+            || remote.Size > site.MaxReadBytes
+            || remote.IsSymlink
+            || !string.Equals(remote.ResolvedPath, expectedResolvedPath, StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(remote.Owner)
+            || string.IsNullOrWhiteSpace(remote.Group)
+            || string.IsNullOrWhiteSpace(remote.Mode))
+        {
+            return CreateHashError(profile.Name, site.SiteKey, normalizedPath, normalizedAlgorithm, "invalid-provider-response", correlationId);
+        }
+
+        _logger.LogInformation(
+            "web file hash completed. Profile={ProfileName}, SiteKey={SiteKey}, Path={Path}, Size={Size}, Algorithm={Algorithm}, Hash={Hash}, Result={Result}, CorrelationId={CorrelationId}",
+            profile.Name,
+            site.SiteKey,
+            normalizedPath,
+            remote.Size,
+            normalizedAlgorithm,
+            remote.Hash,
+            "success",
+            correlationId);
+        return new WebPublicFileHashResult(
+            profile.Name,
+            site.SiteKey,
+            normalizedPath,
+            remote.ResolvedPath!,
+            normalizedAlgorithm,
+            remote.Hash,
+            remote.Size,
+            remote.Owner,
+            remote.Group,
+            remote.Mode,
+            IsSymlink: false,
+            Warnings: [],
+            Error: null);
     }
 
     /// <inheritdoc />
@@ -1852,6 +1991,70 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             Error: error);
     }
 
+    private WebPublicFileHashResult CreateHashError(
+        string profileName,
+        string siteKey,
+        string path,
+        string algorithm,
+        string code,
+        string correlationId)
+    {
+        _logger.LogWarning(
+            "web file hash failed. Profile={ProfileName}, SiteKey={SiteKey}, Path={Path}, Size={Size}, Algorithm={Algorithm}, Result={Result}, ErrorCode={ErrorCode}, CorrelationId={CorrelationId}",
+            profileName,
+            siteKey,
+            path,
+            0,
+            algorithm,
+            "failure",
+            code,
+            correlationId);
+        return new WebPublicFileHashResult(
+            profileName,
+            siteKey,
+            path,
+            ResolvedPath: string.Empty,
+            algorithm,
+            Hash: null,
+            Size: 0,
+            Owner: string.Empty,
+            Group: string.Empty,
+            Mode: string.Empty,
+            IsSymlink: false,
+            Warnings: [],
+            Error: new WebPublicFileHashError(code, CreateHashErrorMessage(code), correlationId));
+    }
+
+    private static bool IsHashErrorCode(string code)
+    {
+        return code is "invalid-path"
+            or "path-outside-root"
+            or "file-not-found"
+            or "file-type-not-supported"
+            or "file-too-large"
+            or "remote-read-failed"
+            or "file-changed-during-read";
+    }
+
+    private static string CreateHashErrorMessage(string code)
+    {
+        return code switch
+        {
+            "site-not-found" => "The requested web public site was not found.",
+            "invalid-path" => "The requested path is invalid.",
+            "path-outside-root" => "The requested path resolves outside the web public root.",
+            "file-not-allowed" => "The requested file is not readable under the web public policy.",
+            "file-not-found" => "The requested file was not found.",
+            "file-type-not-supported" => "The requested path is not a supported regular file.",
+            "file-too-large" => "The requested file exceeds MaxReadBytes.",
+            "algorithm-not-supported" => "Only sha256 is supported.",
+            "remote-timeout" => "The remote hash operation timed out.",
+            "file-changed-during-read" => "The file changed while its hash was being calculated.",
+            "invalid-provider-response" => "The remote hash provider returned an invalid response.",
+            _ => "The remote file could not be hashed safely.",
+        };
+    }
+
     private static WebPublicFileWriteCheckResult CreateWriteCheckResult(
         WebPublicSite site,
         string path,
@@ -2050,6 +2253,9 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
     [GeneratedRegex(@"(?i)^(\.env(\..*)?|\.htaccess|\.htpasswd|.*\.pem|.*\.key)$", RegexOptions.CultureInvariant)]
     private static partial Regex SecretFileRegex();
 
+    [GeneratedRegex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)]
+    private static partial Regex Sha256Regex();
+
     private sealed class RemoteReadResult
     {
         public string? ResolvedPath { get; set; }
@@ -2093,6 +2299,27 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
         public string? LastModified { get; set; }
 
         public bool IsSymlink { get; set; }
+    }
+
+    private sealed class RemoteHashResult
+    {
+        public string? ResolvedPath { get; set; }
+
+        public string? Algorithm { get; set; }
+
+        public string? Hash { get; set; }
+
+        public long Size { get; set; }
+
+        public string? Owner { get; set; }
+
+        public string? Group { get; set; }
+
+        public string? Mode { get; set; }
+
+        public bool IsSymlink { get; set; }
+
+        public string? ErrorCode { get; set; }
     }
 
     private sealed class RemoteWriteCheckResult
