@@ -1811,6 +1811,35 @@ public sealed class KelpieToolsSshTests
     }
 
     [Fact]
+    public async Task HashWebFileAsync_ShouldReturnMetadataWithNineDigitMaxReadBytes()
+    {
+        const string hash = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        var site = CreateSite([], maxReadBytes: 100_000_000);
+        var profile = CreateProfile("vps01", webPublicSites: [site]);
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: $$"""{"resolvedPath":"/var/www/html/index.html","algorithm":"sha256","hash":"{{hash}}","size":128,"mode":"644","owner":"nginx","group":"nginx","isSymlink":false,"errorCode":null}""",
+                StandardError: string.Empty),
+        ]);
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+        var webProvider = new WebPublicFileProvider();
+
+        var result = await KelpieTools.HashWebFileAsync(
+            service,
+            profiles,
+            webProvider,
+            "vps01",
+            "default",
+            "/index.html");
+
+        result.Hash.Should().Be(hash);
+        result.Error.Should().BeNull();
+        runner.LastRequest!.Arguments["maxBytes"].Should().Be("100000000");
+        runner.LastRequest.StandardInput.Should().BeNull();
+    }
+
+    [Fact]
     public async Task HashWebFileAsync_ShouldReturnProfileNotTrustedWithoutProviderExecution()
     {
         var runner = new FakeSshCommandRunner();
@@ -3606,7 +3635,8 @@ public sealed class KelpieToolsSshTests
     private static WebPublicSite CreateSite(
         IReadOnlyCollection<WebPublicFileRule> allowedFiles,
         string siteKey = "default",
-        string rootPath = "/var/www/html")
+        string rootPath = "/var/www/html",
+        int maxReadBytes = 5 * 1024 * 1024)
     {
         return new WebPublicSite
         {
@@ -3614,6 +3644,7 @@ public sealed class KelpieToolsSshTests
             DisplayName = "Default Web Site",
             RootPath = rootPath,
             AllowedFiles = allowedFiles,
+            MaxReadBytes = maxReadBytes,
         };
     }
 

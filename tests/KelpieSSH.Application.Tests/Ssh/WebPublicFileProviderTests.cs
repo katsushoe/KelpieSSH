@@ -96,6 +96,27 @@ public sealed class WebPublicFileProviderTests
     }
 
     [Fact]
+    public async Task HashAsync_ShouldReachRunnerWithNineDigitMaxReadBytes()
+    {
+        const string hash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        var site = CreateSite([], maxReadBytes: 100_000_000);
+        var profile = CreateProfile(webPublicSites: [site]);
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: $$"""{"resolvedPath":"/var/www/html/index.html","algorithm":"sha256","hash":"{{hash}}","size":22,"owner":"nginx","group":"nginx","mode":"640","isSymlink":false,"errorCode":null}""",
+                StandardError: string.Empty),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.HashAsync(service, profile, "default", "/index.html");
+
+        result.Error.Should().BeNull();
+        runner.LastRequest.Should().NotBeNull();
+        runner.LastRequest!.Arguments["maxBytes"].Should().Be("100000000");
+    }
+
+    [Fact]
     public async Task HashAsync_ShouldRejectWriteOnlyAllowedFileWithoutCallingProvider()
     {
         var site = CreateSite([new WebPublicFileRule("*.html", AllowedRootAccess.Write)]);
@@ -1315,7 +1336,9 @@ public sealed class WebPublicFileProviderTests
         IReadOnlyCollection<WebPublicContentTypeRule>? allowedContentTypes = null,
         IReadOnlyCollection<string>? writableExecutableExtensions = null,
         string siteKey = "default",
-        string rootPath = "/var/www/html")
+        string rootPath = "/var/www/html",
+        int maxReadBytes = 5 * 1024 * 1024,
+        int maxWriteBytes = 5 * 1024 * 1024)
     {
         return new WebPublicSite
         {
@@ -1325,6 +1348,8 @@ public sealed class WebPublicFileProviderTests
             AllowedFiles = allowedFiles,
             AllowedContentTypes = allowedContentTypes ?? [],
             WritableExecutableExtensions = writableExecutableExtensions ?? [],
+            MaxReadBytes = maxReadBytes,
+            MaxWriteBytes = maxWriteBytes,
         };
     }
 

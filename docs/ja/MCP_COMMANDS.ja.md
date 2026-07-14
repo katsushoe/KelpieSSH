@@ -1,6 +1,6 @@
 # KelpieSSH MCP コマンド
 
-最終更新: 2026-07-12
+最終更新: 2026-07-15
 
 このファイルは、KelpieSSH が MCP callable tool として公開するコマンドの正本です。
 通常のターミナルで実行する `kelpie` / `kelpiemcp` CLI コマンドは `COMMANDS.ja.md` を正本とします。
@@ -4734,6 +4734,7 @@ providerが読み取りを許可した通常ファイルについて、本文を
 処理内容:
 
 profile trust、site設定、`AllowedFiles`のread access、content typeのread access、`MaxReadBytes`を確認します。専用provider commandはsymlinkを追跡せず対象を開き、bounded streamとしてhashを計算し、読取り前後のdevice、inode、size、mtimeが一致することを確認します。MCP serverはprovider JSON、path、size、algorithm、64文字の小文字hex hashを再検証します。
+`MaxReadBytes`は`1`から`2147483647`までの正のInt32値に限ります。この範囲の9桁・10桁の値は切り詰めずproviderへ渡します。
 
 戻り値:
 

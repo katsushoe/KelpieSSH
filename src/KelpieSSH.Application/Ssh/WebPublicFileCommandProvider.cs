@@ -7,7 +7,7 @@ public sealed class WebPublicFileCommandProvider : IAllowedCommandProvider
 {
     private const string Base64PathPattern = "^[A-Za-z0-9+/=]{1,4096}$";
     private const string Base64ContentPattern = "^[A-Za-z0-9+/=]+$";
-    private const string MaxBytesPattern = "^[1-9][0-9]{0,7}$";
+    private const string MaxBytesPattern = "^(?:[1-9][0-9]{0,8}|1[0-9]{9}|20[0-9]{8}|21[0-3][0-9]{7}|214[0-6][0-9]{6}|2147[0-3][0-9]{5}|21474[0-7][0-9]{4}|214748[0-2][0-9]{3}|2147483[0-5][0-9]{2}|21474836[0-3][0-9]|214748364[0-7])$";
     private const string MaxLinesPattern = "^[0-9]{1,4}$";
     private const string MaxDepthPattern = "^[0-5]$";
     private const string LimitPattern = "^[1-9][0-9]{0,2}$";
@@ -51,7 +51,7 @@ public sealed class WebPublicFileCommandProvider : IAllowedCommandProvider
             [
                 new AllowedCommandParameterDefinition("siteRootBase64", MaxLength: 4096, Pattern: Base64PathPattern),
                 new AllowedCommandParameterDefinition("pathBase64", MaxLength: 4096, Pattern: Base64PathPattern),
-                new AllowedCommandParameterDefinition("maxBytes", MaxLength: 8, Pattern: MaxBytesPattern),
+                new AllowedCommandParameterDefinition("maxBytes", MaxLength: 10, Pattern: MaxBytesPattern),
             ]),
         new(
             "web_public_file_check_write_internal",
@@ -69,7 +69,7 @@ public sealed class WebPublicFileCommandProvider : IAllowedCommandProvider
             [
                 new AllowedCommandParameterDefinition("siteRootBase64", MaxLength: 4096, Pattern: Base64PathPattern),
                 new AllowedCommandParameterDefinition("pathBase64", MaxLength: 4096, Pattern: Base64PathPattern),
-                new AllowedCommandParameterDefinition("maxBytes", MaxLength: 8, Pattern: MaxBytesPattern),
+                new AllowedCommandParameterDefinition("maxBytes", MaxLength: 10, Pattern: MaxBytesPattern),
             ]),
         new(
             "web_public_file_slice_internal",
@@ -79,7 +79,7 @@ public sealed class WebPublicFileCommandProvider : IAllowedCommandProvider
                 new AllowedCommandParameterDefinition("siteRootBase64", MaxLength: 4096, Pattern: Base64PathPattern),
                 new AllowedCommandParameterDefinition("pathBase64", MaxLength: 4096, Pattern: Base64PathPattern),
                 new AllowedCommandParameterDefinition("mode", MaxLength: 4, Pattern: SliceModePattern),
-                new AllowedCommandParameterDefinition("maxBytes", MaxLength: 8, Pattern: MaxBytesPattern),
+                new AllowedCommandParameterDefinition("maxBytes", MaxLength: 10, Pattern: MaxBytesPattern),
                 new AllowedCommandParameterDefinition("maxLines", MaxLength: 4, Pattern: MaxLinesPattern),
             ]),
         new(
@@ -89,7 +89,7 @@ public sealed class WebPublicFileCommandProvider : IAllowedCommandProvider
             [
                 new AllowedCommandParameterDefinition("siteRootBase64", MaxLength: 4096, Pattern: Base64PathPattern),
                 new AllowedCommandParameterDefinition("pathBase64", MaxLength: 4096, Pattern: Base64PathPattern),
-                new AllowedCommandParameterDefinition("maxBytes", MaxLength: 8, Pattern: MaxBytesPattern),
+                new AllowedCommandParameterDefinition("maxBytes", MaxLength: 10, Pattern: MaxBytesPattern),
                 new AllowedCommandParameterDefinition("createDirectories", MaxLength: 1, Pattern: CreateDirectoriesPattern),
             ],
             SshCommandRiskLevel.ConfirmRequired),
@@ -100,7 +100,7 @@ public sealed class WebPublicFileCommandProvider : IAllowedCommandProvider
             [
                 new AllowedCommandParameterDefinition("siteRootBase64", MaxLength: 4096, Pattern: Base64PathPattern),
                 new AllowedCommandParameterDefinition("pathBase64", MaxLength: 4096, Pattern: Base64PathPattern),
-                new AllowedCommandParameterDefinition("maxBytes", MaxLength: 8, Pattern: MaxBytesPattern),
+                new AllowedCommandParameterDefinition("maxBytes", MaxLength: 10, Pattern: MaxBytesPattern),
                 new AllowedCommandParameterDefinition("createDirectories", MaxLength: 1, Pattern: CreateDirectoriesPattern),
                 new AllowedCommandParameterDefinition("ownerBase64", MaxLength: 128, Pattern: Base64PathPattern),
                 new AllowedCommandParameterDefinition("modeBase64", MaxLength: 64, Pattern: Base64PathPattern),

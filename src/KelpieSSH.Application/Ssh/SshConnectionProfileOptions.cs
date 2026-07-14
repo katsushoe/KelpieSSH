@@ -543,6 +543,8 @@ public sealed class SshConnectionProfileOptions
             .Concat(allowedFiles.ContentTypeRules)
             .ToArray();
         var rootPath = string.IsNullOrWhiteSpace(options.RootPath) ? options.Root : options.RootPath;
+        var maxReadBytes = ReadPositiveByteLimit(options.MaxReadBytes, "MaxReadBytes");
+        var maxWriteBytes = ReadPositiveByteLimit(options.MaxWriteBytes, "MaxWriteBytes");
         return new WebPublicSite
         {
             SiteKey = options.SiteKey,
@@ -553,9 +555,20 @@ public sealed class SshConnectionProfileOptions
             AllowedContentTypes = allowedContentTypes,
             AllowedFiles = allowedFiles.FileRules,
             CreateDirectories = options.CreateDirectories ?? true,
-            MaxReadBytes = options.MaxReadBytes ?? 5 * 1024 * 1024,
-            MaxWriteBytes = options.MaxWriteBytes ?? 5 * 1024 * 1024,
+            MaxReadBytes = maxReadBytes,
+            MaxWriteBytes = maxWriteBytes,
         };
+    }
+
+    private static int ReadPositiveByteLimit(int? value, string propertyName)
+    {
+        var resolved = value ?? 5 * 1024 * 1024;
+        if (resolved <= 0)
+        {
+            throw new InvalidOperationException($"SSH web public site {propertyName} must be a positive Int32 value.");
+        }
+
+        return resolved;
     }
 
     private static WebPublicAllowedFileRules ReadAllowedFiles(

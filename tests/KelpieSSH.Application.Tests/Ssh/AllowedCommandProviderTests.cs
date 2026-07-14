@@ -342,6 +342,47 @@ public sealed class AllowedCommandProviderTests
         writeCommand.Should().NotContain("\" --");
     }
 
+    [Theory]
+    [InlineData("100000000")]
+    [InlineData("2147483647")]
+    public void WebPublicFileCommandProvider_ShouldRenderPositiveInt32MaxBytes(string maxBytes)
+    {
+        var provider = new WebPublicFileCommandProvider();
+        var profile = CreateProfile("debian", "apt");
+        var command = provider.GetCommands(profile).Single(item => item.Name == "web_public_file_hash_internal");
+
+        var commandText = command.BuildCommandText(new Dictionary<string, string>
+        {
+            ["siteRootBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("/var/www/html")),
+            ["pathBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("/index.html")),
+            ["maxBytes"] = maxBytes,
+        });
+
+        commandText.Should().Contain($"'{maxBytes}'");
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("2147483648")]
+    [InlineData("not-a-number")]
+    public void WebPublicFileCommandProvider_ShouldRejectMaxBytesOutsidePositiveInt32(string maxBytes)
+    {
+        var provider = new WebPublicFileCommandProvider();
+        var profile = CreateProfile("debian", "apt");
+        var maxBytesParameters = provider.GetCommands(profile)
+            .SelectMany(command => command.Parameters ?? [])
+            .Where(parameter => parameter.Name == "maxBytes")
+            .ToArray();
+
+        maxBytesParameters.Should().NotBeEmpty();
+        foreach (var parameter in maxBytesParameters)
+        {
+            var action = () => parameter.Validate(maxBytes);
+            action.Should().Throw<InvalidOperationException>();
+        }
+    }
+
     [Fact]
     public void WebPublicFileCommandProvider_ShouldRenderSudoPermissionCommands()
     {

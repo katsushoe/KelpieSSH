@@ -1,6 +1,6 @@
 # KelpieSSH MCP Commands
 
-Last updated: 2026-07-12
+Last updated: 2026-07-15
 
 This file is the English command reference for MCP callable tools exposed by `KelpieMCPServer`.
 For Japanese documentation, see [docs/ja/MCP_COMMANDS.ja.md](docs/ja/MCP_COMMANDS.ja.md).
@@ -6713,6 +6713,7 @@ Input arguments:
 Processing:
 
 Kelpie verifies profile trust, site configuration, `AllowedFiles` read access, content-type read access, and `MaxReadBytes`. A dedicated provider command opens the target without following symlinks, hashes it as a bounded stream, and verifies device, inode, size, and modification time before and after reading. The MCP server validates the provider JSON, path, size, algorithm, and lowercase 64-character hash before returning success.
+`MaxReadBytes` must be a positive Int32 value from `1` through `2147483647`; nine- and ten-digit values in that range are passed to the provider without truncation.
 
 Return value:
 

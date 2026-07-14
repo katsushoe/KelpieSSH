@@ -271,6 +271,41 @@ public sealed class SshConnectionProfileFileLoaderTests
     }
 
     [Fact]
+    public void LoadFile_ShouldAcceptInt32MaxWebPublicByteLimits()
+    {
+        var directory = CreateTempDirectory();
+        var filePath = Path.Combine(directory, "vps01.json");
+        var json = CreateProfileJsonWithWebPublicSites("keys/id_ed25519")
+            .Replace("\"MaxReadBytes\": 1048576", "\"MaxReadBytes\": 2147483647", StringComparison.Ordinal)
+            .Replace("\"MaxWriteBytes\": 2097152", "\"MaxWriteBytes\": 2147483647", StringComparison.Ordinal);
+        File.WriteAllText(filePath, json);
+
+        var profile = SshConnectionProfileFileLoader.LoadFile(filePath);
+
+        var site = profile.WebPublicSites.Should().ContainSingle().Which;
+        site.MaxReadBytes.Should().Be(int.MaxValue);
+        site.MaxWriteBytes.Should().Be(int.MaxValue);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("2147483648")]
+    [InlineData("\"not-a-number\"")]
+    public void LoadFile_ShouldRejectInvalidWebPublicByteLimits(string invalidValue)
+    {
+        var directory = CreateTempDirectory();
+        var filePath = Path.Combine(directory, "vps01.json");
+        var json = CreateProfileJsonWithWebPublicSites("keys/id_ed25519")
+            .Replace("\"MaxReadBytes\": 1048576", $"\"MaxReadBytes\": {invalidValue}", StringComparison.Ordinal);
+        File.WriteAllText(filePath, json);
+
+        var action = () => SshConnectionProfileFileLoader.LoadFile(filePath);
+
+        action.Should().Throw<Exception>();
+    }
+
+    [Fact]
     public void LoadFile_ShouldReadUserWebPublicSites()
     {
         var directory = CreateTempDirectory();
