@@ -10,6 +10,8 @@ public sealed class ReloadingSshConnectionProfileCatalog : ISshConnectionProfile
     private readonly string? _trustStorePath;
     private readonly IReadOnlyCollection<string> _reloadProfileNames;
     private SshConnectionProfileCatalog _current;
+    private Exception? _lastReloadError;
+    private IReadOnlyCollection<SshConnectionProfileLoadError> _profileLoadErrors = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ReloadingSshConnectionProfileCatalog"/> class.
@@ -44,18 +46,36 @@ public sealed class ReloadingSshConnectionProfileCatalog : ISshConnectionProfile
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
         _current = LoadCatalog(_profilesDirectory, _trustStorePath, _reloadProfileNames, out var loadErrors);
-        ProfileLoadErrors = loadErrors;
+        _profileLoadErrors = loadErrors;
     }
 
     /// <summary>
     /// Gets the most recent reload error. The last good catalog remains active when reload fails.
     /// </summary>
-    public Exception? LastReloadError { get; private set; }
+    public Exception? LastReloadError
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _lastReloadError;
+            }
+        }
+    }
 
     /// <summary>
     /// Gets the most recent profile-level load errors.
     /// </summary>
-    public IReadOnlyCollection<SshConnectionProfileLoadError> ProfileLoadErrors { get; private set; } = [];
+    public IReadOnlyCollection<SshConnectionProfileLoadError> ProfileLoadErrors
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _profileLoadErrors;
+            }
+        }
+    }
 
     /// <summary>
     /// Gets the profiles directory.
@@ -65,13 +85,19 @@ public sealed class ReloadingSshConnectionProfileCatalog : ISshConnectionProfile
     /// <inheritdoc />
     public bool TryGet(string name, out SshConnectionProfile profile)
     {
-        return _current.TryGet(name, out profile);
+        lock (_gate)
+        {
+            return _current.TryGet(name, out profile);
+        }
     }
 
     /// <inheritdoc />
     public IReadOnlyCollection<SshConnectionProfile> List()
     {
-        return _current.List();
+        lock (_gate)
+        {
+            return _current.List();
+        }
     }
 
     /// <summary>
@@ -85,8 +111,8 @@ public sealed class ReloadingSshConnectionProfileCatalog : ISshConnectionProfile
             try
             {
                 var next = LoadCatalog(_profilesDirectory, _trustStorePath, _reloadProfileNames, out var loadErrors);
-                ProfileLoadErrors = loadErrors;
-                LastReloadError = loadErrors.Count == 0
+                _profileLoadErrors = loadErrors;
+                _lastReloadError = loadErrors.Count == 0
                     ? null
                     : new InvalidOperationException(string.Join("; ", loadErrors.Select(error => error.Message)));
                 if (loadErrors.Count == 0)
@@ -100,15 +126,15 @@ public sealed class ReloadingSshConnectionProfileCatalog : ISshConnectionProfile
                     ProfilesDirectory: _profilesDirectory,
                     ProfileCount: profiles.Count,
                     ProfileNames: profiles.Select(profile => profile.Name).ToArray(),
-                    ErrorMessage: LastReloadError?.Message);
+                    ErrorMessage: _lastReloadError?.Message);
             }
             catch (Exception ex) when (ex is IOException
                 or UnauthorizedAccessException
                 or InvalidOperationException
                 or System.Text.Json.JsonException)
             {
-                LastReloadError = ex;
-                ProfileLoadErrors = [];
+                _lastReloadError = ex;
+                _profileLoadErrors = [];
                 var profiles = _current.List();
                 return new SshConnectionProfileReloadResult(
                     Success: false,
@@ -258,7 +284,8 @@ public sealed class ReloadingSshConnectionProfileCatalog : ISshConnectionProfile
         lock (_gate)
         {
             var trustStore = SshProfileTrustStore.Load(_trustStorePath);
-            var trusted = trustStore.TryGetHash(normalizedProfileName, out _);
+            var trusted = trustStore.TryGetHash(normalizedProfileName, out var trustedHash);
+            trustStore.TryGetAuthorizationSnapshot(normalizedProfileName, out var previousAuthorizationSnapshot);
             if (operation == SshProfileTrustOperation.Add && trusted)
             {
                 return new SshProfileTrustOperationResult(false, normalizedProfileName, "profile-already-trusted", "SSH profile is already trusted.");
@@ -304,7 +331,28 @@ public sealed class ReloadingSshConnectionProfileCatalog : ISshConnectionProfile
                 SshProfileTrustStore.ComputeFileHash(profilePath),
                 proposedSnapshot);
             trustStore.Save(_trustStorePath);
-            Reload();
+            var reloadResult = ReloadProfileCatalog(normalizedProfileName);
+            if (!reloadResult.Success)
+            {
+                if (trusted)
+                {
+                    trustStore.SetHash(normalizedProfileName, trustedHash, previousAuthorizationSnapshot);
+                }
+                else
+                {
+                    trustStore.RemoveHash(normalizedProfileName);
+                }
+
+                trustStore.Save(_trustStorePath);
+                return new SshProfileTrustOperationResult(
+                    false,
+                    normalizedProfileName,
+                    "profile-reload-failed",
+                    reloadResult.ErrorMessage ?? "SSH profile catalog reload failed.",
+                    authorizationDiff?.Kind ?? SshProfileAuthorizationChangeKind.None,
+                    authorizationDiff?.ChangedFields ?? []);
+            }
+
             return new SshProfileTrustOperationResult(
                 true,
                 normalizedProfileName,
@@ -312,6 +360,57 @@ public sealed class ReloadingSshConnectionProfileCatalog : ISshConnectionProfile
                 string.Empty,
                 authorizationDiff?.Kind ?? SshProfileAuthorizationChangeKind.None,
                 authorizationDiff?.ChangedFields ?? []);
+        }
+    }
+
+    private SshConnectionProfileReloadResult ReloadProfileCatalog(string profileName)
+    {
+        lock (_gate)
+        {
+            try
+            {
+                var next = LoadCatalog(_profilesDirectory, _trustStorePath, _reloadProfileNames, out var loadErrors);
+                _profileLoadErrors = loadErrors;
+                _lastReloadError = loadErrors.Count == 0
+                    ? null
+                    : new InvalidOperationException(string.Join("; ", loadErrors.Select(error => error.Message)));
+                if (!next.TryGet(profileName, out _))
+                {
+                    var profiles = _current.List();
+                    var profileError = loadErrors.FirstOrDefault(error =>
+                        string.Equals(error.ProfileName, profileName, StringComparison.OrdinalIgnoreCase));
+                    return new SshConnectionProfileReloadResult(
+                        Success: false,
+                        ProfilesDirectory: _profilesDirectory,
+                        ProfileCount: profiles.Count,
+                        ProfileNames: profiles.Select(profile => profile.Name).ToArray(),
+                        ErrorMessage: profileError?.Message ?? _lastReloadError?.Message ?? "SSH profile catalog reload failed.");
+                }
+
+                _current = next;
+                var reloadedProfiles = _current.List();
+                return new SshConnectionProfileReloadResult(
+                    Success: true,
+                    ProfilesDirectory: _profilesDirectory,
+                    ProfileCount: reloadedProfiles.Count,
+                    ProfileNames: reloadedProfiles.Select(profile => profile.Name).ToArray(),
+                    ErrorMessage: null);
+            }
+            catch (Exception ex) when (ex is IOException
+                or UnauthorizedAccessException
+                or InvalidOperationException
+                or System.Text.Json.JsonException)
+            {
+                _lastReloadError = ex;
+                _profileLoadErrors = [];
+                var profiles = _current.List();
+                return new SshConnectionProfileReloadResult(
+                    Success: false,
+                    ProfilesDirectory: _profilesDirectory,
+                    ProfileCount: profiles.Count,
+                    ProfileNames: profiles.Select(profile => profile.Name).ToArray(),
+                    ErrorMessage: ex.Message);
+            }
         }
     }
 

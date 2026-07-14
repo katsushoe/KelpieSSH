@@ -224,6 +224,53 @@ public sealed class SshConnectionProfileCatalogTests
     }
 
     [Fact]
+    public async Task ReloadingCatalog_WithTrustStore_ShouldExposeReloadedAllowedFilesThroughExistingCatalog()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        var profilePath = Path.Combine(directory, "vps01.json");
+        File.WriteAllText(profilePath, CreateProfileJson("deploy"));
+        var catalog = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
+
+        File.WriteAllText(profilePath, CreateWebProfileJson());
+        var result = await Task.Run(() => catalog.ReloadTrustedProfile("vps01"));
+
+        result.Success.Should().BeTrue();
+        result.Status.Should().Be("reload");
+        catalog.TryGet("vps01", out var profile).Should().BeTrue();
+        var site = profile.WebPublicSites.Should().ContainSingle().Which;
+        site.SiteKey.Should().Be("default");
+        site.WritableExecutableExtensions.Should().ContainSingle().Which.Should().Be(".php");
+        var allowedFile = site.AllowedFiles.Should().ContainSingle().Which;
+        allowedFile.Pattern.Should().Be("/_includes/sales-data.php");
+        allowedFile.Access.HasFlag(AllowedRootAccess.Read).Should().BeTrue();
+        allowedFile.Access.HasFlag(AllowedRootAccess.Write).Should().BeTrue();
+    }
+
+    [Fact]
+    public void ReloadingCatalog_WithTrustStore_ShouldReloadTargetWhenAnotherProfileHasLoadErrors()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        var profilePath = Path.Combine(directory, "vps01.json");
+        File.WriteAllText(profilePath, CreateProfileJson("deploy"));
+        var catalog = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
+        File.WriteAllText(profilePath, CreateWebProfileJson());
+        File.WriteAllText(Path.Combine(directory, "vps02.json"), "{ invalid json");
+        var result = catalog.ReloadTrustedProfile("vps01");
+        var trustStore = SshProfileTrustStore.Load(trustStorePath);
+
+        result.Success.Should().BeTrue();
+        result.Status.Should().Be("reload");
+        trustStore.TryGetHash("vps01", out var trustedHash).Should().BeTrue();
+        trustedHash.Should().Be(SshProfileTrustStore.ComputeFileHash(profilePath));
+        catalog.TryGet("vps01", out var profile).Should().BeTrue();
+        profile.WebPublicSites.Should().ContainSingle();
+        catalog.TryGet("vps02", out _).Should().BeFalse();
+        catalog.ProfileLoadErrors.Should().ContainSingle(error => error.ProfileName == "vps02");
+    }
+
+    [Fact]
     public void ReloadingCatalog_WithTrustStore_ShouldRevokeTrustedProfile()
     {
         var directory = CreateTempDirectory();
@@ -858,6 +905,37 @@ public sealed class SshConnectionProfileCatalogTests
           "Platform": {
             "OsFamily": "debian",
             "PackageManager": "apt"
+          }
+        }
+        """;
+    }
+
+    private static string CreateWebProfileJson()
+    {
+        return """
+        {
+          "Host": {
+            "Address": "example.invalid"
+          },
+          "Auth": {
+            "UserName": "deploy",
+            "Method": "privateKey",
+            "PrivateKeyFile": "id_ed25519"
+          },
+          "Platform": {
+            "OsFamily": "debian",
+            "PackageManager": "apt"
+          },
+          "WebPublicSites": {
+            "default": {
+              "Root": "/var/www",
+              "WritableExecutableExtensions": [
+                ".php"
+              ],
+              "AllowedFiles": {
+                "file:/_includes/sales-data.php": "$ReadWrite"
+              }
+            }
           }
         }
         """;

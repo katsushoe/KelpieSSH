@@ -290,14 +290,14 @@ Arguments:
 
 Processing:
 
-- When `KelpieMCPServer` is running, the server validates the profile, updates the trusted hash, and reloads the in-memory catalog.
+- When `KelpieMCPServer` is running, the server validates the profile, updates the trusted hash, and reloads the in-memory catalog. Success is returned only after the running catalog contains the requested profile. Load errors from unrelated profiles remain available as profile load errors but do not block the requested profile reload. If the requested profile cannot be loaded, the previous trusted baseline is restored and the command returns `profile-reload-failed`.
 - When `KelpieMCPServer` is not running, `kelpiemcp` validates the profile and updates `dat/mcp_trusted_store.dat`. The edited profile is loaded the next time the MCP server starts.
 - The operation is denied when `ProfileOperations:Reload:CLI` is `Deny`.
 
 Return value:
 
 - Exit code `0` when the edited profile is accepted.
-- Non-zero exit code when the profile is missing, not trusted, invalid, `ProfileOperations:Reload:CLI` is `Deny`, or cannot be written to the trust store.
+- Non-zero exit code when the profile is missing, not trusted, invalid, `ProfileOperations:Reload:CLI` is `Deny`, cannot be written to the trust store, or the running catalog cannot be reloaded.
 - Standard output is a JSON `SshProfileTrustOperationResult`.
 
 Return value sample:
