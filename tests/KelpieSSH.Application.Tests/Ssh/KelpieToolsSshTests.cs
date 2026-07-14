@@ -2,6 +2,7 @@ using FluentAssertions;
 using Kelpie.Core;
 using KelpieMCPServer;
 using KelpieSSH.Application.Ssh;
+using NSubstitute;
 
 namespace KelpieSSH.Application.Tests.Ssh;
 
@@ -3404,6 +3405,27 @@ public sealed class KelpieToolsSshTests
         result.ErrorInfo!.Code.Should().Be("KELPIE_POLICY_COMMAND_DENIED");
         result.ErrorInfo.Category.Should().Be("PolicyDenied");
         runner.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ExportSshFileAsync_ShouldDelegateWithoutReturningContent()
+    {
+        var profile = CreateProfile("vps01");
+        var profiles = new SshConnectionProfileCatalog([profile]);
+        var exporter = NSubstitute.Substitute.For<ISshFileExporter>();
+        var expected = new SshFileExportResult(
+            "vps01", "/etc/app/private.pem", "/etc/app/private.pem", "D:\\Kelpie\\dat\\exports\\private.pem",
+            "sha256", new string('a', 64), 399, "0", "48", "0640", ["File content was not returned."]);
+        exporter.ExportAsync(profile, "/etc/app/private.pem", "private.pem", true, Arg.Any<CancellationToken>())
+            .Returns(expected);
+
+        var result = await KelpieTools.ExportSshFileAsync(
+            profiles, exporter, "vps01", "/etc/app/private.pem", "private.pem", confirmSpecialPath: true);
+
+        result.Should().Be(expected);
+        result.Should().NotBeOfType<string>();
+        await exporter.Received(1).ExportAsync(
+            profile, "/etc/app/private.pem", "private.pem", true, Arg.Any<CancellationToken>());
     }
 
     [Fact]

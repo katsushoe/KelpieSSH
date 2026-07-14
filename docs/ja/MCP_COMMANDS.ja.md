@@ -57,6 +57,7 @@ HTTP request body は REST 形式ではなく JSON-RPC です。たとえば診�
 | サービス操作 | `ssh_service_status`, `ssh_service_is_active`, `ssh_service_is_enabled`, `ssh_list_services`, `ssh_service_enable_now`, `ssh_service_reload`, `ssh_service_restart`, `ssh_service_stop`, `ssh_service_disable` | systemd service の状態確認と確認付き変更。 |
 | サービス設定 / ログ | `service_config_paths`, `service_config_file_check_read`, `service_config_file_read`, `service_config_file_check_write`, `service_config_file_write`, `service_config_file_rollback`, `service_config_file_commit`, `service_config_test`, `ssh_service_config_nginx_enable_php`, `service_logfile_read` | provider が許可したサービス設定ファイルとログの操作。 |
 | Web ファイル | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_hash`, `web_file_check_write`, `web_secret_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_secret_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | provider が許可した Web ルート配下のファイル操作、秘密ファイル転送、権限変更。 |
+| SSH file export | `ssh_file_export` | `@Read`と`@Export`で許可されたremote通常fileを、本文を応答へ含めずlocal Kelpie export directoryへ保存。 |
 
 ## 共通オプション
 

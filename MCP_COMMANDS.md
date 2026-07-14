@@ -7556,3 +7556,9 @@ Safety notes:
 - Service configuration and web file operations are limited to provider-approved paths.
 - Real host names, real user names, secrets, raw log bodies containing secrets, and unpublished settings must not be recorded in committed documents.
 
+### `ssh_file_export`
+
+Exports one remote regular file directly into the Kelpie data directory's `exports` folder. The matching `AllowedRoots` rule must grant both `@Read` and `@Export`. Every remote path component is checked; symlinks, directories, special files, root escapes, oversized files, and files changed during transfer are rejected. A `SpecialPaths: Confirm` match additionally requires `confirmSpecialPath=true`.
+
+Inputs are `profileName`, absolute `remotePath`, `localPath` (relative to the export folder, or absolute inside it), and optional `confirmSpecialPath`. The response contains only paths, SHA-256, size, numeric owner/group IDs, and warnings. File content and Base64 content are never returned.
+

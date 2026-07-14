@@ -112,6 +112,9 @@ builder.Services.AddSingleton<ISshPasswordProvider>(serviceProvider =>
     serviceProvider.GetRequiredService<ISshPasswordSessionStore>());
 builder.Services.AddSingleton<SshTerminalSessionManager>();
 builder.Services.AddSingleton<ISshCommandRunner, SshNetCommandRunner>();
+builder.Services.AddSingleton<ISshFileExporter>(serviceProvider => new SshNetFileExporter(
+    serviceProvider.GetRequiredService<ISshPasswordProvider>(),
+    Path.Combine(KelpieRuntimePaths.GetDataDirectory(runtimeBaseDirectory), "exports")));
 builder.Services.AddSingleton(serviceProvider => new SshCommandService(
     serviceProvider.GetRequiredService<IReadOnlyCollection<ICommandProcessingProvider>>(),
     serviceProvider.GetRequiredService<ISshCommandRunner>(),
