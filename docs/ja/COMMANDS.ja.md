@@ -387,6 +387,7 @@ kelpiemcp profile-capabilities
 処理内容:
 
 profile file、trust store、`ProfileOperations:*:CLI` 設定を確認します。SSH target には接続しません。
+control pipeでアクセス拒否またはtimeoutが発生した場合は、offline trust storeを読み取らず、すべてのcapabilityを`false`として`control-pipe-access-denied`または`control-pipe-timeout`を返します。サーバー停止中のoffline処理でtrust storeを復号できない場合は、未処理例外で終了せず`offline-trust-store-unavailable`を返します。
 
 戻り値:
 

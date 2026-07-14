@@ -343,15 +343,27 @@ public static class KelpieServerCommandRunner
             return;
         }
 
+        var pipeFailure = ControlPipeFailure.None;
         var response = await SendControlCommandWithResponseAsync(
             options.ControlPipeName,
             "profile-capabilities " + resolvedProfileName,
-            TimeSpan.FromSeconds(3));
-        var capabilities = !string.IsNullOrWhiteSpace(response)
-            ? JsonSerializer.Deserialize<SshProfileTrustCapabilities>(response)
-                ?? new SshProfileTrustCapabilities(resolvedProfileName, false, false, false, "invalid-response")
-            : CreateOfflineCatalog().GetTrustCapabilities(resolvedProfileName);
+            TimeSpan.FromSeconds(3),
+            failure => pipeFailure = failure);
+        var capabilities = pipeFailure switch
+        {
+            ControlPipeFailure.AccessDenied => new SshProfileTrustCapabilities(
+                resolvedProfileName, false, false, false, "control-pipe-access-denied"),
+            ControlPipeFailure.Timeout => new SshProfileTrustCapabilities(
+                resolvedProfileName, false, false, false, "control-pipe-timeout"),
+            _ when !string.IsNullOrWhiteSpace(response) => JsonSerializer.Deserialize<SshProfileTrustCapabilities>(response)
+                ?? new SshProfileTrustCapabilities(resolvedProfileName, false, false, false, "invalid-response"),
+            _ => GetOfflineTrustCapabilities(resolvedProfileName),
+        };
         Console.WriteLine(JsonSerializer.Serialize(ApplyCliProfileOperationPolicy(options, capabilities)));
+        if (pipeFailure is ControlPipeFailure.AccessDenied or ControlPipeFailure.Timeout)
+        {
+            Environment.ExitCode = 1;
+        }
     }
 
     /// <summary>
@@ -1229,7 +1241,7 @@ public static class KelpieServerCommandRunner
                 "KelpieMCPServer control pipe timed out. The offline trust store was not changed."),
             _ when !string.IsNullOrWhiteSpace(response) => JsonSerializer.Deserialize<SshProfileTrustOperationResult>(response)
                 ?? new SshProfileTrustOperationResult(false, normalizedProfileName, "invalid-response", "KelpieMCPServer returned an invalid response."),
-            _ => offlineOperation(normalizedProfileName),
+            _ => ExecuteOfflineTrustOperation(normalizedProfileName, offlineOperation),
         };
 
         Console.WriteLine(JsonSerializer.Serialize(result));
@@ -1662,6 +1674,44 @@ public static class KelpieServerCommandRunner
         arguments.AddRange(reloadProfileNames.Select(profileName => "--reload-profile:" + profileName));
         arguments.AddRange(KelpieRuntimePathOverrideParser.ToArguments(KelpieRuntimePaths.Overrides));
         return arguments;
+    }
+
+    private static SshProfileTrustCapabilities GetOfflineTrustCapabilities(string profileName)
+    {
+        try
+        {
+            return CreateOfflineCatalog().GetTrustCapabilities(profileName);
+        }
+        catch (InvalidOperationException ex)
+        {
+            KpLog.Warn($"Offline trust store could not be read. profile={profileName} error={ex.Message}");
+            Environment.ExitCode = 1;
+            return new SshProfileTrustCapabilities(
+                profileName,
+                false,
+                false,
+                false,
+                "offline-trust-store-unavailable");
+        }
+    }
+
+    private static SshProfileTrustOperationResult ExecuteOfflineTrustOperation(
+        string profileName,
+        Func<string, SshProfileTrustOperationResult> offlineOperation)
+    {
+        try
+        {
+            return offlineOperation(profileName);
+        }
+        catch (InvalidOperationException ex)
+        {
+            KpLog.Warn($"Offline trust store operation failed. profile={profileName} error={ex.Message}");
+            return new SshProfileTrustOperationResult(
+                false,
+                profileName,
+                "offline-trust-store-unavailable",
+                "The offline trust store could not be read or verified. Run this command as the same Windows user as KelpieMCPServer, or restore control-pipe access.");
+        }
     }
 
     private enum ControlPipeFailure

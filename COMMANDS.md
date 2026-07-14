@@ -387,6 +387,7 @@ Arguments:
 Processing:
 
 The command checks the profile file, trust store, and `ProfileOperations:*:CLI` settings. It does not contact the SSH target.
+When the control pipe rejects access or times out, it returns all capabilities as `false` with reason `control-pipe-access-denied` or `control-pipe-timeout` and does not read the offline trust store. If offline trust-store decryption fails while the server is stopped, it returns reason `offline-trust-store-unavailable` instead of terminating with an unhandled exception.
 
 Return value:
 

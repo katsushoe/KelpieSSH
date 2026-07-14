@@ -425,6 +425,36 @@ public sealed class KelpieServerCommandRunnerTests
     }
 
     [Fact]
+    public async Task ProfileCapabilitiesAsync_ShouldNotUseOfflineTrustStoreWhenControlPipeTimesOut()
+    {
+        var options = CreateOptions();
+        using var output = new StringWriter();
+        var previousOutput = Console.Out;
+        var previousExitCode = Environment.ExitCode;
+        Console.SetOut(output);
+        Environment.ExitCode = 0;
+
+        try
+        {
+            await KelpieServerCommandRunner.ProfileCapabilitiesAsync(options, "vps01");
+
+            Environment.ExitCode.Should().Be(1);
+        }
+        finally
+        {
+            Console.SetOut(previousOutput);
+            Environment.ExitCode = previousExitCode;
+        }
+
+        var capabilities = JsonSerializer.Deserialize<SshProfileTrustCapabilities>(output.ToString());
+        capabilities.Should().NotBeNull();
+        capabilities!.AddAllowed.Should().BeFalse();
+        capabilities.ReloadAllowed.Should().BeFalse();
+        capabilities.RevokeAllowed.Should().BeFalse();
+        capabilities.Reason.Should().Be("control-pipe-timeout");
+    }
+
+    [Fact]
     public async Task ProfileReloadAsync_ShouldRejectWhenCliReloadIsDenied()
     {
         var options = WithProfileOperations(
