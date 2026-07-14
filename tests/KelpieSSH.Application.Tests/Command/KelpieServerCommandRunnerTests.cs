@@ -1,4 +1,6 @@
 using System.IO.Pipes;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
@@ -454,6 +456,79 @@ public sealed class KelpieServerCommandRunnerTests
         result.Should().NotBeNull();
         result!.Success.Should().BeFalse();
         result.Status.Should().Be("disabled-by-config");
+    }
+
+    [Fact]
+    public async Task ProfileReloadAsync_ShouldNotUseOfflineTrustStoreWhenControlPipeTimesOut()
+    {
+        var options = CreateOptions();
+        using var output = new StringWriter();
+        var previousOutput = Console.Out;
+        var previousExitCode = Environment.ExitCode;
+        Console.SetOut(output);
+        Environment.ExitCode = 0;
+
+        try
+        {
+            await KelpieServerCommandRunner.ProfileReloadAsync(options, "vps01");
+        }
+        finally
+        {
+            Console.SetOut(previousOutput);
+            Environment.ExitCode = previousExitCode;
+        }
+
+        var result = JsonSerializer.Deserialize<SshProfileTrustOperationResult>(output.ToString());
+        result.Should().NotBeNull();
+        result!.Success.Should().BeFalse();
+        result.Status.Should().Be("control-pipe-timeout");
+        result.Message.Should().Contain("offline trust store was not changed");
+    }
+
+    [Fact]
+    public async Task ProfileReloadAsync_ShouldNotUseOfflineTrustStoreWhenControlPipeAccessIsDenied()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var options = CreateOptions();
+        using var identity = WindowsIdentity.GetCurrent();
+        var currentUser = identity.User;
+        currentUser.Should().NotBeNull();
+        var security = new PipeSecurity();
+        security.AddAccessRule(new PipeAccessRule(currentUser!, PipeAccessRights.FullControl, AccessControlType.Deny));
+        await using var pipe = NamedPipeServerStreamAcl.Create(
+            options.ControlPipeName,
+            PipeDirection.InOut,
+            1,
+            PipeTransmissionMode.Byte,
+            PipeOptions.Asynchronous,
+            0,
+            0,
+            security);
+        using var output = new StringWriter();
+        var previousOutput = Console.Out;
+        var previousExitCode = Environment.ExitCode;
+        Console.SetOut(output);
+        Environment.ExitCode = 0;
+
+        try
+        {
+            await KelpieServerCommandRunner.ProfileReloadAsync(options, "vps01");
+        }
+        finally
+        {
+            Console.SetOut(previousOutput);
+            Environment.ExitCode = previousExitCode;
+        }
+
+        var result = JsonSerializer.Deserialize<SshProfileTrustOperationResult>(output.ToString());
+        result.Should().NotBeNull();
+        result!.Success.Should().BeFalse();
+        result.Status.Should().Be("control-pipe-access-denied");
+        result.Message.Should().Contain("offline trust store was not changed");
     }
 
     private static KelpieMcpServerOptions CreateOptions()

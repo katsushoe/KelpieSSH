@@ -292,12 +292,13 @@ Processing:
 
 - When `KelpieMCPServer` is running, the server validates the profile, updates the trusted hash, and reloads the in-memory catalog. Success is returned only after the running catalog contains the requested profile. Load errors from unrelated profiles remain available as profile load errors but do not block the requested profile reload. If the requested profile cannot be loaded, the previous trusted baseline is restored and the command returns `profile-reload-failed`.
 - When `KelpieMCPServer` is not running, `kelpiemcp` validates the profile and updates `dat/mcp_trusted_store.dat`. The edited profile is loaded the next time the MCP server starts.
+- If the control pipe rejects access or times out, the command returns `control-pipe-access-denied` or `control-pipe-timeout` and does not fall back to updating the offline trust store. An unavailable pipe may still use the offline path when the server is stopped.
 - The operation is denied when `ProfileOperations:Reload:CLI` is `Deny`.
 
 Return value:
 
 - Exit code `0` when the edited profile is accepted.
-- Non-zero exit code when the profile is missing, not trusted, invalid, `ProfileOperations:Reload:CLI` is `Deny`, cannot be written to the trust store, or the running catalog cannot be reloaded.
+- Non-zero exit code when the profile is missing, not trusted, invalid, `ProfileOperations:Reload:CLI` is `Deny`, the control pipe rejects access or times out, the trust store cannot be written, or the running catalog cannot be reloaded.
 - Standard output is a JSON `SshProfileTrustOperationResult`.
 
 Return value sample:

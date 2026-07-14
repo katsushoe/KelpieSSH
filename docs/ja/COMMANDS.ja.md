@@ -291,12 +291,12 @@ kelpiemcp profile reload vps01 --approve-privilege-expansion
 
 処理内容:
 
-`KelpieMCPServer` 起動中は、起動中サーバーが profile を検証し、trusted hash を更新して in-memory catalog も再読み込みします。要求したprofileが実行中catalogに含まれた場合だけ成功を返します。無関係なprofileのload errorはprofile load errorとして保持しますが、要求したprofileのreloadは妨げません。要求したprofileを読み込めない場合は以前の信頼baselineを復元し、`profile-reload-failed` を返します。停止中は、`kelpiemcp` が profile を検証し、`dat/mcp_trusted_store.dat` を更新します。`ProfileOperations:Reload:CLI` が `Deny` の場合、この操作は拒否されます。
+`KelpieMCPServer` 起動中は、起動中サーバーが profile を検証し、trusted hash を更新して in-memory catalog も再読み込みします。要求したprofileが実行中catalogに含まれた場合だけ成功を返します。無関係なprofileのload errorはprofile load errorとして保持しますが、要求したprofileのreloadは妨げません。要求したprofileを読み込めない場合は以前の信頼baselineを復元し、`profile-reload-failed` を返します。停止中は、`kelpiemcp` が profile を検証し、`dat/mcp_trusted_store.dat` を更新します。control pipeでアクセス拒否またはtimeoutが発生した場合は、`control-pipe-access-denied`または`control-pipe-timeout`を返し、offline trust store更新へ移行しません。サーバー停止によりpipeが利用できない場合は、従来どおりoffline処理を使用できます。`ProfileOperations:Reload:CLI` が `Deny` の場合、この操作は拒否されます。
 
 戻り値:
 
 - exit code `0`: 編集済み profile を信頼済み baseline として受け入れた。
-- exit code non-zero: profile 不在、未信頼、JSON不正、`ProfileOperations:Reload:CLI` が `Deny`、trust store 更新失敗、または実行中catalogの再読み込み失敗。
+- exit code non-zero: profile 不在、未信頼、JSON不正、`ProfileOperations:Reload:CLI` が `Deny`、control pipeのアクセス拒否またはtimeout、trust store 更新失敗、または実行中catalogの再読み込み失敗。
 - standard output: `SshProfileTrustOperationResult` JSON。
 
 戻り値サンプル:

@@ -748,7 +748,8 @@ public static class KelpieServerCommandRunner
     private static async Task<string?> SendControlCommandWithResponseAsync(
         string pipeName,
         string command,
-        TimeSpan timeout)
+        TimeSpan timeout,
+        Action<ControlPipeFailure>? reportFailure = null)
     {
         try
         {
@@ -773,18 +774,22 @@ public static class KelpieServerCommandRunner
         }
         catch (OperationCanceledException)
         {
+            reportFailure?.Invoke(ControlPipeFailure.Timeout);
             return null;
         }
         catch (IOException)
         {
+            reportFailure?.Invoke(ControlPipeFailure.Unavailable);
             return null;
         }
         catch (UnauthorizedAccessException)
         {
+            reportFailure?.Invoke(ControlPipeFailure.AccessDenied);
             return null;
         }
         catch (TimeoutException)
         {
+            reportFailure?.Invoke(ControlPipeFailure.Timeout);
             return null;
         }
     }
@@ -1204,14 +1209,28 @@ public static class KelpieServerCommandRunner
             return;
         }
 
+        var pipeFailure = ControlPipeFailure.None;
         var response = await SendControlCommandWithResponseAsync(
             options.ControlPipeName,
             pipeCommand + " " + normalizedProfileName,
-            TimeSpan.FromSeconds(3));
-        var result = !string.IsNullOrWhiteSpace(response)
-            ? JsonSerializer.Deserialize<SshProfileTrustOperationResult>(response)
-                ?? new SshProfileTrustOperationResult(false, normalizedProfileName, "invalid-response", "KelpieMCPServer returned an invalid response.")
-            : offlineOperation(normalizedProfileName);
+            TimeSpan.FromSeconds(3),
+            failure => pipeFailure = failure);
+        var result = pipeFailure switch
+        {
+            ControlPipeFailure.AccessDenied => new SshProfileTrustOperationResult(
+                false,
+                normalizedProfileName,
+                "control-pipe-access-denied",
+                "KelpieMCPServer control pipe access was denied. The offline trust store was not changed."),
+            ControlPipeFailure.Timeout => new SshProfileTrustOperationResult(
+                false,
+                normalizedProfileName,
+                "control-pipe-timeout",
+                "KelpieMCPServer control pipe timed out. The offline trust store was not changed."),
+            _ when !string.IsNullOrWhiteSpace(response) => JsonSerializer.Deserialize<SshProfileTrustOperationResult>(response)
+                ?? new SshProfileTrustOperationResult(false, normalizedProfileName, "invalid-response", "KelpieMCPServer returned an invalid response."),
+            _ => offlineOperation(normalizedProfileName),
+        };
 
         Console.WriteLine(JsonSerializer.Serialize(result));
         if (!result.Success)
@@ -1643,6 +1662,14 @@ public static class KelpieServerCommandRunner
         arguments.AddRange(reloadProfileNames.Select(profileName => "--reload-profile:" + profileName));
         arguments.AddRange(KelpieRuntimePathOverrideParser.ToArguments(KelpieRuntimePaths.Overrides));
         return arguments;
+    }
+
+    private enum ControlPipeFailure
+    {
+        None,
+        Unavailable,
+        AccessDenied,
+        Timeout,
     }
 
     private sealed record ServerCommand(string FileName, string Arguments, string WorkingDirectory);
