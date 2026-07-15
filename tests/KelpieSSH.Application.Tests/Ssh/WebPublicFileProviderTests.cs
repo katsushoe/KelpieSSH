@@ -890,6 +890,114 @@ public sealed class WebPublicFileProviderTests
     }
 
     [Fact]
+    public async Task WriteFileAsync_ShouldUseQuotedSafeAtomicProviderLoader()
+    {
+        var profile = CreateProfile(KelpiePolicyMode.Expert);
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: """{"resolvedPath":"/var/www/html/my_dir/sample.html","written":true,"created":true,"overwritten":false,"size":1,"mode":"644","errorCode":null}""",
+                StandardError: string.Empty),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.WriteFileAsync(
+            service, profile, "default", "/my_dir/sample.html", "YQ==", null, "text/html");
+
+        result.Written.Should().BeTrue();
+        runner.LastRequest!.CommandText.Should().NotContain("$(");
+        runner.LastRequest.CommandText.Should().NotContain("YQ==");
+        var encodedScript = runner.LastRequest.CommandText
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .OrderByDescending(static token => token.Length)
+            .First();
+        var script = Encoding.UTF8.GetString(Convert.FromBase64String(encodedScript));
+        script.Should().Contain("tempfile.mkstemp");
+        script.Should().Contain("os.fsync");
+        script.Should().Contain("os.replace");
+        script.Should().Contain("os.path.commonpath");
+        script.Should().Contain("stat.S_ISLNK");
+    }
+
+    [Theory]
+    [InlineData("write-size-exceeded", "MaxWriteBytesExceeded")]
+    [InlineData("write-permission-denied", "RemoteFileSystemPermissionDenied")]
+    [InlineData("symlink-rejected", "SymlinkRejected")]
+    [InlineData("remote-write-failed", "RemoteWriteFailed")]
+    [InlineData("unexpected-provider-detail", "InvalidProviderResponse")]
+    public async Task WriteFileAsync_ShouldReturnStableSafeProviderError(
+        string providerCode,
+        string expectedReasonCode)
+    {
+        var profile = CreateProfile(KelpiePolicyMode.Expert);
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: $$"""{"errorCode":"{{providerCode}}"}""",
+                StandardError: "sensitive remote diagnostic"),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.WriteFileAsync(
+            service, profile, "default", "/my_dir/sample.html", "YQ==", "utf-8", "text/html");
+
+        result.Written.Should().BeFalse();
+        result.ReasonCode.Should().Be(expectedReasonCode);
+        result.Error.Should().NotContain("sensitive remote diagnostic");
+        result.Error.Should().NotContain(providerCode);
+    }
+
+    [Fact]
+    public async Task WriteFileAsync_ShouldNotExposeProviderStderrOrContentOnExecutionFailure()
+    {
+        var profile = CreateProfile(KelpiePolicyMode.Expert);
+        var contentBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes("fixture-private-content"));
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: $"Traceback: provider failed near {contentBase64}",
+                ExitCode: 1),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.WriteFileAsync(
+            service, profile, "default", "/my_dir/sample.html", contentBase64, null, "text/html");
+
+        result.ReasonCode.Should().Be("RemoteWriteFailed");
+        result.Error.Should().Be("The remote atomic write failed.");
+        result.ToString().Should().NotContain(contentBase64);
+        result.ToString().Should().NotContain("Traceback");
+    }
+
+    [Fact]
+    public async Task WriteSecretFileAsync_ShouldUseSameAtomicProviderWithoutReturningSecret()
+    {
+        var profile = CreateProfile(
+            KelpiePolicyMode.Expert,
+            [CreateSite([new WebPublicFileRule("/.env.production", AllowedRootAccess.Write)])]);
+        var secretBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes("fixture-secret-value"));
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: """{"resolvedPath":"/var/www/html/.env.production","written":true,"created":true,"overwritten":false,"size":20,"mode":"600","errorCode":null}""",
+                StandardError: string.Empty),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.WriteSecretFileAsync(
+            service, profile, "default", "/.env.production", secretBase64, "text/plain");
+
+        result.Written.Should().BeTrue();
+        result.Warnings.Should().Contain("Secret content was not returned.");
+        result.ToString().Should().NotContain("fixture-secret-value");
+        result.ToString().Should().NotContain(secretBase64);
+        runner.LastRequest!.CommandText.Should().NotContain(secretBase64);
+        runner.LastRequest.StandardInput.Should().Be(secretBase64);
+        runner.LastRequest.CommandName.Should().Be("web_public_file_write_internal");
+    }
+
+    [Fact]
     public async Task WriteFileAsync_ShouldAllowConfiguredZipRule()
     {
         var profile = CreateProfile(

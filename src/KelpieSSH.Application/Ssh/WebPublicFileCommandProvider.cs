@@ -5,6 +5,7 @@ namespace KelpieSSH.Application.Ssh;
 /// </summary>
 public sealed class WebPublicFileCommandProvider : IAllowedCommandProvider
 {
+    private const string PythonLoader = "import base64,sys;exec(compile(base64.b64decode(sys.argv.pop(1)),'<kelpie-provider>','exec'))";
     private const string Base64PathPattern = "^[A-Za-z0-9+/=]{1,4096}$";
     private const string Base64ContentPattern = "^[A-Za-z0-9+/=]+$";
     private const string MaxBytesPattern = "^(?:[1-9][0-9]{0,8}|1[0-9]{9}|20[0-9]{8}|21[0-3][0-9]{7}|214[0-6][0-9]{6}|2147[0-3][0-9]{5}|21474[0-7][0-9]{4}|214748[0-2][0-9]{3}|2147483[0-5][0-9]{2}|21474836[0-3][0-9]|214748364[0-7])$";
@@ -23,6 +24,104 @@ public sealed class WebPublicFileCommandProvider : IAllowedCommandProvider
     private const string ReadScriptBase64 = "aW1wb3J0IGJhc2U2NCxqc29uLG9zLHN5cwpzaXRlX3Jvb3Q9YmFzZTY0LmI2NGRlY29kZShzeXMuYXJndlsxXSkuZGVjb2RlKCd1dGYtOCcpCnJlbD1iYXNlNjQuYjY0ZGVjb2RlKHN5cy5hcmd2WzJdKS5kZWNvZGUoJ3V0Zi04JykKbWF4Yj1pbnQoc3lzLmFyZ3ZbM10pCnJvb3RfcmVhbD1vcy5wYXRoLnJlYWxwYXRoKHNpdGVfcm9vdCkKcGFydHM9W3AgZm9yIHAgaW4gcmVsLnJlcGxhY2UoJ1xcJywnLycpLnNwbGl0KCcvJykgaWYgcF0KaWYgbm90IHBhcnRzIG9yIGFueShwID09ICcuLicgZm9yIHAgaW4gcGFydHMpOgogICAgc3lzLmV4aXQoJ0VSUk9SOiBpbnZhbGlkIHdlYiBwdWJsaWMgZmlsZSBwYXRoJykKdGFyZ2V0PW9zLnBhdGguam9pbihyb290X3JlYWwsKnBhcnRzKQpyZXNvbHZlZD1vcy5wYXRoLnJlYWxwYXRoKHRhcmdldCkKaWYgb3MucGF0aC5jb21tb25wYXRoKFtyb290X3JlYWwscmVzb2x2ZWRdKSAhPSByb290X3JlYWw6CiAgICBzeXMuZXhpdCgnRVJST1I6IHJlc29sdmVkIHBhdGggaXMgb3V0c2lkZSB3ZWIgcHVibGljIHJvb3QnKQppZiBub3Qgb3MucGF0aC5leGlzdHMocmVzb2x2ZWQpOgogICAgcHJpbnQoanNvbi5kdW1wcyh7J3Jlc29sdmVkUGF0aCc6cmVzb2x2ZWQsJ2V4aXN0cyc6RmFsc2V9LHNlcGFyYXRvcnM9KCcsJywnOicpKSkKICAgIHN5cy5leGl0KDApCmlmIG5vdCBvcy5wYXRoLmlzZmlsZShyZXNvbHZlZCk6CiAgICBzeXMuZXhpdCgnRVJST1I6IHdlYiBwdWJsaWMgcGF0aCBpcyBub3QgYSByZWd1bGFyIGZpbGUnKQpzaXplPW9zLnBhdGguZ2V0c2l6ZShyZXNvbHZlZCkKaWYgc2l6ZSA+IG1heGI6CiAgICBzeXMuZXhpdCgnRVJST1I6IHdlYiBwdWJsaWMgZmlsZSBleGNlZWRzIG1heGltdW0gcmVhZCBzaXplJykKd2l0aCBvcGVuKHJlc29sdmVkLCdyYicpIGFzIGY6CiAgICBkYXRhPWYucmVhZChtYXhiKzEpCnByaW50KGpzb24uZHVtcHMoeydyZXNvbHZlZFBhdGgnOnJlc29sdmVkLCdleGlzdHMnOlRydWUsJ2NvbnRlbnRCYXNlNjQnOmJhc2U2NC5iNjRlbmNvZGUoZGF0YSkuZGVjb2RlKCdhc2NpaScpLCdzaXplJzpsZW4oZGF0YSksJ2xhc3RNb2RpZmllZCc6X19pbXBvcnRfXygnZGF0ZXRpbWUnKS5kYXRldGltZS5mcm9tdGltZXN0YW1wKG9zLnBhdGguZ2V0bXRpbWUocmVzb2x2ZWQpLF9faW1wb3J0X18oJ2RhdGV0aW1lJykudGltZXpvbmUudXRjKS5pc29mb3JtYXQoKS5yZXBsYWNlKCcrMDA6MDAnLCdaJyl9LHNlcGFyYXRvcnM9KCcsJywnOicpKSk=";
     private const string SliceScriptBase64 = "aW1wb3J0IGJhc2U2NCxqc29uLG9zLHN5cyxkYXRldGltZQpzaXRlX3Jvb3Q9YmFzZTY0LmI2NGRlY29kZShzeXMuYXJndlsxXSkuZGVjb2RlKCd1dGYtOCcpCnJlbD1iYXNlNjQuYjY0ZGVjb2RlKHN5cy5hcmd2WzJdKS5kZWNvZGUoJ3V0Zi04JykKbW9kZT1zeXMuYXJndlszXQptYXhiPWludChzeXMuYXJndls0XSkKbWF4X2xpbmVzPWludChzeXMuYXJndls1XSkKcm9vdF9yZWFsPW9zLnBhdGgucmVhbHBhdGgoc2l0ZV9yb290KQpwYXJ0cz1bcCBmb3IgcCBpbiByZWwucmVwbGFjZSgnXFwnLCcvJykuc3BsaXQoJy8nKSBpZiBwXQppZiBub3QgcGFydHMgb3IgYW55KHAgPT0gJy4uJyBmb3IgcCBpbiBwYXJ0cyk6CiAgICBzeXMuZXhpdCgnRVJST1I6IGludmFsaWQgd2ViIHB1YmxpYyBmaWxlIHBhdGgnKQppZiBtb2RlIG5vdCBpbiAoJ2hlYWQnLCd0YWlsJyk6CiAgICBzeXMuZXhpdCgnRVJST1I6IGludmFsaWQgc2xpY2UgbW9kZScpCmlmIG1heGIgPCAxIG9yIG1heGIgPiAxMDQ4NTc2OgogICAgc3lzLmV4aXQoJ0VSUk9SOiBtYXhCeXRlcyBpcyBvdXQgb2YgcmFuZ2UnKQppZiBtYXhfbGluZXMgPCAwIG9yIG1heF9saW5lcyA+IDEwMDA6CiAgICBzeXMuZXhpdCgnRVJST1I6IG1heExpbmVzIGlzIG91dCBvZiByYW5nZScpCnRhcmdldD1vcy5wYXRoLmpvaW4ocm9vdF9yZWFsLCpwYXJ0cykKcmVzb2x2ZWQ9b3MucGF0aC5yZWFscGF0aCh0YXJnZXQpCmlmIG9zLnBhdGguY29tbW9ucGF0aChbcm9vdF9yZWFsLHJlc29sdmVkXSkgIT0gcm9vdF9yZWFsOgogICAgc3lzLmV4aXQoJ0VSUk9SOiByZXNvbHZlZCBwYXRoIGlzIG91dHNpZGUgd2ViIHB1YmxpYyByb290JykKaWYgbm90IG9zLnBhdGguZXhpc3RzKHJlc29sdmVkKToKICAgIHByaW50KGpzb24uZHVtcHMoeydyZXNvbHZlZFBhdGgnOnJlc29sdmVkLCdleGlzdHMnOkZhbHNlfSxzZXBhcmF0b3JzPSgnLCcsJzonKSkpCiAgICBzeXMuZXhpdCgwKQppZiBub3Qgb3MucGF0aC5pc2ZpbGUocmVzb2x2ZWQpOgogICAgc3lzLmV4aXQoJ0VSUk9SOiB3ZWIgcHVibGljIHBhdGggaXMgbm90IGEgcmVndWxhciBmaWxlJykKc291cmNlX3NpemU9b3MucGF0aC5nZXRzaXplKHJlc29sdmVkKQp3aXRoIG9wZW4ocmVzb2x2ZWQsJ3JiJykgYXMgZjoKICAgIGlmIG1vZGUgPT0gJ3RhaWwnOgogICAgICAgIGYuc2VlayhtYXgoMCxzb3VyY2Vfc2l6ZS1tYXhiKSkKICAgICAgICBkYXRhPWYucmVhZChtYXhiKQogICAgZWxzZToKICAgICAgICBkYXRhPWYucmVhZChtYXhiKQppZiBtYXhfbGluZXMgPiAwOgogICAgbGluZXM9ZGF0YS5zcGxpdGxpbmVzKGtlZXBlbmRzPVRydWUpCiAgICBkYXRhPWInJy5qb2luKGxpbmVzWzptYXhfbGluZXNdIGlmIG1vZGUgPT0gJ2hlYWQnIGVsc2UgbGluZXNbLW1heF9saW5lczpdKQpwcmludChqc29uLmR1bXBzKHsncmVzb2x2ZWRQYXRoJzpyZXNvbHZlZCwnZXhpc3RzJzpUcnVlLCdjb250ZW50QmFzZTY0JzpiYXNlNjQuYjY0ZW5jb2RlKGRhdGEpLmRlY29kZSgnYXNjaWknKSwnc2l6ZSc6bGVuKGRhdGEpLCdzb3VyY2VTaXplJzpzb3VyY2Vfc2l6ZSwnbGFzdE1vZGlmaWVkJzpkYXRldGltZS5kYXRldGltZS5mcm9tdGltZXN0YW1wKG9zLnBhdGguZ2V0bXRpbWUocmVzb2x2ZWQpLGRhdGV0aW1lLnRpbWV6b25lLnV0YykuaXNvZm9ybWF0KCkucmVwbGFjZSgnKzAwOjAwJywnWicpfSxzZXBhcmF0b3JzPSgnLCcsJzonKSkp";
     private const string WriteScriptBase64 = "aW1wb3J0IGJhc2U2NCxqc29uLG9zLHN5cwpzaXRlX3Jvb3Q9YmFzZTY0LmI2NGRlY29kZShzeXMuYXJndlsxXSkuZGVjb2RlKCd1dGYtOCcpCnJlbD1iYXNlNjQuYjY0ZGVjb2RlKHN5cy5hcmd2WzJdKS5kZWNvZGUoJ3V0Zi04JykKY29udGVudF9iYXNlNjQ9c3lzLnN0ZGluLnJlYWQoKQpkYXRhPWJhc2U2NC5iNjRkZWNvZGUoY29udGVudF9iYXNlNjQsdmFsaWRhdGU9VHJ1ZSkKbWF4Yj1pbnQoc3lzLmFyZ3ZbM10pCmNyZWF0ZV9kaXJzPXN5cy5hcmd2WzRdID09ICcxJwppZiBsZW4oZGF0YSkgPiBtYXhiOgogICAgc3lzLmV4aXQoJ0VSUk9SOiB3ZWIgcHVibGljIGNvbnRlbnQgZXhjZWVkcyBtYXhpbXVtIHdyaXRlIHNpemUnKQpyb290X3JlYWw9b3MucGF0aC5yZWFscGF0aChzaXRlX3Jvb3QpCnBhcnRzPVtwIGZvciBwIGluIHJlbC5yZXBsYWNlKCdcXCcsJy8nKS5zcGxpdCgnLycpIGlmIHBdCmlmIG5vdCBwYXJ0cyBvciBhbnkocCA9PSAnLi4nIGZvciBwIGluIHBhcnRzKToKICAgIHN5cy5leGl0KCdFUlJPUjogaW52YWxpZCB3ZWIgcHVibGljIGZpbGUgcGF0aCcpCnRhcmdldD1vcy5wYXRoLmpvaW4ocm9vdF9yZWFsLCpwYXJ0cykKcGFyZW50PW9zLnBhdGguZGlybmFtZSh0YXJnZXQpCnBhcmVudF9yZWFsPW9zLnBhdGgucmVhbHBhdGgocGFyZW50KQppZiBvcy5wYXRoLmNvbW1vbnBhdGgoW3Jvb3RfcmVhbCxwYXJlbnRfcmVhbF0pICE9IHJvb3RfcmVhbDoKICAgIHN5cy5leGl0KCdFUlJPUjogcmVzb2x2ZWQgcGFyZW50IGlzIG91dHNpZGUgd2ViIHB1YmxpYyByb290JykKaWYgbm90IG9zLnBhdGguaXNkaXIocGFyZW50X3JlYWwpOgogICAgaWYgY3JlYXRlX2RpcnM6CiAgICAgICAgdHJ5OgogICAgICAgICAgICBvcy5tYWtlZGlycyhwYXJlbnQsZXhpc3Rfb2s9VHJ1ZSkKICAgICAgICBleGNlcHQgT1NFcnJvciBhcyBleDoKICAgICAgICAgICAgc3lzLmV4aXQoJ0VSUk9SOiBmYWlsZWQgdG8gY3JlYXRlIHdlYiBwdWJsaWMgcGFyZW50IGRpcmVjdG9yeTogJyArIHN0cihleCkpCiAgICAgICAgcGFyZW50X3JlYWw9b3MucGF0aC5yZWFscGF0aChwYXJlbnQpCiAgICAgICAgaWYgb3MucGF0aC5jb21tb25wYXRoKFtyb290X3JlYWwscGFyZW50X3JlYWxdKSAhPSByb290X3JlYWw6CiAgICAgICAgICAgIHN5cy5leGl0KCdFUlJPUjogcmVzb2x2ZWQgcGFyZW50IGlzIG91dHNpZGUgd2ViIHB1YmxpYyByb290JykKICAgIGVsc2U6CiAgICAgICAgc3lzLmV4aXQoJ0VSUk9SOiB3ZWIgcHVibGljIHBhcmVudCBkaXJlY3RvcnkgZG9lcyBub3QgZXhpc3QnKQpyZXNvbHZlZD1vcy5wYXRoLnJlYWxwYXRoKHRhcmdldCkKaWYgb3MucGF0aC5jb21tb25wYXRoKFtyb290X3JlYWwscmVzb2x2ZWRdKSAhPSByb290X3JlYWw6CiAgICBzeXMuZXhpdCgnRVJST1I6IHJlc29sdmVkIHBhdGggaXMgb3V0c2lkZSB3ZWIgcHVibGljIHJvb3QnKQppZiBvcy5wYXRoLmV4aXN0cyhyZXNvbHZlZCkgYW5kIG5vdCBvcy5wYXRoLmlzZmlsZShyZXNvbHZlZCk6CiAgICBzeXMuZXhpdCgnRVJST1I6IHdlYiBwdWJsaWMgcGF0aCBpcyBub3QgYSByZWd1bGFyIGZpbGUnKQpleGlzdGVkPW9zLnBhdGguZXhpc3RzKHJlc29sdmVkKQp0cnk6CiAgICB3aXRoIG9wZW4ocmVzb2x2ZWQsJ3diJykgYXMgZjoKICAgICAgICBmLndyaXRlKGRhdGEpCmV4Y2VwdCBPU0Vycm9yIGFzIGV4OgogICAgc3lzLmV4aXQoJ0VSUk9SOiBmYWlsZWQgdG8gd3JpdGUgd2ViIHB1YmxpYyBmaWxlOiAnICsgc3RyKGV4KSkKcHJpbnQoanNvbi5kdW1wcyh7J3Jlc29sdmVkUGF0aCc6cmVzb2x2ZWQsJ3dyaXR0ZW4nOlRydWUsJ2NyZWF0ZWQnOm5vdCBleGlzdGVkLCdvdmVyd3JpdHRlbic6ZXhpc3RlZCwnc2l6ZSc6bGVuKGRhdGEpfSxzZXBhcmF0b3JzPSgnLCcsJzonKSkp";
+
+    private const string AtomicWriteScript = """
+import base64
+import json
+import os
+import stat
+import sys
+import tempfile
+
+root = base64.b64decode(sys.argv[1]).decode("utf-8")
+relative = base64.b64decode(sys.argv[2]).decode("utf-8")
+maximum = int(sys.argv[3])
+create_directories = sys.argv[4] == "1"
+
+def emit_error(code):
+    print(json.dumps({"errorCode": code}, separators=(",", ":")))
+    sys.exit(0)
+
+temporary = None
+try:
+    encoded = sys.stdin.read()
+    try:
+        data = base64.b64decode(encoded, validate=True)
+    except (ValueError, base64.binascii.Error):
+        emit_error("invalid-content-base64")
+    if len(data) > maximum:
+        emit_error("write-size-exceeded")
+
+    root_real = os.path.realpath(root)
+    parts = [part for part in relative.replace("\\", "/").split("/") if part]
+    if not parts or any(part == ".." for part in parts):
+        emit_error("invalid-path")
+    target = os.path.join(root_real, *parts)
+    parent = os.path.dirname(target)
+    parent_real = os.path.realpath(parent)
+    if os.path.commonpath([root_real, parent_real]) != root_real:
+        emit_error("path-outside-root")
+    if not os.path.isdir(parent_real):
+        if not create_directories:
+            emit_error("parent-not-found")
+        os.makedirs(parent, exist_ok=True)
+        parent_real = os.path.realpath(parent)
+        if os.path.commonpath([root_real, parent_real]) != root_real:
+            emit_error("path-outside-root")
+
+    existed = os.path.lexists(target)
+    existing = None
+    if existed:
+        existing = os.lstat(target)
+        if stat.S_ISLNK(existing.st_mode):
+            emit_error("symlink-rejected")
+        if not stat.S_ISREG(existing.st_mode):
+            emit_error("file-type-not-supported")
+
+    descriptor, temporary = tempfile.mkstemp(prefix=".kelpie-write-", dir=parent_real)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if existing is not None:
+            os.chmod(temporary, stat.S_IMODE(existing.st_mode))
+        os.replace(temporary, target)
+        temporary = None
+        directory = os.open(parent_real, os.O_RDONLY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    except BaseException:
+        if temporary is not None:
+            try:
+                os.unlink(temporary)
+            except OSError:
+                pass
+        raise
+
+    result = os.stat(target, follow_symlinks=False)
+    print(json.dumps({
+        "resolvedPath": os.path.realpath(target),
+        "written": True,
+        "created": not existed,
+        "overwritten": existed,
+        "size": result.st_size,
+        "mode": format(stat.S_IMODE(result.st_mode), "03o"),
+        "errorCode": None
+    }, separators=(",", ":")))
+except PermissionError:
+    emit_error("write-permission-denied")
+except OSError:
+    emit_error("remote-write-failed")
+finally:
+    if temporary is not None:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+""";
 
     private static readonly AllowedCommandDefinition[] Commands =
     [
@@ -84,7 +183,9 @@ public sealed class WebPublicFileCommandProvider : IAllowedCommandProvider
             ]),
         new(
             "web_public_file_write_internal",
-            CreateEncodedPythonCommand(WriteScriptBase64, "{siteRootBase64} {pathBase64} {maxBytes} {createDirectories}"),
+            CreateEncodedPythonCommand(
+                Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(AtomicWriteScript)),
+                "{siteRootBase64} {pathBase64} {maxBytes} {createDirectories}"),
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("siteRootBase64", MaxLength: 4096, Pattern: Base64PathPattern),
@@ -186,6 +287,6 @@ public sealed class WebPublicFileCommandProvider : IAllowedCommandProvider
 
     private static string CreateEncodedPythonCommand(string encodedScript, string arguments)
     {
-        return $"sh -c \"python3 -c \\\"$(printf %s '{encodedScript}' | base64 -d)\\\" {arguments}\"";
+        return $"python3 -c \"{PythonLoader}\" {encodedScript} {arguments}";
     }
 }

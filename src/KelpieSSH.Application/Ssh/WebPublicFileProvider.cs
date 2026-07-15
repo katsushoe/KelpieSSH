@@ -1110,14 +1110,19 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
 
         if (result.ExitCode != 0)
         {
-            return CreateWriteError(
-                site,
-                normalizedPath,
-                $"Web public file write failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}");
+            return CreateWriteExecutionError(site, normalizedPath, result.StandardError);
         }
 
-        var remote = JsonSerializer.Deserialize<RemoteWriteResult>(result.StandardOutput, JsonOptions)
-            ?? throw new InvalidOperationException("Web public file write returned empty JSON.");
+        var remote = DeserializeWriteResult(result.StandardOutput);
+        if (remote is null)
+        {
+            return CreateWriteError(site, normalizedPath, "Provider returned an invalid response.", "InvalidProviderResponse");
+        }
+
+        if (!string.IsNullOrWhiteSpace(remote.ErrorCode))
+        {
+            return CreateProviderWriteError(site, normalizedPath, remote.ErrorCode);
+        }
 
         if (remote.Written)
         {
@@ -1214,14 +1219,19 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
 
         if (result.ExitCode != 0)
         {
-            return CreateWriteError(
-                site,
-                normalizedPath,
-                $"Web secret file write failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}");
+            return CreateWriteExecutionError(site, normalizedPath, result.StandardError);
         }
 
-        var remote = JsonSerializer.Deserialize<RemoteWriteResult>(result.StandardOutput, JsonOptions)
-            ?? throw new InvalidOperationException("Web secret file write returned empty JSON.");
+        var remote = DeserializeWriteResult(result.StandardOutput);
+        if (remote is null)
+        {
+            return CreateWriteError(site, normalizedPath, "Provider returned an invalid response.", "InvalidProviderResponse");
+        }
+
+        if (!string.IsNullOrWhiteSpace(remote.ErrorCode))
+        {
+            return CreateProviderWriteError(site, normalizedPath, remote.ErrorCode);
+        }
 
         return new WebPublicFileWriteResult(
             site.SiteKey,
@@ -1358,10 +1368,7 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
 
         if (result.ExitCode != 0)
         {
-            return CreateWriteError(
-                site,
-                normalizedPath,
-                $"Web public file write failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}");
+            return CreateWriteExecutionError(site, normalizedPath, result.StandardError);
         }
 
         var remote = JsonSerializer.Deserialize<RemoteWriteResult>(result.StandardOutput, JsonOptions)
@@ -2112,7 +2119,8 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
     private static WebPublicFileWriteResult CreateWriteError(
         WebPublicSite site,
         string path,
-        string error)
+        string error,
+        string? reasonCode = null)
     {
         var failure = CreateWriteFailure(error);
         return new WebPublicFileWriteResult(
@@ -2127,7 +2135,7 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             Size: 0,
             Warnings: [],
             Error: error,
-            ReasonCode: failure.ReasonCode,
+            ReasonCode: reasonCode ?? failure.ReasonCode,
             Guidance: failure.Guidance);
     }
 
@@ -2260,6 +2268,52 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             Error: reason,
             ReasonCode: failure.ReasonCode,
             Guidance: failure.Guidance);
+    }
+
+    private static RemoteWriteResult? DeserializeWriteResult(string standardOutput)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<RemoteWriteResult>(standardOutput, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static WebPublicFileWriteResult CreateProviderWriteError(
+        WebPublicSite site,
+        string path,
+        string providerCode)
+    {
+        var (reasonCode, message) = providerCode switch
+        {
+            "invalid-content-base64" => ("InvalidContentBase64", "Content is not valid Base64."),
+            "write-size-exceeded" => ("MaxWriteBytesExceeded", "Content exceeds the configured maximum write size."),
+            "invalid-path" => ("InvalidPath", "The requested path is invalid."),
+            "path-outside-root" => ("PathOutsideRoot", "The resolved path is outside the configured web root."),
+            "parent-not-found" => ("ParentDirectoryNotFound", "The target parent directory does not exist."),
+            "symlink-rejected" => ("SymlinkRejected", "Symbolic links are not writable."),
+            "file-type-not-supported" => ("FileTypeNotSupported", "The target is not a regular file."),
+            "write-permission-denied" => ("RemoteFileSystemPermissionDenied", "The remote file system denied the write."),
+            "remote-write-failed" => ("RemoteWriteFailed", "The remote atomic write failed."),
+            _ => ("InvalidProviderResponse", "Provider returned an unsupported error code."),
+        };
+        return CreateWriteError(site, path, message, reasonCode);
+    }
+
+    private static WebPublicFileWriteResult CreateWriteExecutionError(
+        WebPublicSite site,
+        string path,
+        string standardError)
+    {
+        var permissionDenied = standardError.Contains("permission denied", StringComparison.OrdinalIgnoreCase)
+            || standardError.Contains("password is required", StringComparison.OrdinalIgnoreCase)
+            || standardError.Contains("not allowed", StringComparison.OrdinalIgnoreCase);
+        return permissionDenied
+            ? CreateWriteError(site, path, "The remote file system denied the write.", "RemoteFileSystemPermissionDenied")
+            : CreateWriteError(site, path, "The remote atomic write failed.", "RemoteWriteFailed");
     }
 
     private static WebPublicFileWriteCheckResult CreateSecretWriteCheckResult(
@@ -2551,6 +2605,8 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
         public string? BackupPath { get; set; }
 
         public bool PermissionsPreserved { get; set; }
+
+        public string? ErrorCode { get; set; }
     }
 
     private sealed class RemotePermissionChangeResult

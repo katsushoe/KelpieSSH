@@ -675,6 +675,7 @@ Input arguments:
 Processing:
 
 KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
+For direct writes, the provider passes the Python program as a Base64 argument to a fixed loader and reserves standard input for content only. It writes to a same-directory temporary file, flushes the file, atomically replaces the target, and flushes the directory. A failed write does not truncate the existing target.
 The detected inventory is an execution-time result. KelpieMCPServer does not persist the detected commands into the SSH profile file; clients should refresh this tool when they need current target state.
 
 Successful inventory probes are cached in MCP server memory for 60 seconds. Connection failures, timeouts, cancellation, and invalid probe responses are not cached. `profile_reload` clears the cache. Authorization is evaluated on every call, including cache hits.
@@ -7201,6 +7202,7 @@ Return value:
 - The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
 - Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
 - When a write is rejected, `ReasonCode` and `Guidance` describe the missing policy, extension, content-type, or remote filesystem permission so AI clients can explain the failure.
+- Provider failures use stable safe reason codes: `InvalidContentBase64`, `MaxWriteBytesExceeded`, `InvalidPath`, `PathOutsideRoot`, `ParentDirectoryNotFound`, `SymlinkRejected`, `FileTypeNotSupported`, `RemoteFileSystemPermissionDenied`, `RemoteWriteFailed`, or `InvalidProviderResponse`. Provider stderr and Python exception text are not returned.
 
 Return value sample:
 
@@ -7271,6 +7273,7 @@ Input arguments:
 Processing:
 
 KelpieMCPServer validates the confirmation token, resolves the secret payload from the server-side secret store, re-runs the secret path and provider checks, writes the file through the bounded web write command, and removes the secret reference on success when `forgetOnSuccess` is true. If `owner` or `mode` is specified, it must be the same request that was used to obtain the confirmation token.
+The owner/mode-free path uses the same atomic direct-write provider as `web_file_write`; the permission-helper path remains atomic when owner or mode is requested.
 
 Return value:
 

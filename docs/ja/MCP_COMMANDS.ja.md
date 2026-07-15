@@ -102,6 +102,7 @@ MCP tool の戻り値は JSON object または text です。SSH コマンド系
 処理内容:
 
 対象 tool の目的に沿って、許可された範囲の読み取り、確認要求、または確認済み変更操作を実行します。
+通常の書き込みでは、固定loaderへPythonコードをBase64引数として渡し、標準入力は本文専用にします。同一ディレクトリの一時ファイルへ書き込み、flush後に対象をatomic置換するため、途中失敗で既存ファイルを切り詰めません。
 
 戻り値:
 
@@ -5147,6 +5148,7 @@ Web 公開ルート外へ出ないこと、読み取り許可、content type 許
 
 - web file write result。
 - 書き込みが拒否された場合、`reasonCode` と `guidance` で不足している policy、拡張子許可、content type 書き込み許可、またはリモートファイルシステム権限を説明します。AI クライアントはこの値を使って「どの権限が足りないため PHP ファイルを置けないか」を説明できます。
+- provider失敗は`InvalidContentBase64`、`MaxWriteBytesExceeded`、`InvalidPath`、`PathOutsideRoot`、`ParentDirectoryNotFound`、`SymlinkRejected`、`FileTypeNotSupported`、`RemoteFileSystemPermissionDenied`、`RemoteWriteFailed`、`InvalidProviderResponse`の安定したreason codeへ変換します。providerのstderrとPython例外本文は返しません。
 
 実行結果サンプル:
 
@@ -5230,6 +5232,7 @@ Web 公開ルート外へ出ないこと、読み取り許可、content type 許
 処理内容:
 
 確認文字列を検証し、server process 内の secret store から本文を取得し、secret path と provider 許可を再検証してから書き込みます。`owner` または `mode` を指定する場合は、`web_secret_file_check_write` で同じ指定を使って取得した確認文字列が必要です。`forgetOnSuccess` が `true` の場合、成功後に secret reference を削除します。
+`owner`と`mode`を指定しない場合は`web_file_write`と同じatomic providerを使い、指定する場合は既存のatomic permission helperを使います。
 
 戻り値:
 
