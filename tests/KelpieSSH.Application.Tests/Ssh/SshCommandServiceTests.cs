@@ -133,6 +133,23 @@ public sealed class SshCommandServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_ShouldDelegateOnceAndPassCancellationTokenToRunner()
+    {
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profile = CreateProfile("deploy");
+        using var cancellationTokenSource = new CancellationTokenSource();
+
+        await service.ExecuteAsync(
+            profile,
+            "get_system_info",
+            cancellationToken: cancellationTokenSource.Token);
+
+        runner.InvocationCount.Should().Be(1);
+        runner.LastCancellationToken.Should().Be(cancellationTokenSource.Token);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_ShouldPassValidatedArgumentsToRunner()
     {
         var runner = new FakeSshCommandRunner();
@@ -700,11 +717,17 @@ public sealed class SshCommandServiceTests
 
         public SshCommandRequest? LastRequest { get; private set; }
 
+        public CancellationToken LastCancellationToken { get; private set; }
+
+        public int InvocationCount { get; private set; }
+
         public Task<SshCommandResult> ExecuteAsync(
             SshCommandRequest request,
             CancellationToken cancellationToken = default)
         {
             LastRequest = request;
+            LastCancellationToken = cancellationToken;
+            InvocationCount++;
             return Task.FromResult(new SshCommandResult(
                 request.CommandName,
                 request.CommandText,
