@@ -490,6 +490,64 @@ public sealed class NamedPipeShutdownServiceTests
         root.GetProperty("Error").GetString().Should().Be("session-is-not-interactive");
     }
 
+    [Fact]
+    public async Task ExecuteAsync_ConcurrentPingClients_ShouldAllReceiveResponses()
+    {
+        var lifetime = new FakeHostApplicationLifetime();
+        var pipeName = "KelpieTest." + Guid.NewGuid().ToString("N");
+        using var service = new NamedPipeShutdownService(
+            lifetime,
+            NullLogger<NamedPipeShutdownService>.Instance,
+            new KelpieServerControlOptions(pipeName),
+            CreateProfileCatalog(),
+            new InMemorySshPasswordSessionStore(),
+            CreateSshCommandService());
+
+        await service.StartAsync(CancellationToken.None);
+
+        var responses = await Task.WhenAll(
+            Enumerable.Range(0, 8)
+                .Select(_ => SendControlCommandAsync(pipeName, "ping")));
+
+        await service.StopAsync(CancellationToken.None);
+
+        responses.Should().OnlyContain(response => response == "pong;windowsService=false");
+        lifetime.StopRequested.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ClientDisconnectsBeforeCommand_ShouldAcceptNextClient()
+    {
+        var lifetime = new FakeHostApplicationLifetime();
+        var pipeName = "KelpieTest." + Guid.NewGuid().ToString("N");
+        using var service = new NamedPipeShutdownService(
+            lifetime,
+            NullLogger<NamedPipeShutdownService>.Instance,
+            new KelpieServerControlOptions(pipeName),
+            CreateProfileCatalog(),
+            new InMemorySshPasswordSessionStore(),
+            CreateSshCommandService());
+
+        await service.StartAsync(CancellationToken.None);
+
+        await using (var abandonedClient = new NamedPipeClientStream(
+                         ".",
+                         pipeName,
+                         PipeDirection.InOut,
+                         PipeOptions.Asynchronous))
+        {
+            using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            await abandonedClient.ConnectAsync(cancellationTokenSource.Token);
+        }
+
+        var response = await SendControlCommandAsync(pipeName, "ping");
+
+        await service.StopAsync(CancellationToken.None);
+
+        response.Should().Be("pong;windowsService=false");
+        lifetime.StopRequested.Should().BeFalse();
+    }
+
     private static async Task WaitForStopRequestedAsync(FakeHostApplicationLifetime lifetime)
     {
         for (var index = 0; index < 30; index++)
