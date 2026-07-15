@@ -221,6 +221,7 @@ public sealed partial class KelpieTools
     /// <param name="siteKey">The web public site key.</param>
     /// <param name="path">The absolute site-relative file path.</param>
     /// <param name="contentType">The optional MIME content type.</param>
+    /// <param name="usePrivilegedHelper">Whether to check the bounded privileged atomic update helper.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The web public file write check result.</returns>
     [McpServerTool(Name = "web_file_check_write")]
@@ -233,6 +234,7 @@ public sealed partial class KelpieTools
         string siteKey,
         string path,
         string? contentType = null,
+        bool usePrivilegedHelper = false,
         CancellationToken cancellationToken = default)
     {
         KpLog.Info($"MCP SSH tool called: web_file_check_write siteKey={siteKey}, profile={profileName}, path={path}");
@@ -243,6 +245,7 @@ public sealed partial class KelpieTools
             siteKey,
             path,
             contentType,
+            usePrivilegedHelper,
             cancellationToken);
     }
 
@@ -321,6 +324,9 @@ public sealed partial class KelpieTools
     /// <param name="owner">The optional target Linux owner name or uid.</param>
     /// <param name="group">The optional target Linux group name or gid.</param>
     /// <param name="mode">The optional target 3-digit octal mode.</param>
+    /// <param name="expectedSha256">The optional expected SHA-256 of the existing file.</param>
+    /// <param name="createBackup">Whether to create a rollback backup before replacement.</param>
+    /// <param name="preservePermissions">Whether to preserve the existing owner, group, and mode.</param>
     /// <param name="recursive">Whether to check recursive confirmation tokens.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The web public permission check result.</returns>
@@ -476,10 +482,13 @@ public sealed partial class KelpieTools
     /// <param name="contentType">The optional MIME content type.</param>
     /// <param name="owner">The optional target Linux owner spec in owner[:group] form.</param>
     /// <param name="mode">The optional target 3-digit octal mode.</param>
+    /// <param name="expectedSha256">The optional lowercase SHA-256 required to match the existing file.</param>
+    /// <param name="createBackup">Whether to create a managed rollback backup before replacement.</param>
+    /// <param name="preservePermissions">Whether to preserve owner, group, and mode through the managed helper.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The web public file write result.</returns>
     [McpServerTool(Name = "web_file_write")]
-    [Description("Writes one provider-approved web file after explicit confirmation, optionally applying owner[:group] and/or mode atomically through the sudo helper.")]
+    [Description("Writes one provider-approved web file after explicit confirmation, with optional managed SHA-256 precondition, atomic backup, and permission preservation through the bounded sudo helper.")]
     public static async Task<WebPublicFileWriteResult> WriteWebFileAsync(
         SshCommandService sshCommandService,
         ISshConnectionProfileCatalog profileCatalog,
@@ -493,10 +502,17 @@ public sealed partial class KelpieTools
         string? contentType = null,
         string? owner = null,
         string? mode = null,
+        string? expectedSha256 = null,
+        bool createBackup = false,
+        bool preservePermissions = false,
         CancellationToken cancellationToken = default)
     {
         KpLog.Info($"MCP SSH tool called: web_file_write siteKey={siteKey}, profile={profileName}, path={path}");
         var permissionSuffix = CreateWritePermissionConfirmationSuffix(owner, mode);
+        if (expectedSha256 is not null || createBackup || preservePermissions)
+        {
+            permissionSuffix += $":{expectedSha256 ?? "-"}:{(createBackup ? 1 : 0)}:{(preservePermissions ? 1 : 0)}";
+        }
         if (!TryGetConfirmationError("web_file_write", $"{siteKey}:{path}{permissionSuffix}", confirmation, out var confirmationError))
         {
             return new WebPublicFileWriteResult(
@@ -524,6 +540,69 @@ public sealed partial class KelpieTools
             contentType,
             owner,
             mode,
+            expectedSha256,
+            createBackup,
+            preservePermissions,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Restores one provider-approved web file from its managed backup.
+    /// </summary>
+    [McpServerTool(Name = "web_file_rollback")]
+    [Description("Restores one provider-approved web file from its managed backup after exact SHA-256 and confirmation checks.")]
+    public static async Task<WebPublicFileWriteResult> RollbackWebFileAsync(
+        SshCommandService sshCommandService,
+        ISshConnectionProfileCatalog profileCatalog,
+        IWebPublicFileProvider webPublicFileProvider,
+        string profileName,
+        string siteKey,
+        string path,
+        string expectedSha256,
+        string confirmation,
+        CancellationToken cancellationToken = default)
+    {
+        KpLog.Info($"MCP SSH tool called: web_file_rollback siteKey={siteKey}, profile={profileName}, path={path}");
+        if (!TryGetConfirmationError("web_file_rollback", $"{siteKey}:{path}:{expectedSha256}", confirmation, out var error))
+        {
+            return new WebPublicFileWriteResult(siteKey, string.Empty, path, string.Empty, false, false, false, string.Empty, 0, [], Error: error);
+        }
+
+        return await webPublicFileProvider.RollbackFileAsync(
+            sshCommandService,
+            ResolveSshProfile(profileCatalog, profileName),
+            siteKey,
+            path,
+            expectedSha256,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Commits one provider-approved web file update by removing its managed backup.
+    /// </summary>
+    [McpServerTool(Name = "web_file_commit")]
+    [Description("Commits one provider-approved web file update by removing its managed backup after confirmation.")]
+    public static async Task<WebPublicFileWriteResult> CommitWebFileAsync(
+        SshCommandService sshCommandService,
+        ISshConnectionProfileCatalog profileCatalog,
+        IWebPublicFileProvider webPublicFileProvider,
+        string profileName,
+        string siteKey,
+        string path,
+        string confirmation,
+        CancellationToken cancellationToken = default)
+    {
+        KpLog.Info($"MCP SSH tool called: web_file_commit siteKey={siteKey}, profile={profileName}, path={path}");
+        if (!TryGetConfirmationError("web_file_commit", $"{siteKey}:{path}", confirmation, out var error))
+        {
+            return new WebPublicFileWriteResult(siteKey, string.Empty, path, string.Empty, false, false, false, string.Empty, 0, [], Error: error);
+        }
+
+        return await webPublicFileProvider.CommitFileAsync(
+            sshCommandService,
+            ResolveSshProfile(profileCatalog, profileName),
+            siteKey,
+            path,
             cancellationToken);
     }
 

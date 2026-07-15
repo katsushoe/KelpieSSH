@@ -261,6 +261,10 @@ Log directory は次の順で解決します。
 
 ## Security Notes
 
+### 管理対象Web権限helper policy
+
+特権付きmanaged Web書き込みには、`/etc/kelpie/web-permission-helper-policy.json`も必要です。root所有でgroupおよびothersから書き込みできない通常ファイルとして配置し、symlinkにしないでください。`Sites`は絶対site rootから`AllowedFiles`への対応で、各keyは完全一致のsite-relative absolute pathです。`Update`は既存regular fileの置換だけを許可し、`Create`はその完全一致pathが存在しない場合にroot所有・`0644`での新規作成も許可します。wildcardは使えません。例は`config_samples/web-permission-helper-policy.json`を参照してください。
+
 - 実 profile files を commit しないでください。
 - private keys、passwords、passphrases、real host names、real user names を commit しないでください。
 - production `profiles/`、`keys/`、`dat/`、`logs/` は public repository の外に置いてください。

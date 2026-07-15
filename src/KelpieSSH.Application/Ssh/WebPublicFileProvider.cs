@@ -569,6 +569,7 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
         string siteKey,
         string path,
         string? contentType = null,
+        bool usePrivilegedHelper = false,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sshCommandService);
@@ -619,7 +620,33 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
         var remote = JsonSerializer.Deserialize<RemoteWriteCheckResult>(result.StandardOutput, JsonOptions)
             ?? throw new InvalidOperationException("Web public file write check returned empty JSON.");
 
-        var failure = remote.CanWrite
+        var helperAvailable = false;
+        var helperCreateAllowed = false;
+        if (usePrivilegedHelper && (remote.CanWrite || IsPermissionOnlyWriteFailure(remote.Reason)))
+        {
+            var helperResult = await sshCommandService.ExecuteAsync(
+                profile,
+                "web_public_file_check_managed_internal",
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["siteRootBase64"] = EncodeArgument(site.RootPath),
+                    ["pathBase64"] = EncodeArgument(normalizedPath),
+                    ["create"] = remote.Exists ? "0" : "1",
+                },
+                channel: KelpieExecutionChannel.Mcp,
+                cancellationToken: cancellationToken);
+            if (helperResult.ExitCode == 0)
+            {
+                var managed = JsonSerializer.Deserialize<RemoteManagedWriteCheckResult>(helperResult.StandardOutput, JsonOptions)
+                    ?? throw new InvalidOperationException("Managed web write check returned empty JSON.");
+                helperAvailable = managed.Allowed;
+                helperCreateAllowed = managed.CreateAllowed;
+            }
+        }
+
+        var canWrite = remote.CanWrite || helperAvailable;
+
+        var failure = canWrite
             ? WebPublicWriteFailure.None
             : CreateWriteFailure(remote.Reason);
 
@@ -629,15 +656,22 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             normalizedPath,
             remote.ResolvedPath ?? string.Empty,
             remote.Exists,
-            remote.CanWrite,
-            RequiresConfirmation: remote.CanWrite,
+            canWrite,
+            RequiresConfirmation: canWrite,
             confirmation,
             resolvedContentType,
             remote.Reason,
             Warnings: [],
             Error: null,
             ReasonCode: failure.ReasonCode,
-            Guidance: failure.Guidance);
+            Guidance: failure.Guidance,
+            CreateAllowed: helperAvailable ? helperCreateAllowed : !remote.Exists && site.CreateDirectories,
+            PrivilegedAtomicUpdate: helperAvailable,
+            PreservesPermissions: helperAvailable,
+            BackupAvailable: helperAvailable,
+            RollbackAvailable: helperAvailable,
+            ExpectedSha256Supported: helperAvailable,
+            PostWriteSha256Supported: helperAvailable);
     }
 
     /// <inheritdoc />
@@ -1005,6 +1039,9 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
         string? contentType,
         string? owner = null,
         string? mode = null,
+        string? expectedSha256 = null,
+        bool createBackup = false,
+        bool preservePermissions = false,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sshCommandService);
@@ -1040,7 +1077,7 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             return CreateWriteError(site, normalizedPath, permissionRequest.Error);
         }
 
-        if (permissionRequest.HasPermissions)
+        if (permissionRequest.HasPermissions || expectedSha256 is not null || createBackup || preservePermissions)
         {
             return await WriteFileWithPermissionsAsync(
                 sshCommandService,
@@ -1051,6 +1088,9 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 resolvedContentType,
                 size,
                 permissionRequest,
+                expectedSha256,
+                createBackup,
+                preservePermissions,
                 cancellationToken);
         }
 
@@ -1152,7 +1192,10 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 resolvedContentType,
                 size,
                 permissionRequest,
-                cancellationToken);
+                expectedSha256: null,
+                createBackup: false,
+                preservePermissions: false,
+                cancellationToken: cancellationToken);
         }
 
         var result = await sshCommandService.ExecuteAsync(
@@ -1197,6 +1240,89 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             Mode: remote.Mode ?? string.Empty);
     }
 
+    /// <inheritdoc />
+    public async Task<WebPublicFileWriteResult> RollbackFileAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        string expectedSha256,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sshCommandService);
+        ArgumentNullException.ThrowIfNull(profile);
+        var site = ResolveSite(profile, siteKey);
+        var normalizedPath = NormalizePath(path);
+        var access = ValidatePath(normalizedPath, site, requireWrite: true);
+        if (access.Error is not null || !Sha256Regex().IsMatch(expectedSha256))
+        {
+            return CreateWriteError(site, normalizedPath, access.Error ?? "Expected SHA-256 is invalid.");
+        }
+
+        var result = await sshCommandService.ExecuteAsync(
+            profile,
+            "web_public_file_rollback_internal",
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["siteRootBase64"] = EncodeArgument(site.RootPath),
+                ["pathBase64"] = EncodeArgument(normalizedPath),
+                ["expectedSha256"] = expectedSha256,
+            },
+            channel: KelpieExecutionChannel.Mcp,
+            cancellationToken: cancellationToken);
+        if (result.ExitCode != 0)
+        {
+            return CreateWriteError(site, normalizedPath, $"Web public file rollback failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}");
+        }
+
+        var remote = JsonSerializer.Deserialize<RemoteWriteResult>(result.StandardOutput, JsonOptions)
+            ?? throw new InvalidOperationException("Web public file rollback returned empty JSON.");
+        return CreateManagedWriteResult(site, normalizedPath, remote);
+    }
+
+    /// <inheritdoc />
+    public async Task<WebPublicFileWriteResult> CommitFileAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sshCommandService);
+        ArgumentNullException.ThrowIfNull(profile);
+        var site = ResolveSite(profile, siteKey);
+        var normalizedPath = NormalizePath(path);
+        var access = ValidatePath(normalizedPath, site, requireWrite: true);
+        if (access.Error is not null)
+        {
+            return CreateWriteError(site, normalizedPath, access.Error);
+        }
+
+        var result = await sshCommandService.ExecuteAsync(
+            profile,
+            "web_public_file_commit_internal",
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["siteRootBase64"] = EncodeArgument(site.RootPath),
+                ["pathBase64"] = EncodeArgument(normalizedPath),
+            },
+            channel: KelpieExecutionChannel.Mcp,
+            cancellationToken: cancellationToken);
+        return result.ExitCode == 0
+            ? new WebPublicFileWriteResult(site.SiteKey, site.DisplayName, normalizedPath, string.Empty, false, false, false, string.Empty, 0, ["Managed backup committed."])
+            : CreateWriteError(site, normalizedPath, $"Web public file commit failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}");
+    }
+
+    private static WebPublicFileWriteResult CreateManagedWriteResult(WebPublicSite site, string normalizedPath, RemoteWriteResult remote)
+    {
+        return new WebPublicFileWriteResult(
+            site.SiteKey, site.DisplayName, normalizedPath, remote.ResolvedPath ?? string.Empty,
+            remote.Written, remote.Created, remote.Overwritten, string.Empty, remote.Size, [],
+            Owner: remote.Owner ?? string.Empty, Group: remote.Group ?? string.Empty, Mode: remote.Mode ?? string.Empty,
+            PreviousSha256: remote.PreviousSha256 ?? string.Empty, Sha256: remote.Sha256 ?? string.Empty,
+            BackupPath: remote.BackupPath ?? string.Empty, PermissionsPreserved: remote.PermissionsPreserved);
+    }
+
     private async Task<WebPublicFileWriteResult> WriteFileWithPermissionsAsync(
         SshCommandService sshCommandService,
         SshConnectionProfile profile,
@@ -1206,6 +1332,9 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
         string resolvedContentType,
         long size,
         WritePermissionRequest permissionRequest,
+        string? expectedSha256,
+        bool createBackup,
+        bool preservePermissions,
         CancellationToken cancellationToken)
     {
         var result = await sshCommandService.ExecuteAsync(
@@ -1219,6 +1348,9 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 ["createDirectories"] = site.CreateDirectories ? "1" : "0",
                 ["ownerBase64"] = EncodeOptionalArgument(permissionRequest.OwnerSpec),
                 ["modeBase64"] = EncodeOptionalArgument(permissionRequest.Mode),
+                ["expectedSha256"] = expectedSha256 ?? "-",
+                ["backup"] = createBackup ? "1" : "0",
+                ["preservePermissions"] = preservePermissions ? "1" : "0",
             },
             channel: KelpieExecutionChannel.Mcp,
             standardInput: contentBase64,
@@ -1254,7 +1386,11 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             Error: null,
             Owner: remote.Owner ?? permissionRequest.Owner,
             Group: remote.Group ?? string.Empty,
-            Mode: remote.Mode ?? permissionRequest.Mode);
+            Mode: remote.Mode ?? permissionRequest.Mode,
+            PreviousSha256: remote.PreviousSha256 ?? string.Empty,
+            Sha256: remote.Sha256 ?? string.Empty,
+            BackupPath: remote.BackupPath ?? string.Empty,
+            PermissionsPreserved: remote.PermissionsPreserved);
     }
 
     /// <inheritdoc />
@@ -2219,6 +2355,13 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             "The write request was rejected by KelpieSSH policy or by the remote preflight check. Review Error and Reason for the exact condition.");
     }
 
+    private static bool IsPermissionOnlyWriteFailure(string? reason)
+    {
+        return reason is not null
+            && (reason.Contains("not writable by the SSH user", StringComparison.OrdinalIgnoreCase)
+                || reason.Contains("Parent directory is not writable by the SSH user", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static WebPublicPermissionChangeResult CreatePermissionError(
         WebPublicSite site,
         string path,
@@ -2376,6 +2519,13 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
         public string? Reason { get; set; }
     }
 
+    private sealed class RemoteManagedWriteCheckResult
+    {
+        public bool Allowed { get; set; }
+
+        public bool CreateAllowed { get; set; }
+    }
+
     private sealed class RemoteWriteResult
     {
         public string? ResolvedPath { get; set; }
@@ -2393,6 +2543,14 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
         public string? Group { get; set; }
 
         public string? Mode { get; set; }
+
+        public string? PreviousSha256 { get; set; }
+
+        public string? Sha256 { get; set; }
+
+        public string? BackupPath { get; set; }
+
+        public bool PermissionsPreserved { get; set; }
     }
 
     private sealed class RemotePermissionChangeResult

@@ -266,6 +266,10 @@ Relative `LogDirectory` values are resolved from the configuration file director
 
 ## Security Notes
 
+### Managed web permission helper policy
+
+Privileged managed web writes also require `/etc/kelpie/web-permission-helper-policy.json`. Install it as a regular, non-symlink file owned by root and not writable by group or others. `Sites` maps an absolute site root to `AllowedFiles`; every key is an exact site-relative absolute path. `Update` permits replacement of an existing regular file. `Create` additionally permits creating that exact missing file as root-owned mode `0644`. Wildcards are not supported. See `config_samples/web-permission-helper-policy.json`.
+
 - Do not commit real profile files.
 - Do not commit private keys, passwords, passphrases, real host names, or real user names.
 - Keep production `profiles/`, `keys/`, `dat/`, and `logs/` outside this public repository.

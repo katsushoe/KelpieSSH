@@ -17,4 +17,11 @@ public sealed record WebPublicFileWriteCheckResult(
     IReadOnlyList<string> Warnings,
     string? Error = null,
     string? ReasonCode = null,
-    string? Guidance = null);
+    string? Guidance = null,
+    bool CreateAllowed = false,
+    bool PrivilegedAtomicUpdate = false,
+    bool PreservesPermissions = false,
+    bool BackupAvailable = false,
+    bool RollbackAvailable = false,
+    bool ExpectedSha256Supported = false,
+    bool PostWriteSha256Supported = false);

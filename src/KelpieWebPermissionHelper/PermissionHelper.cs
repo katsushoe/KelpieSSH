@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -12,6 +13,7 @@ public static partial class PermissionHelper
     private const int Failure = 1;
     private const string DefaultNewFileMode = "644";
     private const string OptionalArgumentNone = "\u001fKELPIE_NONE\u001f";
+    private const string ManagedPolicyPath = "/etc/kelpie/web-permission-helper-policy.json";
 
     public static int Run(
         string[] args,
@@ -47,6 +49,9 @@ public static partial class PermissionHelper
                 "--version" => WriteVersion(standardOutput),
                 "version" => WriteVersion(standardOutput),
                 "write-file" => WriteFile(args, operations, standardInput, standardOutput, standardError),
+                "rollback-file" => RollbackFile(args, operations, standardOutput, standardError),
+                "commit-file" => CommitFile(args, operations, standardOutput, standardError),
+                "check-managed-file" => CheckManagedFile(args, operations, standardOutput, standardError),
                 "change-owner" => ChangeOwner(args, operations, standardOutput, standardError),
                 "change-mode" => ChangeMode(args, operations, standardOutput, standardError),
                 _ => WriteError(standardError, "ERROR: unsupported action: " + args[0]),
@@ -65,9 +70,9 @@ public static partial class PermissionHelper
         TextWriter standardOutput,
         TextWriter standardError)
     {
-        if (args.Count != 8)
+        if (args.Count is not (8 or 11))
         {
-            return WriteError(standardError, "ERROR: write-file requires siteRoot, path, content, maxBytes, createDirectories, owner, and mode");
+            return WriteError(standardError, "ERROR: write-file requires siteRoot, path, content, maxBytes, createDirectories, owner, mode, and optional expectedSha256, backup, preservePermissions");
         }
 
         var siteRoot = DecodeBase64(args[1], "siteRoot");
@@ -77,6 +82,9 @@ public static partial class PermissionHelper
         var createDirectories = ValidateCreateDirectories(args[5]);
         var ownerSpec = DecodeOptionalBase64(args[6], "owner").Trim();
         var modeText = DecodeOptionalBase64(args[7], "mode").Trim();
+        var expectedSha256 = args.Count == 11 ? ValidateExpectedSha256(args[8]) : null;
+        var createBackup = args.Count == 11 && ValidateBooleanFlag(args[9], "backup");
+        var preservePermissions = args.Count == 11 && ValidateBooleanFlag(args[10], "preservePermissions");
         if (content.Length > maxBytes)
         {
             return WriteError(standardError, "ERROR: web public content exceeds maximum write size");
@@ -86,27 +94,40 @@ public static partial class PermissionHelper
         uint? modeRequest = string.IsNullOrWhiteSpace(modeText)
             ? null
             : ValidateMode(modeText);
-        if (!ownerRequest.HasOwner && modeRequest is null)
+        if (!ownerRequest.HasOwner && modeRequest is null && !preservePermissions)
         {
             return WriteError(standardError, "ERROR: owner or mode is required for permissioned write");
         }
 
         var target = ResolveWritableTargetPath(siteRoot, path, createDirectories, operations);
         var existed = operations.FileExists(target.ResolvedPath);
+        if (args.Count == 11)
+        {
+            ValidateManagedPolicy(siteRoot, path, allowCreate: !existed, operations);
+        }
         if (existed && !operations.IsRegularFile(target.ResolvedPath))
         {
             return WriteError(standardError, "ERROR: web public path is not a regular file");
         }
 
-        var (uid, gid) = ResolveWriteOwnerIds(ownerRequest, existed, target.ResolvedPath, operations);
-        if (uid == 0)
+        if (preservePermissions && (ownerRequest.HasOwner || modeRequest is not null))
         {
-            return WriteError(standardError, "ERROR: owner must not resolve to root");
+            return WriteError(standardError, "ERROR: preservePermissions does not accept owner or mode overrides");
         }
 
-        if (gid == 0)
+        var existingContent = existed ? operations.ReadAllBytes(target.ResolvedPath) : null;
+        var existingHash = existingContent is null ? null : ComputeSha256(existingContent);
+        if (expectedSha256 is not null && !string.Equals(existingHash, expectedSha256, StringComparison.Ordinal))
         {
-            return WriteError(standardError, "ERROR: group must not resolve to root");
+            return WriteError(standardError, "ERROR: expected SHA-256 does not match current file");
+        }
+
+        var (uid, gid) = preservePermissions && !existed
+            ? (0u, 0u)
+            : ResolveWriteOwnerIds(ownerRequest, existed, target.ResolvedPath, operations);
+        if ((uid == 0 || gid == 0) && !preservePermissions)
+        {
+            return WriteError(standardError, "ERROR: root owner or group can only be preserved for an existing file");
         }
 
         var finalModeText = modeText.Length == 0
@@ -115,8 +136,31 @@ public static partial class PermissionHelper
         var finalMode = ValidateMode(finalModeText);
 
         var tempPath = target.ParentPath.TrimEnd('/') + "/.kelpie-upload-" + Guid.NewGuid().ToString("N") + ".tmp";
+        var backupPath = target.ResolvedPath + ".kelpiebakup";
         try
         {
+            if (createBackup && existed)
+            {
+                if (operations.FileExists(backupPath))
+                {
+                    return WriteError(standardError, "ERROR: backup already exists");
+                }
+
+                var backupTempPath = target.ParentPath.TrimEnd('/') + "/.kelpie-backup-" + Guid.NewGuid().ToString("N") + ".tmp";
+                try
+                {
+                    operations.WriteAllBytes(backupTempPath, existingContent!);
+                    operations.ChangeOwner(backupTempPath, uid, gid);
+                    operations.ChangeMode(backupTempPath, finalMode);
+                    operations.MoveFileOverwrite(backupTempPath, backupPath);
+                }
+                catch
+                {
+                    operations.DeleteFileIfExists(backupTempPath);
+                    throw;
+                }
+            }
+
             operations.WriteAllBytes(tempPath, content);
             operations.ChangeOwner(tempPath, uid, gid);
             operations.ChangeMode(tempPath, finalMode);
@@ -137,8 +181,163 @@ public static partial class PermissionHelper
             content.Length,
             ownerRequest.Owner,
             ownerRequest.Group,
-            finalModeText);
+            finalModeText,
+            existingHash ?? string.Empty,
+            ComputeSha256(content),
+            createBackup && existed ? backupPath : string.Empty,
+            preservePermissions);
         return Success;
+    }
+
+    private static int RollbackFile(
+        IReadOnlyList<string> args,
+        IUnixPermissionOperations operations,
+        TextWriter standardOutput,
+        TextWriter standardError)
+    {
+        if (args.Count != 4)
+        {
+            return WriteError(standardError, "ERROR: rollback-file requires siteRoot, path, and expectedCurrentSha256");
+        }
+
+        var siteRoot = DecodeBase64(args[1], "siteRoot");
+        var path = DecodeBase64(args[2], "path");
+        var expectedCurrentSha256 = ValidateExpectedSha256(args[3]);
+        var target = ResolveWritableTargetPath(siteRoot, path, createDirectories: false, operations);
+        ValidateManagedPolicy(siteRoot, path, allowCreate: false, operations);
+        var backupPath = target.ResolvedPath + ".kelpiebakup";
+        if (!operations.FileExists(target.ResolvedPath) || !operations.FileExists(backupPath))
+        {
+            return WriteError(standardError, "ERROR: target or backup does not exist");
+        }
+
+        if (operations.IsSymbolicLink(backupPath) || !operations.IsRegularFile(backupPath))
+        {
+            return WriteError(standardError, "ERROR: backup is not a regular non-symbolic-link file");
+        }
+
+        var currentHash = ComputeSha256(operations.ReadAllBytes(target.ResolvedPath));
+        if (!string.Equals(currentHash, expectedCurrentSha256, StringComparison.Ordinal))
+        {
+            return WriteError(standardError, "ERROR: expected SHA-256 does not match current file");
+        }
+
+        var backupContent = operations.ReadAllBytes(backupPath);
+        var ownerIds = operations.GetOwnerIds(backupPath);
+        var modeText = operations.GetMode(backupPath);
+        var tempPath = target.ParentPath.TrimEnd('/') + "/.kelpie-rollback-" + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            operations.WriteAllBytes(tempPath, backupContent);
+            operations.ChangeOwner(tempPath, ownerIds.Uid, ownerIds.Gid);
+            operations.ChangeMode(tempPath, ValidateMode(modeText));
+            operations.MoveFileOverwrite(tempPath, target.ResolvedPath);
+            operations.DeleteFileIfExists(backupPath);
+        }
+        catch
+        {
+            operations.DeleteFileIfExists(tempPath);
+            throw;
+        }
+
+        WriteWriteResult(standardOutput, target.ResolvedPath, true, false, true, backupContent.Length, string.Empty, string.Empty, modeText, currentHash, ComputeSha256(backupContent), string.Empty, true);
+        return Success;
+    }
+
+    private static int CommitFile(
+        IReadOnlyList<string> args,
+        IUnixPermissionOperations operations,
+        TextWriter standardOutput,
+        TextWriter standardError)
+    {
+        if (args.Count != 3)
+        {
+            return WriteError(standardError, "ERROR: commit-file requires siteRoot and path");
+        }
+
+        var target = ResolveWritableTargetPath(DecodeBase64(args[1], "siteRoot"), DecodeBase64(args[2], "path"), false, operations);
+        ValidateManagedPolicy(DecodeBase64(args[1], "siteRoot"), DecodeBase64(args[2], "path"), allowCreate: false, operations);
+        var backupPath = target.ResolvedPath + ".kelpiebakup";
+        if (!operations.FileExists(backupPath))
+        {
+            return WriteError(standardError, "ERROR: backup does not exist");
+        }
+
+        if (operations.IsSymbolicLink(backupPath) || !operations.IsRegularFile(backupPath))
+        {
+            return WriteError(standardError, "ERROR: backup is not a regular non-symbolic-link file");
+        }
+
+        operations.DeleteFileIfExists(backupPath);
+        standardOutput.WriteLine("{\"committed\":true}");
+        return Success;
+    }
+
+    private static int CheckManagedFile(
+        IReadOnlyList<string> args,
+        IUnixPermissionOperations operations,
+        TextWriter standardOutput,
+        TextWriter standardError)
+    {
+        if (args.Count != 4)
+        {
+            return WriteError(standardError, "ERROR: check-managed-file requires siteRoot, path, and create");
+        }
+
+        var siteRoot = DecodeBase64(args[1], "siteRoot");
+        var path = DecodeBase64(args[2], "path");
+        var allowCreate = ValidateBooleanFlag(args[3], "create");
+        var createAllowed = ValidateManagedPolicy(siteRoot, path, allowCreate, operations);
+        standardOutput.WriteLine("{\"allowed\":true,\"createAllowed\":" + (createAllowed ? "true" : "false") + ",\"privilegedAtomicUpdate\":true,\"preservesPermissions\":true,\"backup\":true,\"rollback\":true,\"expectedSha256\":true,\"postWriteSha256\":true}");
+        return Success;
+    }
+
+    private static bool ValidateManagedPolicy(
+        string siteRoot,
+        string path,
+        bool allowCreate,
+        IUnixPermissionOperations operations)
+    {
+        if (!operations.FileExists(ManagedPolicyPath)
+            || !operations.IsRegularFile(ManagedPolicyPath)
+            || operations.IsSymbolicLink(ManagedPolicyPath))
+        {
+            throw new InvalidOperationException("managed web permission policy is not available");
+        }
+
+        var owner = operations.GetOwnerIds(ManagedPolicyPath);
+        var mode = Convert.ToUInt32(operations.GetMode(ManagedPolicyPath), 8);
+        if (owner.Uid != 0 || (mode & 0x12u) != 0)
+        {
+            throw new InvalidOperationException("managed web permission policy must be root-owned and not group/world-writable");
+        }
+
+        using var document = JsonDocument.Parse(operations.ReadAllBytes(ManagedPolicyPath));
+        if (!document.RootElement.TryGetProperty("Sites", out var sites)
+            || sites.ValueKind != JsonValueKind.Object
+            || !sites.TryGetProperty(siteRoot, out var site)
+            || site.ValueKind != JsonValueKind.Object
+            || !site.TryGetProperty("AllowedFiles", out var files)
+            || files.ValueKind != JsonValueKind.Object
+            || !files.TryGetProperty(path, out var access)
+            || access.ValueKind != JsonValueKind.String)
+        {
+            throw new InvalidOperationException("managed web file is not allowed by helper policy");
+        }
+
+        var accessValue = access.GetString();
+        if (!string.Equals(accessValue, "Update", StringComparison.Ordinal)
+            && !string.Equals(accessValue, "Create", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("managed web file access is invalid");
+        }
+
+        if (allowCreate && !string.Equals(accessValue, "Create", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("managed web file creation is not allowed by helper policy");
+        }
+
+        return string.Equals(accessValue, "Create", StringComparison.Ordinal);
     }
 
     private static int ChangeOwner(
@@ -303,6 +502,11 @@ public static partial class PermissionHelper
         }
 
         var candidate = parentReal.TrimEnd('/') + "/" + fileName;
+        if (operations.IsSymbolicLink(candidate))
+        {
+            throw new InvalidOperationException("requested path must not be a symbolic link");
+        }
+
         var resolvedPath = operations.FileExists(candidate)
             ? operations.RealPath(candidate)
             : candidate;
@@ -450,6 +654,26 @@ public static partial class PermissionHelper
         return Convert.ToUInt32(mode, 8);
     }
 
+    private static string? ValidateExpectedSha256(string value)
+    {
+        if (string.Equals(value, "-", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        if (!Sha256Regex().IsMatch(value))
+        {
+            throw new InvalidOperationException("expectedSha256 must be '-' or 64 lowercase hexadecimal characters");
+        }
+
+        return value;
+    }
+
+    private static string ComputeSha256(byte[] content)
+    {
+        return Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+    }
+
     private static bool IsSafeAbsoluteUnixPath(string path)
     {
         if (string.IsNullOrWhiteSpace(path) || !path.StartsWith("/", StringComparison.Ordinal))
@@ -536,10 +760,14 @@ public static partial class PermissionHelper
         long size,
         string owner,
         string group,
-        string mode)
+        string mode,
+        string previousSha256 = "",
+        string sha256 = "",
+        string backupPath = "",
+        bool permissionsPreserved = false)
     {
         standardOutput.WriteLine(JsonSerializer.Serialize(
-            new PermissionedWriteOutput(resolvedPath, written, created, overwritten, size, owner, group, mode),
+            new PermissionedWriteOutput(resolvedPath, written, created, overwritten, size, owner, group, mode, previousSha256, sha256, backupPath, permissionsPreserved),
             PermissionChangeJsonContext.Default.PermissionedWriteOutput));
     }
 
@@ -564,6 +792,9 @@ public static partial class PermissionHelper
     [GeneratedRegex("^[0-7]{3}$", RegexOptions.CultureInvariant)]
     private static partial Regex ModeRegex();
 
+    [GeneratedRegex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)]
+    private static partial Regex Sha256Regex();
+
     internal sealed record PermissionChangeOutput(
         string ResolvedPath,
         bool Changed,
@@ -579,7 +810,11 @@ public static partial class PermissionHelper
         long Size,
         string Owner,
         string Group,
-        string Mode);
+        string Mode,
+        string PreviousSha256,
+        string Sha256,
+        string BackupPath,
+        bool PermissionsPreserved);
 
     private sealed record WritableTargetPath(
         string ParentPath,

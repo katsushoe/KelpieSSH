@@ -321,6 +321,40 @@ public sealed class WebPublicFileProviderTests
     }
 
     [Fact]
+    public async Task CheckWriteAsync_ShouldReportPrivilegedAtomicCapabilitiesWhenHelperIsAvailable()
+    {
+        var profile = CreateProfile(KelpiePolicyMode.Expert);
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: """{"resolvedPath":"/var/www/html/index.html","exists":true,"canWrite":false,"reason":"File is not writable by the SSH user"}""",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(StandardOutput: """{"allowed":true,"createAllowed":true}""", StandardError: string.Empty),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.CheckWriteAsync(
+            service,
+            profile,
+            "default",
+            "/index.html",
+            contentType: "text/html",
+            usePrivilegedHelper: true);
+
+        result.CanWrite.Should().BeTrue();
+        result.PrivilegedAtomicUpdate.Should().BeTrue();
+        result.PreservesPermissions.Should().BeTrue();
+        result.BackupAvailable.Should().BeTrue();
+        result.RollbackAvailable.Should().BeTrue();
+        result.ExpectedSha256Supported.Should().BeTrue();
+        result.PostWriteSha256Supported.Should().BeTrue();
+        result.CreateAllowed.Should().BeTrue();
+        runner.LastRequest!.CommandName.Should().Be("web_public_file_check_managed_internal");
+        DecodeArgument(runner.LastRequest, "pathBase64").Should().Be("/index.html");
+        runner.LastRequest.Arguments["create"].Should().Be("0");
+    }
+
+    [Fact]
     public async Task CheckSecretWriteAsync_ShouldRequireExplicitAllowedFileRule()
     {
         var profile = CreateProfile(
@@ -715,6 +749,33 @@ public sealed class WebPublicFileProviderTests
         runner.LastRequest.StandardInput.Should().Be(contentBase64);
         DecodeArgument(runner.LastRequest, "ownerBase64").Should().Be("www-data:www-data");
         DecodeArgument(runner.LastRequest, "modeBase64").Should().Be("775");
+    }
+
+    [Fact]
+    public async Task WriteFileAsync_ShouldPassManagedDeployGuardsToPermissionHelper()
+    {
+        var expectedHash = new string('a', 64);
+        var profile = CreateProfile(KelpiePolicyMode.Expert);
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: $$"""{"resolvedPath":"/var/www/html/my_dir/sample.html","written":true,"created":false,"overwritten":true,"size":3,"mode":"644","previousSha256":"{{expectedHash}}","sha256":"{{new string('b', 64)}}","backupPath":"/var/www/html/my_dir/sample.html.kelpiebakup","permissionsPreserved":true}""",
+                StandardError: string.Empty),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.WriteFileAsync(
+            service, profile, "default", "/my_dir/sample.html", "bmV3", "utf-8", "text/html",
+            expectedSha256: expectedHash, createBackup: true, preservePermissions: true);
+
+        result.Written.Should().BeTrue();
+        result.PreviousSha256.Should().Be(expectedHash);
+        result.BackupPath.Should().EndWith(".kelpiebakup");
+        result.PermissionsPreserved.Should().BeTrue();
+        runner.LastRequest!.CommandName.Should().Be("web_public_file_write_with_permissions_internal");
+        runner.LastRequest.Arguments["expectedSha256"].Should().Be(expectedHash);
+        runner.LastRequest.Arguments["backup"].Should().Be("1");
+        runner.LastRequest.Arguments["preservePermissions"].Should().Be("1");
     }
 
     [Fact]

@@ -1,0 +1,17 @@
+{
+  "Sites": {
+    "/var/www": {
+      "AllowedFiles": {
+        "/_includes/kelpiepro-license-issuer.php": "Update",
+        "/_includes/kelpiepro-license-proof.php": "Update",
+        "/_includes/sales-data.php": "Update",
+        "/_webadmin/assets/admin.css": "Update",
+        "/_webadmin/includes/manual-license-migration.php": "Create",
+        "/_webadmin/includes/sales-admin.php": "Update",
+        "/_webadmin/index.php": "Update",
+        "/products/KelpiePro/license-migration-api-lib.php": "Update",
+        "/products/KelpiePro/license-migration.php": "Update"
+      }
+    }
+  }
+}

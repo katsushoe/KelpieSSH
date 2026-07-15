@@ -59,7 +59,17 @@ internal sealed class LibcUnixPermissionOperations : IUnixPermissionOperations
     public bool IsSymbolicLink(string path)
     {
         EnsureUnix();
-        return File.GetAttributes(path).HasFlag(FileAttributes.ReparsePoint);
+        if (lstat(path, out var status) == 0)
+        {
+            return (status.Mode & 0xF000) == 0xA000;
+        }
+
+        if (Marshal.GetLastPInvokeError() == 2)
+        {
+            return false;
+        }
+
+        throw CreateNativeException("failed to inspect symbolic link status");
     }
 
     public IEnumerable<string> EnumerateFileSystemEntries(string path)
@@ -91,6 +101,12 @@ internal sealed class LibcUnixPermissionOperations : IUnixPermissionOperations
     {
         EnsureUnix();
         File.WriteAllBytes(path, data);
+    }
+
+    public byte[] ReadAllBytes(string path)
+    {
+        EnsureUnix();
+        return File.ReadAllBytes(path);
     }
 
     public void MoveFileOverwrite(string sourcePath, string destinationPath)
@@ -217,6 +233,9 @@ internal sealed class LibcUnixPermissionOperations : IUnixPermissionOperations
 
     [DllImport("libc", EntryPoint = "stat", SetLastError = true, CharSet = CharSet.Ansi)]
     private static extern int stat(string path, out StatBuffer status);
+
+    [DllImport("libc", EntryPoint = "lstat", SetLastError = true, CharSet = CharSet.Ansi)]
+    private static extern int lstat(string path, out StatBuffer status);
 
     [StructLayout(LayoutKind.Sequential)]
     private readonly struct Passwd

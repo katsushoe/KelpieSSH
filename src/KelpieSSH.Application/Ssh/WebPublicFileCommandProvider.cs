@@ -95,7 +95,7 @@ public sealed class WebPublicFileCommandProvider : IAllowedCommandProvider
             SshCommandRiskLevel.ConfirmRequired),
         new(
             "web_public_file_write_with_permissions_internal",
-            "sudo -n " + HelperPath + " write-file {siteRootBase64} {pathBase64} - {maxBytes} {createDirectories} {ownerBase64} {modeBase64}",
+            "sudo -n " + HelperPath + " write-file {siteRootBase64} {pathBase64} - {maxBytes} {createDirectories} {ownerBase64} {modeBase64} {expectedSha256} {backup} {preservePermissions}",
             TimeSpan.FromSeconds(30),
             [
                 new AllowedCommandParameterDefinition("siteRootBase64", MaxLength: 4096, Pattern: Base64PathPattern),
@@ -104,6 +104,9 @@ public sealed class WebPublicFileCommandProvider : IAllowedCommandProvider
                 new AllowedCommandParameterDefinition("createDirectories", MaxLength: 1, Pattern: CreateDirectoriesPattern),
                 new AllowedCommandParameterDefinition("ownerBase64", MaxLength: 128, Pattern: Base64PathPattern),
                 new AllowedCommandParameterDefinition("modeBase64", MaxLength: 64, Pattern: Base64PathPattern),
+                new AllowedCommandParameterDefinition("expectedSha256", MaxLength: 64, Pattern: "^(-|[0-9a-f]{64})$"),
+                new AllowedCommandParameterDefinition("backup", MaxLength: 1, Pattern: "^[01]$"),
+                new AllowedCommandParameterDefinition("preservePermissions", MaxLength: 1, Pattern: "^[01]$"),
             ],
             SshCommandRiskLevel.ConfirmRequired),
         new(
@@ -116,6 +119,34 @@ public sealed class WebPublicFileCommandProvider : IAllowedCommandProvider
                 new AllowedCommandParameterDefinition("ownerBase64", MaxLength: 128, Pattern: Base64PathPattern),
                 new AllowedCommandParameterDefinition("groupBase64", MaxLength: 128, Pattern: Base64PathPattern),
                 new AllowedCommandParameterDefinition("recursive", MaxLength: 1, Pattern: RecursivePattern),
+            ],
+            SshCommandRiskLevel.ConfirmRequired),
+        new(
+            "web_public_file_rollback_internal",
+            "sudo -n " + HelperPath + " rollback-file {siteRootBase64} {pathBase64} {expectedSha256}",
+            TimeSpan.FromSeconds(30),
+            [
+                new AllowedCommandParameterDefinition("siteRootBase64", MaxLength: 4096, Pattern: Base64PathPattern),
+                new AllowedCommandParameterDefinition("pathBase64", MaxLength: 4096, Pattern: Base64PathPattern),
+                new AllowedCommandParameterDefinition("expectedSha256", MaxLength: 64, Pattern: "^[0-9a-f]{64}$"),
+            ],
+            SshCommandRiskLevel.ConfirmRequired),
+        new(
+            "web_public_file_check_managed_internal",
+            "sudo -n " + HelperPath + " check-managed-file {siteRootBase64} {pathBase64} {create}",
+            TimeSpan.FromSeconds(10),
+            [
+                new AllowedCommandParameterDefinition("siteRootBase64", MaxLength: 4096, Pattern: Base64PathPattern),
+                new AllowedCommandParameterDefinition("pathBase64", MaxLength: 4096, Pattern: Base64PathPattern),
+                new AllowedCommandParameterDefinition("create", MaxLength: 1, Pattern: "^[01]$"),
+            ]),
+        new(
+            "web_public_file_commit_internal",
+            "sudo -n " + HelperPath + " commit-file {siteRootBase64} {pathBase64}",
+            TimeSpan.FromSeconds(15),
+            [
+                new AllowedCommandParameterDefinition("siteRootBase64", MaxLength: 4096, Pattern: Base64PathPattern),
+                new AllowedCommandParameterDefinition("pathBase64", MaxLength: 4096, Pattern: Base64PathPattern),
             ],
             SshCommandRiskLevel.ConfirmRequired),
         new(

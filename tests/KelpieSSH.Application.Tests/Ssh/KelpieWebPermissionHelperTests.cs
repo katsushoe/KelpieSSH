@@ -21,7 +21,7 @@ public sealed class KelpieWebPermissionHelperTests
 
         exitCode.Should().Be(0);
         error.ToString().Should().BeEmpty();
-        output.ToString().Should().StartWith("kelpie-web-permission-helper 0.1.0.4");
+        output.ToString().Should().StartWith("kelpie-web-permission-helper 0.2.0.0");
     }
 
     [Fact]
@@ -293,6 +293,162 @@ public sealed class KelpieWebPermissionHelperTests
     }
 
     [Fact]
+    public void Run_ShouldPreserveRootPermissionsAndCreateRollbackBackup()
+    {
+        const string target = "/var/www/_webadmin/index.php";
+        var original = Encoding.UTF8.GetBytes("old");
+        var replacement = Encoding.UTF8.GetBytes("new");
+        var expectedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(original)).ToLowerInvariant();
+        var operations = new FakeUnixPermissionOperations();
+        ConfigureManagedPolicy(operations, "/_webadmin/index.php", "Update");
+        operations.Directories.Add("/var/www/_webadmin");
+        operations.Files.Add(target);
+        operations.FileContents[target] = original;
+        operations.OwnerIds[target] = (0, 0);
+        operations.Modes[target] = "644";
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = PermissionHelper.Run(
+            [
+                "write-file",
+                Encode("/var/www"),
+                Encode("/_webadmin/index.php"),
+                Convert.ToBase64String(replacement),
+                "1000",
+                "0",
+                Encode(string.Empty),
+                Encode(string.Empty),
+                expectedHash,
+                "1",
+                "1",
+            ],
+            operations,
+            output,
+            error);
+
+        exitCode.Should().Be(0);
+        error.ToString().Should().BeEmpty();
+        operations.FileContents[target + ".kelpiebakup"].Should().Equal(original);
+        operations.FileContents[target].Should().Equal(replacement);
+        operations.OwnerChanges.Should().Contain(change => change.Uid == 0 && change.Gid == 0);
+        output.ToString().Should().Contain("\"PermissionsPreserved\":true");
+        output.ToString().Should().Contain("\"PreviousSha256\":\"" + expectedHash + "\"");
+    }
+
+    [Fact]
+    public void Run_ShouldRejectExpectedHashMismatchWithoutWriting()
+    {
+        const string target = "/var/www/_webadmin/index.php";
+        var operations = new FakeUnixPermissionOperations();
+        ConfigureManagedPolicy(operations, "/_webadmin/index.php", "Update");
+        operations.Directories.Add("/var/www/_webadmin");
+        operations.Files.Add(target);
+        operations.FileContents[target] = Encoding.UTF8.GetBytes("old");
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = PermissionHelper.Run(
+            [
+                "write-file", Encode("/var/www"), Encode("/_webadmin/index.php"),
+                Convert.ToBase64String(Encoding.UTF8.GetBytes("new")), "1000", "0",
+                Encode(string.Empty), Encode(string.Empty), new string('0', 64), "1", "1",
+            ],
+            operations,
+            output,
+            error);
+
+        exitCode.Should().Be(1);
+        error.ToString().Should().Contain("expected SHA-256 does not match");
+        operations.Writes.Should().BeEmpty();
+        operations.FileContents[target].Should().Equal(Encoding.UTF8.GetBytes("old"));
+    }
+
+    [Fact]
+    public void Run_ShouldRollbackBackupAtomicallyWithOriginalPermissions()
+    {
+        const string target = "/var/www/_webadmin/index.php";
+        var current = Encoding.UTF8.GetBytes("new");
+        var original = Encoding.UTF8.GetBytes("old");
+        var expectedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(current)).ToLowerInvariant();
+        var operations = new FakeUnixPermissionOperations();
+        ConfigureManagedPolicy(operations, "/_webadmin/index.php", "Update");
+        operations.Directories.Add("/var/www/_webadmin");
+        operations.Files.UnionWith([target, target + ".kelpiebakup"]);
+        operations.FileContents[target] = current;
+        operations.FileContents[target + ".kelpiebakup"] = original;
+        operations.OwnerIds[target + ".kelpiebakup"] = (0, 0);
+        operations.Modes[target + ".kelpiebakup"] = "644";
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = PermissionHelper.Run(
+            ["rollback-file", Encode("/var/www"), Encode("/_webadmin/index.php"), expectedHash],
+            operations,
+            output,
+            error);
+
+        exitCode.Should().Be(0);
+        operations.FileContents[target].Should().Equal(original);
+        operations.Files.Should().NotContain(target + ".kelpiebakup");
+        operations.OwnerChanges.Should().Contain(change => change.Uid == 0 && change.Gid == 0);
+        operations.ModeChanges.Should().Contain(change => change.Mode == 0x1A4u);
+    }
+
+    [Fact]
+    public void Run_ShouldCreateMissingPreservedFileAsRootOwnedNonExecutable()
+    {
+        var operations = new FakeUnixPermissionOperations();
+        ConfigureManagedPolicy(operations, "/_webadmin/includes/manual-license-migration.php", "Create");
+        operations.Directories.Add("/var/www/_webadmin/includes");
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = PermissionHelper.Run(
+            [
+                "write-file", Encode("/var/www"), Encode("/_webadmin/includes/manual-license-migration.php"),
+                Convert.ToBase64String(Encoding.UTF8.GetBytes("new")), "1000", "0",
+                Encode(string.Empty), Encode(string.Empty), "-", "1", "1",
+            ],
+            operations,
+            output,
+            error);
+
+        exitCode.Should().Be(0);
+        operations.OwnerChanges.Should().Contain(change => change.Uid == 0 && change.Gid == 0);
+        operations.ModeChanges.Should().Contain(change => change.Mode == 0x1A4u);
+        output.ToString().Should().Contain("\"Created\":true");
+        output.ToString().Should().Contain("\"BackupPath\":\"\"");
+    }
+
+    [Fact]
+    public void Run_ShouldRejectSymbolicLinkWriteTarget()
+    {
+        const string target = "/var/www/_webadmin/index.php";
+        var operations = new FakeUnixPermissionOperations();
+        ConfigureManagedPolicy(operations, "/_webadmin/index.php", "Update");
+        operations.Directories.Add("/var/www/_webadmin");
+        operations.Files.Add(target);
+        operations.SymbolicLinks.Add(target);
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = PermissionHelper.Run(
+            [
+                "write-file", Encode("/var/www"), Encode("/_webadmin/index.php"),
+                Convert.ToBase64String(Encoding.UTF8.GetBytes("new")), "1000", "0",
+                Encode(string.Empty), Encode(string.Empty), "-", "1", "1",
+            ],
+            operations,
+            output,
+            error);
+
+        exitCode.Should().Be(1);
+        error.ToString().Should().Contain("must not be a symbolic link");
+        operations.Writes.Should().BeEmpty();
+    }
+
+    [Fact]
     public void Run_ShouldRejectPathOutsideSiteRoot()
     {
         var operations = new FakeUnixPermissionOperations
@@ -406,6 +562,22 @@ public sealed class KelpieWebPermissionHelperTests
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
     }
 
+    private static void ConfigureManagedPolicy(FakeUnixPermissionOperations operations, string path, string access)
+    {
+        const string policyPath = "/etc/kelpie/web-permission-helper-policy.json";
+        operations.Files.Add(policyPath);
+        operations.FileContents[policyPath] = Encoding.UTF8.GetBytes(
+            System.Text.Json.JsonSerializer.Serialize(new
+            {
+                Sites = new Dictionary<string, object>
+                {
+                    ["/var/www"] = new { AllowedFiles = new Dictionary<string, string> { [path] = access } },
+                },
+            }));
+        operations.OwnerIds[policyPath] = (0, 0);
+        operations.Modes[policyPath] = "644";
+    }
+
     private sealed class FakeUnixPermissionOperations : IUnixPermissionOperations
     {
         public Dictionary<string, string> RealPathOverrides { get; } = new(StringComparer.Ordinal);
@@ -423,6 +595,12 @@ public sealed class KelpieWebPermissionHelperTests
         public Dictionary<string, IReadOnlyList<string>> DirectoryEntries { get; } = new(StringComparer.Ordinal);
 
         public List<(string Path, byte[] Data)> Writes { get; } = [];
+
+        public Dictionary<string, byte[]> FileContents { get; } = new(StringComparer.Ordinal);
+
+        public Dictionary<string, (uint Uid, uint Gid)> OwnerIds { get; } = new(StringComparer.Ordinal);
+
+        public Dictionary<string, string> Modes { get; } = new(StringComparer.Ordinal);
 
         public List<(string SourcePath, string DestinationPath)> Moves { get; } = [];
 
@@ -471,7 +649,7 @@ public sealed class KelpieWebPermissionHelperTests
 
         public (uint Uid, uint Gid) GetOwnerIds(string path)
         {
-            return (1000, 33);
+            return OwnerIds.TryGetValue(path, out var ids) ? ids : (1000, 33);
         }
 
         public (uint Uid, uint Gid) GetSudoUserIds()
@@ -482,19 +660,30 @@ public sealed class KelpieWebPermissionHelperTests
         public void WriteAllBytes(string path, byte[] data)
         {
             Files.Add(path);
+            FileContents[path] = data;
             Writes.Add((path, data));
+        }
+
+        public byte[] ReadAllBytes(string path)
+        {
+            return FileContents.TryGetValue(path, out var data) ? data : [];
         }
 
         public void MoveFileOverwrite(string sourcePath, string destinationPath)
         {
             Files.Remove(sourcePath);
             Files.Add(destinationPath);
+            if (FileContents.Remove(sourcePath, out var data))
+            {
+                FileContents[destinationPath] = data;
+            }
             Moves.Add((sourcePath, destinationPath));
         }
 
         public void DeleteFileIfExists(string path)
         {
             Files.Remove(path);
+            FileContents.Remove(path);
         }
 
         public uint ResolveUserId(string owner)
@@ -529,7 +718,7 @@ public sealed class KelpieWebPermissionHelperTests
 
         public string GetMode(string path)
         {
-            return "775";
+            return Modes.TryGetValue(path, out var mode) ? mode : "775";
         }
     }
 }

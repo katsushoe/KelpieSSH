@@ -74,6 +74,7 @@ public interface IWebPublicFileProvider
         string siteKey,
         string path,
         string? contentType = null,
+        bool usePrivilegedHelper = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -151,6 +152,9 @@ public interface IWebPublicFileProvider
         string? contentType,
         string? owner = null,
         string? mode = null,
+        string? expectedSha256 = null,
+        bool createBackup = false,
+        bool preservePermissions = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -165,6 +169,27 @@ public interface IWebPublicFileProvider
         string? contentType,
         string? owner = null,
         string? mode = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Restores one web public file from its managed backup.
+    /// </summary>
+    Task<WebPublicFileWriteResult> RollbackFileAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        string expectedSha256,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Commits one web public file update by removing its managed backup.
+    /// </summary>
+    Task<WebPublicFileWriteResult> CommitFileAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
         CancellationToken cancellationToken = default);
 
     /// <summary>

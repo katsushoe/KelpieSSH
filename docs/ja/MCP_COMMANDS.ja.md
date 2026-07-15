@@ -56,7 +56,7 @@ HTTP request body は REST 形式ではなく JSON-RPC です。たとえば診�
 | パッケージ操作 | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove`, `ssh_certbot_check_install`, `ssh_certbot_install` | package の確認、検索、dry-run、確認付き変更、Certbot 専用 install。 |
 | サービス操作 | `ssh_service_status`, `ssh_service_is_active`, `ssh_service_is_enabled`, `ssh_list_services`, `ssh_service_enable_now`, `ssh_service_reload`, `ssh_service_restart`, `ssh_service_stop`, `ssh_service_disable` | systemd service の状態確認と確認付き変更。 |
 | サービス設定 / ログ | `service_config_paths`, `service_config_file_check_read`, `service_config_file_read`, `service_config_file_check_write`, `service_config_file_write`, `service_config_file_rollback`, `service_config_file_commit`, `service_config_test`, `ssh_service_config_nginx_enable_php`, `service_logfile_read` | provider が許可したサービス設定ファイルとログの操作。 |
-| Web ファイル | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_hash`, `web_file_check_write`, `web_secret_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_secret_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | provider が許可した Web ルート配下のファイル操作、秘密ファイル転送、権限変更。 |
+| Web ファイル | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_hash`, `web_file_check_write`, `web_secret_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_file_rollback`, `web_file_commit`, `web_secret_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | provider が許可した Web ルート配下のファイル操作、秘密ファイル転送、権限変更。 |
 | SSH file export | `ssh_file_export` | `@Read`と`@Export`で許可されたremote通常fileを、本文を応答へ含めずlocal Kelpie export directoryへ保存。 |
 
 ## 共通オプション
@@ -5517,3 +5517,12 @@ Web 公開ルート配下の1ディレクトリツリーへ、sudo helper 経由
 - sudoers では `python3`、`chown`、`chmod` を直接許可せず、Kelpie 専用 helper だけを許可します。
 - `owner` / `group` に `root` または `0` は指定できません。
 - `mode` は3桁 octal のみ許可し、world-writable になる mode は拒否します。
+
+## 管理対象Webファイルのatomic更新
+
+- `web_file_check_write`の`usePrivilegedHelper=true`は、通常の`AllowedFiles`判定に加えて、root所有の`/etc/kelpie/web-permission-helper-policy.json`に同じsite rootと完全一致パスが登録されていることを確認します。
+- 事前確認結果は、新規作成可否、特権付きatomic更新、owner/group/mode維持、backup、rollback、更新前後のSHA-256確認の利用可否を返します。
+- `web_file_write`では`expectedSha256`、`createBackup`、`preservePermissions`を指定できます。既存ファイルはuid、gid、modeを維持し、helper policyで`Create`とした完全一致パスだけroot所有・`0644`で新規作成できます。
+- backupと本体は対象ディレクトリ内の一時ファイルへ書き、同一filesystem内のrenameでatomicに置換します。symlink、ルート外、未登録パス、実行可能modeは拒否します。
+- `web_file_rollback`は現在のSHA-256一致後にbackupをatomic復元し、`web_file_commit`は検証完了後にbackupを削除します。
+- ファイル本文、Base64本文、stdin、raw stdout/stderrは通常ログと監査ログへ記録しません。

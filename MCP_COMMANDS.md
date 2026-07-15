@@ -61,7 +61,7 @@ This document describes the `name` and `arguments` used inside `tools/call`. In 
 | [Packages](#packages) | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove`, `ssh_certbot_check_install`, `ssh_certbot_install` | Inspect packages and run confirmation-gated package operations, including bounded Certbot installation. |
 | [Services](#services) | `ssh_service_status`, `ssh_service_is_active`, `ssh_service_is_enabled`, `ssh_list_services`, `ssh_service_enable_now`, `ssh_service_reload`, `ssh_service_restart`, `ssh_service_stop`, `ssh_service_disable` | Inspect and safely manage systemd services. |
 | [Service config/logs](#service-configlogs) | `service_config_paths`, `service_config_file_check_read`, `service_config_file_read`, `service_config_file_check_write`, `service_config_file_write`, `service_config_file_rollback`, `service_config_file_commit`, `service_config_test`, `ssh_service_config_nginx_enable_php`, `service_logfile_read` | Operate on provider-approved service configuration files and logs. |
-| [Web files](#web-files) | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_hash`, `web_file_check_write`, `web_secret_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_secret_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | Operate on provider-approved web roots. |
+| [Web files](#web-files) | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_hash`, `web_file_check_write`, `web_secret_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_file_rollback`, `web_file_commit`, `web_secret_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | Operate on provider-approved web roots. |
 
 ## Common Inputs
 
@@ -6766,6 +6766,7 @@ Input arguments:
 - `siteKey`: Configured web site key.
 - `path`: Target path validated by the tool policy or provider.
 - `contentType`: Content type metadata for written content.
+- `usePrivilegedHelper`: When true, also verifies that the root-owned managed helper policy permits this exact site root and path.
 
 `tools/call` params sample:
 
@@ -6791,6 +6792,7 @@ Return value:
 - The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
 - Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
 - When `CanWrite` is false, `ReasonCode` and `Guidance` describe the missing policy, extension, content-type, or remote filesystem permission so AI clients can explain the failure.
+- Managed preflight reports `CreateAllowed`, `PrivilegedAtomicUpdate`, `PreservesPermissions`, `BackupAvailable`, `RollbackAvailable`, `ExpectedSha256Supported`, and `PostWriteSha256Supported`.
 
 Return value sample:
 
@@ -6899,6 +6901,9 @@ Input arguments:
 - `owner`: Owner account name.
 - `group`: Group name.
 - `mode`: Three-digit octal mode for permission changes.
+- `expectedSha256`: Optional lowercase SHA-256 precondition for the existing file.
+- `createBackup`: Creates `<path>.kelpiebakup` before replacement when the target exists.
+- `preservePermissions`: Preserves the existing uid, gid, and mode; an allowed missing file is created as root-owned mode `0644`.
 - `recursive`: Tool-specific argument of type `bool` defined by the MCP schema.
 
 `tools/call` params sample:
@@ -7225,6 +7230,9 @@ Safety notes:
 - This tool can change remote or local state. Use the matching check or simulate tool first when available, and pass only the exact confirmation token returned by Kelpie.
 - Executable web extensions such as `.php` remain denied by default. They are writable only when the target profile site explicitly lists the extension in `WritableExecutableExtensions`.
 - `WritableExecutableExtensions` bypasses the executable extension write block and the `AllowedExtensions` shortage for that write only. Traversal checks, dotfile and secret-file denial, size limits, and content type rules still apply.
+- Managed writes, rollback, and commit require an exact entry in the root-owned `/etc/kelpie/web-permission-helper-policy.json`. `Update` permits existing-file replacement only; `Create` also permits creation at that exact path.
+- Managed replacement and backup creation use temporary files in the target directory followed by same-filesystem atomic rename. Symlinks and paths outside the resolved site root are rejected.
+- `web_file_rollback` restores the managed backup only when the current file matches `expectedSha256`. `web_file_commit` removes the backup after deployment verification. Both require their exact confirmation token.
 
 #### `web_secret_file_write`
 
