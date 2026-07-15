@@ -111,6 +111,7 @@ builder.Services.AddSingleton<ISshPasswordSessionStore, InMemorySshPasswordSessi
 builder.Services.AddSingleton<ISshPasswordProvider>(serviceProvider =>
     serviceProvider.GetRequiredService<ISshPasswordSessionStore>());
 builder.Services.AddSingleton<SshTerminalSessionManager>();
+builder.Services.AddSingleton<TargetInventoryCache>();
 builder.Services.AddSingleton<ISshCommandRunner, SshNetCommandRunner>();
 builder.Services.AddSingleton<ISshFileExporter>(serviceProvider => new SshNetFileExporter(
     serviceProvider.GetRequiredService<ISshPasswordProvider>(),

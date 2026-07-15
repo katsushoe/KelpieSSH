@@ -677,9 +677,12 @@ Processing:
 KelpieMCPServer validates the MCP schema arguments, resolves any saved profile or supplied remote operation, applies the relevant policy/provider checks, runs the bounded operation, and returns the tool result to the MCP client.
 The detected inventory is an execution-time result. KelpieMCPServer does not persist the detected commands into the SSH profile file; clients should refresh this tool when they need current target state.
 
+Successful inventory probes are cached in MCP server memory for 60 seconds. Connection failures, timeouts, cancellation, and invalid probe responses are not cached. `profile_reload` clears the cache. Authorization is evaluated on every call, including cache hits.
+
 Return value:
 
 - Return type: `TargetInventoryResult`.
+- `Cached` is `true` when the result came from the process-local cache; `CheckedAt` is the UTC probe time.
 - The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
 - Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
 
@@ -5090,6 +5093,7 @@ Checks whether Certbot for Let's Encrypt can be installed on the target through 
 Input arguments:
 
 - `profileName`: SSH profile name.
+- `refresh`: Optional. Defaults to `false`. When `true`, bypasses the current process-local inventory cache.
 - `plugin`: Web server plugin package set. Allowed values are `nginx`, `apache`, and `none`. Defaults to `nginx`.
 
 `tools/call` params sample:
@@ -5230,7 +5234,8 @@ Input arguments:
   "name": "ssh_service_status",
   "arguments": {
     "service": "nginx.service",
-    "profileName": "vps01"
+    "profileName": "vps01",
+    "refresh": false
   }
 }
 ```

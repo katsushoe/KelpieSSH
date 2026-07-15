@@ -12,12 +12,14 @@ public sealed partial class KelpieTools
     /// </summary>
     /// <param name="profileCatalog">The reloadable SSH profile catalog.</param>
     /// <param name="profileOperations">The trusted profile operation policy snapshot.</param>
+    /// <param name="inventoryCache">The target inventory cache.</param>
     /// <returns>The reload result.</returns>
     [McpServerTool(Name = "profile_reload")]
     [Description("Reloads SSH profile JSON files from the Kelpie profiles directory on demand.")]
     public static ProfileReloadToolResult ReloadProfiles(
         ReloadingSshConnectionProfileCatalog profileCatalog,
-        KelpieProfileOperationsOptions profileOperations)
+        KelpieProfileOperationsOptions profileOperations,
+        TargetInventoryCache inventoryCache)
     {
         var correlationId = Guid.NewGuid().ToString("N");
         const string source = "tool_request";
@@ -57,6 +59,8 @@ public sealed partial class KelpieTools
                 AffectedProfiles: profileCatalog.ProfileLoadErrors.Select(error => error.ProfileName).ToArray(),
                 ErrorMessage: result.ErrorMessage);
         }
+
+        inventoryCache.Clear();
 
         KpLog.Info($"Profile reload completed. profilesDirectory={result.ProfilesDirectory}, profileCount={result.ProfileCount}, correlationId={correlationId}");
 

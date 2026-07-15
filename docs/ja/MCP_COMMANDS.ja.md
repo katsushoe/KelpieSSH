@@ -788,11 +788,14 @@ profile の `Capabilities` と `EnvironmentValues` policy に従って、remote 
 
 処理内容:
 
+成功結果はMCP serverのmemoryに60秒間cacheします。接続失敗、timeout、cancellation、probe response不正はcacheしません。`profile_reload`成功時はcacheを破棄します。cache hitでも認可を毎回評価し、結果をSSH profile fileやtrust storeへ書き戻しません。
+
 対象 SSH profile で `target_inventory` を実行し、`/etc/os-release` と固定コマンドの version 出力を読み取ります。各 helper / software command は約8秒で打ち切り、コマンド単位の失敗は `Not Available` として返します。検出結果は実行時点の結果として扱い、SSH profile file へ書き戻しません。SSH 接続または OS probe に失敗した場合のみ tool 全体を失敗扱いにします。
 
 戻り値:
 
 - `TargetInventoryResult`
+- `Cached`はprocess内cacheから返した場合に`true`、`CheckedAt`はUTCのprobe実施時刻です。
 
 実行結果サンプル:
 
@@ -3473,6 +3476,7 @@ Let's Encrypt 用 Certbot を対象 profile に install できるか、実変更
 入力引数:
 
 - `profileName`: SSH プロファイル名。
+- `refresh`: 任意。初期値は`false`。`true`の場合はprocess内inventory cacheを使わず再probeします。
 - `plugin`: install 対象 plugin。`nginx` / `apache` / `none` のいずれか。省略時は `nginx`。
 
 引数サンプル:

@@ -16,7 +16,7 @@ public sealed class KelpieToolsSshTests
         var profiles = new ReloadingSshConnectionProfileCatalog(directory);
         File.WriteAllText(Path.Combine(directory, "vps02.json"), CreateProfileJson("ops"));
 
-        var result = KelpieTools.ReloadProfiles(profiles, CreateProfileOperations(reloadMcpAllowed: true));
+        var result = KelpieTools.ReloadProfiles(profiles, CreateProfileOperations(reloadMcpAllowed: true), new TargetInventoryCache());
 
         result.Success.Should().BeTrue();
         result.ProfileCount.Should().Be(2);
@@ -36,7 +36,7 @@ public sealed class KelpieToolsSshTests
         var profiles = new ReloadingSshConnectionProfileCatalog(directory);
         File.WriteAllText(Path.Combine(directory, "vps02.json"), CreateProfileJson("ops"));
 
-        var result = KelpieTools.ReloadProfiles(profiles, KelpieProfileOperationsOptions.Default);
+        var result = KelpieTools.ReloadProfiles(profiles, KelpieProfileOperationsOptions.Default, new TargetInventoryCache());
 
         result.Success.Should().BeFalse();
         result.Status.Should().Be("forbidden");
@@ -57,7 +57,7 @@ public sealed class KelpieToolsSshTests
         var profiles = new ReloadingSshConnectionProfileCatalog(directory, trustStorePath, []);
         File.WriteAllText(profilePath, CreateProfileJson("ops"));
 
-        var result = KelpieTools.ReloadProfiles(profiles, CreateProfileOperations(reloadMcpAllowed: true));
+        var result = KelpieTools.ReloadProfiles(profiles, CreateProfileOperations(reloadMcpAllowed: true), new TargetInventoryCache());
 
         result.Success.Should().BeFalse();
         result.Status.Should().Be("blocked");
@@ -84,7 +84,7 @@ public sealed class KelpieToolsSshTests
         ]);
         var service = CreateProviderBackedService(runner);
 
-        var reloadResult = KelpieTools.ReloadProfiles(profiles, CreateProfileOperations(reloadMcpAllowed: true));
+        var reloadResult = KelpieTools.ReloadProfiles(profiles, CreateProfileOperations(reloadMcpAllowed: true), new TargetInventoryCache());
         var keysResult = await KelpieTools.GetEnvironmentKeysAsync(service, profiles, "vps01");
         var setResult = await KelpieTools.SetEnvironmentValueAsync(
             service,
@@ -473,7 +473,7 @@ public sealed class KelpieToolsSshTests
         var service = CreateProviderBackedService(runner);
         var profiles = new SshConnectionProfileCatalog([profile]);
 
-        var result = await KelpieTools.GetTargetInventoryAsync(service, profiles, "vps02");
+        var result = await KelpieTools.GetTargetInventoryAsync(service, profiles, new TargetInventoryCache(), "vps02");
 
         result.Profile.Should().Be("vps02");
         result.Os.Family.Should().Be("ubuntu");
@@ -503,6 +503,53 @@ public sealed class KelpieToolsSshTests
     }
 
     [Fact]
+    public async Task GetTargetInventoryAsync_ShouldReuseCacheAndHonorRefresh()
+    {
+        const string output = "OS\tUbuntu\t24.04\tubuntu\n";
+        var profile = CreateProfile("vps02", osFamily: "ubuntu", packageManager: "apt");
+        var runner = new FakeSshCommandRunner(
+        [
+            new FakeSshCommandOutput(output, string.Empty),
+            new FakeSshCommandOutput(output, string.Empty),
+        ]);
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+        var cache = new TargetInventoryCache();
+
+        var first = await KelpieTools.GetTargetInventoryAsync(service, profiles, cache, "vps02");
+        var cached = await KelpieTools.GetTargetInventoryAsync(service, profiles, cache, "vps02");
+        var refreshed = await KelpieTools.GetTargetInventoryAsync(service, profiles, cache, "vps02", refresh: true);
+
+        first.Cached.Should().BeFalse();
+        first.CheckedAt.Should().NotBe(default);
+        cached.Cached.Should().BeTrue();
+        cached.CheckedAt.Should().Be(first.CheckedAt);
+        refreshed.Cached.Should().BeFalse();
+        runner.Requests.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task GetTargetInventoryAsync_ShouldNotCacheFailedProbe()
+    {
+        var profile = CreateProfile("vps02");
+        var runner = new FakeSshCommandRunner(
+        [
+            new FakeSshCommandOutput("ERROR\tos-release not readable\n", string.Empty, 2),
+            new FakeSshCommandOutput("OS\tUbuntu\t24.04\tubuntu\n", string.Empty),
+        ]);
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+        var cache = new TargetInventoryCache();
+
+        var firstAction = () => KelpieTools.GetTargetInventoryAsync(service, profiles, cache, "vps02");
+        await firstAction.Should().ThrowAsync<InvalidOperationException>();
+        var second = await KelpieTools.GetTargetInventoryAsync(service, profiles, cache, "vps02");
+
+        second.Cached.Should().BeFalse();
+        runner.Requests.Should().HaveCount(2);
+    }
+
+    [Fact]
     public async Task GetTargetInventoryAsync_ShouldFailWhenOsProbeFails()
     {
         var profile = CreateProfile("vps02");
@@ -513,7 +560,7 @@ public sealed class KelpieToolsSshTests
         var service = CreateProviderBackedService(runner);
         var profiles = new SshConnectionProfileCatalog([profile]);
 
-        var action = () => KelpieTools.GetTargetInventoryAsync(service, profiles, "vps02");
+        var action = () => KelpieTools.GetTargetInventoryAsync(service, profiles, new TargetInventoryCache(), "vps02");
 
         await action.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("Target inventory probe failed: ERROR*");

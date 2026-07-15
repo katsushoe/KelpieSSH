@@ -16,7 +16,9 @@ public sealed partial class KelpieTools
     /// </summary>
     /// <param name="sshCommandService">The SSH command service.</param>
     /// <param name="profileCatalog">The SSH profile catalog.</param>
+    /// <param name="inventoryCache">The target inventory cache.</param>
     /// <param name="profileName">The SSH profile name.</param>
+    /// <param name="refresh">A value indicating whether to bypass a current cached result.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The target inventory result.</returns>
     [McpServerTool(Name = "get_target_inventory")]
@@ -24,20 +26,26 @@ public sealed partial class KelpieTools
     public static async Task<TargetInventoryResult> GetTargetInventoryAsync(
         SshCommandService sshCommandService,
         ISshConnectionProfileCatalog profileCatalog,
+        TargetInventoryCache inventoryCache,
         string profileName,
+        bool refresh = false,
         CancellationToken cancellationToken = default)
     {
         KpLog.Info($"MCP SSH tool called: get_target_inventory profile={profileName}");
         var profile = ResolveSshProfile(profileCatalog, profileName);
-        var operation = SshRemoteOperation.FromProfile(
+        return await inventoryCache.GetOrCreateAsync(
             profile,
-            "managed",
-            "target_inventory",
-            correlationId: profileName);
-        var result = await sshCommandService.ExecuteAsync(
-            operation,
-            KelpieExecutionChannel.Mcp,
+            refresh,
+            async () => await ProbeTargetInventoryAsync(sshCommandService, profile),
             cancellationToken);
+    }
+
+    private static async Task<TargetInventoryResult> ProbeTargetInventoryAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile)
+    {
+        var operation = SshRemoteOperation.FromProfile(profile, "managed", "target_inventory", correlationId: profile.Name);
+        var result = await sshCommandService.ExecuteAsync(operation, KelpieExecutionChannel.Mcp, CancellationToken.None);
 
         if (result.ExitCode != 0)
         {
@@ -122,7 +130,9 @@ public sealed partial class KelpieTools
             profile.Name,
             os,
             helpers.ToArray(),
-            software.ToArray());
+            software.ToArray(),
+            Cached: false,
+            CheckedAt: DateTimeOffset.UnixEpoch);
     }
 
     private static string? FirstInventoryDetail(string value)
@@ -179,7 +189,9 @@ public sealed partial class KelpieTools
         string Profile,
         TargetInventoryOs Os,
         TargetInventoryItem[] Helpers,
-        TargetInventoryItem[] Software);
+        TargetInventoryItem[] Software,
+        bool Cached,
+        DateTimeOffset CheckedAt);
 
     /// <summary>
     /// Represents target OS inventory.
