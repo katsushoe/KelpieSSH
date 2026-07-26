@@ -64,6 +64,14 @@ SSHプロファイルの認証設定は、同じ `profiles/<profile>.json` の�
 
 ## コマンド
 
+Windowsでは、local control pipeへの接続をlocal userへ許可し、Windowsが提供するcaller SIDと固定command分類で認可します。
+
+- 別ユーザーから実行できる参照commandは`ping`、`sessions`、`secret-list`、`env-list`、`profile-capabilities`です。
+- 更新commandはserver起動ユーザー、Administrators、SYSTEMだけが実行できます。それ以外は`forbidden`を返します。
+- 別ユーザー向け参照応答では、session handle、profile名、secret名とsize、環境変数keyと値length、profile capability詳細をマスクします。
+- 最初のcommand行を5秒以内に受信できない場合は、その接続を破棄してcontrol listenerを継続します。
+- これはlocal CLI control policyであり、MCP callable toolを追加公開するものではありません。
+
 この章では、各コマンドに目的、構文、引数詳細、引数サンプル、処理内容、実行結果サンプル、安全上の注意を記載します。
 
 ### `kelpiemcp start`
@@ -165,6 +173,7 @@ kelpiemcp stop
 処理内容:
 
 NamedPipe 経由で起動中の `KelpieMCPServer` に停止要求を送信します。起動していない場合は停止操作を行いません。
+別のlocal Windows userはcontrol pipeへ接続できますが、停止は許可されず、明示的な権限errorとnon-zero exit codeを返します。
 
 実行結果サンプル:
 

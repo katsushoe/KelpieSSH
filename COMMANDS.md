@@ -61,6 +61,14 @@ Commands are grouped by operational area. Each group section states the scope, a
 
 Start, stop, and inspect the local KelpieMCPServer process or service.
 
+On Windows, the local control pipe accepts connections from local users. The server uses the Windows-provided caller SID and a fixed command classification:
+
+- Cross-user reference commands: `ping`, `sessions`, `secret-list`, `env-list`, and `profile-capabilities`.
+- Update commands are restricted to the server owner, Administrators, and SYSTEM. Other users receive `forbidden`.
+- Cross-user reference responses redact session handles, profile names, secret names and sizes, environment keys and value lengths, and profile capability details.
+- The initial command line must arrive within five seconds. A timed-out client is disconnected without stopping the control listener.
+- This is a local CLI control policy only. It does not publish additional MCP callable tools.
+
 Commands in this group:
 
 - [`kelpiemcp start`](#kelpiemcp-start)
@@ -142,6 +150,7 @@ Return value:
 
 - Exit code `0` when the stop request is sent successfully.
 - Standard output contains a stop confirmation when available.
+- A different local Windows user may connect to the control pipe but cannot stop the server. The command returns a non-zero exit code and an explicit permission error.
 
 Return value sample:
 

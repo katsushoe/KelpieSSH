@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO.Pipes;
+using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 using Kelpie.Core;
@@ -67,15 +68,22 @@ public static class KelpieServerCommandRunner
     /// <param name="options">The command options.</param>
     public static async Task StopAsync(KelpieMcpServerOptions options)
     {
-        if (await SendControlCommandAsync(options.ControlPipeName, "stop", PipeConnectionTimeout))
+        var response = await SendControlCommandWithResponseAsync(
+            options.ControlPipeName,
+            "stop",
+            PipeConnectionTimeout);
+        if (string.Equals(response, "stopping", StringComparison.OrdinalIgnoreCase))
         {
             KpLog.Info("KelpieMCPServer stop requested.");
             Console.WriteLine("KelpieMCPServer stop requested.");
             return;
         }
 
-        KpLog.Warn("KelpieMCPServer is not running.");
-        Console.Error.WriteLine("KelpieMCPServer is not running.");
+        var message = string.Equals(response, "forbidden", StringComparison.OrdinalIgnoreCase)
+            ? "KelpieMCPServer control command is not permitted for the current Windows user."
+            : "KelpieMCPServer is not running.";
+        KpLog.Warn(message);
+        Console.Error.WriteLine(message);
         Environment.ExitCode = 1;
     }
 
@@ -278,6 +286,7 @@ public static class KelpieServerCommandRunner
         var message = response switch
         {
             "session-not-found" => $"SSH session was not found: {handle}",
+            "forbidden" => "KelpieMCPServer control command is not permitted for the current Windows user.",
             null => "KelpieMCPServer is not running.",
             _ => $"KelpieMCPServer returned unexpected response: {response}",
         };
@@ -769,7 +778,8 @@ public static class KelpieServerCommandRunner
                 ".",
                 pipeName,
                 PipeDirection.InOut,
-                PipeOptions.Asynchronous);
+                PipeOptions.Asynchronous,
+                TokenImpersonationLevel.Identification);
 
             using var cancellationTokenSource = new CancellationTokenSource(timeout);
             await pipe.ConnectAsync(cancellationTokenSource.Token);
@@ -818,7 +828,8 @@ public static class KelpieServerCommandRunner
                 ".",
                 pipeName,
                 PipeDirection.InOut,
-                PipeOptions.Asynchronous);
+                PipeOptions.Asynchronous,
+                TokenImpersonationLevel.Identification);
 
             using var cancellationTokenSource = new CancellationTokenSource(timeout);
             await pipe.ConnectAsync(cancellationTokenSource.Token);
@@ -874,7 +885,8 @@ public static class KelpieServerCommandRunner
                 ".",
                 pipeName,
                 PipeDirection.InOut,
-                PipeOptions.Asynchronous);
+                PipeOptions.Asynchronous,
+                TokenImpersonationLevel.Identification);
 
             using var cancellationTokenSource = new CancellationTokenSource(timeout);
             await pipe.ConnectAsync(cancellationTokenSource.Token);
@@ -930,7 +942,8 @@ public static class KelpieServerCommandRunner
                 ".",
                 pipeName,
                 PipeDirection.InOut,
-                PipeOptions.Asynchronous);
+                PipeOptions.Asynchronous,
+                TokenImpersonationLevel.Identification);
 
             using var cancellationTokenSource = new CancellationTokenSource(timeout);
             await pipe.ConnectAsync(cancellationTokenSource.Token);
@@ -1012,6 +1025,7 @@ public static class KelpieServerCommandRunner
     {
         var message = response switch
         {
+            "forbidden" => "KelpieMCPServer control command is not permitted for the current Windows user.",
             "profile-not-found" => "SSH profile was not found.",
             "password-authentication-not-configured" => "SSH profile does not use password authentication.",
             "password-secret-not-configured" => "SSH password secret name is not configured.",
@@ -1028,6 +1042,7 @@ public static class KelpieServerCommandRunner
     {
         var message = response switch
         {
+            "forbidden" => "KelpieMCPServer control command is not permitted for the current Windows user.",
             "secret-name-required" => "Secret name is required.",
             "secret-empty" => "Secret content is required.",
             "secret-invalid-base64" => "Secret content could not be transferred.",
@@ -1045,6 +1060,7 @@ public static class KelpieServerCommandRunner
     {
         var message = response switch
         {
+            "forbidden" => "KelpieMCPServer control command is not permitted for the current Windows user.",
             "profile-not-found" => "SSH profile was not found.",
             "env-set-not-allowed" => "SSH profile does not allow setting environment values.",
             "env-key-invalid" => "Environment variable key is invalid.",
@@ -1239,6 +1255,11 @@ public static class KelpieServerCommandRunner
                 normalizedProfileName,
                 "control-pipe-timeout",
                 "KelpieMCPServer control pipe timed out. The offline trust store was not changed."),
+            _ when string.Equals(response, "forbidden", StringComparison.OrdinalIgnoreCase) => new SshProfileTrustOperationResult(
+                false,
+                normalizedProfileName,
+                "control-command-forbidden",
+                "KelpieMCPServer control command is not permitted for the current Windows user. The offline trust store was not changed."),
             _ when !string.IsNullOrWhiteSpace(response) => JsonSerializer.Deserialize<SshProfileTrustOperationResult>(response)
                 ?? new SshProfileTrustOperationResult(false, normalizedProfileName, "invalid-response", "KelpieMCPServer returned an invalid response."),
             _ => ExecuteOfflineTrustOperation(normalizedProfileName, offlineOperation),

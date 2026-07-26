@@ -1,4 +1,5 @@
 using System.IO.Pipes;
+using System.Security.Principal;
 using System.Text.Json;
 using FluentAssertions;
 using KelpieMCPServer;
@@ -534,7 +535,8 @@ public sealed class NamedPipeShutdownServiceTests
                          ".",
                          pipeName,
                          PipeDirection.InOut,
-                         PipeOptions.Asynchronous))
+                         PipeOptions.Asynchronous,
+                         TokenImpersonationLevel.Identification))
         {
             using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(3));
             await abandonedClient.ConnectAsync(cancellationTokenSource.Token);
@@ -567,9 +569,10 @@ public sealed class NamedPipeShutdownServiceTests
             ".",
             pipeName,
             PipeDirection.InOut,
-            PipeOptions.Asynchronous);
+            PipeOptions.Asynchronous,
+            TokenImpersonationLevel.Identification);
 
-        using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await pipe.ConnectAsync(cancellationTokenSource.Token);
 
         var writer = new StreamWriter(pipe)
@@ -589,7 +592,8 @@ public sealed class NamedPipeShutdownServiceTests
             ".",
             pipeName,
             PipeDirection.InOut,
-            PipeOptions.Asynchronous);
+            PipeOptions.Asynchronous,
+            TokenImpersonationLevel.Identification);
 
         using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         await pipe.ConnectAsync(cancellationTokenSource.Token);
@@ -612,7 +616,8 @@ public sealed class NamedPipeShutdownServiceTests
             ".",
             pipeName,
             PipeDirection.InOut,
-            PipeOptions.Asynchronous);
+            PipeOptions.Asynchronous,
+            TokenImpersonationLevel.Identification);
 
         using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         await pipe.ConnectAsync(cancellationTokenSource.Token);
@@ -643,9 +648,10 @@ public sealed class NamedPipeShutdownServiceTests
             ".",
             pipeName,
             PipeDirection.InOut,
-            PipeOptions.Asynchronous);
+            PipeOptions.Asynchronous,
+            TokenImpersonationLevel.Identification);
 
-        using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await pipe.ConnectAsync(cancellationTokenSource.Token);
 
         var writer = new StreamWriter(pipe)

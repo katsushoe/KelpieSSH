@@ -1,4 +1,5 @@
 using System.IO.Pipes;
+using System.Runtime.Versioning;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
@@ -16,6 +17,7 @@ namespace KelpieMCPServer;
 /// </summary>
 public sealed class NamedPipeShutdownService : BackgroundService
 {
+    private static readonly TimeSpan InitialCommandReadTimeout = TimeSpan.FromSeconds(5);
     private static readonly UTF8Encoding ControlPipeEncoding = new(
         encoderShouldEmitUTF8Identifier: false,
         throwOnInvalidBytes: true);
@@ -30,6 +32,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
     private readonly KelpieServerControlOptions _options;
     private readonly KelpieProfileOperationsOptions _profileOperations;
     private readonly Func<bool> _isWindowsService;
+    private readonly string? _serverUserSid;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="NamedPipeShutdownService"/> class.
@@ -65,6 +68,9 @@ public sealed class NamedPipeShutdownService : BackgroundService
         _sshCommandService = sshCommandService;
         _profileOperations = profileOperations ?? KelpieProfileOperationsOptions.Default;
         _isWindowsService = isWindowsService ?? WindowsServiceHelpers.IsWindowsService;
+        _serverUserSid = OperatingSystem.IsWindows()
+            ? WindowsIdentity.GetCurrent().User?.Value
+            : null;
     }
 
     /// <inheritdoc />
@@ -83,7 +89,17 @@ public sealed class NamedPipeShutdownService : BackgroundService
                 {
                     AutoFlush = true,
                 };
-                var message = await reader.ReadLineAsync(stoppingToken);
+                using var commandReadCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                commandReadCancellation.CancelAfter(InitialCommandReadTimeout);
+                var message = await reader.ReadLineAsync(commandReadCancellation.Token);
+                var caller = ResolveCaller(pipe);
+                if (!ControlPipeAccessPolicy.IsAllowed(message, caller))
+                {
+                    KpLog.Warn($"Control command forbidden. command={GetCommandName(message)}, callerSid={caller.UserSid ?? "(unavailable)"}");
+                    await writer.WriteLineAsync("forbidden");
+                    await writer.FlushAsync(stoppingToken);
+                    continue;
+                }
 
                 if (string.Equals(message, "stop", StringComparison.OrdinalIgnoreCase))
                 {
@@ -105,7 +121,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
 
                 if (string.Equals(message, "sessions", StringComparison.OrdinalIgnoreCase))
                 {
-                    await HandleSessionsAsync(writer, stoppingToken);
+                    await HandleSessionsAsync(writer, stoppingToken, caller.RequiresRedaction);
                     continue;
                 }
 
@@ -147,7 +163,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
 
                 if (string.Equals(message, "secret-list", StringComparison.OrdinalIgnoreCase))
                 {
-                    await HandleSecretListAsync(writer, stoppingToken);
+                    await HandleSecretListAsync(writer, stoppingToken, caller.RequiresRedaction);
                     continue;
                 }
 
@@ -165,7 +181,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
 
                 if (TryGetArgument(message, "env-list", out var envListRequestJson))
                 {
-                    await HandleEnvListAsync(envListRequestJson, writer, stoppingToken);
+                    await HandleEnvListAsync(envListRequestJson, writer, stoppingToken, caller.RequiresRedaction);
                     continue;
                 }
 
@@ -211,7 +227,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
 
                 if (TryGetArgument(message, "profile-capabilities", out var profileCapabilitiesName))
                 {
-                    await HandleProfileCapabilitiesAsync(profileCapabilitiesName, writer, stoppingToken);
+                    await HandleProfileCapabilitiesAsync(profileCapabilitiesName, writer, stoppingToken, caller.RequiresRedaction);
                     continue;
                 }
 
@@ -228,6 +244,11 @@ public sealed class NamedPipeShutdownService : BackgroundService
                     await writer.WriteLineAsync("unknown");
                     await writer.FlushAsync(stoppingToken);
                 }
+            }
+            catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
+            {
+                KpLog.Debug("NamedPipe control client command read timed out.");
+                _logger.LogDebug("NamedPipe control client command read timed out.");
             }
             catch (OperationCanceledException)
             {
@@ -390,9 +411,14 @@ public sealed class NamedPipeShutdownService : BackgroundService
 
     private async Task HandleSecretListAsync(
         TextWriter writer,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool redact)
     {
-        await writer.WriteLineAsync(JsonSerializer.Serialize(_secretStore.List()));
+        var secrets = _secretStore.List();
+        var response = redact
+            ? ControlPipeAccessPolicy.RedactSecrets(secrets)
+            : secrets;
+        await writer.WriteLineAsync(JsonSerializer.Serialize(response));
         await writer.FlushAsync(cancellationToken);
     }
 
@@ -479,7 +505,8 @@ public sealed class NamedPipeShutdownService : BackgroundService
     private async Task HandleEnvListAsync(
         string requestJson,
         TextWriter writer,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool redact)
     {
         EnvListRequest? request;
         try
@@ -493,7 +520,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
             return;
         }
 
-        var profileName = request?.ProfileName?.Trim();
+        var profileName = redact ? null : request?.ProfileName?.Trim();
         if (!string.IsNullOrWhiteSpace(profileName) && !_profileCatalog.TryGet(profileName, out _))
         {
             await writer.WriteLineAsync("profile-not-found");
@@ -501,7 +528,11 @@ public sealed class NamedPipeShutdownService : BackgroundService
             return;
         }
 
-        await writer.WriteLineAsync(JsonSerializer.Serialize(_environmentOverrideStore.List(profileName)));
+        var overrides = _environmentOverrideStore.List(profileName);
+        var response = redact
+            ? ControlPipeAccessPolicy.RedactEnvironmentOverrides(overrides)
+            : overrides;
+        await writer.WriteLineAsync(JsonSerializer.Serialize(response));
         await writer.FlushAsync(cancellationToken);
     }
 
@@ -659,8 +690,16 @@ public sealed class NamedPipeShutdownService : BackgroundService
     private async Task HandleProfileCapabilitiesAsync(
         string profileName,
         TextWriter writer,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool redact)
     {
+        if (redact)
+        {
+            await writer.WriteLineAsync(JsonSerializer.Serialize(ControlPipeAccessPolicy.RedactProfileCapabilities()));
+            await writer.FlushAsync(cancellationToken);
+            return;
+        }
+
         if (_profileCatalog is not ReloadingSshConnectionProfileCatalog reloadingCatalog)
         {
             await writer.WriteLineAsync(JsonSerializer.Serialize(new SshProfileTrustCapabilities(
@@ -903,10 +942,16 @@ public sealed class NamedPipeShutdownService : BackgroundService
         await writer.FlushAsync(cancellationToken);
     }
 
-    private async Task HandleSessionsAsync(TextWriter writer, CancellationToken cancellationToken)
+    private async Task HandleSessionsAsync(
+        TextWriter writer,
+        CancellationToken cancellationToken,
+        bool redact)
     {
         var sessions = _passwordSessionStore.ListSessions();
-        var response = JsonSerializer.Serialize(sessions);
+        var output = redact
+            ? ControlPipeAccessPolicy.RedactSessions(sessions)
+            : sessions;
+        var response = JsonSerializer.Serialize(output);
         await writer.WriteLineAsync(response);
         await writer.FlushAsync(cancellationToken);
     }
@@ -935,6 +980,54 @@ public sealed class NamedPipeShutdownService : BackgroundService
         return "pong;windowsService=" + windowsService;
     }
 
+    private ControlPipeCaller ResolveCaller(NamedPipeServerStream pipe)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return ControlPipeCaller.Trusted;
+        }
+
+        return ResolveWindowsCaller(pipe);
+    }
+
+    [SupportedOSPlatform("windows")]
+    private ControlPipeCaller ResolveWindowsCaller(NamedPipeServerStream pipe)
+    {
+        ControlPipeCaller caller = default;
+        try
+        {
+            pipe.RunAsClient(() =>
+            {
+                using var identity = WindowsIdentity.GetCurrent(TokenAccessLevels.Query);
+                var userSid = identity.User;
+                var principal = new WindowsPrincipal(identity);
+                caller = new ControlPipeCaller(
+                    userSid?.Value,
+                    IsServerOwner: userSid is not null
+                        && string.Equals(userSid.Value, _serverUserSid, StringComparison.Ordinal),
+                    IsAdministrator: principal.IsInRole(WindowsBuiltInRole.Administrator),
+                    IsSystem: userSid?.IsWellKnown(WellKnownSidType.LocalSystemSid) == true);
+            });
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException)
+        {
+            KpLog.Warn($"Control pipe caller identity could not be resolved. error={ex.Message}");
+        }
+
+        return caller;
+    }
+
+    private static string GetCommandName(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return "(empty)";
+        }
+
+        var separatorIndex = message.IndexOf(' ');
+        return separatorIndex < 0 ? message : message[..separatorIndex];
+    }
+
     private static bool IsClientDisconnected(IOException ex)
     {
         return ex.Message.Contains("Pipe is broken", StringComparison.OrdinalIgnoreCase);
@@ -956,6 +1049,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
         using var identity = WindowsIdentity.GetCurrent();
         var currentUser = identity.User;
         var admins = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+        var localUsers = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
         var localSystem = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
         if (currentUser is not null)
         {
@@ -963,6 +1057,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
         }
 
         security.AddAccessRule(new PipeAccessRule(admins, PipeAccessRights.FullControl, AccessControlType.Allow));
+        security.AddAccessRule(new PipeAccessRule(localUsers, PipeAccessRights.ReadWrite, AccessControlType.Allow));
         security.AddAccessRule(new PipeAccessRule(localSystem, PipeAccessRights.FullControl, AccessControlType.Allow));
         if (isWindowsService)
         {
