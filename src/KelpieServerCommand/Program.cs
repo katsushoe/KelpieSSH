@@ -140,6 +140,13 @@ if (string.Equals(command, "profile-capabilities", StringComparison.OrdinalIgnor
     return;
 }
 
+if (string.Equals(command, "web-policy", StringComparison.OrdinalIgnoreCase))
+{
+    KpLog.Warn("Human web-policy command requested.");
+    Environment.ExitCode = WebPolicyCommand.Run(args.Skip(1).ToArray());
+    return;
+}
+
 if (string.Equals(command, "secret", StringComparison.OrdinalIgnoreCase))
 {
     var secretCommand = args.Length > 1 ? args[1] : string.Empty;
@@ -326,6 +333,10 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpiemcp profile reload <profile> [--approve-privilege-expansion]");
     writer.WriteLine("  kelpiemcp profile revoke <profile>");
     writer.WriteLine("  kelpiemcp profile-capabilities [profile]");
+    writer.WriteLine("  kelpiemcp web-policy list [<site-root>]");
+    writer.WriteLine("  kelpiemcp web-policy add <site-root> <file-path> <Update|Create>");
+    writer.WriteLine("  kelpiemcp web-policy remove <site-root> <file-path>");
+    writer.WriteLine("  kelpiemcp web-policy rollback");
     writer.WriteLine("  kelpiemcp secret put --name <name> --from-file <path> [--ttl <duration>]");
     writer.WriteLine("  kelpiemcp secret list");
     writer.WriteLine("  kelpiemcp secret forget <name>");

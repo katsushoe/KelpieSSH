@@ -13,6 +13,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | :--- | :--- | :--- |
 | [MCP server control](#mcp-server-control) | `kelpiemcp start [--reload-config]`, `kelpiemcp stop`, `kelpiemcp status` | Start, stop, and inspect `KelpieMCPServer`. |
 | [MCP profile trust](#mcp-profile-trust) | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile> [--approve-privilege-expansion]`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | Add, reload, revoke, and inspect trusted SSH profile baselines. |
+| [Human web policy administration](#human-web-policy-administration) | `kelpiemcp web-policy list`, `add`, `remove`, `rollback` | Inspect or interactively change the root-owned managed web helper policy. |
 | [MCP Windows Service](#mcp-windows-service) | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Register, unregister, and inspect the Windows Service entry. |
 | [MCP password session](#mcp-password-session) | `kelpiemcp password`, `kelpiemcp forget`, `kelpiemcp login`, `kelpiemcp logout` | Store or clear an SSH password in the running MCP server session. |
 | [MCP secret session](#mcp-secret-session) | `kelpiemcp secret put`, `kelpiemcp secret list`, `kelpiemcp secret forget` | Store, list, or clear short-lived secret file payloads in the running MCP server session. |
@@ -2204,6 +2205,39 @@ The terminal execution result is represented by the return value sample above: p
 Safety notes:
 
 - Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
+### Human web policy administration
+
+These commands administer `/etc/kelpie/web-permission-helper-policy.json`. They are local CLI commands for a human administrator and are not exposed as MCP callable tools.
+
+#### Input specification
+
+```text
+kelpiemcp web-policy list [<site-root>]
+kelpiemcp web-policy add <site-root> <file-path> <Update|Create>
+kelpiemcp web-policy remove <site-root> <file-path>
+kelpiemcp web-policy rollback
+```
+
+- `<site-root>` is a normalized absolute Unix path such as `/var/www`.
+- `<file-path>` is a normalized absolute path relative to that site root, such as `/_webadmin/index.php`.
+- `Update` permits atomic replacement of an existing regular file. `Create` additionally permits creation of that exact missing file.
+- Options that skip confirmation are not accepted.
+
+#### State and output specification
+
+- `list` validates the complete JSON document and prints `site-root`, `file-path`, and access. It is read-only and may be redirected.
+- `add` rejects an existing entry. `remove` rejects a missing entry. `rollback` restores the newest managed backup.
+- Every changing command requires Unix, effective root, a terminal attached to both standard input and standard output, and an existing regular non-symlink policy owned by root and not writable by group or others.
+- Before writing, the command prints the current and proposed JSON as a line-oriented difference, generates a cryptographically random confirmation code, and requires the administrator to type the exact code. EOF, mismatch, redirection, or extra arguments aborts without changing the policy.
+- The proposed and backup JSON are parsed and schema-validated. The policy accepts only `Sites.<site-root>.AllowedFiles.<file-path>` with `Update` or `Create`.
+- The original UID, GID, and Unix mode are applied to backup and temporary files. Replacement uses a same-directory atomic rename and verifies the resulting metadata.
+- Backups are stored in `/etc/kelpie/.web-policy-backups/`. Each successful change creates a new timestamped backup, including rollback so the rollback itself remains recoverable.
+- Audit events are appended and flushed to `/var/log/kelpie/web-policy-audit.jsonl` before replacement and after completion. The log is root-owned mode `0600`; it contains operation metadata and paths, not file contents.
+
+#### Error specification
+
+The command exits with `1` for invalid syntax or JSON, unsupported policy fields or values, unsafe paths, non-interactive execution, non-root execution, insecure ownership or mode, confirmation mismatch, missing entries or backups, metadata preservation failure, backup failure, audit failure, or atomic replacement failure. It exits with `0` only after the requested read or change completes.
 
 ### Help/version
 

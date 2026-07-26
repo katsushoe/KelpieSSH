@@ -12,6 +12,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | :--- | :--- | :--- |
 | MCP server control | `kelpiemcp start [--reload-config]`, `kelpiemcp stop`, `kelpiemcp status` | `KelpieMCPServer` の起動、停止、状態確認を行う。 |
 | MCP profile trust | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile> [--approve-privilege-expansion]`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | SSH profile の信頼 baseline 追加、更新、取り消し、確認を行う。 |
+| 人間用Web policy管理 | `kelpiemcp web-policy list`, `add`, `remove`, `rollback` | root所有のmanaged Web helper policyを確認または対話的に変更する。 |
 | MCP Windows Service | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Windows Service 登録、登録解除、登録状態確認を行う。 |
 | MCP password session | `kelpiemcp password`, `kelpiemcp forget` | 起動中の MCP server に SSH パスワードを一時保存、削除する。 |
 | MCP secret session | `kelpiemcp secret put`, `kelpiemcp secret list`, `kelpiemcp secret forget` | 起動中の MCP server に短命の秘密ファイル内容を一時保存、一覧表示、削除する。 |
@@ -2049,6 +2050,39 @@ profile の `Capabilities` に `AllowSetEnvironmentValues` が必要です。
 Removed from ~/.kelpie/.env
 Backup: ~/.kelpie/.env.20260617T120000Z.kelpie
 ```
+
+### 人間用Web policy管理
+
+これらのコマンドは `/etc/kelpie/web-permission-helper-policy.json` を管理します。人間の管理者がローカルで使うCLI専用機能であり、MCP callable toolとして公開しません。
+
+#### 入力仕様
+
+```text
+kelpiemcp web-policy list [<site-root>]
+kelpiemcp web-policy add <site-root> <file-path> <Update|Create>
+kelpiemcp web-policy remove <site-root> <file-path>
+kelpiemcp web-policy rollback
+```
+
+- `<site-root>` は `/var/www` のような正規化済みUnix絶対pathです。
+- `<file-path>` は `/_webadmin/index.php` のようなsite root相対の絶対pathです。
+- `Update` は既存regular fileの原子的置換を許可します。`Create` は、その完全一致pathが存在しない場合の作成も許可します。
+- 確認を省略するoptionは受け付けません。
+
+#### 状態・出力仕様
+
+- `list` はJSON文書全体を検証し、`site-root`、`file-path`、accessを表示します。読み取り専用であり、redirect可能です。
+- `add` は既存entryを拒否し、`remove` は存在しないentryを拒否します。`rollback` は最新のmanaged backupを復元します。
+- 変更コマンドはUnix、effective root、標準入力と標準出力の両方に接続したterminal、およびroot所有でgroupとothersから書き込めない既存の非symlink regular policy fileを必須とします。
+- 書込み前に現在と変更後のJSON差分を表示し、暗号学的に生成したランダム確認コードの完全一致入力を要求します。EOF、不一致、redirect、余分な引数ではpolicyを変更しません。
+- 変更後JSONとbackup JSONをparseし、schemaを検証します。policyは `Sites.<site-root>.AllowedFiles.<file-path>` と `Update` または `Create` だけを受け付けます。
+- 元fileのUID、GID、Unix modeをbackupと一時fileへ適用します。同じdirectory内の原子的renameで置換し、置換後のmetadataも検証します。
+- backupは `/etc/kelpie/.web-policy-backups/` に保存します。rollbackを含む各変更でtimestamp付きbackupを作るため、rollback操作自体も復旧できます。
+- 置換前と完了後に `/var/log/kelpie/web-policy-audit.jsonl` へ監査eventを追記してflushします。監査logはroot所有mode `0600`で、操作metadataとpathだけを記録し、file内容は記録しません。
+
+#### エラー仕様
+
+構文またはJSON不正、未対応fieldや値、危険なpath、非対話実行、非root実行、安全でない所有者やmode、確認コード不一致、entryまたはbackup不足、metadata維持失敗、backup失敗、監査失敗、原子的置換失敗では終了code `1`を返します。要求した読み取りまたは変更が完了した場合だけ`0`を返します。
 
 ### `kelpie version`
 
