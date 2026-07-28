@@ -1,3 +1,7 @@
+using System.IO.Pipes;
+using System.Runtime.Versioning;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using FluentAssertions;
 using KelpieMCPServer;
 using KelpieSSH.Application.Ssh;
@@ -91,5 +95,30 @@ public sealed class ControlPipeAccessPolicyTests
         result.ReloadAllowed.Should().BeFalse();
         result.RevokeAllowed.Should().BeFalse();
         result.Reason.Should().Be("redacted-for-cross-user");
+    }
+
+    [Fact]
+    public void CreateControlPipeSecurity_ShouldAllowRestrictedLocalCallersToConnect()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        AssertControlPipeSecurityAllowsWorld();
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static void AssertControlPipeSecurityAllowsWorld()
+    {
+        var worldSid = new SecurityIdentifier(WellKnownSidType.WorldSid, null);
+        var rules = NamedPipeShutdownService.CreateControlPipeSecurity(isWindowsService: false)
+            .GetAccessRules(includeExplicit: true, includeInherited: false, typeof(SecurityIdentifier))
+            .Cast<PipeAccessRule>();
+
+        rules.Should().Contain(rule =>
+            worldSid.Equals(rule.IdentityReference)
+            && rule.AccessControlType == AccessControlType.Allow
+            && rule.PipeAccessRights.HasFlag(PipeAccessRights.ReadWrite));
     }
 }

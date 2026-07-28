@@ -61,7 +61,7 @@ Commands are grouped by operational area. Each group section states the scope, a
 
 Start, stop, and inspect the local KelpieMCPServer process or service.
 
-On Windows, the local control pipe accepts connections from local users. The server uses the Windows-provided caller SID and a fixed command classification:
+On Windows, the control pipe grants connection access to all callers, including restricted local process tokens. The server then uses the Windows-provided caller SID and a fixed command classification:
 
 - Cross-user reference commands: `ping`, `sessions`, `secret-list`, `env-list`, and `profile-capabilities`.
 - Update commands are restricted to the server owner, Administrators, and SYSTEM. Other users receive `forbidden`.

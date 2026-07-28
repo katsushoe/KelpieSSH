@@ -64,7 +64,7 @@ SSHプロファイルの認証設定は、同じ `profiles/<profile>.json` の�
 
 ## コマンド
 
-Windowsでは、local control pipeへの接続をlocal userへ許可し、Windowsが提供するcaller SIDと固定command分類で認可します。
+Windowsでは、制限付きlocal process tokenを含む全callerへcontrol pipeの接続を許可し、Windowsが提供するcaller SIDと固定command分類で認可します。
 
 - 別ユーザーから実行できる参照commandは`ping`、`sessions`、`secret-list`、`env-list`、`profile-capabilities`です。
 - 更新commandはserver起動ユーザー、Administrators、SYSTEMだけが実行できます。それ以外は`forbidden`を返します。

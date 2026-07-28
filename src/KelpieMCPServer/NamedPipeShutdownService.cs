@@ -1045,28 +1045,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
                 PipeOptions.Asynchronous);
         }
 
-        var security = new PipeSecurity();
-        using var identity = WindowsIdentity.GetCurrent();
-        var currentUser = identity.User;
-        var admins = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
-        var localUsers = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
-        var localSystem = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
-        if (currentUser is not null)
-        {
-            security.AddAccessRule(new PipeAccessRule(currentUser, PipeAccessRights.ReadWrite, AccessControlType.Allow));
-        }
-
-        security.AddAccessRule(new PipeAccessRule(admins, PipeAccessRights.FullControl, AccessControlType.Allow));
-        security.AddAccessRule(new PipeAccessRule(localUsers, PipeAccessRights.ReadWrite, AccessControlType.Allow));
-        security.AddAccessRule(new PipeAccessRule(localSystem, PipeAccessRights.FullControl, AccessControlType.Allow));
-        if (isWindowsService)
-        {
-            var interactiveUsers = new SecurityIdentifier(WellKnownSidType.InteractiveSid, null);
-            var remoteInteractiveUsers = new SecurityIdentifier("S-1-5-14");
-            security.AddAccessRule(new PipeAccessRule(interactiveUsers, PipeAccessRights.ReadWrite, AccessControlType.Allow));
-            security.AddAccessRule(new PipeAccessRule(remoteInteractiveUsers, PipeAccessRights.ReadWrite, AccessControlType.Allow));
-        }
-
+        var security = CreateControlPipeSecurity(isWindowsService);
         return NamedPipeServerStreamAcl.Create(
             pipeName,
             PipeDirection.InOut,
@@ -1076,6 +1055,34 @@ public sealed class NamedPipeShutdownService : BackgroundService
             0,
             0,
             security);
+    }
+
+    [SupportedOSPlatform("windows")]
+    internal static PipeSecurity CreateControlPipeSecurity(bool isWindowsService)
+    {
+        var security = new PipeSecurity();
+        using var identity = WindowsIdentity.GetCurrent();
+        var currentUser = identity.User;
+        var admins = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+        var allCallers = new SecurityIdentifier(WellKnownSidType.WorldSid, null);
+        var localSystem = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+        if (currentUser is not null)
+        {
+            security.AddAccessRule(new PipeAccessRule(currentUser, PipeAccessRights.ReadWrite, AccessControlType.Allow));
+        }
+
+        security.AddAccessRule(new PipeAccessRule(admins, PipeAccessRights.FullControl, AccessControlType.Allow));
+        security.AddAccessRule(new PipeAccessRule(allCallers, PipeAccessRights.ReadWrite, AccessControlType.Allow));
+        security.AddAccessRule(new PipeAccessRule(localSystem, PipeAccessRights.FullControl, AccessControlType.Allow));
+        if (isWindowsService)
+        {
+            var interactiveUsers = new SecurityIdentifier(WellKnownSidType.InteractiveSid, null);
+            var remoteInteractiveUsers = new SecurityIdentifier("S-1-5-14");
+            security.AddAccessRule(new PipeAccessRule(interactiveUsers, PipeAccessRights.ReadWrite, AccessControlType.Allow));
+            security.AddAccessRule(new PipeAccessRule(remoteInteractiveUsers, PipeAccessRights.ReadWrite, AccessControlType.Allow));
+        }
+
+        return security;
     }
 
     private sealed record SendCommandRequest(
