@@ -56,7 +56,7 @@ HTTP request body は REST 形式ではなく JSON-RPC です。たとえば診�
 | パッケージ操作 | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove`, `ssh_certbot_check_install`, `ssh_certbot_install` | package の確認、検索、dry-run、確認付き変更、Certbot 専用 install。 |
 | サービス操作 | `ssh_service_status`, `ssh_service_is_active`, `ssh_service_is_enabled`, `ssh_list_services`, `ssh_service_enable_now`, `ssh_service_reload`, `ssh_service_restart`, `ssh_service_stop`, `ssh_service_disable` | systemd service の状態確認と確認付き変更。 |
 | サービス設定 / ログ | `service_config_paths`, `service_config_file_check_read`, `service_config_file_read`, `service_config_file_check_write`, `service_config_file_write`, `service_config_file_rollback`, `service_config_file_commit`, `service_config_test`, `ssh_service_config_nginx_enable_php`, `service_logfile_read` | provider が許可したサービス設定ファイルとログの操作。 |
-| Web ファイル | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_hash`, `web_file_check_write`, `web_secret_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_file_rollback`, `web_file_commit`, `web_secret_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | provider が許可した Web ルート配下のファイル操作、秘密ファイル転送、権限変更。 |
+| Web ファイル | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_hash`, `web_file_check_write`, `web_secret_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_file_write_from_local`, `web_file_rollback`, `web_file_commit`, `web_secret_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | provider が許可した Web ルート配下のファイル操作、ローカルファイル直接転送、秘密ファイル転送、権限変更。 |
 | SSH file export | `ssh_file_export` | `@Read`と`@Export`で許可されたremote通常fileを、本文を応答へ含めずlocal Kelpie export directoryへ保存。 |
 
 ## 共通オプション
@@ -5191,6 +5191,58 @@ Web 公開ルート外へ出ないこと、読み取り許可、content type 許
 - 解決後の対象パスが Web 公開ルート外へ出る場合は拒否します。
 - `.php` などの実行可能な Web 拡張子は既定では書き込み拒否です。対象プロファイルのサイト設定で `WritableExecutableExtensions` に明示列挙されている場合だけ書き込みできます。
 - `WritableExecutableExtensions` は、その書き込みについて実行可能拡張子の拒否と `AllowedExtensions` 不足だけを解除します。パストラバーサル拒否、ドットファイル拒否、秘密ファイル拒否、サイズ上限、MIME type 判定は従来どおり適用されます。
+
+### `web_file_write_from_local`
+
+目的:
+
+KelpieMCPServer process内でlocal通常fileを読み取り、必須のSHA-256を検証してから、file本文やBase64文字列をMCP requestまたはresponseへ含めず、provider許可済みWeb pathへ転送します。
+
+入力引数:
+
+- `profileName`: SSHプロファイル名。
+- `siteKey`: Web公開サイト設定のキー。
+- `localPath`: local source fileの絶対pathまたはprocess基準の相対path。
+- `remotePath`: site-relative absolute destination path。
+- `expectedSha256`: local source bytesに対する必須の64文字16進SHA-256。
+- `confirmation`: 空または不正なconfirmationで事前検査したときに返る完全一致token。
+- `contentType`: MIME type。省略可。
+- `owner`: `owner[:group]`形式。省略可。
+- `mode`: 3桁octal mode。省略可。
+- `atomic`: `true`必須。既存のatomic Web write providerでdestinationを置き換えます。
+
+引数サンプル:
+
+```json
+{
+  "profileName": "vps01",
+  "siteKey": "default",
+  "localPath": "C:\\deploy\\packages\\example-package.bin",
+  "remotePath": "/products/example-package.bin",
+  "expectedSha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "contentType": "application/octet-stream",
+  "owner": "deploy:deploy",
+  "mode": "644",
+  "atomic": true,
+  "confirmation": "<local事前検査後に返されたtoken>"
+}
+```
+
+処理内容:
+
+SSH実行前に、file不存在、local reparse point、16 MiB超過、不正hash、hash不一致、`atomic: false`を拒否します。事前検査ではlocal fileを読み取ってhashを確認してから、内容に束縛したconfirmation tokenを返します。確認済み呼び出しでも同じ検査を繰り返し、検証済みのmemory上bytesだけを既存atomic providerのbounded SSH standard input用にBase64化します。
+
+戻り値:
+
+- `WebPublicFileWriteResult`。
+- destination metadataだけを返し、local bytes、Base64本文、preview、diffは返しません。
+- remote path、content type、実行可能拡張子、secret file、size、permission helper、site rootのpolicyは`web_file_write`と同じです。
+
+安全上の注意:
+
+- confirmation tokenは、正規化済みlocal path、remote path、expected hash、owner、mode、atomic modeへ束縛されます。
+- KelpieMCPServer processには、事前に`localPath`のOS読み取り権限が必要です。
+- この`expectedSha256`はlocal upload payloadを検証します。`web_file_write`の同名引数と異なり、既存remote fileに対する事前条件ではありません。
 
 ### `web_secret_file_write`
 

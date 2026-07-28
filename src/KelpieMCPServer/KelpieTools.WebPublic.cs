@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Security.Cryptography;
 using Kelpie.Core;
 using KelpieSSH.Application.Ssh;
 using ModelContextProtocol.Server;
@@ -544,6 +545,110 @@ public sealed partial class KelpieTools
             createBackup,
             preservePermissions,
             cancellationToken);
+    }
+
+    /// <summary>
+    /// Writes one local file directly to a provider-approved site root without returning its content.
+    /// </summary>
+    [McpServerTool(Name = "web_file_write_from_local")]
+    [Description("Reads a bounded local regular file, verifies its required SHA-256, and writes it atomically to one provider-approved web path without returning file content.")]
+    public static async Task<WebPublicFileWriteResult> WriteWebFileFromLocalAsync(
+        SshCommandService sshCommandService,
+        ISshConnectionProfileCatalog profileCatalog,
+        IWebPublicFileProvider webPublicFileProvider,
+        string profileName,
+        string siteKey,
+        string localPath,
+        string remotePath,
+        string expectedSha256,
+        string confirmation,
+        string? contentType = null,
+        string? owner = null,
+        string? mode = null,
+        bool atomic = true,
+        CancellationToken cancellationToken = default)
+    {
+        const long maxLocalFileBytes = 16 * 1024 * 1024;
+        var normalizedLocalPath = Path.GetFullPath(localPath);
+        var normalizedExpectedSha256 = expectedSha256.Trim().ToLowerInvariant();
+        var permissionSuffix = CreateWritePermissionConfirmationSuffix(owner, mode);
+        var target = $"{siteKey}:{remotePath}:{normalizedLocalPath}:{normalizedExpectedSha256}{permissionSuffix}:atomic";
+        KpLog.Info($"MCP SSH tool called: web_file_write_from_local siteKey={siteKey}, profile={profileName}, remotePath={remotePath}, localPath={normalizedLocalPath}");
+
+        if (!atomic)
+        {
+            return CreateLocalWriteError(siteKey, remotePath, contentType, "web_file_write_from_local requires atomic=true.");
+        }
+
+        if (normalizedExpectedSha256.Length != 64
+            || normalizedExpectedSha256.Any(character => !Uri.IsHexDigit(character)))
+        {
+            return CreateLocalWriteError(siteKey, remotePath, contentType, "expectedSha256 must be a 64-character hexadecimal SHA-256.");
+        }
+
+        var file = new FileInfo(normalizedLocalPath);
+        if (!file.Exists)
+        {
+            return CreateLocalWriteError(siteKey, remotePath, contentType, "Local file was not found.");
+        }
+
+        if ((file.Attributes & FileAttributes.ReparsePoint) != 0)
+        {
+            return CreateLocalWriteError(siteKey, remotePath, contentType, "Local symbolic links and reparse points are not accepted.");
+        }
+
+        if (file.Length > maxLocalFileBytes)
+        {
+            return CreateLocalWriteError(siteKey, remotePath, contentType, $"Local file exceeds the {maxLocalFileBytes}-byte upload limit.");
+        }
+
+        var content = await File.ReadAllBytesAsync(normalizedLocalPath, cancellationToken);
+        var actualSha256 = Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+        if (!string.Equals(actualSha256, normalizedExpectedSha256, StringComparison.Ordinal))
+        {
+            return CreateLocalWriteError(siteKey, remotePath, contentType, "Local file SHA-256 did not match expectedSha256.");
+        }
+
+        if (!TryGetConfirmationError("web_file_write_from_local", target, confirmation, out var confirmationError))
+        {
+            return CreateLocalWriteError(siteKey, remotePath, contentType, confirmationError);
+        }
+
+        var profile = ResolveSshProfile(profileCatalog, profileName);
+        return await webPublicFileProvider.WriteFileAsync(
+            sshCommandService,
+            profile,
+            siteKey,
+            remotePath,
+            Convert.ToBase64String(content),
+            encoding: null,
+            contentType: contentType,
+            owner: owner,
+            mode: mode,
+            expectedSha256: null,
+            createBackup: false,
+            preservePermissions: false,
+            cancellationToken: cancellationToken);
+    }
+
+    private static WebPublicFileWriteResult CreateLocalWriteError(
+        string siteKey,
+        string remotePath,
+        string? contentType,
+        string error)
+    {
+        return new WebPublicFileWriteResult(
+            siteKey,
+            DisplayName: string.Empty,
+            remotePath,
+            ResolvedPath: string.Empty,
+            Written: false,
+            Created: false,
+            Overwritten: false,
+            ContentType: contentType ?? string.Empty,
+            Size: 0,
+            Warnings: [],
+            Error: error);
     }
 
     /// <summary>

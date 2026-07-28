@@ -128,7 +128,7 @@ builder.Services
         options.ServerInfo = new()
         {
             Name = "KelpieSSH",
-            Version = "0.3.9.1",
+            Version = "0.3.10.1",
         };
     })
     .WithHttpTransport(options =>

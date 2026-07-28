@@ -61,7 +61,7 @@ This document describes the `name` and `arguments` used inside `tools/call`. In 
 | [Packages](#packages) | `ssh_pkg_check_updates`, `ssh_pkg_info`, `ssh_pkg_search`, `ssh_pkg_list_installed`, `ssh_pkg_simulate_install`, `ssh_pkg_install`, `ssh_pkg_install_confirmed`, `ssh_pkg_simulate_remove`, `ssh_pkg_remove`, `ssh_certbot_check_install`, `ssh_certbot_install` | Inspect packages and run confirmation-gated package operations, including bounded Certbot installation. |
 | [Services](#services) | `ssh_service_status`, `ssh_service_is_active`, `ssh_service_is_enabled`, `ssh_list_services`, `ssh_service_enable_now`, `ssh_service_reload`, `ssh_service_restart`, `ssh_service_stop`, `ssh_service_disable` | Inspect and safely manage systemd services. |
 | [Service config/logs](#service-configlogs) | `service_config_paths`, `service_config_file_check_read`, `service_config_file_read`, `service_config_file_check_write`, `service_config_file_write`, `service_config_file_rollback`, `service_config_file_commit`, `service_config_test`, `ssh_service_config_nginx_enable_php`, `service_logfile_read` | Operate on provider-approved service configuration files and logs. |
-| [Web files](#web-files) | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_hash`, `web_file_check_write`, `web_secret_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_file_rollback`, `web_file_commit`, `web_secret_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | Operate on provider-approved web roots. |
+| [Web files](#web-files) | `web_file_list`, `web_file_search_name`, `web_file_search_text`, `web_file_stat`, `web_file_hash`, `web_file_check_write`, `web_secret_file_check_write`, `web_file_check_permissions`, `web_file_read`, `web_file_head`, `web_file_tail`, `web_file_write`, `web_file_write_from_local`, `web_file_rollback`, `web_file_commit`, `web_secret_file_write`, `web_change_owner`, `web_change_owner_recursive`, `web_change_mode`, `web_change_mode_recursive` | Operate on provider-approved web roots. |
 
 ## Common Inputs
 
@@ -7235,6 +7235,61 @@ Safety notes:
 - Managed writes, rollback, and commit require an exact entry in the root-owned `/etc/kelpie/web-permission-helper-policy.json`. `Update` permits existing-file replacement only; `Create` also permits creation at that exact path.
 - Managed replacement and backup creation use temporary files in the target directory followed by same-filesystem atomic rename. Symlinks and paths outside the resolved site root are rejected.
 - `web_file_rollback` restores the managed backup only when the current file matches `expectedSha256`. `web_file_commit` removes the backup after deployment verification. Both require their exact confirmation token.
+
+#### `web_file_write_from_local`
+
+Purpose:
+
+Reads a local regular file inside the KelpieMCPServer process, verifies its required SHA-256, and transfers it to a provider-approved web path without placing the file body or Base64 text in the MCP request or response.
+
+Input arguments:
+
+- `profileName`: SSH profile name.
+- `siteKey`: Configured web site key.
+- `localPath`: Absolute or process-relative local source file path.
+- `remotePath`: Absolute site-relative destination path.
+- `expectedSha256`: Required 64-character hexadecimal SHA-256 of the local source bytes.
+- `confirmation`: Exact token returned by an otherwise valid call with an empty or incorrect confirmation.
+- `contentType`: Optional MIME content type.
+- `owner`: Optional `owner[:group]`.
+- `mode`: Optional three-digit octal mode.
+- `atomic`: Must be `true`; the destination is replaced through the existing atomic web write provider.
+
+`tools/call` params sample:
+
+```json
+{
+  "name": "web_file_write_from_local",
+  "arguments": {
+    "profileName": "vps01",
+    "siteKey": "default",
+    "localPath": "C:\\deploy\\packages\\example-package.bin",
+    "remotePath": "/products/example-package.bin",
+    "expectedSha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "contentType": "application/octet-stream",
+    "owner": "deploy:deploy",
+    "mode": "644",
+    "atomic": true,
+    "confirmation": "<token-returned-after-local-preflight>"
+  }
+}
+```
+
+Processing:
+
+The tool rejects missing files, local reparse points, files larger than 16 MiB, invalid hashes, hash mismatches, and `atomic: false` before SSH execution. A preflight call reads and hashes the local file before returning the content-bound confirmation token. A confirmed call repeats those checks, then Base64-encodes the already verified in-memory bytes only for the bounded SSH standard-input channel used by the existing atomic provider.
+
+Return value:
+
+- Return type: `WebPublicFileWriteResult`.
+- The result contains destination metadata only. It does not include local bytes, Base64 content, a preview, or a diff.
+- Remote path, content-type, executable-extension, secret-file, size, permission-helper, and site-root policies are the same as `web_file_write`.
+
+Safety notes:
+
+- The confirmation token binds the normalized local path, remote path, expected hash, owner, mode, and atomic mode.
+- The MCP server process must already have operating-system read permission for `localPath`.
+- `expectedSha256` verifies the local upload payload; unlike the argument of the same name on `web_file_write`, it is not a precondition for the existing remote file.
 
 #### `web_secret_file_write`
 
