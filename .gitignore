@@ -35,6 +35,11 @@ appsettings.Local.json
 *.log
 *.tmp
 *.temp
+CR_HANDOFF.md
+MESSAGE_QUEUE.md
+*.md.lock
+*.md.tmp.*
+*.md.bak.*
 
 COMPETITORS.md
 DOC_STANDARD.md
