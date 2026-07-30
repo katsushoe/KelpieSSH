@@ -10,7 +10,7 @@ The root-owned web permission helper must be upgradeable from a Windows manageme
 
 ## Decision
 
-`kelpiemcp helper update <profile> <local-artifact>` is a human-only command. It uploads the local artifact through internal SFTP to the fixed staging path `/tmp/kelpie-web-permission-helper.update`. After local and remote SHA-256 verification and explicit human confirmation, an internal wrapper runs only fixed-path, fixed-argument `sudo -n` commands.
+`kelpiemcp helper update <profile> <local-artifact>` is a human-only command. It uploads the local artifact through internal SFTP to the fixed staging path `/tmp/kelpie-web-permission-helper.update`. After local and remote SHA-256 verification and explicit human confirmation, an internal wrapper sends one complete fixed script through KelpieSSH's existing encoded root-command channel. The script accepts only the validated SHA-256 argument.
 
 The wrapper creates a fixed backup, copies the staged artifact to a root-owned temporary file in the target directory, verifies its SHA-256 and version output, sets `root:root` and mode `0755`, and atomically renames it to `/usr/local/libexec/kelpie/kelpie-web-permission-helper`. A failed transaction attempts rollback from the backup. Completion is sent to the system audit log.
 
@@ -27,7 +27,7 @@ The wrapper creates a fixed backup, copies the staged artifact to a root-owned t
 - Backup ownership and mode are normalized to `root:root` and `0755`.
 - Replacement is an atomic same-directory rename.
 - Confirmed and completed events are sent to the system audit log. Any failed privileged step attempts rollback and returns a user-facing error without secrets.
-- Sudoers must list only the documented exact executable and path combinations. Wildcards, arbitrary destinations, shells, editors, and unrestricted `cp`, `mv`, `chown`, or `chmod` are prohibited.
+- The helper update script is not registered as an MCP tool or allowed-command provider and cannot accept an external command, path, or shell fragment.
 
 Detached release signatures are not yet part of the repository release pipeline. SHA-256 protects transfer integrity but does not independently establish publisher identity. Adding signed release manifests and a pinned verification key requires a separate release-signing decision before signature enforcement can be claimed.
 
@@ -41,7 +41,7 @@ Detached release signatures are not yet part of the repository release pipeline.
 
 ## Operational Requirements
 
-The VPS administrator must install narrowly scoped sudoers entries for the exact commands documented in `COMMANDS.md`. If any entry is absent, the update fails closed. The fixed backup supports automatic rollback of a failed update; administrators must retain an out-of-band recovery path for a damaged sudoers configuration or filesystem.
+The existing KelpieSSH internal root-command permission must already work for the selected profile. No helper-update-specific sudoers entry is added. The fixed backup supports automatic rollback of a failed update; administrators must retain an out-of-band recovery path for a damaged privilege configuration or filesystem.
 
 ## Implementation, Test, and Documentation Mapping
 
@@ -55,4 +55,4 @@ The VPS administrator must install narrowly scoped sudoers entries for the exact
 
 ## Consequences
 
-The helper can be updated without using the old helper as an updater. Initial sudoers provisioning remains an explicit VPS administrator operation. Update transactions depend on standard AlmaLinux command paths documented for this workflow.
+The helper can be updated without using the old helper as an updater and without a separate sudoers bootstrap. Update transactions reuse the existing internal privileged channel and remain unavailable to MCP callable surfaces.

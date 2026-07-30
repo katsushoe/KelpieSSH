@@ -2259,25 +2259,9 @@ kelpiemcp helper update <profile> <local-artifact>
 
 The command validates and hashes the local regular file, uploads it through internal SFTP to a fixed staging path, verifies the remote hash, displays the current version and hashes, and requires an exact random confirmation code. The private fixed-command wrapper then backs up the installed helper, verifies the root-owned temporary copy, enforces `root:root` mode `0755`, atomically replaces the target, verifies its identity, and records completion through `logger`. A failed privileged step attempts rollback.
 
-The VPS sudoers configuration must grant the SSH administration identity only the exact fixed-path command lines emitted by this workflow for `/usr/bin/cp`, `/usr/bin/chown`, `/usr/bin/chmod`, `/usr/bin/sha256sum`, `/usr/bin/mv`, `/usr/bin/logger`, and the fixed helper paths. Do not use wildcards, shell permission, or unrestricted utility permission. Use `sudo -l` to compare the installed rules with a dry review of the source before production use.
+The privileged phase reuses KelpieSSH's existing internal encoded root-command channel. The complete fixed script is embedded by the CLI and accepts only the validated SHA-256 argument. It is not registered as a command provider or MCP tool, and it does not require additional helper-update-specific sudoers entries.
 
-```sudoers
-<ssh-user> ALL=(root) NOPASSWD: /usr/bin/cp -- /usr/local/libexec/kelpie/kelpie-web-permission-helper /usr/local/libexec/kelpie/.kelpie-web-permission-helper.backup
-<ssh-user> ALL=(root) NOPASSWD: /usr/bin/chown root\:root /usr/local/libexec/kelpie/.kelpie-web-permission-helper.backup
-<ssh-user> ALL=(root) NOPASSWD: /usr/bin/chmod 0755 /usr/local/libexec/kelpie/.kelpie-web-permission-helper.backup
-<ssh-user> ALL=(root) NOPASSWD: /usr/bin/cp -- /tmp/kelpie-web-permission-helper.update /usr/local/libexec/kelpie/.kelpie-web-permission-helper.update
-<ssh-user> ALL=(root) NOPASSWD: /usr/bin/chown root\:root /usr/local/libexec/kelpie/.kelpie-web-permission-helper.update
-<ssh-user> ALL=(root) NOPASSWD: /usr/bin/chmod 0755 /usr/local/libexec/kelpie/.kelpie-web-permission-helper.update
-<ssh-user> ALL=(root) NOPASSWD: /usr/bin/sha256sum /usr/local/libexec/kelpie/.kelpie-web-permission-helper.update
-<ssh-user> ALL=(root) NOPASSWD: /usr/local/libexec/kelpie/.kelpie-web-permission-helper.update --version
-<ssh-user> ALL=(root) NOPASSWD: /usr/bin/mv -f -- /usr/local/libexec/kelpie/.kelpie-web-permission-helper.update /usr/local/libexec/kelpie/kelpie-web-permission-helper
-<ssh-user> ALL=(root) NOPASSWD: /usr/bin/mv -f -- /usr/local/libexec/kelpie/.kelpie-web-permission-helper.backup /usr/local/libexec/kelpie/kelpie-web-permission-helper
-<ssh-user> ALL=(root) NOPASSWD: /usr/local/libexec/kelpie/kelpie-web-permission-helper --version
-<ssh-user> ALL=(root) NOPASSWD: /usr/bin/logger -t kelpie-helper-update confirmed
-<ssh-user> ALL=(root) NOPASSWD: /usr/bin/logger -t kelpie-helper-update completed
-```
-
-The command exits with `1` when the artifact, transfer hash, confirmation, sudoers permission, version identity, backup, metadata update, atomic rename, or post-update verification fails. It never falls back to root SSH login or an arbitrary shell.
+The command exits with `1` when the artifact, transfer hash, confirmation, existing internal root-command permission, version identity, backup, metadata update, atomic rename, or post-update verification fails. It never falls back to root SSH login or an externally supplied shell command.
 
 ### Help/version
 

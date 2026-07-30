@@ -101,6 +101,20 @@ public sealed class HelperUpdateCommandTests
         }
     }
 
+    [Fact]
+    public void BuildPrivilegedCommand_ShouldUseOnlyInternalEncodedRootTransaction()
+    {
+        var hash = new string('a', 64);
+
+        var command = SshHelperUpdateRemote.BuildPrivilegedCommand(hash);
+
+        command.Should().StartWith("sudo -n sh -c \"printf %s '")
+            .And.Contain("| base64 -d | sh -s -- '" + hash + "'\"")
+            .And.NotContain("/usr/bin/cp")
+            .And.NotContain("/usr/bin/mv")
+            .And.NotContain("local-artifact");
+    }
+
     private static string CreateArtifact()
     {
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));

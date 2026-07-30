@@ -2104,11 +2104,9 @@ kelpiemcp helper update <profile> <local-artifact>
 
 local regular fileを検証してhashを計算し、内部SFTPで固定staging pathへ転送します。remote hashを照合し、現在versionとhashを表示した後、ランダム確認コードの完全一致を要求します。非公開の固定コマンドwrapperが現行helperをbackupし、root所有の一時fileを再検証して`root:root`、mode `0755`を設定し、対象へ原子的に置換してidentityを確認し、`logger`へ完了を記録します。特権処理が失敗した場合はrollbackを試みます。
 
-VPS sudoersは、このworkflowが使う`/usr/bin/cp`、`/usr/bin/chown`、`/usr/bin/chmod`、`/usr/bin/sha256sum`、`/usr/bin/mv`、`/usr/bin/logger`および固定helper pathの完全一致コマンドだけをSSH管理identityへ許可します。wildcard、shell権限、utility全体の無制限許可は禁止です。本番利用前に`sudo -l`とsourceの固定コマンドを照合します。
+特権処理はKelpieSSHの既存内部encoded root-command channelを再利用します。完全固定scriptをCLI内へ埋め込み、検証済みSHA-256だけを引数として受け取ります。command providerやMCP toolには登録せず、helper更新専用sudoersの追加も不要です。
 
-具体的な完全一致sudoers entryは英語版[COMMANDS.md](../../COMMANDS.md#human-helper-update)のcode blockを正本とし、`<ssh-user>`だけを対象profileのSSH管理identityへ置き換えます。
-
-artifact、転送hash、確認、sudoers権限、version identity、backup、metadata更新、原子的rename、更新後検証のいずれかが失敗した場合は終了code `1`を返します。root SSH loginや任意shellへfallbackしません。
+artifact、転送hash、確認、既存内部root-command権限、version identity、backup、metadata更新、原子的rename、更新後検証のいずれかが失敗した場合は終了code `1`を返します。root SSH loginや外部入力のshell commandへfallbackしません。
 
 ### `kelpie version`
 

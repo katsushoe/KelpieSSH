@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using Kelpie.Core;
 using KelpieSSH.Application.Ssh;
 using KelpieSSH.Infrastructure.Ssh;
@@ -140,12 +141,84 @@ public sealed record HelperUpdateResult(bool Succeeded, string Message);
 
 internal sealed class SshHelperUpdateRemote : IHelperUpdateRemote
 {
-    private static readonly Version MinimumSupportedVersion = new(0, 2, 1, 0);
     private const string StagingPath = "/tmp/kelpie-web-permission-helper.update";
     private const string TargetPath = "/usr/local/libexec/kelpie/kelpie-web-permission-helper";
-    private const string RootTemporaryPath = "/usr/local/libexec/kelpie/.kelpie-web-permission-helper.update";
-    private const string BackupPath = "/usr/local/libexec/kelpie/.kelpie-web-permission-helper.backup";
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
+    private static readonly string UpdateScriptBase64 = Convert.ToBase64String(
+        Encoding.UTF8.GetBytes(
+            """
+            expected_hash="$1"
+            staging="/tmp/kelpie-web-permission-helper.update"
+            target="/usr/local/libexec/kelpie/kelpie-web-permission-helper"
+            directory="/usr/local/libexec/kelpie"
+            temporary="$directory/.kelpie-web-permission-helper.update"
+            backup="$directory/.kelpie-web-permission-helper.backup"
+
+            case "$expected_hash" in
+                *[!0-9a-fA-F]*|"") printf 'error=invalidHash\n'; exit 2 ;;
+            esac
+            [ "${#expected_hash}" -eq 64 ] || { printf 'error=invalidHash\n'; exit 2; }
+            [ -f "$staging" ] && [ ! -L "$staging" ] || { printf 'error=invalidStaging\n'; exit 2; }
+            [ -f "$target" ] && [ ! -L "$target" ] || { printf 'error=invalidTarget\n'; exit 2; }
+            [ -d "$directory" ] && [ ! -L "$directory" ] || { printf 'error=invalidDirectory\n'; exit 2; }
+
+            staged_hash=$(sha256sum "$staging" | awk '{print $1}')
+            [ "$staged_hash" = "$expected_hash" ] || { printf 'error=stagedHashMismatch\n'; exit 2; }
+            logger -t kelpie-helper-update confirmed
+
+            rm -f -- "$temporary"
+            cp --preserve=mode,ownership,timestamps -- "$target" "$backup" || exit 3
+            chown root:root "$backup" || exit 3
+            chmod 0755 "$backup" || exit 3
+            cp -- "$staging" "$temporary" || exit 3
+            chown root:root "$temporary" || exit 3
+            chmod 0755 "$temporary" || exit 3
+
+            temporary_hash=$(sha256sum "$temporary" | awk '{print $1}')
+            if [ "$temporary_hash" != "$expected_hash" ]; then
+                rm -f -- "$temporary"
+                printf 'error=temporaryHashMismatch\n'
+                exit 3
+            fi
+
+            proposed_version=$("$temporary" --version 2>/dev/null)
+            case "$proposed_version" in
+                "kelpie-web-permission-helper "*) ;;
+                *) rm -f -- "$temporary"; printf 'error=invalidVersionIdentity\n'; exit 3 ;;
+            esac
+            version_value=${proposed_version##* }
+            minimum_version="0.2.1.0"
+            first_version=$(printf '%s\n%s\n' "$minimum_version" "$version_value" | sort -V | head -n 1)
+            if [ "$first_version" != "$minimum_version" ]; then
+                rm -f -- "$temporary"
+                printf 'error=incompatibleVersion\n'
+                exit 3
+            fi
+
+            if ! mv -f -- "$temporary" "$target"; then
+                printf 'error=atomicReplaceFailed\n'
+                exit 3
+            fi
+
+            installed_hash=$(sha256sum "$target" | awk '{print $1}')
+            installed_version=$("$target" --version 2>/dev/null)
+            if [ "$installed_hash" != "$expected_hash" ] ||
+               [ "$installed_version" != "$proposed_version" ]; then
+                cp -- "$backup" "$temporary" &&
+                    chown root:root "$temporary" &&
+                    chmod 0755 "$temporary" &&
+                    mv -f -- "$temporary" "$target"
+                logger -t kelpie-helper-update rollback
+                printf 'error=postVerificationFailed\n'
+                exit 4
+            fi
+
+            rm -f -- "$staging"
+            logger -t kelpie-helper-update completed
+            printf 'updated=true\n'
+            printf 'version=%s\n' "$installed_version"
+            printf 'sha256=%s\n' "$installed_hash"
+            """));
     private readonly SshNetFileUploader _uploader = new();
     private readonly ISshCommandRunner _runner = new SshNetCommandRunner();
 
@@ -179,50 +252,31 @@ internal sealed class SshHelperUpdateRemote : IHelperUpdateRemote
         CancellationToken cancellationToken)
     {
         ValidateHash(expectedHash);
-        var commands = new[]
+        var result = await ExecuteAsync(
+            profile,
+            BuildPrivilegedCommand(expectedHash),
+            cancellationToken);
+        if (result.ExitCode != 0)
         {
-            "sudo -n /usr/bin/logger -t kelpie-helper-update confirmed",
-            $"sudo -n /usr/bin/cp -- {TargetPath} {BackupPath}",
-            $"sudo -n /usr/bin/chown root:root {BackupPath}",
-            $"sudo -n /usr/bin/chmod 0755 {BackupPath}",
-            $"sudo -n /usr/bin/cp -- {StagingPath} {RootTemporaryPath}",
-            $"sudo -n /usr/bin/chown root:root {RootTemporaryPath}",
-            $"sudo -n /usr/bin/chmod 0755 {RootTemporaryPath}",
-            $"sudo -n /usr/bin/sha256sum {RootTemporaryPath}",
-            $"sudo -n {RootTemporaryPath} --version",
-            $"sudo -n /usr/bin/mv -f -- {RootTemporaryPath} {TargetPath}",
-            $"sudo -n {TargetPath} --version",
-            "sudo -n /usr/bin/logger -t kelpie-helper-update completed",
-        };
-        foreach (var command in commands)
-        {
-            var result = await ExecuteAsync(profile, command, cancellationToken);
-            if (result.ExitCode != 0
-                || command.Contains("sha256sum", StringComparison.Ordinal)
-                    && !result.StandardOutput.StartsWith(expectedHash, StringComparison.OrdinalIgnoreCase)
-                || command.EndsWith("--version", StringComparison.Ordinal)
-                    && !result.StandardOutput.StartsWith(
-                        "kelpie-web-permission-helper ",
-                        StringComparison.Ordinal)
-                || command.EndsWith(".update --version", StringComparison.Ordinal)
-                    && !IsSupportedVersion(result.StandardOutput))
-            {
-                await RollbackAsync(profile, cancellationToken);
-                return new HelperUpdateResult(false, "Helper update failed and rollback was attempted.");
-            }
+            return new HelperUpdateResult(
+                false,
+                "Helper update failed. The internal transaction attempted rollback when replacement had started.");
         }
 
-        return new HelperUpdateResult(true, "Helper update completed.");
+        return result.StandardOutput.Contains("updated=true", StringComparison.Ordinal)
+            && result.StandardOutput.Contains(expectedHash, StringComparison.OrdinalIgnoreCase)
+            ? new HelperUpdateResult(true, "Helper update completed.")
+            : new HelperUpdateResult(false, "Helper update verification output was invalid.");
     }
 
-    private async Task RollbackAsync(
-        SshConnectionProfile profile,
-        CancellationToken cancellationToken)
+    internal static string BuildPrivilegedCommand(string expectedHash)
     {
-        _ = await ExecuteAsync(
-            profile,
-            $"sudo -n /usr/bin/mv -f -- {BackupPath} {TargetPath}",
-            cancellationToken);
+        ValidateHash(expectedHash);
+        return "sudo -n sh -c \"printf %s '"
+            + UpdateScriptBase64
+            + "' | base64 -d | sh -s -- '"
+            + expectedHash.ToLowerInvariant()
+            + "'\"";
     }
 
     private Task<SshCommandResult> ExecuteAsync(
@@ -264,11 +318,4 @@ internal sealed class SshHelperUpdateRemote : IHelperUpdateRemote
                 : "(unavailable)";
     }
 
-    private static bool IsSupportedVersion(string output)
-    {
-        var value = output.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .LastOrDefault();
-        return Version.TryParse(value, out var version)
-            && version >= MinimumSupportedVersion;
-    }
 }
