@@ -930,6 +930,7 @@ Example:
 ### `WebPublicSites`
 
 `WebPublicSites` defines the web public roots that MCP web file tools may access.
+Human administration of the separate privileged helper policy is defined by [ADR-0001](docs/adr/ADR-0001-REMOTE-WEB-POLICY-MANAGEMENT.md).
 Executable extensions such as `.php`, `.cgi`, `.py`, `.sh`, and `.exe` are denied for writing by default.
 
 Use `WritableExecutableExtensions` only when the profile owner explicitly allows deployment of executable web files for that site.

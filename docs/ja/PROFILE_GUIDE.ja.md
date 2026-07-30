@@ -930,6 +930,7 @@ Service-specific defaults です。
 ### `WebPublicSites`
 
 `WebPublicSites` は、MCP の Web ファイル操作が触ってよい Web 公開ルートを定義します。
+別管理となる特権helper policyの人間による管理設計は、[ADR-0001](../adr/ADR-0001-REMOTE-WEB-POLICY-MANAGEMENT.md)を正本とします。
 `.php`、`.cgi`、`.py`、`.sh`、`.exe` などの実行可能な拡張子は、既定では書き込み拒否です。
 
 そのサイトで実行可能な Web ファイルの配置を人間が明示的に許可する場合だけ、`WritableExecutableExtensions` を設定します。

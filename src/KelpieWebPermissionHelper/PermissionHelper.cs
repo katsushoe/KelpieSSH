@@ -52,6 +52,7 @@ public static partial class PermissionHelper
                 "rollback-file" => RollbackFile(args, operations, standardOutput, standardError),
                 "commit-file" => CommitFile(args, operations, standardOutput, standardError),
                 "check-managed-file" => CheckManagedFile(args, operations, standardOutput, standardError),
+                "policy" => ManagedWebPolicyCommand.Run(args, operations, standardOutput, standardError),
                 "change-owner" => ChangeOwner(args, operations, standardOutput, standardError),
                 "change-mode" => ChangeMode(args, operations, standardOutput, standardError),
                 _ => WriteError(standardError, "ERROR: unsupported action: " + args[0]),

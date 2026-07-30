@@ -27,9 +27,9 @@ For Japanese documentation, see [docs/ja/PACKAGES.ja.md](docs/ja/PACKAGES.ja.md)
 | Unit | Project | Version | Purpose | Placement |
 | :--- | :--- | :--- | :--- | :--- |
 | `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.4.0` | VPS operation CLI. | `KelpieHome/bin/kelpie.exe` |
-| `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.3.4.0` | MCP server control CLI. | `KelpieHome/bin/kelpiemcp.exe` |
+| `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.3.12.0` | MCP server control and human remote web-policy CLI. | `KelpieHome/bin/kelpiemcp.exe` |
 | `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.4.0` | Streamable HTTP MCP server. | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
-| `kelpie-web-permission-helper` | `src/KelpieWebPermissionHelper/KelpieWebPermissionHelper.csproj` | `0.1.0.4` | Optional Linux-side helper for web permission operations. | `/usr/local/libexec/kelpie/kelpie-web-permission-helper` |
+| `kelpie-web-permission-helper` | `src/KelpieWebPermissionHelper/KelpieWebPermissionHelper.csproj` | `0.2.1.0` | Optional Linux-side helper for web permission and managed policy operations. | `/usr/local/libexec/kelpie/kelpie-web-permission-helper` |
 
 For the Alpha release, the Windows zip is the primary binary distribution. It includes `Install-Kelpie.ps1` for per-user automatic installation and `PATH` registration. MSI may be attached when available and may be unsigned. Internal NuGet packages are separate from the Alpha end-user binary distribution.
 

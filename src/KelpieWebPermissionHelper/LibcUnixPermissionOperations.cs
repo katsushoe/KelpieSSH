@@ -103,6 +103,22 @@ internal sealed class LibcUnixPermissionOperations : IUnixPermissionOperations
         File.WriteAllBytes(path, data);
     }
 
+    public void AppendAllText(string path, string content)
+    {
+        EnsureUnix();
+        using var stream = new FileStream(
+            path,
+            FileMode.Append,
+            FileAccess.Write,
+            FileShare.Read,
+            bufferSize: 4096,
+            FileOptions.WriteThrough);
+        using var writer = new StreamWriter(stream, new System.Text.UTF8Encoding(false), leaveOpen: true);
+        writer.Write(content);
+        writer.Flush();
+        stream.Flush(flushToDisk: true);
+    }
+
     public byte[] ReadAllBytes(string path)
     {
         EnsureUnix();

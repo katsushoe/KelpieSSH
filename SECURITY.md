@@ -1,5 +1,7 @@
 # Security Policy
 
+The privileged remote web-policy boundary is defined by [ADR-0001](docs/adr/ADR-0001-REMOTE-WEB-POLICY-MANAGEMENT.md). It is human-only and is not available to MCP callable tools.
+
 ## Supported Versions
 
 KelpieSSH is currently in early alpha development. Security fixes are applied to the latest public release and the default development branch.

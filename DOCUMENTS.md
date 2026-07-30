@@ -1,5 +1,5 @@
 # DOCUMENTS.md Version
-2026.06.18
+2026.07.30
 
 This file is the public source of truth for KelpieSSH Git-managed public document locations.
 
@@ -17,6 +17,7 @@ This file is the public source of truth for KelpieSSH Git-managed public documen
 | :--- | :--- | :--- |
 | `.` | Yes | Repository root. Public entry documents, solution file, license, and project-level settings. |
 | `docs/` | Yes | Public supplemental documentation. |
+| `docs/adr/` | Yes | Public architecture decision records. |
 | `docs/ja/` | Yes | Public Japanese documentation. |
 | `installer/` | Yes | Installer source and installer-specific public documentation. |
 | `config_samples/` | Yes | Public sample configuration files without secrets. |
@@ -43,6 +44,7 @@ This file is the public source of truth for KelpieSSH Git-managed public documen
 | `SECURITY.md` | `SECURITY.md` | Yes | Public security policy and vulnerability reporting guidance. Japanese version is under `docs/ja/`. |
 | `THIRD_PARTY_NOTICES.md` | `THIRD_PARTY_NOTICES.md` | Yes | Public third-party dependency and license notices. Japanese version is under `docs/ja/`. |
 | `LICENSE` | `LICENSE` | Yes | Apache License 2.0 text. |
+| `ADR-0001: Remote Web Policy Management` | `docs/adr/ADR-0001-REMOTE-WEB-POLICY-MANAGEMENT.md` | Yes | Canonical remote helper-policy management design and security boundary. |
 
 ## Private Document Handling
 

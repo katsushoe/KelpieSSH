@@ -1,5 +1,7 @@
 # セキュリティポリシー
 
+特権リモートWeb policyの安全境界は[ADR-0001](../adr/ADR-0001-REMOTE-WEB-POLICY-MANAGEMENT.md)を正本とします。この操作は人間専用で、MCP callable toolには公開しません。
+
 English documentation is available in [SECURITY.md](../../SECURITY.md).
 
 ## 対応バージョン

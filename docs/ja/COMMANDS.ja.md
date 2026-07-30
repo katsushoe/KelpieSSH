@@ -12,7 +12,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | :--- | :--- | :--- |
 | MCP server control | `kelpiemcp start [--reload-config]`, `kelpiemcp stop`, `kelpiemcp status` | `KelpieMCPServer` の起動、停止、状態確認を行う。 |
 | MCP profile trust | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile> [--approve-privilege-expansion]`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | SSH profile の信頼 baseline 追加、更新、取り消し、確認を行う。 |
-| 人間用Web policy管理 | `kelpiemcp web-policy list`, `add`, `remove`, `rollback` | root所有のmanaged Web helper policyを確認または対話的に変更する。 |
+| 人間用Web policy管理 | `kelpiemcp web-policy list`, `add`, `remove`, `rollback` | 選択したVPSのmanaged Web helper policyをリモートで確認または対話的に変更する。 |
 | MCP Windows Service | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Windows Service 登録、登録解除、登録状態確認を行う。 |
 | MCP password session | `kelpiemcp password`, `kelpiemcp forget` | 起動中の MCP server に SSH パスワードを一時保存、削除する。 |
 | MCP secret session | `kelpiemcp secret put`, `kelpiemcp secret list`, `kelpiemcp secret forget` | 起動中の MCP server に短命の秘密ファイル内容を一時保存、一覧表示、削除する。 |
@@ -2062,15 +2062,15 @@ Backup: ~/.kelpie/.env.20260617T120000Z.kelpie
 
 ### 人間用Web policy管理
 
-これらのコマンドは `/etc/kelpie/web-permission-helper-policy.json` を管理します。人間の管理者がローカルで使うCLI専用機能であり、MCP callable toolとして公開しません。
+これらのコマンドはWindows管理端末で実行し、明示したSSH profileが選択するVPS上の `/etc/kelpie/web-permission-helper-policy.json` を管理します。Windowsローカルの `/etc/kelpie` は操作せず、MCP callable toolとしても公開しません。設計と安全境界の正本は[ADR-0001](../adr/ADR-0001-REMOTE-WEB-POLICY-MANAGEMENT.md)です。
 
 #### 入力仕様
 
 ```text
-kelpiemcp web-policy list [<site-root>]
-kelpiemcp web-policy add <site-root> <file-path> <Update|Create>
-kelpiemcp web-policy remove <site-root> <file-path>
-kelpiemcp web-policy rollback
+kelpiemcp web-policy list <profile> [<site-root>]
+kelpiemcp web-policy add <profile> <site-root> <file-path> <Update|Create>
+kelpiemcp web-policy remove <profile> <site-root> <file-path>
+kelpiemcp web-policy rollback <profile>
 ```
 
 - `<site-root>` は `/var/www` のような正規化済みUnix絶対pathです。
@@ -2082,7 +2082,7 @@ kelpiemcp web-policy rollback
 
 - `list` はJSON文書全体を検証し、`site-root`、`file-path`、accessを表示します。読み取り専用であり、redirect可能です。
 - `add` は既存entryを拒否し、`remove` は存在しないentryを拒否します。`rollback` は最新のmanaged backupを復元します。
-- 変更コマンドはUnix、effective root、標準入力と標準出力の両方に接続したterminal、およびroot所有でgroupとothersから書き込めない既存の非symlink regular policy fileを必須とします。
+- 変更コマンドは標準入力と標準出力の両方に接続した人間用terminalを必須とします。選択したVPS上のhelperは、限定した非対話sudoによるeffective rootと、root所有でgroupとothersから書き込めない既存の非symlink regular policy fileを必須とします。
 - 書込み前に現在と変更後のJSON差分を表示し、暗号学的に生成したランダム確認コードの完全一致入力を要求します。EOF、不一致、redirect、余分な引数ではpolicyを変更しません。
 - 変更後JSONとbackup JSONをparseし、schemaを検証します。policyは `Sites.<site-root>.AllowedFiles.<file-path>` と `Update` または `Create` だけを受け付けます。
 - 元fileのUID、GID、Unix modeをbackupと一時fileへ適用します。同じdirectory内の原子的renameで置換し、置換後のmetadataも検証します。

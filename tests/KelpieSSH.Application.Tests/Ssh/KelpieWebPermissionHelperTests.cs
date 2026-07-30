@@ -21,7 +21,7 @@ public sealed class KelpieWebPermissionHelperTests
 
         exitCode.Should().Be(0);
         error.ToString().Should().BeEmpty();
-        output.ToString().Should().StartWith("kelpie-web-permission-helper 0.2.0.0");
+        output.ToString().Should().StartWith("kelpie-web-permission-helper 0.2.1.0");
     }
 
     [Fact]
@@ -557,6 +557,129 @@ public sealed class KelpieWebPermissionHelperTests
         operations.ModeChanges.Should().BeEmpty();
     }
 
+    [Fact]
+    public void Policy_ShouldListExistingEntries()
+    {
+        var operations = new FakeUnixPermissionOperations();
+        ConfigureManagedPolicy(operations, "/index.php", "Update");
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = PermissionHelper.Run(
+            ["policy", "list", Encode("/var/www")],
+            operations,
+            output,
+            error);
+
+        exitCode.Should().Be(0);
+        output.ToString().Should().Contain("\"/index.php\": \"Update\"");
+        error.ToString().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Policy_ShouldPreviewAndApplyAddWithoutRemovingExistingEntry()
+    {
+        var operations = new FakeUnixPermissionOperations();
+        ConfigureManagedPolicy(operations, "/index.php", "Update");
+        using var previewOutput = new StringWriter();
+
+        PermissionHelper.Run(
+            ["policy", "preview-add", Encode("/var/www"), Encode("/contact.php"), "Update"],
+            operations,
+            previewOutput,
+            TextWriter.Null).Should().Be(0);
+        using var preview = System.Text.Json.JsonDocument.Parse(previewOutput.ToString());
+        var hash = preview.RootElement.GetProperty("currentSha256").GetString()!;
+
+        var exitCode = PermissionHelper.Run(
+            ["policy", "apply-add", Encode("/var/www"), Encode("/contact.php"), "Update", hash],
+            operations,
+            TextWriter.Null,
+            TextWriter.Null);
+
+        exitCode.Should().Be(0);
+        var policy = Encoding.UTF8.GetString(
+            operations.FileContents["/etc/kelpie/web-permission-helper-policy.json"]);
+        policy.Should().Contain("\"/index.php\": \"Update\"");
+        policy.Should().Contain("\"/contact.php\": \"Update\"");
+        operations.Moves.Should().ContainSingle();
+        operations.OwnerChanges.Should().Contain(change => change.Uid == 0 && change.Gid == 0);
+        operations.ModeChanges.Should().Contain(change => change.Mode == Convert.ToUInt32("644", 8));
+        var audit = Encoding.UTF8.GetString(
+            operations.FileContents["/var/log/kelpie/web-policy-audit.jsonl"]);
+        audit.Should().Contain("\"state\":\"confirmed\"").And.Contain("\"state\":\"completed\"");
+        audit.Should().NotContain("\"Sites\"");
+    }
+
+    [Fact]
+    public void Policy_ShouldRejectDuplicateAndConfirmationHashMismatch()
+    {
+        var operations = new FakeUnixPermissionOperations();
+        ConfigureManagedPolicy(operations, "/index.php", "Update");
+        using var error = new StringWriter();
+
+        PermissionHelper.Run(
+            ["policy", "preview-add", Encode("/var/www"), Encode("/index.php"), "Update"],
+            operations,
+            TextWriter.Null,
+            error).Should().Be(1);
+        error.ToString().Should().Contain("already exists");
+
+        PermissionHelper.Run(
+            ["policy", "apply-remove", Encode("/var/www"), Encode("/index.php"), new string('0', 64)],
+            operations,
+            TextWriter.Null,
+            error).Should().Be(1);
+        Encoding.UTF8.GetString(
+            operations.FileContents["/etc/kelpie/web-permission-helper-policy.json"])
+            .Should().Contain("/index.php");
+    }
+
+    [Fact]
+    public void Policy_ShouldRemoveAndRollbackLatestBackup()
+    {
+        var operations = new FakeUnixPermissionOperations();
+        ConfigureManagedPolicy(operations, "/index.php", "Update");
+        using var previewOutput = new StringWriter();
+        PermissionHelper.Run(
+            ["policy", "preview-remove", Encode("/var/www"), Encode("/index.php")],
+            operations,
+            previewOutput,
+            TextWriter.Null).Should().Be(0);
+        using var preview = System.Text.Json.JsonDocument.Parse(previewOutput.ToString());
+        var hash = preview.RootElement.GetProperty("currentSha256").GetString()!;
+        PermissionHelper.Run(
+            ["policy", "apply-remove", Encode("/var/www"), Encode("/index.php"), hash],
+            operations,
+            TextWriter.Null,
+            TextWriter.Null).Should().Be(0);
+
+        var backup = operations.Writes.Single(write =>
+            write.Path.StartsWith("/etc/kelpie/.web-policy-backups/", StringComparison.Ordinal));
+        operations.DirectoryEntries["/etc/kelpie/.web-policy-backups"] = [backup.Path];
+        using var rollbackPreviewOutput = new StringWriter();
+        PermissionHelper.Run(
+            ["policy", "preview-rollback"],
+            operations,
+            rollbackPreviewOutput,
+            TextWriter.Null).Should().Be(0);
+        using var rollbackPreview = System.Text.Json.JsonDocument.Parse(rollbackPreviewOutput.ToString());
+
+        PermissionHelper.Run(
+            [
+                "policy",
+                "apply-rollback",
+                rollbackPreview.RootElement.GetProperty("currentSha256").GetString()!,
+                Encode(rollbackPreview.RootElement.GetProperty("backupName").GetString()!),
+            ],
+            operations,
+            TextWriter.Null,
+            TextWriter.Null).Should().Be(0);
+        Encoding.UTF8.GetString(
+            operations.FileContents["/etc/kelpie/web-permission-helper-policy.json"])
+            .Should().Contain("/index.php");
+    }
+
     private static string Encode(string value)
     {
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
@@ -669,6 +792,13 @@ public sealed class KelpieWebPermissionHelperTests
             return FileContents.TryGetValue(path, out var data) ? data : [];
         }
 
+        public void AppendAllText(string path, string content)
+        {
+            Files.Add(path);
+            var previous = FileContents.TryGetValue(path, out var data) ? data : [];
+            FileContents[path] = previous.Concat(Encoding.UTF8.GetBytes(content)).ToArray();
+        }
+
         public void MoveFileOverwrite(string sourcePath, string destinationPath)
         {
             Files.Remove(sourcePath);
@@ -708,11 +838,13 @@ public sealed class KelpieWebPermissionHelperTests
 
         public void ChangeOwner(string path, uint uid, uint gid)
         {
+            OwnerIds[path] = (uid, gid);
             OwnerChanges.Add((path, uid, gid));
         }
 
         public void ChangeMode(string path, uint mode)
         {
+            Modes[path] = Convert.ToString(mode, 8).PadLeft(3, '0');
             ModeChanges.Add((path, mode));
         }
 

@@ -22,6 +22,8 @@ public interface IUnixPermissionOperations
 
     void WriteAllBytes(string path, byte[] data);
 
+    void AppendAllText(string path, string content);
+
     byte[] ReadAllBytes(string path);
 
     void MoveFileOverwrite(string sourcePath, string destinationPath);
