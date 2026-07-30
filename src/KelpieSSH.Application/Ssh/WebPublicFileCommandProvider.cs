@@ -212,6 +212,36 @@ finally:
             ],
             SshCommandRiskLevel.ConfirmRequired),
         new(
+            "web_public_bulk_write_managed_internal",
+            "sudo -n " + HelperPath + " bulk-write {siteRootBase64} - {maxBytes} {createDirectories} {transferId} {archiveSha256}",
+            TimeSpan.FromMinutes(10),
+            [
+                new AllowedCommandParameterDefinition("siteRootBase64", MaxLength: 4096, Pattern: Base64PathPattern),
+                new AllowedCommandParameterDefinition("maxBytes", MaxLength: 10, Pattern: MaxBytesPattern),
+                new AllowedCommandParameterDefinition("createDirectories", MaxLength: 1, Pattern: CreateDirectoriesPattern),
+                new AllowedCommandParameterDefinition("transferId", MaxLength: 32, Pattern: "^[0-9a-f]{32}$"),
+                new AllowedCommandParameterDefinition("archiveSha256", MaxLength: 64, Pattern: "^[0-9a-f]{64}$"),
+            ],
+            SshCommandRiskLevel.ConfirmRequired),
+        new(
+            "web_public_bulk_commit_managed_internal",
+            "sudo -n " + HelperPath + " bulk-commit {siteRootBase64} {transferId}",
+            TimeSpan.FromSeconds(30),
+            [
+                new AllowedCommandParameterDefinition("siteRootBase64", MaxLength: 4096, Pattern: Base64PathPattern),
+                new AllowedCommandParameterDefinition("transferId", MaxLength: 32, Pattern: "^[0-9a-f]{32}$"),
+            ],
+            SshCommandRiskLevel.ConfirmRequired),
+        new(
+            "web_public_bulk_rollback_managed_internal",
+            "sudo -n " + HelperPath + " bulk-rollback {siteRootBase64} {transferId}",
+            TimeSpan.FromSeconds(30),
+            [
+                new AllowedCommandParameterDefinition("siteRootBase64", MaxLength: 4096, Pattern: Base64PathPattern),
+                new AllowedCommandParameterDefinition("transferId", MaxLength: 32, Pattern: "^[0-9a-f]{32}$"),
+            ],
+            SshCommandRiskLevel.ConfirmRequired),
+        new(
             "web_change_owner_internal",
             "sudo -n " + HelperPath + " change-owner {siteRootBase64} {pathBase64} {ownerBase64} {groupBase64} {recursive}",
             TimeSpan.FromSeconds(30),

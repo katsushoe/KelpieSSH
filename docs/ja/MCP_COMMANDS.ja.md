@@ -1,6 +1,6 @@
 # KelpieSSH MCP コマンド
 
-最終更新: 2026-07-15
+最終更新: 2026-07-31
 
 このファイルは、KelpieSSH が MCP callable tool として公開するコマンドの正本です。
 通常のターミナルで実行する `kelpie` / `kelpiemcp` CLI コマンドは `COMMANDS.ja.md` を正本とします。
@@ -5584,3 +5584,30 @@ Web 公開ルート配下の1ディレクトリツリーへ、sudo helper 経由
 - backupと本体は対象ディレクトリ内の一時ファイルへ書き、同一filesystem内のrenameでatomicに置換します。symlink、ルート外、未登録パス、実行可能modeは拒否します。
 - `web_file_rollback`は現在のSHA-256一致後にbackupをatomic復元し、`web_file_commit`は検証完了後にbackupを削除します。
 - ファイル本文、Base64本文、stdin、raw stdout/stderrは通常ログと監査ログへ記録しません。
+## Webバルク転送
+
+Kelpieは、最大100個のローカル通常ファイルを1回のSSH転送で配置するdraft方式のワークフローを公開します。ZIPは内部転送形式であり、呼び出し元から受け取らず、呼び出し元へ返しません。
+
+| tool | 用途 |
+| :--- | :--- |
+| `web_bulk_transfer_begin` | trusted profileと設定済みsiteに対するサーバーメモリ上のdraftを作成します。 |
+| `web_bulk_transfer_add_file` | ローカル通常ファイル、site相対の絶対remote path、任意のcontent type、owner、modeを登録します。 |
+| `web_bulk_transfer_list` | ファイル詳細を含まない転送概要を返します。 |
+| `web_bulk_transfer_get` | 1件の転送と完全なファイル一覧を返します。 |
+| `web_bulk_transfer_preview` | 各remote pathを既存managed web policyで個別検証し、manifestに結び付いた確認文字列を返します。 |
+| `web_bulk_transfer_execute` | ローカルファイルを再検証し、内部ZIPを作成して1回だけ転送し、全ファイルをrollback可能な1トランザクションとして配置します。 |
+| `web_bulk_transfer_commit` | 適用済み転送のrollbackデータを削除します。 |
+| `web_bulk_transfer_rollback` | 上書きファイルをすべて復元し、新規作成ファイルをすべて削除します。 |
+| `web_bulk_transfer_cancel` | draft、検証済み、失敗、commit済み、rollback済みの転送をサーバーメモリから削除します。 |
+
+`web_bulk_transfer_add_file`は、存在しないファイル、symbolic linkまたはreparse point、重複remote path、256 MiBを超えるファイル、100件を超える登録を拒否します。登録時にsizeとSHA-256を記録します。`web_bulk_transfer_execute`は、登録後に種類、size、SHA-256が変化したファイルを拒否します。
+
+`web_bulk_transfer_preview`は、全ファイル対応、canonical manifest SHA-256、次の正確な確認値を返します。
+
+```text
+web_bulk_transfer_execute:<transferId>:<manifestSha256>
+```
+
+確認を要求するのは`web_bulk_transfer_execute`だけです。commitとrollbackは転送状態が`Applied`の間だけ実行できます。実行中または適用済みの転送はcancelできません。
+
+remote helperは、絶対archive entry名、path traversal、backslash、重複entryまたはremote path、symbolic link、hard linkまたは通常ファイルではないZIP entry、manifest未記載entry、entry不足、件数・size超過、manifestとsizeまたはSHA-256が異なる内容を拒否します。各targetはmanaged web helper policyでも再検証します。全ファイルを非公開transaction directoryへ展開・検証してから配置し、配置中に失敗した場合は適用済みファイルを逆順に復元するため、部分配置を残しません。

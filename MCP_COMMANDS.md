@@ -1,6 +1,6 @@
 # KelpieSSH MCP Commands
 
-Last updated: 2026-07-15
+Last updated: 2026-07-31
 
 This file is the English command reference for MCP callable tools exposed by `KelpieMCPServer`.
 For Japanese documentation, see [docs/ja/MCP_COMMANDS.ja.md](docs/ja/MCP_COMMANDS.ja.md).
@@ -7637,3 +7637,30 @@ Exports one remote regular file directly into the Kelpie data directory's `expor
 
 Inputs are `profileName`, absolute `remotePath`, `localPath` (relative to the export folder, or absolute inside it), and optional `confirmSpecialPath`. The response contains only paths, SHA-256, size, numeric owner/group IDs, and warnings. File content and Base64 content are never returned.
 
+## Web bulk transfers
+
+Kelpie exposes a draft-based workflow for deploying up to 100 local regular files through one SSH transfer. ZIP is an internal transport detail and is not accepted from or returned to callers.
+
+| Tool | Purpose |
+| :--- | :--- |
+| `web_bulk_transfer_begin` | Create a server-memory draft for one trusted profile and configured site. |
+| `web_bulk_transfer_add_file` | Register one local regular file, its absolute site-relative remote path, optional content type, owner, and mode. |
+| `web_bulk_transfer_list` | Return transfer summaries without file details. |
+| `web_bulk_transfer_get` | Return one transfer and its complete file list. |
+| `web_bulk_transfer_preview` | Validate every remote path independently against the existing managed web policy and return the manifest-bound confirmation string. |
+| `web_bulk_transfer_execute` | Recheck local files, create an internal ZIP, transfer it once, and stage and apply every file as one rollback-capable transaction. |
+| `web_bulk_transfer_commit` | Remove rollback data for an applied transfer. |
+| `web_bulk_transfer_rollback` | Restore all overwritten files and remove all newly created files from an applied transfer. |
+| `web_bulk_transfer_cancel` | Remove a draft, validated, failed, committed, or rolled-back transfer from server memory. |
+
+`web_bulk_transfer_add_file` rejects missing files, symbolic links/reparse points, duplicate remote paths, files larger than 256 MiB, and drafts with more than 100 files. It records the file size and SHA-256. `web_bulk_transfer_execute` rejects a file if its type, size, or SHA-256 changed after registration.
+
+`web_bulk_transfer_preview` returns every file mapping, the canonical manifest SHA-256, and the exact confirmation value:
+
+```text
+web_bulk_transfer_execute:<transferId>:<manifestSha256>
+```
+
+Only `web_bulk_transfer_execute` requires confirmation. Commit and rollback are valid only while the transfer is `Applied`; cancel cannot remove an executing or applied transfer.
+
+The remote helper rejects absolute archive entry names, traversal, backslashes, duplicate entries or remote paths, symbolic links, hard-link/non-regular ZIP entries, undeclared entries, missing entries, count or size excess, and content whose size or SHA-256 differs from the manifest. Every target is checked again against the managed web helper policy. Files are fully extracted and verified in a private transaction directory before placement. If any placement fails, already placed files are restored in reverse order so a partial deployment is not retained.

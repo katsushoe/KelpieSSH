@@ -174,6 +174,40 @@ public interface IWebPublicFileProvider
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Streams one verified bulk archive and deploys its provider-approved files.
+    /// </summary>
+    Task<WebBulkTransferResult> WriteBulkAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string transferId,
+        Stream archive,
+        long archiveSize,
+        string archiveSha256,
+        IReadOnlyList<WebBulkTransferFile> files,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Commits one applied bulk web transfer.
+    /// </summary>
+    Task<WebBulkTransferResult> CommitBulkAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string transferId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Rolls back one applied bulk web transfer.
+    /// </summary>
+    Task<WebBulkTransferResult> RollbackBulkAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string transferId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Writes one explicitly allowed secret file.
     /// </summary>
     Task<WebPublicFileWriteResult> WriteSecretFileAsync(

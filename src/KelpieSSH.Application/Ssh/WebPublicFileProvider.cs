@@ -1248,6 +1248,176 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
     }
 
     /// <inheritdoc />
+    public async Task<WebBulkTransferResult> WriteBulkAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string transferId,
+        Stream archive,
+        long archiveSize,
+        string archiveSha256,
+        IReadOnlyList<WebBulkTransferFile> files,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sshCommandService);
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(archive);
+        ArgumentNullException.ThrowIfNull(files);
+
+        var site = ResolveSite(profile, siteKey);
+        if (files.Count is < 1 or > 100)
+        {
+            return CreateBulkError(site, transferId, "Bulk transfer file count must be between 1 and 100.");
+        }
+
+        foreach (var file in files)
+        {
+            var normalizedPath = NormalizePath(file.Path);
+            var access = ValidatePath(normalizedPath, site, requireWrite: true);
+            if (access.Error is not null)
+            {
+                return CreateBulkError(site, transferId, $"{normalizedPath}: {access.Error}");
+            }
+
+            var resolvedContentType = ResolveContentType(normalizedPath, site, file.ContentType);
+            if (!IsContentTypeAllowed(resolvedContentType, site, requireWrite: true, access.IsExplicitRule))
+            {
+                return CreateBulkError(site, transferId, $"{normalizedPath}: Content type is not writable: {resolvedContentType}");
+            }
+
+            var permissionRequest = CreateWritePermissionRequest(file.Owner, file.Mode);
+            if (permissionRequest.Error is not null)
+            {
+                return CreateBulkError(site, transferId, $"{normalizedPath}: {permissionRequest.Error}");
+            }
+
+            if (file.Size < 0 || file.Size > site.MaxWriteBytes)
+            {
+                return CreateBulkError(site, transferId, $"{normalizedPath}: Web public content exceeds maximum write size.");
+            }
+        }
+
+        var result = await sshCommandService.ExecuteAsync(
+            profile,
+            "web_public_bulk_write_managed_internal",
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["siteRootBase64"] = EncodeArgument(site.RootPath),
+                ["maxBytes"] = archiveSize.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["createDirectories"] = site.CreateDirectories ? "1" : "0",
+                ["transferId"] = transferId,
+                ["archiveSha256"] = archiveSha256,
+            },
+            channel: KelpieExecutionChannel.Mcp,
+            binaryStandardInput: archive,
+            cancellationToken: cancellationToken);
+
+        if (result.ExitCode != 0)
+        {
+            return CreateBulkError(
+                site,
+                transferId,
+                $"Bulk web transfer failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}");
+        }
+
+        var remote = JsonSerializer.Deserialize<RemoteBulkWriteResult>(result.StandardOutput, JsonOptions);
+        if (remote is null)
+        {
+            return CreateBulkError(site, transferId, "Bulk web transfer returned invalid JSON.");
+        }
+
+        return new WebBulkTransferResult(
+            site.SiteKey,
+            transferId,
+            remote.Applied,
+            remote.Files?.Select(file => new WebBulkTransferFileResult(
+                file.Path ?? string.Empty,
+                file.ResolvedPath ?? string.Empty,
+                file.Created,
+                file.Overwritten,
+                file.Size,
+                file.Sha256 ?? string.Empty,
+                file.BackupPath ?? string.Empty)).ToArray() ?? [],
+            Warnings: [],
+            remote.Error);
+    }
+
+    private static WebBulkTransferResult CreateBulkError(
+        WebPublicSite site,
+        string transferId,
+        string error)
+    {
+        return new WebBulkTransferResult(site.SiteKey, transferId, false, [], [], error);
+    }
+
+    /// <inheritdoc />
+    public async Task<WebBulkTransferResult> CommitBulkAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string transferId,
+        CancellationToken cancellationToken = default)
+    {
+        return await CompleteBulkAsync(
+            sshCommandService,
+            profile,
+            siteKey,
+            transferId,
+            "web_public_bulk_commit_managed_internal",
+            cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<WebBulkTransferResult> RollbackBulkAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string transferId,
+        CancellationToken cancellationToken = default)
+    {
+        return await CompleteBulkAsync(
+            sshCommandService,
+            profile,
+            siteKey,
+            transferId,
+            "web_public_bulk_rollback_managed_internal",
+            cancellationToken);
+    }
+
+    private static async Task<WebBulkTransferResult> CompleteBulkAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string transferId,
+        string commandName,
+        CancellationToken cancellationToken)
+    {
+        var site = ResolveSite(profile, siteKey);
+        var result = await sshCommandService.ExecuteAsync(
+            profile,
+            commandName,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["siteRootBase64"] = EncodeArgument(site.RootPath),
+                ["transferId"] = transferId,
+            },
+            channel: KelpieExecutionChannel.Mcp,
+            cancellationToken: cancellationToken);
+        if (result.ExitCode != 0)
+        {
+            return CreateBulkError(
+                site,
+                transferId,
+                $"Bulk web transfer completion failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}");
+        }
+
+        var remote = JsonSerializer.Deserialize<RemoteBulkWriteResult>(result.StandardOutput, JsonOptions);
+        return remote is null
+            ? CreateBulkError(site, transferId, "Bulk web transfer completion returned invalid JSON.")
+            : new WebBulkTransferResult(site.SiteKey, transferId, remote.Applied, [], [], remote.Error);
+    }
+
+    /// <inheritdoc />
     public async Task<WebPublicFileWriteResult> WriteSecretFileAsync(
         SshCommandService sshCommandService,
         SshConnectionProfile profile,
@@ -2711,6 +2881,32 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
         public bool PermissionsPreserved { get; set; }
 
         public string? ErrorCode { get; set; }
+    }
+
+    private sealed class RemoteBulkWriteResult
+    {
+        public bool Applied { get; set; }
+
+        public IReadOnlyList<RemoteBulkWriteFileResult>? Files { get; set; }
+
+        public string? Error { get; set; }
+    }
+
+    private sealed class RemoteBulkWriteFileResult
+    {
+        public string? Path { get; set; }
+
+        public string? ResolvedPath { get; set; }
+
+        public bool Created { get; set; }
+
+        public bool Overwritten { get; set; }
+
+        public long Size { get; set; }
+
+        public string? Sha256 { get; set; }
+
+        public string? BackupPath { get; set; }
     }
 
     private sealed class RemotePermissionChangeResult
