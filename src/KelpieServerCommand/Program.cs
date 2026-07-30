@@ -147,6 +147,13 @@ if (string.Equals(command, "web-policy", StringComparison.OrdinalIgnoreCase))
     return;
 }
 
+if (string.Equals(command, "helper", StringComparison.OrdinalIgnoreCase))
+{
+    KpLog.Warn("Human helper update command requested.");
+    Environment.ExitCode = await HelperUpdateCommand.RunAsync(args.Skip(1).ToArray());
+    return;
+}
+
 if (string.Equals(command, "secret", StringComparison.OrdinalIgnoreCase))
 {
     var secretCommand = args.Length > 1 ? args[1] : string.Empty;
@@ -337,6 +344,7 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpiemcp web-policy add <profile> <site-root> <file-path> <Update|Create>");
     writer.WriteLine("  kelpiemcp web-policy remove <profile> <site-root> <file-path>");
     writer.WriteLine("  kelpiemcp web-policy rollback <profile>");
+    writer.WriteLine("  kelpiemcp helper update <profile> <local-artifact>");
     writer.WriteLine("  kelpiemcp secret put --name <name> --from-file <path> [--ttl <duration>]");
     writer.WriteLine("  kelpiemcp secret list");
     writer.WriteLine("  kelpiemcp secret forget <name>");

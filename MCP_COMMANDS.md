@@ -5,6 +5,7 @@ Last updated: 2026-07-15
 This file is the English command reference for MCP callable tools exposed by `KelpieMCPServer`.
 For Japanese documentation, see [docs/ja/MCP_COMMANDS.ja.md](docs/ja/MCP_COMMANDS.ja.md).
 Terminal CLI commands are documented in [COMMANDS.md](COMMANDS.md).
+Privileged helper update is intentionally unavailable as an MCP callable tool and through `ssh_run_allowed_command`; see [ADR-0002](docs/adr/ADR-0002-PRIVILEGED-HELPER-UPDATE.md).
 
 `MCP_COMMANDS.md` follows the same command-reference standard as `COMMANDS.md`: MCP tools are grouped by operational area, and each MCP tool has its own subsection with purpose, input fields, input examples, execution behavior, return value specification and sample, execution result sample, and safety notes. Individual tool schemas are exposed by MCP `tools/list`; this document explains how those tools are intended to be used safely.
 

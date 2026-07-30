@@ -1,6 +1,7 @@
 # セキュリティポリシー
 
 特権リモートWeb policyの安全境界は[ADR-0001](../adr/ADR-0001-REMOTE-WEB-POLICY-MANAGEMENT.md)を正本とします。この操作は人間専用で、MCP callable toolには公開しません。
+人間専用の特権helper更新boundaryは[ADR-0002](../adr/ADR-0002-PRIVILEGED-HELPER-UPDATE.md)を正本とします。
 
 English documentation is available in [SECURITY.md](../../SECURITY.md).
 

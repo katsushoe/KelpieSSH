@@ -931,6 +931,7 @@ Example:
 
 `WebPublicSites` defines the web public roots that MCP web file tools may access.
 Human administration of the separate privileged helper policy is defined by [ADR-0001](docs/adr/ADR-0001-REMOTE-WEB-POLICY-MANAGEMENT.md).
+Privileged helper updates use the selected profile but remain human-only as defined by [ADR-0002](docs/adr/ADR-0002-PRIVILEGED-HELPER-UPDATE.md).
 Executable extensions such as `.php`, `.cgi`, `.py`, `.sh`, and `.exe` are denied for writing by default.
 
 Use `WritableExecutableExtensions` only when the profile owner explicitly allows deployment of executable web files for that site.

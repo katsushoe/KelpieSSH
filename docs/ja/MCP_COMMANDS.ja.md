@@ -4,6 +4,7 @@
 
 このファイルは、KelpieSSH が MCP callable tool として公開するコマンドの正本です。
 通常のターミナルで実行する `kelpie` / `kelpiemcp` CLI コマンドは `COMMANDS.ja.md` を正本とします。
+特権helper更新はMCP callable toolおよび`ssh_run_allowed_command`から意図的に利用できません。正本は[ADR-0002](../adr/ADR-0002-PRIVILEGED-HELPER-UPDATE.md)です。
 
 ## MCP tool の呼び出し方式
 

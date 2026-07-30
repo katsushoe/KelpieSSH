@@ -45,6 +45,7 @@ This file is the public source of truth for KelpieSSH Git-managed public documen
 | `THIRD_PARTY_NOTICES.md` | `THIRD_PARTY_NOTICES.md` | Yes | Public third-party dependency and license notices. Japanese version is under `docs/ja/`. |
 | `LICENSE` | `LICENSE` | Yes | Apache License 2.0 text. |
 | `ADR-0001: Remote Web Policy Management` | `docs/adr/ADR-0001-REMOTE-WEB-POLICY-MANAGEMENT.md` | Yes | Canonical remote helper-policy management design and security boundary. |
+| `ADR-0002: Privileged Helper Update` | `docs/adr/ADR-0002-PRIVILEGED-HELPER-UPDATE.md` | Yes | Canonical human-only helper update and privileged command boundary. |
 
 ## Private Document Handling
 

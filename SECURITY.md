@@ -1,6 +1,7 @@
 # Security Policy
 
 The privileged remote web-policy boundary is defined by [ADR-0001](docs/adr/ADR-0001-REMOTE-WEB-POLICY-MANAGEMENT.md). It is human-only and is not available to MCP callable tools.
+The human-only privileged helper update boundary is defined by [ADR-0002](docs/adr/ADR-0002-PRIVILEGED-HELPER-UPDATE.md).
 
 ## Supported Versions
 

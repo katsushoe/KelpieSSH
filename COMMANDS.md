@@ -14,6 +14,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | [MCP server control](#mcp-server-control) | `kelpiemcp start [--reload-config]`, `kelpiemcp stop`, `kelpiemcp status` | Start, stop, and inspect `KelpieMCPServer`. |
 | [MCP profile trust](#mcp-profile-trust) | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile> [--approve-privilege-expansion]`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | Add, reload, revoke, and inspect trusted SSH profile baselines. |
 | [Human web policy administration](#human-web-policy-administration) | `kelpiemcp web-policy list`, `add`, `remove`, `rollback` | Remotely inspect or interactively change the selected VPS helper policy. |
+| [Human helper update](#human-helper-update) | `kelpiemcp helper update <profile> <local-artifact>` | Upload and atomically replace the fixed privileged helper through a human-only workflow. |
 | [MCP Windows Service](#mcp-windows-service) | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Register, unregister, and inspect the Windows Service entry. |
 | [MCP password session](#mcp-password-session) | `kelpiemcp password`, `kelpiemcp forget`, `kelpiemcp login`, `kelpiemcp logout` | Store or clear an SSH password in the running MCP server session. |
 | [MCP secret session](#mcp-secret-session) | `kelpiemcp secret put`, `kelpiemcp secret list`, `kelpiemcp secret forget` | Store, list, or clear short-lived secret file payloads in the running MCP server session. |
@@ -2247,6 +2248,36 @@ kelpiemcp web-policy rollback <profile>
 #### Error specification
 
 The command exits with `1` for invalid syntax or JSON, unsupported policy fields or values, unsafe paths, non-interactive execution, non-root execution, insecure ownership or mode, confirmation mismatch, missing entries or backups, metadata preservation failure, backup failure, audit failure, or atomic replacement failure. When the VPS helper does not support the `policy` action, the command reports that helper `0.2.1.0` or later must replace the existing helper while preserving root ownership and mode `0755`; it does not expose an unhandled exception. It exits with `0` only after the requested read or change completes.
+
+### Human helper update
+
+This command implements [ADR-0002](docs/adr/ADR-0002-PRIVILEGED-HELPER-UPDATE.md). It is not an MCP callable tool and cannot be selected through `ssh_run_allowed_command`.
+
+```text
+kelpiemcp helper update <profile> <local-artifact>
+```
+
+The command validates and hashes the local regular file, uploads it through internal SFTP to a fixed staging path, verifies the remote hash, displays the current version and hashes, and requires an exact random confirmation code. The private fixed-command wrapper then backs up the installed helper, verifies the root-owned temporary copy, enforces `root:root` mode `0755`, atomically replaces the target, verifies its identity, and records completion through `logger`. A failed privileged step attempts rollback.
+
+The VPS sudoers configuration must grant the SSH administration identity only the exact fixed-path command lines emitted by this workflow for `/usr/bin/cp`, `/usr/bin/chown`, `/usr/bin/chmod`, `/usr/bin/sha256sum`, `/usr/bin/mv`, `/usr/bin/logger`, and the fixed helper paths. Do not use wildcards, shell permission, or unrestricted utility permission. Use `sudo -l` to compare the installed rules with a dry review of the source before production use.
+
+```sudoers
+<ssh-user> ALL=(root) NOPASSWD: /usr/bin/cp -- /usr/local/libexec/kelpie/kelpie-web-permission-helper /usr/local/libexec/kelpie/.kelpie-web-permission-helper.backup
+<ssh-user> ALL=(root) NOPASSWD: /usr/bin/chown root\:root /usr/local/libexec/kelpie/.kelpie-web-permission-helper.backup
+<ssh-user> ALL=(root) NOPASSWD: /usr/bin/chmod 0755 /usr/local/libexec/kelpie/.kelpie-web-permission-helper.backup
+<ssh-user> ALL=(root) NOPASSWD: /usr/bin/cp -- /tmp/kelpie-web-permission-helper.update /usr/local/libexec/kelpie/.kelpie-web-permission-helper.update
+<ssh-user> ALL=(root) NOPASSWD: /usr/bin/chown root\:root /usr/local/libexec/kelpie/.kelpie-web-permission-helper.update
+<ssh-user> ALL=(root) NOPASSWD: /usr/bin/chmod 0755 /usr/local/libexec/kelpie/.kelpie-web-permission-helper.update
+<ssh-user> ALL=(root) NOPASSWD: /usr/bin/sha256sum /usr/local/libexec/kelpie/.kelpie-web-permission-helper.update
+<ssh-user> ALL=(root) NOPASSWD: /usr/local/libexec/kelpie/.kelpie-web-permission-helper.update --version
+<ssh-user> ALL=(root) NOPASSWD: /usr/bin/mv -f -- /usr/local/libexec/kelpie/.kelpie-web-permission-helper.update /usr/local/libexec/kelpie/kelpie-web-permission-helper
+<ssh-user> ALL=(root) NOPASSWD: /usr/bin/mv -f -- /usr/local/libexec/kelpie/.kelpie-web-permission-helper.backup /usr/local/libexec/kelpie/kelpie-web-permission-helper
+<ssh-user> ALL=(root) NOPASSWD: /usr/local/libexec/kelpie/kelpie-web-permission-helper --version
+<ssh-user> ALL=(root) NOPASSWD: /usr/bin/logger -t kelpie-helper-update confirmed
+<ssh-user> ALL=(root) NOPASSWD: /usr/bin/logger -t kelpie-helper-update completed
+```
+
+The command exits with `1` when the artifact, transfer hash, confirmation, sudoers permission, version identity, backup, metadata update, atomic rename, or post-update verification fails. It never falls back to root SSH login or an arbitrary shell.
 
 ### Help/version
 

@@ -13,6 +13,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | MCP server control | `kelpiemcp start [--reload-config]`, `kelpiemcp stop`, `kelpiemcp status` | `KelpieMCPServer` の起動、停止、状態確認を行う。 |
 | MCP profile trust | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile> [--approve-privilege-expansion]`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | SSH profile の信頼 baseline 追加、更新、取り消し、確認を行う。 |
 | 人間用Web policy管理 | `kelpiemcp web-policy list`, `add`, `remove`, `rollback` | 選択したVPSのmanaged Web helper policyをリモートで確認または対話的に変更する。 |
+| 人間用helper更新 | `kelpiemcp helper update <profile> <local-artifact>` | 人間専用workflowで固定された特権helperを転送し、原子的に置換する。 |
 | MCP Windows Service | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Windows Service 登録、登録解除、登録状態確認を行う。 |
 | MCP password session | `kelpiemcp password`, `kelpiemcp forget` | 起動中の MCP server に SSH パスワードを一時保存、削除する。 |
 | MCP secret session | `kelpiemcp secret put`, `kelpiemcp secret list`, `kelpiemcp secret forget` | 起動中の MCP server に短命の秘密ファイル内容を一時保存、一覧表示、削除する。 |
@@ -2092,6 +2093,22 @@ kelpiemcp web-policy rollback <profile>
 #### エラー仕様
 
 構文またはJSON不正、未対応fieldや値、危険なpath、非対話実行、非root実行、安全でない所有者やmode、確認コード不一致、entryまたはbackup不足、metadata維持失敗、backup失敗、監査失敗、原子的置換失敗では終了code `1`を返します。VPS helperが`policy` actionに未対応の場合は、未処理例外にせず、root所有とmode `0755`を維持してhelper `0.2.1.0`以降へ更新するよう案内します。要求した読み取りまたは変更が完了した場合だけ`0`を返します。
+
+### 人間用helper更新
+
+このコマンドは[ADR-0002](../adr/ADR-0002-PRIVILEGED-HELPER-UPDATE.md)を実装します。MCP callable toolではなく、`ssh_run_allowed_command`からも選択できません。
+
+```text
+kelpiemcp helper update <profile> <local-artifact>
+```
+
+local regular fileを検証してhashを計算し、内部SFTPで固定staging pathへ転送します。remote hashを照合し、現在versionとhashを表示した後、ランダム確認コードの完全一致を要求します。非公開の固定コマンドwrapperが現行helperをbackupし、root所有の一時fileを再検証して`root:root`、mode `0755`を設定し、対象へ原子的に置換してidentityを確認し、`logger`へ完了を記録します。特権処理が失敗した場合はrollbackを試みます。
+
+VPS sudoersは、このworkflowが使う`/usr/bin/cp`、`/usr/bin/chown`、`/usr/bin/chmod`、`/usr/bin/sha256sum`、`/usr/bin/mv`、`/usr/bin/logger`および固定helper pathの完全一致コマンドだけをSSH管理identityへ許可します。wildcard、shell権限、utility全体の無制限許可は禁止です。本番利用前に`sudo -l`とsourceの固定コマンドを照合します。
+
+具体的な完全一致sudoers entryは英語版[COMMANDS.md](../../COMMANDS.md#human-helper-update)のcode blockを正本とし、`<ssh-user>`だけを対象profileのSSH管理identityへ置き換えます。
+
+artifact、転送hash、確認、sudoers権限、version identity、backup、metadata更新、原子的rename、更新後検証のいずれかが失敗した場合は終了code `1`を返します。root SSH loginや任意shellへfallbackしません。
 
 ### `kelpie version`
 

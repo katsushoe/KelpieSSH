@@ -75,3 +75,5 @@ Windows-local `/etc/kelpie` paths are never read or modified. The SSH profile se
 ## Consequences
 
 The VPS helper and Windows `kelpiemcp` must be updated together. Existing helper versions without `policy` actions fail safely. Operators must configure narrowly scoped passwordless sudo for the helper executable; broad shell or editor sudo permission is not acceptable.
+
+The helper update trust boundary is defined separately by [ADR-0002](ADR-0002-PRIVILEGED-HELPER-UPDATE.md).
