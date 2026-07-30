@@ -96,6 +96,24 @@ public sealed class RemoteWebPolicyCommandTests
         interaction.OutputText.ToLowerInvariant().Should().NotContain("secret");
     }
 
+    [Fact]
+    public async Task RunAsync_List_WhenRemoteHelperIsOld_ShouldShowUpdateInstructions()
+    {
+        var interaction = new ConfirmingInteraction();
+        var executor = new FakeExecutor(Result(1, string.Empty, "ERROR: unsupported action: policy"));
+
+        var exitCode = await RemoteWebPolicyCommand.RunAsync(
+            ["list", "sample", "/var/www"],
+            interaction,
+            executor,
+            profileOverride: CreateProfile());
+
+        exitCode.Should().Be(1);
+        interaction.ErrorText.Should().Contain("helper is too old")
+            .And.Contain("0.2.1.0 or later")
+            .And.NotContain("unsupported action");
+    }
+
     private static SshConnectionProfile CreateProfile()
     {
         return new SshConnectionProfile
@@ -151,6 +169,8 @@ public sealed class RemoteWebPolicyCommandTests
         public TextWriter Error => _error;
 
         public string OutputText => _output.ToString();
+
+        public string ErrorText => _error.ToString();
 
         public int ReadCount { get; private set; }
 

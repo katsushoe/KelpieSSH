@@ -2091,7 +2091,7 @@ kelpiemcp web-policy rollback <profile>
 
 #### エラー仕様
 
-構文またはJSON不正、未対応fieldや値、危険なpath、非対話実行、非root実行、安全でない所有者やmode、確認コード不一致、entryまたはbackup不足、metadata維持失敗、backup失敗、監査失敗、原子的置換失敗では終了code `1`を返します。要求した読み取りまたは変更が完了した場合だけ`0`を返します。
+構文またはJSON不正、未対応fieldや値、危険なpath、非対話実行、非root実行、安全でない所有者やmode、確認コード不一致、entryまたはbackup不足、metadata維持失敗、backup失敗、監査失敗、原子的置換失敗では終了code `1`を返します。VPS helperが`policy` actionに未対応の場合は、未処理例外にせず、root所有とmode `0755`を維持してhelper `0.2.1.0`以降へ更新するよう案内します。要求した読み取りまたは変更が完了した場合だけ`0`を返します。
 
 ### `kelpie version`
 

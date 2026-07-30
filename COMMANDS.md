@@ -2246,7 +2246,7 @@ kelpiemcp web-policy rollback <profile>
 
 #### Error specification
 
-The command exits with `1` for invalid syntax or JSON, unsupported policy fields or values, unsafe paths, non-interactive execution, non-root execution, insecure ownership or mode, confirmation mismatch, missing entries or backups, metadata preservation failure, backup failure, audit failure, or atomic replacement failure. It exits with `0` only after the requested read or change completes.
+The command exits with `1` for invalid syntax or JSON, unsupported policy fields or values, unsafe paths, non-interactive execution, non-root execution, insecure ownership or mode, confirmation mismatch, missing entries or backups, metadata preservation failure, backup failure, audit failure, or atomic replacement failure. When the VPS helper does not support the `policy` action, the command reports that helper `0.2.1.0` or later must replace the existing helper while preserving root ownership and mode `0755`; it does not expose an unhandled exception. It exits with `0` only after the requested read or change completes.
 
 ### Help/version
 

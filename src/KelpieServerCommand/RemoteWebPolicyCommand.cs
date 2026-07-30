@@ -205,6 +205,13 @@ public static class RemoteWebPolicyCommand
             .Replace("\r", " ", StringComparison.Ordinal)
             .Replace("\n", " ", StringComparison.Ordinal)
             .Trim();
+        if (detail.Contains("unsupported action: policy", StringComparison.OrdinalIgnoreCase))
+        {
+            return "The VPS web permission helper is too old for remote web-policy management. "
+                + "Update /usr/local/libexec/kelpie/kelpie-web-permission-helper to version 0.2.1.0 or later, "
+                + "preserve root ownership and mode 0755, then retry.";
+        }
+
         return detail.Length == 0
             ? $"Remote web-policy command failed. ExitCode={result.ExitCode}."
             : $"Remote web-policy command failed. ExitCode={result.ExitCode}. {detail}";
