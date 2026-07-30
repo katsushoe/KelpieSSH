@@ -276,7 +276,7 @@ KelpieSSH では、VPS へ SSH 接続し、安全性評価済みのコマンド�
 
 - 製品バージョンは Kelpie 全体で統一せず、製品またはライブラリごとの `.csproj` で管理します。
 - NuGet 化するライブラリは `IsPackable=true` とし、`README.md`、Apache License 2.0、シンボルパッケージを含めます。
-- Alpha リリースでは Windows ZIP を主なバイナリ配布物として扱います。MSI は作成できる場合の任意配布物であり、未署名の場合があります。
+- Alpha リリースでは Windows ZIP を主なバイナリ配布物として扱います。ZIP には、ユーザー単位の自動配置と `PATH` 登録を行う `Install-Kelpie.ps1` を含めます。MSI は作成できる場合の任意配布物であり、未署名の場合があります。
 - 実行ファイルは NuGet ライブラリとは別に、ZIP または MSI 形式のバイナリ配布物として扱います。
 - `KelpieMCPServer` は `kelpie` / `kelpiemcp` と DLL 競合しないように、手動配置では `bin/mcp` 配下へ分離して発行します。
 - `kelpie-web-permission-helper` は SSH先の Linux サーバーへ self-contained 単一ファイルとして配置し、sudoers ではこの実行ファイルだけを NOPASSWD 許可します。

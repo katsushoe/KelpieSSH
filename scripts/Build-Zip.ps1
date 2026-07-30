@@ -54,6 +54,8 @@ else {
 $filesRoot = Join-Path $outputRootPath "files"
 $binDir = Join-Path $filesRoot "bin"
 $mcpDir = Join-Path $binDir "mcp"
+$clientPublishDir = Join-Path $filesRoot ".publish-client"
+$serverPublishDir = Join-Path $filesRoot ".publish-server"
 $zipPath = Join-Path $outputRootPath ("KelpieSSH-" + $Version + "-win-x64.zip")
 
 $resolvedRepoRoot = [System.IO.Path]::GetFullPath($repoRoot).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
@@ -70,13 +72,16 @@ New-Item -ItemType Directory -Force -Path $binDir | Out-Null
 New-Item -ItemType Directory -Force -Path $mcpDir | Out-Null
 
 if (!$SkipPublish) {
-    Invoke-Checked "dotnet" @("publish", (Join-Path $repoRoot "src\KelpieClientCommand\KelpieClientCommand.csproj"), "-c", $Configuration, "-o", $binDir)
-    Invoke-Checked "dotnet" @("publish", (Join-Path $repoRoot "src\KelpieServerCommand\KelpieServerCommand.csproj"), "-c", $Configuration, "-o", $binDir)
+    Invoke-Checked "dotnet" @("publish", (Join-Path $repoRoot "src\KelpieClientCommand\KelpieClientCommand.csproj"), "-c", $Configuration, "-o", $clientPublishDir)
+    Invoke-Checked "dotnet" @("publish", (Join-Path $repoRoot "src\KelpieServerCommand\KelpieServerCommand.csproj"), "-c", $Configuration, "-o", $serverPublishDir)
     Invoke-Checked "dotnet" @("publish", (Join-Path $repoRoot "src\KelpieMCPServer\KelpieMCPServer.csproj"), "-c", $Configuration, "-o", $mcpDir)
+    Copy-Item -Path (Join-Path $clientPublishDir "*") -Destination $binDir -Recurse -Force
+    Copy-Item -Path (Join-Path $serverPublishDir "*") -Destination $binDir -Recurse -Force
+    Remove-Item -LiteralPath $clientPublishDir, $serverPublishDir -Recurse -Force
 }
-
 Copy-Directory (Join-Path $repoRoot "config_samples") (Join-Path $filesRoot "config_samples")
 Copy-Directory (Join-Path $repoRoot "docs") (Join-Path $filesRoot "docs")
+Copy-Item -LiteralPath (Join-Path $repoRoot "scripts\Install-Kelpie.ps1") -Destination $filesRoot -Force
 
 $documentFiles = @(
     "README.md",

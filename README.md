@@ -141,12 +141,28 @@ If Windows shows an unknown publisher or SmartScreen warning for an MSI, confirm
 
 ### Zip distribution users
 
-#### 1. Placing the zip binaries
+#### 1. Installing from the zip
 
-Extract `KelpieSSH-x.x.x.x-win-x64.zip` to `D:\Kelpie`. The CLI-related files are placed like this:
+Extract `KelpieSSH-x.x.x.x-win-x64.zip`, then run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\Install-Kelpie.ps1
+```
+
+The installer places KelpieSSH under `%LOCALAPPDATA%\Programs\KelpieSSH` and adds its `bin` directory to the user `PATH`. Existing Kelpie configuration and user data are not removed.
+
+To select another location:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\Install-Kelpie.ps1 -InstallDirectory D:\Kelpie
+```
+
+Open a new terminal after installation.
+
+The installed files have this layout:
 
 ```text
-D:\Kelpie
+%LOCALAPPDATA%\Programs\KelpieSSH
 ├─ bin
 │  ├─ kelpie.exe
 │  ├─ kelpiemcp.exe
@@ -162,22 +178,7 @@ D:\Kelpie
 └─ PROFILE_GUIDE.md
 ```
 
-#### 2. Adding `PATH` and verifying commands
-
-Add `D:\Kelpie\bin` to the user `PATH`:
-
-```powershell
-$kelpieBin = "D:\Kelpie\bin"
-$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-if (($userPath -split ";") -notcontains $kelpieBin) {
-  $newUserPath = if ([string]::IsNullOrWhiteSpace($userPath)) { $kelpieBin } else { $userPath.TrimEnd(";") + ";" + $kelpieBin }
-  [Environment]::SetEnvironmentVariable("Path", $newUserPath, "User")
-}
-```
-
-Open a new terminal after updating `PATH`.
-
-Verify that the command is available:
+#### 2. Verifying commands
 
 ```powershell
 kelpie version
@@ -186,23 +187,21 @@ kelpie version
 Expected output:
 
 ```text
-kelpie 0.3.4.0
+kelpie x.x.x.x
 ```
-
-If you do not want to update `PATH`, keep using full paths such as `D:\Kelpie\bin\kelpie.exe`.
 
 #### 3. Initializing Kelpie home and creating a profile
 
 Execute this command in the terminal:
 
 ```powershell
-D:\Kelpie\bin\kelpie.exe init
+kelpie init
 ```
 
-With `D:\Kelpie\bin\kelpie.exe`, `kelpie init` creates the CLI-related files under `D:\Kelpie`:
+`kelpie init` creates the CLI-related files under the installation directory:
 
 ```text
-D:\Kelpie
+%LOCALAPPDATA%\Programs\KelpieSSH
 ├─ config
 │  └─ kelpie.json
 ├─ profiles
@@ -216,18 +215,18 @@ D:\Kelpie
 To create a named profile at initialization time:
 
 ```powershell
-D:\Kelpie\bin\kelpie.exe init vps01
+kelpie init vps01
 ```
 
 Edit the generated profile before connecting:
 
 ```text
-D:\Kelpie\profiles\vps01.json
+%LOCALAPPDATA%\Programs\KelpieSSH\profiles\vps01.json
 ```
 
 For profile syntax and field details, see [PROFILE_GUIDE.md](PROFILE_GUIDE.md).
 
-Set the target host, SSH user, authentication method, and key or password secret reference in that file. For private key authentication, place the private key file under `D:\Kelpie\keys` and set `Auth.PrivateKeyFile` to that file name. The matching public key must already be registered on the server. For password authentication, set `Auth.Method` to `password` and set `Auth.PasswordSecretName`; do not store the plain text password in the profile.
+Set the target host, SSH user, authentication method, and key or password secret reference in that file. For private key authentication, place the private key file under the installation directory's `keys` directory and set `Auth.PrivateKeyFile` to that file name. The matching public key must already be registered on the server. For password authentication, set `Auth.Method` to `password` and set `Auth.PasswordSecretName`; do not store the plain text password in the profile.
 
 Before connecting, validate the local configuration and the profile without opening an SSH connection:
 

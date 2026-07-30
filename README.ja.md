@@ -141,12 +141,28 @@ MSI で Windows が不明な発行元または SmartScreen 警告を表示した
 
 ### ZIP 配布版の利用者
 
-#### 1. ZIP バイナリを配置する
+#### 1. ZIP からインストールする
 
-`KelpieSSH-x.x.x.x-win-x64.zip` を `D:\Kelpie` に展開します。CLI 利用に関係する主なファイルは次の構成で配置されます。
+`KelpieSSH-x.x.x.x-win-x64.zip` を展開し、次を実行します。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\Install-Kelpie.ps1
+```
+
+KelpieSSH は `%LOCALAPPDATA%\Programs\KelpieSSH` に配置され、その `bin` ディレクトリがユーザー `PATH` に追加されます。既存の設定やユーザーデータは削除されません。
+
+配置先を変更する場合:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\Install-Kelpie.ps1 -InstallDirectory D:\Kelpie
+```
+
+インストール後は新しいターミナルを開いてください。
+
+配置される主なファイルは次の構成です。
 
 ```text
-D:\Kelpie
+%LOCALAPPDATA%\Programs\KelpieSSH
 ├─ bin
 │  ├─ kelpie.exe
 │  ├─ kelpiemcp.exe
@@ -162,22 +178,7 @@ D:\Kelpie
 └─ PROFILE_GUIDE.md
 ```
 
-#### 2. `PATH` を追加してコマンドを確認する
-
-`D:\Kelpie\bin` をユーザー `PATH` に追加します。
-
-```powershell
-$kelpieBin = "D:\Kelpie\bin"
-$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-if (($userPath -split ";") -notcontains $kelpieBin) {
-  $newUserPath = if ([string]::IsNullOrWhiteSpace($userPath)) { $kelpieBin } else { $userPath.TrimEnd(";") + ";" + $kelpieBin }
-  [Environment]::SetEnvironmentVariable("Path", $newUserPath, "User")
-}
-```
-
-`PATH` 更新後は新しいターミナルを開いてください。
-
-コマンドを実行できることを確認します。
+#### 2. コマンドを確認する
 
 ```powershell
 kelpie version
@@ -186,23 +187,21 @@ kelpie version
 出力例:
 
 ```text
-kelpie 0.3.4.0
+kelpie x.x.x.x
 ```
-
-`PATH` を更新したくない場合は、`D:\Kelpie\bin\kelpie.exe` のようにフルパスで実行してください。
 
 #### 3. Kelpie home を初期化してプロファイルを作成する
 
 ターミナルで次を実行します。
 
 ```powershell
-D:\Kelpie\bin\kelpie.exe init
+kelpie init
 ```
 
-`D:\Kelpie\bin\kelpie.exe` から `kelpie init` を実行すると、CLI 利用に関係する主なファイルとディレクトリが `D:\Kelpie` 配下に作成されます。
+`kelpie init` を実行すると、CLI 利用に関係する主なファイルとディレクトリがインストール先に作成されます。
 
 ```text
-D:\Kelpie
+%LOCALAPPDATA%\Programs\KelpieSSH
 ├─ config
 │  └─ kelpie.json
 ├─ profiles
@@ -216,18 +215,18 @@ D:\Kelpie
 初期化時に名前付きプロファイルを作成するには、次のように実行します。
 
 ```powershell
-D:\Kelpie\bin\kelpie.exe init vps01
+kelpie init vps01
 ```
 
 接続前に、生成されたプロファイルを編集してください。
 
 ```text
-D:\Kelpie\profiles\vps01.json
+%LOCALAPPDATA%\Programs\KelpieSSH\profiles\vps01.json
 ```
 
 プロファイルの記述方法は [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md) を参照してください。
 
-このファイルに、接続先ホスト、SSH ユーザー、認証方式、秘密鍵またはパスワード参照を設定します。秘密鍵認証では、秘密鍵ファイルを `D:\Kelpie\keys` 配下に置き、`Auth.PrivateKeyFile` にそのファイル名を設定します。対応する公開鍵は、事前にサーバー側へ登録しておく必要があります。パスワード認証では、`Auth.Method` を `password` にし、`Auth.PasswordSecretName` を設定します。平文パスワードをプロファイルに保存してはいけません。
+このファイルに、接続先ホスト、SSH ユーザー、認証方式、秘密鍵またはパスワード参照を設定します。秘密鍵認証では、秘密鍵ファイルをインストール先の `keys` ディレクトリに置き、`Auth.PrivateKeyFile` にそのファイル名を設定します。対応する公開鍵は、事前にサーバー側へ登録しておく必要があります。パスワード認証では、`Auth.Method` を `password` にし、`Auth.PasswordSecretName` を設定します。平文パスワードをプロファイルに保存してはいけません。
 
 接続前に、SSH 接続を行わずローカル設定とプロファイルを検証します。
 
