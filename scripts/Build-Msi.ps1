@@ -30,6 +30,20 @@ function New-WixId {
     }
 }
 
+function New-WixGuid {
+    param([string]$Value)
+
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = $sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Value))
+        $guidBytes = [byte[]]$hash[0..15]
+        return (New-Object System.Guid (,$guidBytes)).ToString().ToUpperInvariant()
+    }
+    finally {
+        $sha256.Dispose()
+    }
+}
+
 function Invoke-Checked {
     param(
         [string]$FileName,
@@ -47,6 +61,8 @@ $outputRootPath = Join-Path $repoRoot $OutputRoot
 $payloadRoot = Join-Path $outputRootPath "payload"
 $binDir = Join-Path $payloadRoot "bin"
 $mcpDir = Join-Path $binDir "mcp"
+$clientPublishDir = Join-Path $payloadRoot ".publish-client"
+$serverPublishDir = Join-Path $payloadRoot ".publish-server"
 $wxsPath = Join-Path $outputRootPath "KelpieSSH.generated.wxs"
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
@@ -64,9 +80,12 @@ if (!$SkipPublish) {
     New-Item -ItemType Directory -Force -Path $binDir | Out-Null
     New-Item -ItemType Directory -Force -Path $mcpDir | Out-Null
 
-    Invoke-Checked "dotnet" @("publish", (Join-Path $repoRoot "src\KelpieClientCommand\KelpieClientCommand.csproj"), "-c", $Configuration, "-o", $binDir)
-    Invoke-Checked "dotnet" @("publish", (Join-Path $repoRoot "src\KelpieServerCommand\KelpieServerCommand.csproj"), "-c", $Configuration, "-o", $binDir)
+    Invoke-Checked "dotnet" @("publish", (Join-Path $repoRoot "src\KelpieClientCommand\KelpieClientCommand.csproj"), "-c", $Configuration, "-o", $clientPublishDir)
+    Invoke-Checked "dotnet" @("publish", (Join-Path $repoRoot "src\KelpieServerCommand\KelpieServerCommand.csproj"), "-c", $Configuration, "-o", $serverPublishDir)
     Invoke-Checked "dotnet" @("publish", (Join-Path $repoRoot "src\KelpieMCPServer\KelpieMCPServer.csproj"), "-c", $Configuration, "-o", $mcpDir)
+    Copy-Item -Path (Join-Path $clientPublishDir "*") -Destination $binDir -Recurse -Force
+    Copy-Item -Path (Join-Path $serverPublishDir "*") -Destination $binDir -Recurse -Force
+    Remove-Item -LiteralPath $clientPublishDir, $serverPublishDir -Recurse -Force
 }
 
 if (!(Test-Path -LiteralPath $binDir)) {
@@ -81,6 +100,16 @@ if (!(Test-Path -LiteralPath $mcpDir) -or (Get-ChildItem -LiteralPath $mcpDir -F
     throw "Payload MCP directory does not contain files: $mcpDir"
 }
 
+foreach ($requiredFile in @("kelpie.exe", "kelpiemcp.exe")) {
+    if (!(Test-Path -LiteralPath (Join-Path $binDir $requiredFile) -PathType Leaf)) {
+        throw "Payload is missing required file: $requiredFile"
+    }
+}
+
+if (!(Test-Path -LiteralPath (Join-Path $mcpDir "KelpieMCPServer.exe") -PathType Leaf)) {
+    throw "Payload is missing required file: KelpieMCPServer.exe"
+}
+
 New-Item -ItemType Directory -Force -Path $outputRootPath | Out-Null
 
 $componentRefs = New-Object System.Collections.Generic.List[string]
@@ -88,20 +117,26 @@ $binComponentXml = New-Object System.Collections.Generic.List[string]
 $mcpComponentXml = New-Object System.Collections.Generic.List[string]
 
 foreach ($file in Get-ChildItem -LiteralPath $binDir -File) {
-    $componentId = New-WixId "CmpBin" $file.FullName
-    $fileId = New-WixId "FileBin" $file.FullName
+    $fileIdentity = "bin/" + $file.Name
+    $componentId = New-WixId "CmpBin" $fileIdentity
+    $componentGuid = New-WixGuid $fileIdentity
+    $fileId = New-WixId "FileBin" $fileIdentity
     $componentRefs.Add("      <ComponentRef Id=`"$componentId`" />")
-    $binComponentXml.Add("      <Component Id=`"$componentId`" Guid=`"*`">")
-    $binComponentXml.Add("        <File Id=`"$fileId`" Source=`"$(Get-XmlEscaped $file.FullName)`" KeyPath=`"yes`" />")
+    $binComponentXml.Add("      <Component Id=`"$componentId`" Guid=`"$componentGuid`">")
+    $binComponentXml.Add("        <File Id=`"$fileId`" Source=`"$(Get-XmlEscaped $file.FullName)`" />")
+    $binComponentXml.Add("        <RegistryValue Root=`"HKCU`" Key=`"Software\Akatsukisoft\KelpieSSH\Files`" Name=`"$componentId`" Type=`"integer`" Value=`"1`" KeyPath=`"yes`" />")
     $binComponentXml.Add("      </Component>")
 }
 
 foreach ($file in Get-ChildItem -LiteralPath $mcpDir -File) {
-    $componentId = New-WixId "CmpMcp" $file.FullName
-    $fileId = New-WixId "FileMcp" $file.FullName
+    $fileIdentity = "bin/mcp/" + $file.Name
+    $componentId = New-WixId "CmpMcp" $fileIdentity
+    $componentGuid = New-WixGuid $fileIdentity
+    $fileId = New-WixId "FileMcp" $fileIdentity
     $componentRefs.Add("      <ComponentRef Id=`"$componentId`" />")
-    $mcpComponentXml.Add("      <Component Id=`"$componentId`" Guid=`"*`">")
-    $mcpComponentXml.Add("        <File Id=`"$fileId`" Source=`"$(Get-XmlEscaped $file.FullName)`" KeyPath=`"yes`" />")
+    $mcpComponentXml.Add("      <Component Id=`"$componentId`" Guid=`"$componentGuid`">")
+    $mcpComponentXml.Add("        <File Id=`"$fileId`" Source=`"$(Get-XmlEscaped $file.FullName)`" />")
+    $mcpComponentXml.Add("        <RegistryValue Root=`"HKCU`" Key=`"Software\Akatsukisoft\KelpieSSH\Files`" Name=`"$componentId`" Type=`"integer`" Value=`"1`" KeyPath=`"yes`" />")
     $mcpComponentXml.Add("      </Component>")
 }
 
@@ -128,36 +163,45 @@ $wxsLines = @(
     "    <DirectoryRef Id=`"ConfigFolder`">",
     "      <Component Id=`"ConfigFolderComponent`" Guid=`"*`">",
     "        <CreateFolder />",
+    "        <RemoveFolder Id=`"RemoveConfigFolder`" On=`"uninstall`" />",
     "        <RegistryValue Root=`"HKCU`" Key=`"Software\Akatsukisoft\KelpieSSH`" Name=`"ConfigFolder`" Type=`"integer`" Value=`"1`" KeyPath=`"yes`" />",
     "      </Component>",
     "    </DirectoryRef>",
     "    <DirectoryRef Id=`"ProfilesFolder`">",
     "      <Component Id=`"ProfilesFolderComponent`" Guid=`"*`">",
     "        <CreateFolder />",
+    "        <RemoveFolder Id=`"RemoveProfilesFolder`" On=`"uninstall`" />",
     "        <RegistryValue Root=`"HKCU`" Key=`"Software\Akatsukisoft\KelpieSSH`" Name=`"ProfilesFolder`" Type=`"integer`" Value=`"1`" KeyPath=`"yes`" />",
     "      </Component>",
     "    </DirectoryRef>",
     "    <DirectoryRef Id=`"KeysFolder`">",
     "      <Component Id=`"KeysFolderComponent`" Guid=`"*`">",
     "        <CreateFolder />",
+    "        <RemoveFolder Id=`"RemoveKeysFolder`" On=`"uninstall`" />",
     "        <RegistryValue Root=`"HKCU`" Key=`"Software\Akatsukisoft\KelpieSSH`" Name=`"KeysFolder`" Type=`"integer`" Value=`"1`" KeyPath=`"yes`" />",
     "      </Component>",
     "    </DirectoryRef>",
     "    <DirectoryRef Id=`"DataFolder`">",
     "      <Component Id=`"DataFolderComponent`" Guid=`"*`">",
     "        <CreateFolder />",
+    "        <RemoveFolder Id=`"RemoveDataFolder`" On=`"uninstall`" />",
     "        <RegistryValue Root=`"HKCU`" Key=`"Software\Akatsukisoft\KelpieSSH`" Name=`"DataFolder`" Type=`"integer`" Value=`"1`" KeyPath=`"yes`" />",
     "      </Component>",
     "    </DirectoryRef>",
     "    <DirectoryRef Id=`"LogsFolder`">",
     "      <Component Id=`"LogsFolderComponent`" Guid=`"*`">",
     "        <CreateFolder />",
+    "        <RemoveFolder Id=`"RemoveLogsFolder`" On=`"uninstall`" />",
     "        <RegistryValue Root=`"HKCU`" Key=`"Software\Akatsukisoft\KelpieSSH`" Name=`"LogsFolder`" Type=`"integer`" Value=`"1`" KeyPath=`"yes`" />",
     "      </Component>",
     "    </DirectoryRef>",
     "    <DirectoryRef Id=`"BinFolder`">",
     "      <Component Id=`"UserPathComponent`" Guid=`"*`">",
     "        <Environment Id=`"AddKelpieBinToPath`" Name=`"PATH`" Value=`"[BinFolder]`" Permanent=`"no`" Part=`"last`" Action=`"set`" System=`"no`" />",
+    "        <RemoveFolder Id=`"RemoveMcpFolder`" Directory=`"McpFolder`" On=`"uninstall`" />",
+    "        <RemoveFolder Id=`"RemoveBinFolder`" Directory=`"BinFolder`" On=`"uninstall`" />",
+    "        <RemoveFolder Id=`"RemoveInstallFolder`" Directory=`"INSTALLFOLDER`" On=`"uninstall`" />",
+    "        <RemoveFolder Id=`"RemoveProgramsFolder`" Directory=`"ProgramsFolder`" On=`"uninstall`" />",
     "        <RegistryValue Root=`"HKCU`" Key=`"Software\Akatsukisoft\KelpieSSH`" Name=`"PathRegistered`" Type=`"integer`" Value=`"1`" KeyPath=`"yes`" />",
     "      </Component>"
 )
