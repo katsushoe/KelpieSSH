@@ -10,6 +10,8 @@ namespace KelpieSSH.Infrastructure.Ssh;
 /// </summary>
 public sealed class SshNetFileUploader
 {
+    private const short PrivateFileMode = 600;
+
     private readonly SshNetAuthenticationFactory _authenticationFactory = new(new NullSshPasswordProvider());
 
     /// <summary>
@@ -68,7 +70,7 @@ public sealed class SshNetFileUploader
                 81920,
                 FileOptions.SequentialScan);
             client.UploadFile(input, remotePath, canOverride: true);
-            client.ChangePermissions(remotePath, 384);
+            client.ChangePermissions(remotePath, PrivateFileMode);
         }
         catch (Exception ex) when (ex is SocketException or SshException)
         {
