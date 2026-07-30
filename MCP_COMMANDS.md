@@ -7278,7 +7278,7 @@ Input arguments:
 
 Processing:
 
-The tool rejects missing files, local reparse points, files larger than 16 MiB, invalid hashes, hash mismatches, and `atomic: false` before SSH execution. A preflight call reads and hashes the local file before returning the content-bound confirmation token. A confirmed call repeats those checks, then Base64-encodes the already verified in-memory bytes only for the bounded SSH standard-input channel used by the existing atomic provider.
+The tool rejects missing files, local reparse points, files larger than 256 MiB (268,435,456 bytes), invalid hashes, hash mismatches, and `atomic: false` before SSH execution. A preflight call streams and hashes the local file before returning the content-bound confirmation token. A confirmed call repeats those checks, then incrementally Base64-encodes the verified file into the bounded SSH standard-input channel. The remote permission helper incrementally decodes into a uniquely named temporary file in the destination directory, verifies the transferred SHA-256, applies the requested owner and mode, and atomically replaces the destination only after every check succeeds.
 
 Return value:
 
@@ -7291,6 +7291,8 @@ Safety notes:
 - The confirmation token binds the normalized local path, remote path, expected hash, owner, mode, and atomic mode.
 - The MCP server process must already have operating-system read permission for `localPath`.
 - `expectedSha256` verifies the local upload payload; unlike the argument of the same name on `web_file_write`, it is not a precondition for the existing remote file.
+- The fixed 256 MiB local safety limit is independent of the site-specific `MaxWriteBytes`; both limits must allow the file. There is no additional configuration key for the local limit.
+- Streaming uses bounded buffers and does not allocate a byte array or Base64 string proportional to the input size. Upload execution has a bounded 10-minute timeout.
 
 #### `web_secret_file_write`
 

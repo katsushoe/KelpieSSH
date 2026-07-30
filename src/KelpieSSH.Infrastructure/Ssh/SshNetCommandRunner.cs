@@ -141,7 +141,7 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
         command.CommandTimeout = request.Timeout;
         try
         {
-            if (standardInput is null)
+            if (standardInput is null && request.BinaryStandardInput is null)
             {
                 _ = command.Execute();
             }
@@ -150,8 +150,34 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
                 var executeTask = command.ExecuteAsync(cancellationToken);
                 using (var inputStream = command.CreateInputStream())
                 {
-                    var inputBytes = Encoding.UTF8.GetBytes(standardInput);
-                    inputStream.Write(inputBytes, 0, inputBytes.Length);
+                    if (request.BinaryStandardInput is not null)
+                    {
+                        using var transform = new System.Security.Cryptography.ToBase64Transform();
+                        using var encodedStream = new System.Security.Cryptography.CryptoStream(
+                            inputStream,
+                            transform,
+                            System.Security.Cryptography.CryptoStreamMode.Write,
+                            leaveOpen: true);
+                        var buffer = new byte[81920];
+                        while (true)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            var read = request.BinaryStandardInput.Read(buffer, 0, buffer.Length);
+                            if (read == 0)
+                            {
+                                break;
+                            }
+
+                            encodedStream.Write(buffer, 0, read);
+                        }
+
+                        encodedStream.FlushFinalBlock();
+                    }
+                    else
+                    {
+                        var inputBytes = Encoding.UTF8.GetBytes(standardInput!);
+                        inputStream.Write(inputBytes, 0, inputBytes.Length);
+                    }
                 }
 
                 executeTask.GetAwaiter().GetResult();

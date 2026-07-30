@@ -208,7 +208,7 @@ public static class RemoteWebPolicyCommand
         if (detail.Contains("unsupported action: policy", StringComparison.OrdinalIgnoreCase))
         {
             return "The VPS web permission helper is too old for remote web-policy management. "
-                + "Update /usr/local/libexec/kelpie/kelpie-web-permission-helper to version 0.2.1.0 or later, "
+                + "Update /usr/local/libexec/kelpie/kelpie-web-permission-helper to version 0.2.1.1 or later, "
                 + "preserve root ownership and mode 0755, then retry.";
         }
 

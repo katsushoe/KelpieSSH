@@ -196,8 +196,8 @@ finally:
             SshCommandRiskLevel.ConfirmRequired),
         new(
             "web_public_file_write_with_permissions_internal",
-            "sudo -n " + HelperPath + " write-file {siteRootBase64} {pathBase64} - {maxBytes} {createDirectories} {ownerBase64} {modeBase64} {expectedSha256} {backup} {preservePermissions}",
-            TimeSpan.FromSeconds(30),
+            "sudo -n " + HelperPath + " write-file {siteRootBase64} {pathBase64} - {maxBytes} {createDirectories} {ownerBase64} {modeBase64} {expectedSha256} {backup} {preservePermissions} {contentSha256}",
+            TimeSpan.FromMinutes(10),
             [
                 new AllowedCommandParameterDefinition("siteRootBase64", MaxLength: 4096, Pattern: Base64PathPattern),
                 new AllowedCommandParameterDefinition("pathBase64", MaxLength: 4096, Pattern: Base64PathPattern),
@@ -208,6 +208,7 @@ finally:
                 new AllowedCommandParameterDefinition("expectedSha256", MaxLength: 64, Pattern: "^(-|[0-9a-f]{64})$"),
                 new AllowedCommandParameterDefinition("backup", MaxLength: 1, Pattern: "^[01]$"),
                 new AllowedCommandParameterDefinition("preservePermissions", MaxLength: 1, Pattern: "^[01]$"),
+                new AllowedCommandParameterDefinition("contentSha256", MaxLength: 64, Pattern: "^[0-9a-f]{64}$"),
             ],
             SshCommandRiskLevel.ConfirmRequired),
         new(

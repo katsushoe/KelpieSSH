@@ -140,6 +140,8 @@ public sealed class SshCommandService
     /// </summary>
     /// <param name="operation">The remote operation request.</param>
     /// <param name="channel">The execution channel.</param>
+    /// <param name="standardInput">Optional UTF-8 standard input.</param>
+    /// <param name="binaryStandardInput">Optional binary input encoded as Base64 while it is sent.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The SSH command result.</returns>
     public async Task<SshCommandResult> ExecuteAsync(
@@ -195,9 +197,14 @@ public sealed class SshCommandService
         TimeSpan? timeout = null,
         KelpieExecutionChannel channel = KelpieExecutionChannel.Cli,
         string? standardInput = null,
+        Stream? binaryStandardInput = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
+        if (standardInput is not null && binaryStandardInput is not null)
+        {
+            throw new ArgumentException("Text and binary standard input cannot be used together.");
+        }
 
         if (string.Equals(profile.UserName, "root", StringComparison.OrdinalIgnoreCase))
         {
@@ -223,7 +230,8 @@ public sealed class SshCommandService
             timeout ?? command.DefaultTimeout,
             commandArguments,
             standardInput,
-            GetEnvironmentOverrides(profile));
+            GetEnvironmentOverrides(profile),
+            binaryStandardInput);
 
         return await _sshCommandRunner.ExecuteAsync(request, cancellationToken);
     }

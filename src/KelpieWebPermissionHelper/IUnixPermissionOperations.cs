@@ -22,6 +22,10 @@ public interface IUnixPermissionOperations
 
     void WriteAllBytes(string path, byte[] data);
 
+    Stream OpenRead(string path);
+
+    Stream OpenWrite(string path);
+
     void AppendAllText(string path, string content);
 
     byte[] ReadAllBytes(string path);

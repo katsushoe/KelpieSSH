@@ -21,7 +21,7 @@ public sealed class KelpieWebPermissionHelperTests
 
         exitCode.Should().Be(0);
         error.ToString().Should().BeEmpty();
-        output.ToString().Should().StartWith("kelpie-web-permission-helper 0.2.1.0");
+        output.ToString().Should().StartWith("kelpie-web-permission-helper 0.2.1.1");
     }
 
     [Fact]
@@ -362,6 +362,34 @@ public sealed class KelpieWebPermissionHelperTests
         error.ToString().Should().Contain("expected SHA-256 does not match");
         operations.Writes.Should().BeEmpty();
         operations.FileContents[target].Should().Equal(Encoding.UTF8.GetBytes("old"));
+    }
+
+    [Fact]
+    public void Run_ShouldRejectStreamedContentHashMismatchBeforeAtomicMove()
+    {
+        const string target = "/var/www/downloads/package.bin";
+        var content = Encoding.UTF8.GetBytes("new-package");
+        var operations = new FakeUnixPermissionOperations();
+        ConfigureManagedPolicy(operations, "/downloads/package.bin", "Create");
+        operations.Directories.Add("/var/www/downloads");
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = PermissionHelper.Run(
+            [
+                "write-file", Encode("/var/www"), Encode("/downloads/package.bin"),
+                "-", "1000", "0", Encode(string.Empty), Encode(string.Empty),
+                "-", "0", "0", new string('0', 64),
+            ],
+            operations,
+            new StringReader(Convert.ToBase64String(content)),
+            output,
+            error);
+
+        exitCode.Should().Be(1);
+        error.ToString().Should().Contain("uploaded content SHA-256 does not match");
+        operations.Files.Should().NotContain(target);
+        operations.Moves.Should().BeEmpty();
     }
 
     [Fact]
@@ -787,6 +815,16 @@ public sealed class KelpieWebPermissionHelperTests
             Writes.Add((path, data));
         }
 
+        public Stream OpenRead(string path)
+        {
+            return new MemoryStream(ReadAllBytes(path), writable: false);
+        }
+
+        public Stream OpenWrite(string path)
+        {
+            return new CapturingStream(data => WriteAllBytes(path, data));
+        }
+
         public byte[] ReadAllBytes(string path)
         {
             return FileContents.TryGetValue(path, out var data) ? data : [];
@@ -814,6 +852,19 @@ public sealed class KelpieWebPermissionHelperTests
         {
             Files.Remove(path);
             FileContents.Remove(path);
+        }
+
+        private sealed class CapturingStream(Action<byte[]> capture) : MemoryStream
+        {
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing)
+                {
+                    capture(ToArray());
+                }
+
+                base.Dispose(disposing);
+            }
         }
 
         public uint ResolveUserId(string owner)

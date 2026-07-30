@@ -2135,7 +2135,9 @@ public sealed class KelpieToolsSshTests
             result.Written.Should().BeTrue();
             result.Size.Should().Be(content.Length);
             result.ToString().Should().NotContain(Convert.ToBase64String(content));
-            runner.LastRequest!.StandardInput.Should().Be(Convert.ToBase64String(content));
+            runner.LastRequest!.StandardInput.Should().BeNull();
+            runner.LastRequest.BinaryStandardInput.Should().NotBeNull();
+            runner.LastRequest.Arguments["contentSha256"].Should().Be(hash);
             runner.LastRequest.Arguments.Should().NotContainKey("contentBase64");
         }
         finally
@@ -2173,6 +2175,102 @@ public sealed class KelpieToolsSshTests
             result.Error.Should().Be("Local file SHA-256 did not match expectedSha256.");
             result.Written.Should().BeFalse();
             runner.LastRequest.Should().BeNull();
+        }
+        finally
+        {
+            File.Delete(localPath);
+        }
+    }
+
+    [Fact]
+    public async Task WriteWebFileFromLocalAsync_ShouldRejectFileAbove256MiBBeforeSsh()
+    {
+        var profile = CreateProfile("vps01", KelpiePolicyMode.Expert);
+        var localPath = Path.Combine(Path.GetTempPath(), $"kelpie-{Guid.NewGuid():N}.bin");
+        await using (var file = new FileStream(localPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        {
+            file.SetLength(KelpieTools.MaxLocalWebUploadBytes + 1);
+        }
+
+        try
+        {
+            var runner = new FakeSshCommandRunner();
+            var result = await KelpieTools.WriteWebFileFromLocalAsync(
+                CreateProviderBackedService(runner),
+                new SshConnectionProfileCatalog([profile]),
+                new WebPublicFileProvider(),
+                "vps01",
+                "default",
+                localPath,
+                "/downloads/fixture.bin",
+                new string('0', 64),
+                "unused");
+
+            result.Error.Should().Be(
+                $"Local file exceeds the {KelpieTools.MaxLocalWebUploadBytes}-byte upload limit.");
+            runner.LastRequest.Should().BeNull();
+        }
+        finally
+        {
+            File.Delete(localPath);
+        }
+    }
+
+    [Fact]
+    public async Task WriteWebFileFromLocalAsync_ShouldHash100MiBWithoutAllocatingWholeFile()
+    {
+        const long fileSize = 100L * 1024 * 1024;
+        var site = new WebPublicSite
+        {
+            SiteKey = "default",
+            DisplayName = "Default Web Site",
+            RootPath = "/var/www/html",
+            AllowedExtensions = [".bin"],
+            AllowedFiles = [new WebPublicFileRule("downloads/**", AllowedRootAccess.Read | AllowedRootAccess.Write)],
+            AllowedContentTypes = [new WebPublicContentTypeRule("application/octet-stream", AllowedRootAccess.Read | AllowedRootAccess.Write)],
+            MaxWriteBytes = (int)KelpieTools.MaxLocalWebUploadBytes,
+        };
+        var profile = CreateProfile("vps01", KelpiePolicyMode.Expert, webPublicSites: [site]);
+        var localPath = Path.Combine(Path.GetTempPath(), $"kelpie-{Guid.NewGuid():N}.bin");
+        await using (var file = new FileStream(localPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        {
+            file.SetLength(fileSize);
+        }
+
+        try
+        {
+            string hash;
+            await using (var file = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                hash = Convert.ToHexString(await System.Security.Cryptography.SHA256.HashDataAsync(file))
+                    .ToLowerInvariant();
+            }
+
+            var runner = new FakeSshCommandRunner([
+                new FakeSshCommandOutput(
+                    StandardOutput: $$"""{"resolvedPath":"/var/www/html/downloads/fixture.bin","written":true,"created":true,"overwritten":false,"size":{{fileSize}},"sha256":"{{hash}}"}""",
+                    StandardError: string.Empty),
+            ]);
+            var confirmation = $"web_file_write_from_local:default:/downloads/fixture.bin:{Path.GetFullPath(localPath)}:{hash}:atomic";
+            var allocatedBefore = GC.GetTotalAllocatedBytes(precise: true);
+
+            var result = await KelpieTools.WriteWebFileFromLocalAsync(
+                CreateProviderBackedService(runner),
+                new SshConnectionProfileCatalog([profile]),
+                new WebPublicFileProvider(),
+                "vps01",
+                "default",
+                localPath,
+                "/downloads/fixture.bin",
+                hash,
+                confirmation,
+                contentType: "application/octet-stream");
+
+            var allocated = GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore;
+            result.Error.Should().BeNull();
+            result.Written.Should().BeTrue();
+            allocated.Should().BeLessThan(16L * 1024 * 1024);
+            runner.LastRequest!.BinaryStandardInput.Should().NotBeNull();
         }
         finally
         {

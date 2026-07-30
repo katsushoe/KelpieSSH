@@ -8,6 +8,8 @@ namespace KelpieMCPServer;
 
 public sealed partial class KelpieTools
 {
+    internal const long MaxLocalWebUploadBytes = 256L * 1024 * 1024;
+
     /// <summary>
     /// Lists web public files and directories from a provider-approved site root.
     /// </summary>
@@ -568,7 +570,6 @@ public sealed partial class KelpieTools
         bool atomic = true,
         CancellationToken cancellationToken = default)
     {
-        const long maxLocalFileBytes = 16 * 1024 * 1024;
         var normalizedLocalPath = Path.GetFullPath(localPath);
         var normalizedExpectedSha256 = expectedSha256.Trim().ToLowerInvariant();
         var permissionSuffix = CreateWritePermissionConfirmationSuffix(owner, mode);
@@ -597,13 +598,31 @@ public sealed partial class KelpieTools
             return CreateLocalWriteError(siteKey, remotePath, contentType, "Local symbolic links and reparse points are not accepted.");
         }
 
-        if (file.Length > maxLocalFileBytes)
+        if (file.Length > MaxLocalWebUploadBytes)
         {
-            return CreateLocalWriteError(siteKey, remotePath, contentType, $"Local file exceeds the {maxLocalFileBytes}-byte upload limit.");
+            return CreateLocalWriteError(siteKey, remotePath, contentType, $"Local file exceeds the {MaxLocalWebUploadBytes}-byte upload limit.");
         }
 
-        var content = await File.ReadAllBytesAsync(normalizedLocalPath, cancellationToken);
-        var actualSha256 = Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+        await using var content = new FileStream(
+            normalizedLocalPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            81920,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        var sourceLength = content.Length;
+        if (sourceLength > MaxLocalWebUploadBytes)
+        {
+            return CreateLocalWriteError(siteKey, remotePath, contentType, $"Local file exceeds the {MaxLocalWebUploadBytes}-byte upload limit.");
+        }
+
+        var actualSha256 = Convert.ToHexString(
+            await SHA256.HashDataAsync(content, cancellationToken)).ToLowerInvariant();
+        if (content.Length != sourceLength)
+        {
+            return CreateLocalWriteError(siteKey, remotePath, contentType, "Local file changed while it was being hashed.");
+        }
+
         if (!string.Equals(actualSha256, normalizedExpectedSha256, StringComparison.Ordinal))
         {
             return CreateLocalWriteError(siteKey, remotePath, contentType, "Local file SHA-256 did not match expectedSha256.");
@@ -614,20 +633,19 @@ public sealed partial class KelpieTools
             return CreateLocalWriteError(siteKey, remotePath, contentType, confirmationError);
         }
 
+        content.Position = 0;
         var profile = ResolveSshProfile(profileCatalog, profileName);
-        return await webPublicFileProvider.WriteFileAsync(
+        return await webPublicFileProvider.WriteLocalFileAsync(
             sshCommandService,
             profile,
             siteKey,
             remotePath,
-            Convert.ToBase64String(content),
-            encoding: null,
+            content,
+            sourceLength,
+            normalizedExpectedSha256,
             contentType: contentType,
             owner: owner,
             mode: mode,
-            expectedSha256: null,
-            createBackup: false,
-            preservePermissions: false,
             cancellationToken: cancellationToken);
     }
 

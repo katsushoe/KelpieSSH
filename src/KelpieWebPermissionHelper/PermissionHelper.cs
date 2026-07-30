@@ -71,38 +71,34 @@ public static partial class PermissionHelper
         TextWriter standardOutput,
         TextWriter standardError)
     {
-        if (args.Count is not (8 or 11))
+        if (args.Count is not (8 or 11 or 12))
         {
-            return WriteError(standardError, "ERROR: write-file requires siteRoot, path, content, maxBytes, createDirectories, owner, mode, and optional expectedSha256, backup, preservePermissions");
+            return WriteError(standardError, "ERROR: write-file requires siteRoot, path, content, maxBytes, createDirectories, owner, mode, and optional expectedSha256, backup, preservePermissions, contentSha256");
         }
 
         var siteRoot = DecodeBase64(args[1], "siteRoot");
         var path = DecodeBase64(args[2], "path");
-        var content = DecodeContent(args[3], standardInput);
         var maxBytes = ValidateMaxBytes(args[4]);
         var createDirectories = ValidateCreateDirectories(args[5]);
         var ownerSpec = DecodeOptionalBase64(args[6], "owner").Trim();
         var modeText = DecodeOptionalBase64(args[7], "mode").Trim();
-        var expectedSha256 = args.Count == 11 ? ValidateExpectedSha256(args[8]) : null;
-        var createBackup = args.Count == 11 && ValidateBooleanFlag(args[9], "backup");
-        var preservePermissions = args.Count == 11 && ValidateBooleanFlag(args[10], "preservePermissions");
-        if (content.Length > maxBytes)
-        {
-            return WriteError(standardError, "ERROR: web public content exceeds maximum write size");
-        }
+        var expectedSha256 = args.Count >= 11 ? ValidateExpectedSha256(args[8]) : null;
+        var createBackup = args.Count >= 11 && ValidateBooleanFlag(args[9], "backup");
+        var preservePermissions = args.Count >= 11 && ValidateBooleanFlag(args[10], "preservePermissions");
+        var contentSha256 = args.Count == 12 ? ValidateRequiredSha256(args[11], "contentSha256") : null;
 
         var ownerRequest = ParseOwnerRequest(ownerSpec);
         uint? modeRequest = string.IsNullOrWhiteSpace(modeText)
             ? null
             : ValidateMode(modeText);
-        if (!ownerRequest.HasOwner && modeRequest is null && !preservePermissions)
+        if (!ownerRequest.HasOwner && modeRequest is null && !preservePermissions && contentSha256 is null)
         {
             return WriteError(standardError, "ERROR: owner or mode is required for permissioned write");
         }
 
         var target = ResolveWritableTargetPath(siteRoot, path, createDirectories, operations);
         var existed = operations.FileExists(target.ResolvedPath);
-        if (args.Count == 11)
+        if (args.Count >= 11)
         {
             ValidateManagedPolicy(siteRoot, path, allowCreate: !existed, operations);
         }
@@ -116,8 +112,7 @@ public static partial class PermissionHelper
             return WriteError(standardError, "ERROR: preservePermissions does not accept owner or mode overrides");
         }
 
-        var existingContent = existed ? operations.ReadAllBytes(target.ResolvedPath) : null;
-        var existingHash = existingContent is null ? null : ComputeSha256(existingContent);
+        var existingHash = existed ? ComputeSha256(operations, target.ResolvedPath) : null;
         if (expectedSha256 is not null && !string.Equals(existingHash, expectedSha256, StringComparison.Ordinal))
         {
             return WriteError(standardError, "ERROR: expected SHA-256 does not match current file");
@@ -140,6 +135,14 @@ public static partial class PermissionHelper
         var backupPath = target.ResolvedPath + ".kelpiebakup";
         try
         {
+            var streamedContent = DecodeContentToFile(args[3], standardInput, operations, tempPath, maxBytes);
+            if (contentSha256 is not null
+                && !string.Equals(streamedContent.Sha256, contentSha256, StringComparison.Ordinal))
+            {
+                operations.DeleteFileIfExists(tempPath);
+                return WriteError(standardError, "ERROR: uploaded content SHA-256 does not match contentSha256");
+            }
+
             if (createBackup && existed)
             {
                 if (operations.FileExists(backupPath))
@@ -150,7 +153,7 @@ public static partial class PermissionHelper
                 var backupTempPath = target.ParentPath.TrimEnd('/') + "/.kelpie-backup-" + Guid.NewGuid().ToString("N") + ".tmp";
                 try
                 {
-                    operations.WriteAllBytes(backupTempPath, existingContent!);
+                    CopyFile(operations, target.ResolvedPath, backupTempPath);
                     operations.ChangeOwner(backupTempPath, uid, gid);
                     operations.ChangeMode(backupTempPath, finalMode);
                     operations.MoveFileOverwrite(backupTempPath, backupPath);
@@ -162,10 +165,24 @@ public static partial class PermissionHelper
                 }
             }
 
-            operations.WriteAllBytes(tempPath, content);
             operations.ChangeOwner(tempPath, uid, gid);
             operations.ChangeMode(tempPath, finalMode);
             operations.MoveFileOverwrite(tempPath, target.ResolvedPath);
+
+            WriteWriteResult(
+                standardOutput,
+                target.ResolvedPath,
+                written: true,
+                created: !existed,
+                overwritten: existed,
+                streamedContent.Size,
+                ownerRequest.Owner,
+                ownerRequest.Group,
+                finalModeText,
+                existingHash ?? string.Empty,
+                streamedContent.Sha256,
+                createBackup && existed ? backupPath : string.Empty,
+                preservePermissions);
         }
         catch
         {
@@ -173,20 +190,6 @@ public static partial class PermissionHelper
             throw;
         }
 
-        WriteWriteResult(
-            standardOutput,
-            target.ResolvedPath,
-            written: true,
-            created: !existed,
-            overwritten: existed,
-            content.Length,
-            ownerRequest.Owner,
-            ownerRequest.Group,
-            finalModeText,
-            existingHash ?? string.Empty,
-            ComputeSha256(content),
-            createBackup && existed ? backupPath : string.Empty,
-            preservePermissions);
         return Success;
     }
 
@@ -539,20 +542,80 @@ public static partial class PermissionHelper
             : decoded;
     }
 
-    private static byte[] DecodeContent(string value, TextReader standardInput)
+    private static StreamedContent DecodeContentToFile(
+        string value,
+        TextReader standardInput,
+        IUnixPermissionOperations operations,
+        string path,
+        int maxBytes)
     {
-        var contentBase64 = string.Equals(value, "-", StringComparison.Ordinal)
-            ? standardInput.ReadToEnd()
-            : value;
-
         try
         {
-            return Convert.FromBase64String(contentBase64);
+            using var output = operations.OpenWrite(path);
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            var reader = string.Equals(value, "-", StringComparison.Ordinal)
+                ? standardInput
+                : new StringReader(value);
+            var buffer = new char[8192];
+            var pending = string.Empty;
+            long total = 0;
+
+            while (true)
+            {
+                var read = reader.Read(buffer, 0, buffer.Length);
+                if (read == 0)
+                {
+                    break;
+                }
+
+                var encoded = pending + new string(buffer, 0, read);
+                var processLength = encoded.Length - (encoded.Length % 4);
+                if (processLength == 0)
+                {
+                    pending = encoded;
+                    continue;
+                }
+
+                var decoded = Convert.FromBase64String(encoded[..processLength]);
+                total += decoded.Length;
+                if (total > maxBytes)
+                {
+                    throw new InvalidOperationException("web public content exceeds maximum write size");
+                }
+
+                output.Write(decoded);
+                hash.AppendData(decoded);
+                pending = encoded[processLength..];
+            }
+
+            if (pending.Length > 0)
+            {
+                var decoded = Convert.FromBase64String(pending);
+                total += decoded.Length;
+                if (total > maxBytes)
+                {
+                    throw new InvalidOperationException("web public content exceeds maximum write size");
+                }
+
+                output.Write(decoded);
+                hash.AppendData(decoded);
+            }
+
+            output.Flush();
+            return new StreamedContent(total, Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant());
         }
         catch (FormatException ex)
         {
             throw new FormatException("content is not valid Base64", ex);
         }
+    }
+
+    private static void CopyFile(IUnixPermissionOperations operations, string sourcePath, string destinationPath)
+    {
+        using var input = operations.OpenRead(sourcePath);
+        using var output = operations.OpenWrite(destinationPath);
+        input.CopyTo(output);
+        output.Flush();
     }
 
     private static int ValidateMaxBytes(string maxBytes)
@@ -670,9 +733,25 @@ public static partial class PermissionHelper
         return value;
     }
 
+    private static string ValidateRequiredSha256(string value, string label)
+    {
+        if (!Sha256Regex().IsMatch(value))
+        {
+            throw new InvalidOperationException(label + " must be 64 lowercase hexadecimal characters");
+        }
+
+        return value;
+    }
+
     private static string ComputeSha256(byte[] content)
     {
         return Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+    }
+
+    private static string ComputeSha256(IUnixPermissionOperations operations, string path)
+    {
+        using var stream = operations.OpenRead(path);
+        return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
     }
 
     private static bool IsSafeAbsoluteUnixPath(string path)
@@ -824,6 +903,8 @@ public static partial class PermissionHelper
     private sealed record ResolvedTargetPath(
         string RootPath,
         string ResolvedPath);
+
+    private sealed record StreamedContent(long Size, string Sha256);
 
     private sealed record OwnerRequest(
         bool HasOwner,

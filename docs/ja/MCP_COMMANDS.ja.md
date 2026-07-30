@@ -5231,7 +5231,7 @@ KelpieMCPServer process内でlocal通常fileを読み取り、必須のSHA-256�
 
 処理内容:
 
-SSH実行前に、file不存在、local reparse point、16 MiB超過、不正hash、hash不一致、`atomic: false`を拒否します。事前検査ではlocal fileを読み取ってhashを確認してから、内容に束縛したconfirmation tokenを返します。確認済み呼び出しでも同じ検査を繰り返し、検証済みのmemory上bytesだけを既存atomic providerのbounded SSH standard input用にBase64化します。
+SSH実行前に、file不存在、local reparse point、256 MiB（268,435,456 bytes）超過、不正hash、hash不一致、`atomic: false`を拒否します。事前検査ではlocal fileをstream読み取りしてhashを確認してから、内容に束縛したconfirmation tokenを返します。確認済み呼び出しでも同じ検査を繰り返し、検証済みfileをbounded SSH standard inputへ逐次Base64変換します。remote permission helperはdestination directory内の一意なtemporary fileへ逐次復号し、転送後SHA-256、owner、modeを確認してからdestinationをatomic置換します。
 
 戻り値:
 
@@ -5244,6 +5244,8 @@ SSH実行前に、file不存在、local reparse point、16 MiB超過、不正has
 - confirmation tokenは、正規化済みlocal path、remote path、expected hash、owner、mode、atomic modeへ束縛されます。
 - KelpieMCPServer processには、事前に`localPath`のOS読み取り権限が必要です。
 - この`expectedSha256`はlocal upload payloadを検証します。`web_file_write`の同名引数と異なり、既存remote fileに対する事前条件ではありません。
+- 固定のlocal safety上限256 MiBとsite別`MaxWriteBytes`は独立しており、両方がfile sizeを許可する必要があります。local上限用の追加設定キーはありません。
+- bounded bufferでstream処理するため、入力sizeに比例するbyte arrayまたはBase64 stringを確保しません。upload実行timeoutは有限の10分です。
 
 ### `web_secret_file_write`
 

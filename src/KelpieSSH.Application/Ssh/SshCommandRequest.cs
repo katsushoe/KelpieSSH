@@ -10,6 +10,7 @@ namespace KelpieSSH.Application.Ssh;
 /// <param name="Arguments">The validated command arguments.</param>
 /// <param name="StandardInput">The optional standard input sent to the command.</param>
 /// <param name="EnvironmentOverrides">The optional environment overrides applied at execution time.</param>
+/// <param name="BinaryStandardInput">The optional binary standard input encoded as Base64 while it is sent.</param>
 public sealed record SshCommandRequest(
     SshConnectionProfile Profile,
     string CommandName,
@@ -17,4 +18,5 @@ public sealed record SshCommandRequest(
     TimeSpan Timeout,
     IReadOnlyDictionary<string, string> Arguments,
     string? StandardInput = null,
-    IReadOnlyDictionary<string, string>? EnvironmentOverrides = null);
+    IReadOnlyDictionary<string, string>? EnvironmentOverrides = null,
+    Stream? BinaryStandardInput = null);

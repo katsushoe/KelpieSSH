@@ -158,6 +158,22 @@ public interface IWebPublicFileProvider
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Streams one verified local file to a web public path.
+    /// </summary>
+    Task<WebPublicFileWriteResult> WriteLocalFileAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        Stream content,
+        long size,
+        string contentSha256,
+        string? contentType,
+        string? owner = null,
+        string? mode = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Writes one explicitly allowed secret file.
     /// </summary>
     Task<WebPublicFileWriteResult> WriteSecretFileAsync(

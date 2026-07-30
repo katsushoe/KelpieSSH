@@ -110,7 +110,7 @@ public sealed class RemoteWebPolicyCommandTests
 
         exitCode.Should().Be(1);
         interaction.ErrorText.Should().Contain("helper is too old")
-            .And.Contain("0.2.1.0 or later")
+            .And.Contain("0.2.1.1 or later")
             .And.NotContain("unsupported action");
     }
 

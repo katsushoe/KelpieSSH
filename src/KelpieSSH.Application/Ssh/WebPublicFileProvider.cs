@@ -1147,6 +1147,107 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
     }
 
     /// <inheritdoc />
+    public async Task<WebPublicFileWriteResult> WriteLocalFileAsync(
+        SshCommandService sshCommandService,
+        SshConnectionProfile profile,
+        string siteKey,
+        string path,
+        Stream content,
+        long size,
+        string contentSha256,
+        string? contentType,
+        string? owner = null,
+        string? mode = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sshCommandService);
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(content);
+
+        var site = ResolveSite(profile, siteKey);
+        var normalizedPath = NormalizePath(path);
+        var access = ValidatePath(normalizedPath, site, requireWrite: true);
+        if (access.Error is not null)
+        {
+            return CreateWriteError(site, normalizedPath, access.Error);
+        }
+
+        if (size < 0 || size > site.MaxWriteBytes)
+        {
+            return CreateWriteError(site, normalizedPath, "Web public content exceeds maximum write size.");
+        }
+
+        var resolvedContentType = ResolveContentType(normalizedPath, site, contentType);
+        if (!IsContentTypeAllowed(resolvedContentType, site, requireWrite: true, access.IsExplicitRule))
+        {
+            return CreateWriteError(site, normalizedPath, $"Content type is not writable: {resolvedContentType}");
+        }
+
+        var permissionRequest = CreateWritePermissionRequest(owner, mode);
+        if (permissionRequest.Error is not null)
+        {
+            return CreateWriteError(site, normalizedPath, permissionRequest.Error);
+        }
+
+        var result = await sshCommandService.ExecuteAsync(
+            profile,
+            WriteWithPermissionsCommandName,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["siteRootBase64"] = EncodeArgument(site.RootPath),
+                ["pathBase64"] = EncodeArgument(normalizedPath),
+                ["maxBytes"] = site.MaxWriteBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["createDirectories"] = site.CreateDirectories ? "1" : "0",
+                ["ownerBase64"] = EncodeOptionalArgument(permissionRequest.OwnerSpec),
+                ["modeBase64"] = EncodeOptionalArgument(permissionRequest.Mode),
+                ["expectedSha256"] = "-",
+                ["backup"] = "0",
+                ["preservePermissions"] = "0",
+                ["contentSha256"] = contentSha256,
+            },
+            channel: KelpieExecutionChannel.Mcp,
+            binaryStandardInput: content,
+            cancellationToken: cancellationToken);
+
+        if (result.ExitCode != 0)
+        {
+            return CreateWriteExecutionError(site, normalizedPath, result.StandardError);
+        }
+
+        var remote = JsonSerializer.Deserialize<RemoteWriteResult>(result.StandardOutput, JsonOptions)
+            ?? throw new InvalidOperationException("Web public file write returned empty JSON.");
+        if (!string.IsNullOrWhiteSpace(remote.ErrorCode))
+        {
+            return CreateProviderWriteError(site, normalizedPath, remote.ErrorCode);
+        }
+
+        if (remote.Written)
+        {
+            LogWritableExecutableWrite(profile, site, normalizedPath);
+        }
+
+        return new WebPublicFileWriteResult(
+            site.SiteKey,
+            site.DisplayName,
+            normalizedPath,
+            remote.ResolvedPath ?? string.Empty,
+            remote.Written,
+            remote.Created,
+            remote.Overwritten,
+            resolvedContentType,
+            remote.Size == 0 ? size : remote.Size,
+            Warnings: [],
+            Error: null,
+            Owner: remote.Owner ?? permissionRequest.Owner,
+            Group: remote.Group ?? string.Empty,
+            Mode: remote.Mode ?? permissionRequest.Mode,
+            PreviousSha256: remote.PreviousSha256 ?? string.Empty,
+            Sha256: remote.Sha256 ?? string.Empty,
+            BackupPath: string.Empty,
+            PermissionsPreserved: remote.PermissionsPreserved);
+    }
+
+    /// <inheritdoc />
     public async Task<WebPublicFileWriteResult> WriteSecretFileAsync(
         SshCommandService sshCommandService,
         SshConnectionProfile profile,
@@ -1361,6 +1462,9 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 ["expectedSha256"] = expectedSha256 ?? "-",
                 ["backup"] = createBackup ? "1" : "0",
                 ["preservePermissions"] = preservePermissions ? "1" : "0",
+                ["contentSha256"] = Convert.ToHexString(
+                    System.Security.Cryptography.SHA256.HashData(Convert.FromBase64String(contentBase64)))
+                    .ToLowerInvariant(),
             },
             channel: KelpieExecutionChannel.Mcp,
             standardInput: contentBase64,
