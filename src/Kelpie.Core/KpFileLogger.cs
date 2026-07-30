@@ -11,20 +11,45 @@ namespace Kelpie.Core;
 /// </summary>
 public sealed class KpFileLogger : KpLog.ILogger
 {
+    /// <summary>
+    /// The default maximum active log file size.
+    /// </summary>
+    public const long DefaultMaxFileBytes = 10 * 1024 * 1024;
+
+    /// <summary>
+    /// The default number of rotated log files to retain.
+    /// </summary>
+    public const int DefaultRetainedFileCount = 5;
+
     private const string MutexPrefix = "Global\\KpFileLogger_";
 
     private readonly string _fileName;
     private readonly string _logDir;
+    private readonly long _maxFileBytes;
+    private readonly int _retainedFileCount;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="KpFileLogger"/> class.
     /// </summary>
     /// <param name="logDir">The log directory.</param>
     /// <param name="fileName">The log file name.</param>
-    public KpFileLogger(string logDir, string fileName)
+    /// <param name="maxFileBytes">The maximum active log file size in bytes.</param>
+    /// <param name="retainedFileCount">The number of rotated log files to retain.</param>
+    public KpFileLogger(
+        string logDir,
+        string fileName,
+        long maxFileBytes = DefaultMaxFileBytes,
+        int retainedFileCount = DefaultRetainedFileCount)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(logDir);
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxFileBytes);
+        ArgumentOutOfRangeException.ThrowIfNegative(retainedFileCount);
+
         _logDir = logDir;
         _fileName = fileName;
+        _maxFileBytes = maxFileBytes;
+        _retainedFileCount = retainedFileCount;
     }
 
     /// <summary>
@@ -71,6 +96,8 @@ public sealed class KpFileLogger : KpLog.ILogger
                 };
 
                 var encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+                var lineBytes = encoding.GetByteCount(lineText + Environment.NewLine);
+                RotateIfNeeded(lineBytes);
 
                 using var fileStream = new FileStream(LogFilePath, options);
                 using var writer = new StreamWriter(fileStream, encoding);
@@ -96,6 +123,38 @@ public sealed class KpFileLogger : KpLog.ILogger
             Console.WriteLine($"[KpFileLogger] write failed: {ex.GetType().Name}: {ex.Message}, path={LogFilePath}");
             Console.ResetColor();
         }
+    }
+
+    private void RotateIfNeeded(int pendingBytes)
+    {
+        var file = new FileInfo(LogFilePath);
+        if (!file.Exists || file.Length + pendingBytes <= _maxFileBytes)
+        {
+            return;
+        }
+
+        if (_retainedFileCount == 0)
+        {
+            File.Delete(LogFilePath);
+            return;
+        }
+
+        File.Delete(GetRotatedFilePath(_retainedFileCount));
+        for (var generation = _retainedFileCount - 1; generation >= 1; generation--)
+        {
+            var source = GetRotatedFilePath(generation);
+            if (File.Exists(source))
+            {
+                File.Move(source, GetRotatedFilePath(generation + 1));
+            }
+        }
+
+        File.Move(LogFilePath, GetRotatedFilePath(1));
+    }
+
+    private string GetRotatedFilePath(int generation)
+    {
+        return $"{LogFilePath}.{generation}";
     }
 
     private static string SerializeData(object data)

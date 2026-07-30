@@ -533,6 +533,8 @@ static void RunConfigCheck(string[] args)
             {
                 result.Write("Editor", true);
             }
+
+            CheckLogRotation(result, root);
         }
     }
 
@@ -541,7 +543,9 @@ static void RunConfigCheck(string[] args)
     {
         using (mcpConfigDocument)
         {
-            CheckMcpConfig(result, mcpConfigDocument.RootElement);
+            var root = mcpConfigDocument.RootElement;
+            CheckMcpConfig(result, root);
+            CheckLogRotation(result, root);
         }
     }
 
@@ -613,6 +617,35 @@ static void CheckMcpConfig(CheckResultWriter result, JsonElement root)
             && int.TryParse(portElement.GetString(), out port)
             && port is > 0 and <= 65535;
     result.Write("Server.Port", portOk, "port must be between 1 and 65535");
+}
+
+static void CheckLogRotation(CheckResultWriter result, JsonElement root)
+{
+    if (!TryGetJsonProperty(root, "LogRotation", out var rotation))
+    {
+        result.Write("LogRotation", true);
+        return;
+    }
+
+    if (rotation.ValueKind != JsonValueKind.Object)
+    {
+        result.Write("LogRotation", false, "LogRotation must be an object");
+        return;
+    }
+
+    result.Write("LogRotation", true);
+
+    var maxFileBytesOk = !TryGetJsonProperty(rotation, "MaxFileBytes", out var maxFileBytes)
+        || (maxFileBytes.ValueKind == JsonValueKind.Number
+            && maxFileBytes.TryGetInt64(out var maxFileBytesValue)
+            && maxFileBytesValue > 0);
+    result.Write("LogRotation.MaxFileBytes", maxFileBytesOk, "value must be a positive integer");
+
+    var retainedFileCountOk = !TryGetJsonProperty(rotation, "RetainedFileCount", out var retainedFileCount)
+        || (retainedFileCount.ValueKind == JsonValueKind.Number
+            && retainedFileCount.TryGetInt32(out var retainedFileCountValue)
+            && retainedFileCountValue >= 0);
+    result.Write("LogRotation.RetainedFileCount", retainedFileCountOk, "value must be a non-negative integer");
 }
 
 static CheckItem CheckDirectory(string name, string path)

@@ -1,6 +1,6 @@
 # KelpieSSH Configuration
 
-Last updated: 2026-07-12
+Last updated: 2026-07-30
 
 This file is the English reference for KelpieSSH configuration file locations and host-level settings.
 For Japanese documentation, see [docs/ja/CONFIG.ja.md](docs/ja/CONFIG.ja.md).
@@ -75,6 +75,8 @@ Important values:
 | Setting | Required | Initial value | Purpose |
 | :--- | :---: | :--- | :--- |
 | `LogDirectory` | no | `KelpieHome\logs` | Directory for CLI logs. |
+| `LogRotation:MaxFileBytes` | no | `10485760` | Maximum active CLI log size in bytes before rotation. |
+| `LogRotation:RetainedFileCount` | no | `5` | Number of rotated CLI logs to retain. `0` discards the full log without retaining an archive. |
 | `OpenProfile` | no | none | Last selected profile name for commands that use the open profile. Runtime state is normally stored in `dat/kelpie_client_state.json`. |
 | `Server:ControlPipeName` | no | none | Local named pipe used by `kelpie` / `kelpiemcp` to control the server. Usually configured in `kelpiemcp.json`; commands that contact the server require an effective value. |
 | `Commands:ExecutablePath` | no | none | Optional explicit `kelpie` command path. |
@@ -86,6 +88,10 @@ Minimal example:
 ```json
 {
   "LogDirectory": "D:\\Kelpie\\logs",
+  "LogRotation": {
+    "MaxFileBytes": 10485760,
+    "RetainedFileCount": 5
+  },
   "Editor": ""
 }
 ```
@@ -128,6 +134,8 @@ Important values:
 | `AllowedHosts` | no | `localhost;127.0.0.1;[::1]` | HTTP Host allow-list for the local MCP server. |
 | `Server:ControlPipeName` | yes | `KelpieMCPServer.Control` | Local named pipe used by `kelpiemcp` to control the server. |
 | `LogDirectory` | no | `KelpieHome\logs` | Directory for MCP server logs. |
+| `LogRotation:MaxFileBytes` | no | `10485760` | Maximum active MCP log size in bytes before rotation. |
+| `LogRotation:RetainedFileCount` | no | `5` | Number of rotated MCP logs to retain. `0` discards the full log without retaining an archive. |
 | `Commands:ExecutablePath` | no | `KelpieHome\bin\mcp\KelpieMCPServer.exe` on Windows | Optional explicit `KelpieMCPServer` executable path. |
 | `Commands:WorkingDirectory` | no | `KelpieHome\bin` | Optional server working directory. |
 | `ProfileOperations` | no | CLI `Allow`, MCP `Deny` | Allows or denies profile trust operations by caller channel. Defaults allow CLI operations and deny MCP operations. |
@@ -151,6 +159,10 @@ Minimal example:
 ```json
 {
   "LogDirectory": "D:\\Kelpie\\logs",
+  "LogRotation": {
+    "MaxFileBytes": 10485760,
+    "RetainedFileCount": 5
+  },
   "Server": {
     "Port": 45432,
     "ControlPipeName": "KelpieMCPServer.Control"
@@ -171,6 +183,8 @@ Minimal example:
   }
 }
 ```
+
+When the active log would exceed `MaxFileBytes`, Kelpie renames it to `<name>.log.1` before writing the new entry. Older archives move toward `.2`, `.3`, and so on, and files beyond `RetainedFileCount` are deleted. Rotation and writing use the same cross-process mutex. Invalid rotation values are reported by `kelpie config check`; runtime logging falls back to the defaults.
 
 ### `ProfileOperations`
 

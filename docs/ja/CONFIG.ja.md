@@ -1,6 +1,6 @@
 # KelpieSSH 設定
 
-最終更新: 2026-07-12
+最終更新: 2026-07-30
 
 この文書は、KelpieSSH の設定ファイル配置と host level settings をまとめる公開リファレンスです。
 Profile の詳細な設定ガイダンスは [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) を参照してください。
@@ -72,6 +72,8 @@ check コマンドは、SSH 接続を開始する前にローカル設定とプ�
 | Setting | 必須 | 初期値 | Purpose |
 | :--- | :---: | :--- | :--- |
 | `LogDirectory` | いいえ | `KelpieHome\logs` | CLI logs の出力先。 |
+| `LogRotation:MaxFileBytes` | いいえ | `10485760` | ローテーション前のCLIログ最大サイズ（byte）。 |
+| `LogRotation:RetainedFileCount` | いいえ | `5` | 保持するCLIログの世代数。`0`では満杯のログを保存せず破棄する。 |
 | `OpenProfile` | いいえ | なし | `kelpie open <profile>` で最後に開いた profile 名。通常は runtime state として `dat/kelpie_client_state.json` に保存します。 |
 | `Server:ControlPipeName` | いいえ | なし | `kelpie` / `kelpiemcp` が server control に使う local named pipe。通常は `kelpiemcp.json` に設定し、server へ接続する command では有効値が必要です。 |
 | `Commands:ExecutablePath` | いいえ | なし | 任意の `kelpie` command 明示 path。 |
@@ -83,6 +85,10 @@ check コマンドは、SSH 接続を開始する前にローカル設定とプ�
 ```json
 {
   "LogDirectory": "D:\\Kelpie\\logs",
+  "LogRotation": {
+    "MaxFileBytes": 10485760,
+    "RetainedFileCount": 5
+  },
   "Editor": ""
 }
 ```
@@ -123,6 +129,8 @@ special value:
 | `AllowedHosts` | いいえ | `localhost;127.0.0.1;[::1]` | local MCP server の HTTP Host allow-list。 |
 | `Server:ControlPipeName` | はい | `KelpieMCPServer.Control` | `kelpiemcp` が server control に使う local named pipe。 |
 | `LogDirectory` | いいえ | `KelpieHome\logs` | MCP server logs の出力先。 |
+| `LogRotation:MaxFileBytes` | いいえ | `10485760` | ローテーション前のMCPログ最大サイズ（byte）。 |
+| `LogRotation:RetainedFileCount` | いいえ | `5` | 保持するMCPログの世代数。`0`では満杯のログを保存せず破棄する。 |
 | `Commands:ExecutablePath` | いいえ | Windows では `KelpieHome\bin\mcp\KelpieMCPServer.exe` | 任意の `KelpieMCPServer` executable path。 |
 | `Commands:WorkingDirectory` | いいえ | `KelpieHome\bin` | 任意の server working directory。 |
 | `ProfileOperations` | いいえ | CLI `Allow`、MCP `Deny` | profile trust 操作を呼び出し経路ごとに許可または拒否する設定。既定では CLI 操作を許可し、MCP 操作を拒否する。 |
@@ -146,6 +154,10 @@ http://127.0.0.1:45432/health
 ```json
 {
   "LogDirectory": "D:\\Kelpie\\logs",
+  "LogRotation": {
+    "MaxFileBytes": 10485760,
+    "RetainedFileCount": 5
+  },
   "Server": {
     "Port": 45432,
     "ControlPipeName": "KelpieMCPServer.Control"
@@ -166,6 +178,8 @@ http://127.0.0.1:45432/health
   }
 }
 ```
+
+現在のログが `MaxFileBytes` を超える書き込みの前に、Kelpieはログを `<name>.log.1` へ変更します。古いログは `.2`、`.3` の順に移動し、`RetainedFileCount` を超えたファイルは削除します。ローテーションと書き込みは同じプロセス間mutex内で処理します。不正な設定値は `kelpie config check` が報告し、実行時のログ処理は既定値へ戻します。
 
 ### `ProfileOperations`
 
