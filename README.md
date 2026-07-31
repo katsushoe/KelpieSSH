@@ -76,7 +76,7 @@ Example interactive output:
 ```text
 Create MCP server configuration.
 Press Enter to use the default value.
-MCP log directory [D:\Kelpie\logs]: D:\Kelpie\logs
+MCP log directory [F:\Kelpie\logs]: F:\Kelpie\logs
 MCP control pipe name [KelpieMCPServer.Control]: KelpieMCPServer.Control
 Create SSH profile template.
 Press Enter to use the default value.
@@ -90,18 +90,18 @@ Mode (ReadOnly/Safe/Maintenance/Expert) [Safe]: ReadOnly
 Read-only root, '-' to omit [/var/log]: /var/log/nginx
 Read-write root, '-' to omit [/var/www]: -
 Deny pattern, '-' to omit [**/.env]: **/.secret
-Kelpie home: D:\Kelpie
+Kelpie home: F:\Kelpie
 Profile: vps01
 Created directories:
-  D:\Kelpie\config
-  D:\Kelpie\profiles
-  D:\Kelpie\keys
-  D:\Kelpie\dat
-  D:\Kelpie\bin\mcp
+  F:\Kelpie\config
+  F:\Kelpie\profiles
+  F:\Kelpie\keys
+  F:\Kelpie\dat
+  F:\Kelpie\bin\mcp
 Created files:
-  D:\Kelpie\config\kelpie.json
-  D:\Kelpie\config\kelpiemcp.json
-  D:\Kelpie\profiles\vps01.json
+  F:\Kelpie\config\kelpie.json
+  F:\Kelpie\config\kelpiemcp.json
+  F:\Kelpie\profiles\vps01.json
 ```
 
 Edit the generated profile before connecting. The profile file is created under:
@@ -154,7 +154,7 @@ The installer places KelpieSSH under `%LOCALAPPDATA%\Programs\KelpieSSH` and add
 To select another location:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\Install-Kelpie.ps1 -InstallDirectory D:\Kelpie
+powershell -ExecutionPolicy Bypass -File .\Install-Kelpie.ps1 -InstallDirectory F:\Kelpie
 ```
 
 Open a new terminal after installation.
@@ -265,21 +265,21 @@ dotnet test
 Publish the command binaries into a local manual layout:
 
 ```powershell
-dotnet publish src\KelpieClientCommand\KelpieClientCommand.csproj -c Release -o D:\Kelpie\bin
-dotnet publish src\KelpieServerCommand\KelpieServerCommand.csproj -c Release -o D:\Kelpie\bin
-D:\Kelpie\bin\kelpie.exe init
+dotnet publish src\KelpieClientCommand\KelpieClientCommand.csproj -c Release -o F:\Kelpie\bin
+dotnet publish src\KelpieServerCommand\KelpieServerCommand.csproj -c Release -o F:\Kelpie\bin
+F:\Kelpie\bin\kelpie.exe init
 ```
 
 To create a named profile, initialize it before connecting:
 
 ```powershell
-D:\Kelpie\bin\kelpie.exe init vps01
+F:\Kelpie\bin\kelpie.exe init vps01
 ```
 
 `kelpie init` does not overwrite existing configuration files. Edit the generated profile before use:
 
 ```text
-D:\Kelpie\profiles\vps01.json
+F:\Kelpie\profiles\vps01.json
 ```
 
 For profile syntax and field details, see [PROFILE_GUIDE.md](PROFILE_GUIDE.md).
@@ -289,8 +289,8 @@ Set the host, user, authentication method, and private key file name or password
 Before opening the profile, validate the local configuration and the profile:
 
 ```powershell
-D:\Kelpie\bin\kelpie.exe config check
-D:\Kelpie\bin\kelpie.exe profile check vps01
+F:\Kelpie\bin\kelpie.exe config check
+F:\Kelpie\bin\kelpie.exe profile check vps01
 ```
 
 ### AI users
@@ -458,7 +458,7 @@ Read-write root [Return to skip]:
 Deny pattern [Return to skip]: **/.secret
 Deny pattern [Return to skip]:
 Created profile: vps02
-Profile file: D:\Kelpie\profiles\vps02.json
+Profile file: F:\Kelpie\profiles\vps02.json
 ```
 
 If `profiles\vps02.json` already exists, the command asks whether to overwrite it. When overwritten, the old file is kept as `profiles\vps02.json.kelpie` until you commit or roll back the profile change.

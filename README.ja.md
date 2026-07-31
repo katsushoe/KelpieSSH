@@ -76,7 +76,7 @@ kelpie init vps01
 ```text
 Create MCP server configuration.
 Press Enter to use the default value.
-MCP log directory [D:\Kelpie\logs]: D:\Kelpie\logs
+MCP log directory [F:\Kelpie\logs]: F:\Kelpie\logs
 MCP control pipe name [KelpieMCPServer.Control]: KelpieMCPServer.Control
 Create SSH profile template.
 Press Enter to use the default value.
@@ -90,18 +90,18 @@ Mode (ReadOnly/Safe/Maintenance/Expert) [Safe]: ReadOnly
 Read-only root, '-' to omit [/var/log]: /var/log/nginx
 Read-write root, '-' to omit [/var/www]: -
 Deny pattern, '-' to omit [**/.env]: **/.secret
-Kelpie home: D:\Kelpie
+Kelpie home: F:\Kelpie
 Profile: vps01
 Created directories:
-  D:\Kelpie\config
-  D:\Kelpie\profiles
-  D:\Kelpie\keys
-  D:\Kelpie\dat
-  D:\Kelpie\bin\mcp
+  F:\Kelpie\config
+  F:\Kelpie\profiles
+  F:\Kelpie\keys
+  F:\Kelpie\dat
+  F:\Kelpie\bin\mcp
 Created files:
-  D:\Kelpie\config\kelpie.json
-  D:\Kelpie\config\kelpiemcp.json
-  D:\Kelpie\profiles\vps01.json
+  F:\Kelpie\config\kelpie.json
+  F:\Kelpie\config\kelpiemcp.json
+  F:\Kelpie\profiles\vps01.json
 ```
 
 接続前に、生成されたプロファイルを編集してください。プロファイルファイルは次の場所に作成されます。
@@ -154,7 +154,7 @@ KelpieSSH は `%LOCALAPPDATA%\Programs\KelpieSSH` に配置され、その `bin`
 配置先を変更する場合:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\Install-Kelpie.ps1 -InstallDirectory D:\Kelpie
+powershell -ExecutionPolicy Bypass -File .\Install-Kelpie.ps1 -InstallDirectory F:\Kelpie
 ```
 
 インストール後は新しいターミナルを開いてください。
@@ -265,21 +265,21 @@ dotnet test
 コマンドバイナリを手動配置用ディレクトリへ publish します。
 
 ```powershell
-dotnet publish src\KelpieClientCommand\KelpieClientCommand.csproj -c Release -o D:\Kelpie\bin
-dotnet publish src\KelpieServerCommand\KelpieServerCommand.csproj -c Release -o D:\Kelpie\bin
-D:\Kelpie\bin\kelpie.exe init
+dotnet publish src\KelpieClientCommand\KelpieClientCommand.csproj -c Release -o F:\Kelpie\bin
+dotnet publish src\KelpieServerCommand\KelpieServerCommand.csproj -c Release -o F:\Kelpie\bin
+F:\Kelpie\bin\kelpie.exe init
 ```
 
 名前付きプロファイルを作成する場合は、接続前に初期化します。
 
 ```powershell
-D:\Kelpie\bin\kelpie.exe init vps01
+F:\Kelpie\bin\kelpie.exe init vps01
 ```
 
 `kelpie init` は既存の設定ファイルを上書きしません。利用前に、生成されたプロファイルを編集してください。
 
 ```text
-D:\Kelpie\profiles\vps01.json
+F:\Kelpie\profiles\vps01.json
 ```
 
 プロファイルの記述方法は [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md) を参照してください。
@@ -289,8 +289,8 @@ D:\Kelpie\profiles\vps01.json
 プロファイルを開く前に、ローカル設定とプロファイルを検証します。
 
 ```powershell
-D:\Kelpie\bin\kelpie.exe config check
-D:\Kelpie\bin\kelpie.exe profile check vps01
+F:\Kelpie\bin\kelpie.exe config check
+F:\Kelpie\bin\kelpie.exe profile check vps01
 ```
 
 ### AI 利用者
@@ -456,7 +456,7 @@ Read-only root, '-' to omit [/var/log]: /var/log/nginx
 Read-write root, '-' to omit [/var/www]: -
 Deny pattern, '-' to omit [**/.env]: **/.secret
 Created profile: vps02
-Profile file: D:\Kelpie\profiles\vps02.json
+Profile file: F:\Kelpie\profiles\vps02.json
 ```
 
 `profiles\vps02.json` がすでに存在する場合、このコマンドは上書きするか確認します。上書きした場合、古いファイルは profile 変更を commit または rollback するまで `profiles\vps02.json.kelpie` として保持されます。

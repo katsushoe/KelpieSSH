@@ -15,7 +15,7 @@ MCP サーバーが必要なのは、AI client から KelpieSSH tools を使う�
 インストールまたは zip 展開された KelpieSSH には、MCP frontend command と MCP server body が含まれます。
 
 ```text
-D:\Kelpie
+F:\Kelpie
 ├─ bin
 │  ├─ kelpie.exe
 │  ├─ kelpiemcp.exe
@@ -32,7 +32,7 @@ D:\Kelpie
 ソースからビルドする場合は、MCP server body を MCP directory に publish します。
 
 ```powershell
-dotnet publish src\KelpieMCPServer\KelpieMCPServer.csproj -c Release -o D:\Kelpie\bin\mcp
+dotnet publish src\KelpieMCPServer\KelpieMCPServer.csproj -c Release -o F:\Kelpie\bin\mcp
 ```
 
 ## 設定

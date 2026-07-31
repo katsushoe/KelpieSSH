@@ -1,6 +1,6 @@
 # KelpieSSH 設定
 
-最終更新: 2026-07-30
+最終更新: 2026-07-31
 
 この文書は、KelpieSSH の設定ファイル配置と host level settings をまとめる公開リファレンスです。
 Profile の詳細な設定ガイダンスは [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) を参照してください。
@@ -12,13 +12,13 @@ KelpieSSH はローカルの Kelpie home directory を使います。
 既定の手動配置では次の場所です。
 
 ```text
-D:\Kelpie
+F:\Kelpie
 ```
 
 通常の構成は次のとおりです。
 
 ```text
-D:\Kelpie
+F:\Kelpie
 ├─ config
 │  ├─ kelpie.json
 │  └─ kelpiemcp.json

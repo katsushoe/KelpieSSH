@@ -1,6 +1,6 @@
 # KelpieSSH Profile Guide
 
-Last updated: 2026-07-05
+Last updated: 2026-07-31
 
 This guide explains how to configure SSH profiles for KelpieSSH.
 For Japanese documentation, see [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md).
@@ -23,7 +23,7 @@ Profiles are stored as JSON files under `KelpieHome\profiles`.
 The file name is the profile name:
 
 ```text
-D:\Kelpie\profiles\vps01.json
+F:\Kelpie\profiles\vps01.json
 ```
 
 This profile is used as `vps01`:

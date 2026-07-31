@@ -1,6 +1,6 @@
 # KelpieSSH Profile Guide
 
-最終更新: 2026-07-05
+最終更新: 2026-07-31
 
 この文書は、KelpieSSH の SSH profile 設定方法を説明します。
 英語版は [../../PROFILE_GUIDE.md](../../PROFILE_GUIDE.md) です。
@@ -23,7 +23,7 @@ Profile は `KelpieHome\profiles` 配下の JSON ファイルとして保存し�
 ファイル名が profile 名になります。
 
 ```text
-D:\Kelpie\profiles\vps01.json
+F:\Kelpie\profiles\vps01.json
 ```
 
 この profile は `vps01` として使います。

@@ -1,6 +1,6 @@
 # KelpieSSH Commands
 
-Last updated: 2026-07-10
+Last updated: 2026-07-31
 
 This file is the English command reference for commands run directly from a terminal, such as `kelpie` and `kelpiemcp`.
 For Japanese documentation, see [docs/ja/COMMANDS.ja.md](docs/ja/COMMANDS.ja.md).
@@ -1054,7 +1054,7 @@ Read-write root [Return to skip]:
 Deny pattern [Return to skip]: **/.secret
 Deny pattern [Return to skip]:
 Created profile: vps02
-Profile file: D:\Kelpie\profiles\vps02.json
+Profile file: F:\Kelpie\profiles\vps02.json
 ```
 
 Silent sample:
@@ -1062,7 +1062,7 @@ Silent sample:
 ```text
 kelpie profile create demo --silent --host-address: demo
 Created profile: demo
-Profile file: D:\Kelpie\profiles\demo.json
+Profile file: F:\Kelpie\profiles\demo.json
 ```
 
 Dry-run sample:
@@ -1071,7 +1071,7 @@ Dry-run sample:
 kelpie profile create demo --dry-run --host-address: demo
 Dry run: profile create
 Would create profile: demo
-Profile file: D:\Kelpie\profiles\demo.json
+Profile file: F:\Kelpie\profiles\demo.json
 Would write:
 {
   "Host": {
@@ -1096,7 +1096,7 @@ Existing profile sample:
 Profile already exists: vps02. Overwrite? [Y/n]: Y
 ...
 Commit profile? [Y/n]: n
-Profile backup is pending: D:\Kelpie\profiles\vps02.json.kelpie
+Profile backup is pending: F:\Kelpie\profiles\vps02.json.kelpie
 Run `kelpie profile commit vps02` or `kelpie profile rollback vps02`.
 ```
 
@@ -1168,7 +1168,7 @@ Execution result sample:
 
 ```text
 Updated profile: vps02
-Profile file: D:\Kelpie\profiles\vps02.json
+Profile file: F:\Kelpie\profiles\vps02.json
 Commit profile? [Y/n]:
 ```
 
@@ -1178,8 +1178,8 @@ Dry-run sample:
 kelpie profile edit vps02 set Host.Port 2222 --dry-run
 Dry run: profile edit
 Would update profile: vps02
-Profile file: D:\Kelpie\profiles\vps02.json
-Would create backup: D:\Kelpie\profiles\vps02.json.kelpie
+Profile file: F:\Kelpie\profiles\vps02.json
+Would create backup: F:\Kelpie\profiles\vps02.json.kelpie
 Would write:
 {
   "Host": {
@@ -1240,9 +1240,9 @@ Execution result sample:
 ```text
 Delete profile: vps02? [Y/n]: Y
 Deleted profile: vps02
-Profile file: D:\Kelpie\profiles\vps02.json
+Profile file: F:\Kelpie\profiles\vps02.json
 Commit profile? [Y/n]: n
-Profile backup is pending: D:\Kelpie\profiles\vps02.json.kelpie
+Profile backup is pending: F:\Kelpie\profiles\vps02.json.kelpie
 Run `kelpie profile commit vps02` or `kelpie profile rollback vps02`.
 ```
 
@@ -1254,12 +1254,12 @@ Matched profiles: 2
   vps-beta
 Delete 2 profiles matching `vps-*`? [Y/n]: Y
 Deleted profiles: 2
-  vps-alpha: D:\Kelpie\profiles\vps-alpha.json
-  vps-beta: D:\Kelpie\profiles\vps-beta.json
+  vps-alpha: F:\Kelpie\profiles\vps-alpha.json
+  vps-beta: F:\Kelpie\profiles\vps-beta.json
 Commit profiles? [Y/n]: n
 Profile backups are pending:
-  D:\Kelpie\profiles\vps-alpha.json.kelpie
-  D:\Kelpie\profiles\vps-beta.json.kelpie
+  F:\Kelpie\profiles\vps-alpha.json.kelpie
+  F:\Kelpie\profiles\vps-beta.json.kelpie
 Run `kelpie profile commit <profile>` or `kelpie profile rollback <profile>` for each pending profile.
 ```
 
@@ -1303,8 +1303,8 @@ Execution result sample:
 ```text
 Clean profile and backup: vps02? [Y/n]: Y
 Cleaned profile: vps02
-Removed profile file: D:\Kelpie\profiles\vps02.json
-Removed backup: D:\Kelpie\profiles\vps02.json.kelpie
+Removed profile file: F:\Kelpie\profiles\vps02.json
+Removed backup: F:\Kelpie\profiles\vps02.json.kelpie
 ```
 
 Wildcard sample:
@@ -1315,8 +1315,8 @@ Matched profiles: 2
   vps-beta
 Clean 2 profiles and backups matching `vps-*`? [Y/n]: Y
 Cleaned profiles: 2
-  vps-alpha: D:\Kelpie\profiles\vps-alpha.json
-  vps-beta: D:\Kelpie\profiles\vps-beta.json
+  vps-alpha: F:\Kelpie\profiles\vps-alpha.json
+  vps-beta: F:\Kelpie\profiles\vps-beta.json
 ```
 
 #### `kelpie profile commit <profile-pattern>`
@@ -1414,7 +1414,7 @@ SHA256:abc123
 Only trust this key if you verified it through your VPS provider console or another trusted channel.
 Type TRUST to record this fingerprint for `vps01`: TRUST
 Updated profile: vps01
-Profile file: D:\Kelpie\profiles\vps01.json
+Profile file: F:\Kelpie\profiles\vps01.json
 Commit profile? [Y/n]: Y
 Committed profile: vps01
 ```

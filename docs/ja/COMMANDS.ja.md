@@ -1,6 +1,6 @@
 # KelpieSSH コマンド
 
-最終更新: 2026-07-10
+最終更新: 2026-07-31
 
 このファイルは、利用者が通常のターミナルから直接実行する `kelpie` / `kelpiemcp` CLI コマンドの正本です。
 コマンドラインオプションの詳細は [CLI_OPTIONS.md](../../CLI_OPTIONS.md) を参照してください。
@@ -30,7 +30,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 
 ## 共通ルール
 
-`KelpieHome` は `kelpie` / `kelpiemcp` の配置ディレクトリの1つ上に固定します。たとえば `D:\Kelpie\bin\kelpie.exe` から実行した場合、`KelpieHome` は `D:\Kelpie` です。
+`KelpieHome` は `kelpie` / `kelpiemcp` の配置ディレクトリの1つ上に固定します。たとえば `F:\Kelpie\bin\kelpie.exe` から実行した場合、`KelpieHome` は `F:\Kelpie` です。
 
 runtime directory override、dry-run、Silent モード、profile transaction option の詳細は [CLI_OPTIONS.md](../../CLI_OPTIONS.md) を参照してください。
 
@@ -457,7 +457,7 @@ Windows Service 名 `KelpieMCPServer` を自動起動サービスとして登録
 
 ```text
 Windows Service registered: KelpieMCPServer
-Binary path: "D:\Kelpie\bin\mcp\KelpieMCPServer.exe" --runtime-base "D:\Kelpie\bin"
+Binary path: "F:\Kelpie\bin\mcp\KelpieMCPServer.exe" --runtime-base "F:\Kelpie\bin"
 ```
 
 ### `kelpiemcp service unregister`
@@ -805,16 +805,16 @@ kelpie init --silent vps01
 実行結果サンプル:
 
 ```text
-Kelpie home: D:\Kelpie
+Kelpie home: F:\Kelpie
 Profile: vps01
 Created directories:
-  D:\Kelpie\config
-  D:\Kelpie\profiles
-  D:\Kelpie\keys
+  F:\Kelpie\config
+  F:\Kelpie\profiles
+  F:\Kelpie\keys
 Created files:
-  D:\Kelpie\config\kelpie.json
-  D:\Kelpie\config\kelpiemcp.json
-  D:\Kelpie\profiles\vps01.json
+  F:\Kelpie\config\kelpie.json
+  F:\Kelpie\config\kelpiemcp.json
+  F:\Kelpie\profiles\vps01.json
 ```
 
 ### `kelpie config --check`
@@ -1173,7 +1173,7 @@ Read-write root [Returnで続行]:
 Deny pattern [Returnで続行]: **/.secret
 Deny pattern [Returnで続行]:
 Created profile: vps02
-Profile file: D:\Kelpie\profiles\vps02.json
+Profile file: F:\Kelpie\profiles\vps02.json
 ```
 
 silent 実行結果サンプル:
@@ -1181,7 +1181,7 @@ silent 実行結果サンプル:
 ```text
 kelpie profile create demo --silent --host-address: demo
 Created profile: demo
-Profile file: D:\Kelpie\profiles\demo.json
+Profile file: F:\Kelpie\profiles\demo.json
 ```
 
 dry-run 実行結果サンプル:
@@ -1190,7 +1190,7 @@ dry-run 実行結果サンプル:
 kelpie profile create demo --dry-run --host-address: demo
 Dry run: profile create
 Would create profile: demo
-Profile file: D:\Kelpie\profiles\demo.json
+Profile file: F:\Kelpie\profiles\demo.json
 Would write:
 {
   "Host": {
@@ -1215,7 +1215,7 @@ kelpie profile create demo --silent `
 Profile already exists: vps02. Overwrite? [Y/n]: Y
 ...
 Commit profile? [Y/n]: n
-Profile backup is pending: D:\Kelpie\profiles\vps02.json.kelpie
+Profile backup is pending: F:\Kelpie\profiles\vps02.json.kelpie
 Run `kelpie profile commit vps02` or `kelpie profile rollback vps02`.
 ```
 
@@ -1288,7 +1288,7 @@ kelpie profile rollback vps02
 
 ```text
 Updated profile: vps02
-Profile file: D:\Kelpie\profiles\vps02.json
+Profile file: F:\Kelpie\profiles\vps02.json
 Commit profile? [Y/n]:
 ```
 
@@ -1298,8 +1298,8 @@ dry-run 実行結果サンプル:
 kelpie profile edit vps02 set Host.Port 2222 --dry-run
 Dry run: profile edit
 Would update profile: vps02
-Profile file: D:\Kelpie\profiles\vps02.json
-Would create backup: D:\Kelpie\profiles\vps02.json.kelpie
+Profile file: F:\Kelpie\profiles\vps02.json
+Would create backup: F:\Kelpie\profiles\vps02.json.kelpie
 Would write:
 {
   "Host": {
@@ -1364,9 +1364,9 @@ kelpie profile delete "vps-*" --dry-run
 ```text
 Delete profile: vps02? [Y/n]: Y
 Deleted profile: vps02
-Profile file: D:\Kelpie\profiles\vps02.json
+Profile file: F:\Kelpie\profiles\vps02.json
 Commit profile? [Y/n]: n
-Profile backup is pending: D:\Kelpie\profiles\vps02.json.kelpie
+Profile backup is pending: F:\Kelpie\profiles\vps02.json.kelpie
 Run `kelpie profile commit vps02` or `kelpie profile rollback vps02`.
 ```
 
@@ -1378,12 +1378,12 @@ Matched profiles: 2
   vps-beta
 Delete 2 profiles matching `vps-*`? [Y/n]: Y
 Deleted profiles: 2
-  vps-alpha: D:\Kelpie\profiles\vps-alpha.json
-  vps-beta: D:\Kelpie\profiles\vps-beta.json
+  vps-alpha: F:\Kelpie\profiles\vps-alpha.json
+  vps-beta: F:\Kelpie\profiles\vps-beta.json
 Commit profiles? [Y/n]: n
 Profile backups are pending:
-  D:\Kelpie\profiles\vps-alpha.json.kelpie
-  D:\Kelpie\profiles\vps-beta.json.kelpie
+  F:\Kelpie\profiles\vps-alpha.json.kelpie
+  F:\Kelpie\profiles\vps-beta.json.kelpie
 Run `kelpie profile commit <profile>` or `kelpie profile rollback <profile>` for each pending profile.
 ```
 
@@ -1430,8 +1430,8 @@ kelpie profile clean "vps-*" --dry-run
 ```text
 Clean profile and backup: vps02? [Y/n]: Y
 Cleaned profile: vps02
-Removed profile file: D:\Kelpie\profiles\vps02.json
-Removed backup: D:\Kelpie\profiles\vps02.json.kelpie
+Removed profile file: F:\Kelpie\profiles\vps02.json
+Removed backup: F:\Kelpie\profiles\vps02.json.kelpie
 ```
 
 wildcard 実行結果サンプル:
@@ -1442,8 +1442,8 @@ Matched profiles: 2
   vps-beta
 Clean 2 profiles and backups matching `vps-*`? [Y/n]: Y
 Cleaned profiles: 2
-  vps-alpha: D:\Kelpie\profiles\vps-alpha.json
-  vps-beta: D:\Kelpie\profiles\vps-beta.json
+  vps-alpha: F:\Kelpie\profiles\vps-alpha.json
+  vps-beta: F:\Kelpie\profiles\vps-beta.json
 ```
 
 ### `kelpie profile commit <profile-pattern>`
@@ -1553,7 +1553,7 @@ SHA256:abc123
 Only trust this key if you verified it through your VPS provider console or another trusted channel.
 Type TRUST to record this fingerprint for `vps01`: TRUST
 Updated profile: vps01
-Profile file: D:\Kelpie\profiles\vps01.json
+Profile file: F:\Kelpie\profiles\vps01.json
 Commit profile? [Y/n]: Y
 Committed profile: vps01
 ```

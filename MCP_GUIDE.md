@@ -15,7 +15,7 @@ The MCP server is only needed when an AI client uses KelpieSSH tools. Normal ter
 An installed or zip-extracted KelpieSSH layout includes the MCP frontend command and the MCP server body:
 
 ```text
-D:\Kelpie
+F:\Kelpie
 ├─ bin
 │  ├─ kelpie.exe
 │  ├─ kelpiemcp.exe
@@ -32,7 +32,7 @@ D:\Kelpie
 When building from source, publish the MCP server body into the MCP directory:
 
 ```powershell
-dotnet publish src\KelpieMCPServer\KelpieMCPServer.csproj -c Release -o D:\Kelpie\bin\mcp
+dotnet publish src\KelpieMCPServer\KelpieMCPServer.csproj -c Release -o F:\Kelpie\bin\mcp
 ```
 
 ## Configuration

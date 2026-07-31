@@ -1,6 +1,6 @@
 # KelpieSSH Configuration
 
-Last updated: 2026-07-30
+Last updated: 2026-07-31
 
 This file is the English reference for KelpieSSH configuration file locations and host-level settings.
 For Japanese documentation, see [docs/ja/CONFIG.ja.md](docs/ja/CONFIG.ja.md).
@@ -13,13 +13,13 @@ Japanese profile guidance is available in [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/
 KelpieSSH uses a local Kelpie home directory. With the default manual layout, the directory is:
 
 ```text
-D:\Kelpie
+F:\Kelpie
 ```
 
 The usual layout is:
 
 ```text
-D:\Kelpie
+F:\Kelpie
 ├─ config
 │  ├─ kelpie.json
 │  └─ kelpiemcp.json
