@@ -21,7 +21,7 @@ public sealed class KelpieWebPermissionHelperTests
 
         exitCode.Should().Be(0);
         error.ToString().Should().BeEmpty();
-        output.ToString().Should().StartWith("kelpie-web-permission-helper 0.2.2.0");
+        output.ToString().Should().StartWith("kelpie-web-permission-helper 0.2.2.1");
     }
 
     [Fact]

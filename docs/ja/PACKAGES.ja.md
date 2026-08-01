@@ -32,7 +32,7 @@
 | `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.11.0` | VPS 操作 CLI。初期化、プロファイル確認、診断、ログ取得、GUI/CLI モード切替を担当します。 | `KelpieHome/bin/kelpie.exe` |
 | `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.3.11.1` | MCPサーバー制御と人間専用のリモートpolicy/helper管理CLI。 | `KelpieHome/bin/kelpiemcp.exe` |
 | `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.11.0` | Streamable HTTP MCP サーバー本体。Codex などの MCP クライアントへ SSH 診断ツールを公開します。 | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
-| `kelpie-web-permission-helper` | `src/KelpieWebPermissionHelper/KelpieWebPermissionHelper.csproj` | `0.2.1.0` | SSH先に配置するsudo helper。Web公開ルートの操作とmanaged policy管理を行います。 | `/usr/local/libexec/kelpie/kelpie-web-permission-helper` |
+| `kelpie-web-permission-helper` | `src/KelpieWebPermissionHelper/KelpieWebPermissionHelper.csproj` | `0.2.2.1` | SSH先に配置するsudo helper。Web公開ルートの操作とmanaged policy管理を行います。 | `/usr/local/libexec/kelpie/kelpie-web-permission-helper` |
 
 ## `kelpie`
 

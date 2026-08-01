@@ -53,6 +53,7 @@ public sealed class BulkWebTransferCommandTests
             archive.Position = 0;
             var hash = Convert.ToHexString(SHA256.HashData(archive)).ToLowerInvariant();
             archive.Position = 0;
+            using var encodedArchive = EncodeForSshTransport(archive);
             using var output = new StringWriter();
             using var error = new StringWriter();
 
@@ -66,7 +67,7 @@ public sealed class BulkWebTransferCommandTests
                     new string('a', 32),
                     hash,
                 ],
-                archive,
+                encodedArchive,
                 output,
                 error);
 
@@ -104,6 +105,7 @@ public sealed class BulkWebTransferCommandTests
             archive.Position = 0;
             var hash = Convert.ToHexString(SHA256.HashData(archive)).ToLowerInvariant();
             archive.Position = 0;
+            using var encodedArchive = EncodeForSshTransport(archive);
             using var output = new StringWriter();
             using var error = new StringWriter();
             var exitCode = BulkWebTransferCommand.Write(
@@ -116,7 +118,7 @@ public sealed class BulkWebTransferCommandTests
                     new string('a', 32),
                     hash,
                 ],
-                archive,
+                encodedArchive,
                 output,
                 error);
             return (exitCode, error.ToString());
@@ -125,5 +127,18 @@ public sealed class BulkWebTransferCommandTests
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    private static MemoryStream EncodeForSshTransport(Stream archive)
+    {
+        using var encoded = new MemoryStream();
+        using (var transform = new ToBase64Transform())
+        using (var base64 = new CryptoStream(encoded, transform, CryptoStreamMode.Write, leaveOpen: true))
+        {
+            archive.CopyTo(base64);
+            base64.FlushFinalBlock();
+        }
+
+        return new MemoryStream(encoded.ToArray(), writable: false);
     }
 }

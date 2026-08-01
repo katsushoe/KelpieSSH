@@ -64,14 +64,16 @@ internal static partial class BulkWebTransferCommand
             var archivePath = Path.Combine(transactionRoot, "archive.zip");
             try
             {
-                CopyBounded(input, archivePath, maxBytes, args[6]);
+                using var transform = new FromBase64Transform(FromBase64TransformMode.DoNotIgnoreWhiteSpaces);
+                using var decodedInput = new CryptoStream(input, transform, CryptoStreamMode.Read, leaveOpen: true);
+                CopyBounded(decodedInput, archivePath, maxBytes, args[6]);
                 var manifest = ReadAndValidateArchive(archivePath, root);
                 ValidateManagedPolicy(root, manifest);
-                ApplyArchive(archivePath, root, transactionRoot, manifest, args[4] == "1");
+                var applied = ApplyArchive(archivePath, root, transactionRoot, manifest, args[4] == "1");
                 output.WriteLine(JsonSerializer.Serialize(new
                 {
                     applied = true,
-                    files = manifest.Select(file => new
+                    files = applied.Select(file => new
                     {
                         path = file.Path,
                         resolvedPath = ResolveTarget(root, file.Path),
@@ -203,7 +205,7 @@ internal static partial class BulkWebTransferCommand
         return manifest;
     }
 
-    private static void ApplyArchive(
+    private static IReadOnlyList<BulkFile> ApplyArchive(
         string archivePath,
         string root,
         string transactionRoot,
@@ -287,6 +289,7 @@ internal static partial class BulkWebTransferCommand
             File.WriteAllBytes(Path.Combine(transactionRoot, "state.json"), JsonSerializer.SerializeToUtf8Bytes(new BulkState(applied), JsonOptions));
             File.Delete(archivePath);
             Directory.Delete(staging);
+            return applied;
         }
         catch
         {
