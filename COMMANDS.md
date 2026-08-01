@@ -1,6 +1,6 @@
 # KelpieSSH Commands
 
-Last updated: 2026-07-31
+Last updated: 2026-08-01
 
 This file is the English command reference for commands run directly from a terminal, such as `kelpie` and `kelpiemcp`.
 For Japanese documentation, see [docs/ja/COMMANDS.ja.md](docs/ja/COMMANDS.ja.md).
@@ -2256,6 +2256,8 @@ This command implements [ADR-0002](docs/adr/ADR-0002-PRIVILEGED-HELPER-UPDATE.md
 ```text
 kelpiemcp helper update <profile> <local-artifact>
 ```
+
+`<local-artifact>` must be one executable regular file. For the Linux x64 helper, publish with `--self-contained true -p:PublishSingleFile=true`; a framework-dependent apphost without its adjacent runtime files is not a valid update artifact.
 
 The command validates and hashes the local regular file, uploads it through internal SFTP to a fixed staging path, verifies the remote hash, displays the current version and hashes, and requires an exact random confirmation code. The private fixed-command wrapper then backs up the installed helper, verifies the root-owned temporary copy, enforces `root:root` mode `0755`, atomically replaces the target, verifies its identity, and records completion through `logger`. A failed privileged step attempts rollback.
 

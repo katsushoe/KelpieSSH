@@ -1,6 +1,6 @@
 # KelpieSSH コマンド
 
-最終更新: 2026-07-31
+最終更新: 2026-08-01
 
 このファイルは、利用者が通常のターミナルから直接実行する `kelpie` / `kelpiemcp` CLI コマンドの正本です。
 コマンドラインオプションの詳細は [CLI_OPTIONS.md](../../CLI_OPTIONS.md) を参照してください。
@@ -2101,6 +2101,8 @@ kelpiemcp web-policy rollback <profile>
 ```text
 kelpiemcp helper update <profile> <local-artifact>
 ```
+
+`<local-artifact>`は単一の実行可能な通常fileである必要があります。Linux x64 helperは、`--self-contained true -p:PublishSingleFile=true`を指定してpublishしてください。隣接runtime fileを必要とするframework-dependent apphost単体は、更新artifactとして使用できません。
 
 local regular fileを検証してhashを計算し、内部SFTPで固定staging pathへ転送します。remote hashを照合し、現在versionとhashを表示した後、ランダム確認コードの完全一致を要求します。非公開の固定コマンドwrapperが現行helperをbackupし、root所有の一時fileを再検証して`root:root`、mode `0755`を設定し、対象へ原子的に置換してidentityを確認し、`logger`へ完了を記録します。特権処理が失敗した場合はrollbackを試みます。
 
