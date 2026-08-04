@@ -1,6 +1,6 @@
 # KelpieSSH コマンド
 
-最終更新: 2026-08-01
+最終更新: 2026-08-04
 
 このファイルは、利用者が通常のターミナルから直接実行する `kelpie` / `kelpiemcp` CLI コマンドの正本です。
 コマンドラインオプションの詳細は [CLI_OPTIONS.md](../../CLI_OPTIONS.md) を参照してください。
@@ -22,11 +22,10 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | Initialization | `kelpie init [--silent] [profile]`, `kelpie config --check` | `KelpieHome` 配下の初期ディレクトリとサンプル設定を作成・検証する。 |
 | Profile/session | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie profile trust-host-key`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイルひな形作成・編集・ホスト鍵信頼登録・削除、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
 | Mode/UI | `kelpie login --console` | 一時的に別コンソールで起動する。 |
-| Diagnostics | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie inventory`, `kelpie logs` | プロファイル検証、プロファイル情報、MCP server 状態、SSH 診断、接続先 inventory、サービスログを表示する。 |
+| Diagnostics | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie inventory`, `kelpie services`, `kelpie logs` | プロファイル検証、プロファイル情報、MCP server 状態、SSH 診断、接続先 inventory、サービス状態、サービスログを表示する。 |
 | Packages | `kelpie pkg check-updates`, `kelpie pkg info`, `kelpie pkg search`, `kelpie pkg list-installed`, `kelpie pkg simulate-install`, `kelpie pkg simulate-remove`, `kelpie pkg install`, `kelpie pkg remove` | SSH profile の package provider を使って package 確認と確認付き変更を行う。 |
 | Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | profile policy に従って remote 環境変数の key 表示、値参照、永続化を行う。 |
 | Help/version | `kelpie version`, `kelpie help`, `kelpiemcp version`, `kelpiemcp help` | バージョンとヘルプを表示する。 |
-| Candidates | `kelpie services` | 今後追加候補。 |
 
 ## 共通ルール
 
@@ -2305,35 +2304,45 @@ Options:
   --dat-dir <dir>       Override the runtime data directory.
 ```
 
-### `kelpie services <profile>`
+### `kelpie services <profile> [state] [limit]`
 
 目的:
 
-対象プロファイルのサービス状態を表示する候補です。現時点では未実装です。
+対象プロファイルのsystemdサービス状態を、状態変更せず一覧表示します。
 
 構文:
 
 ```powershell
 kelpie services vps01
+kelpie services vps01 failed 25
 ```
 
 引数詳細:
 
 - `profile`: サービス状態を表示するプロファイル名。
+- `state`: 任意のsystemd状態フィルター。省略時は`running`。
+- `limit`: 任意の最大出力行数。省略時は`100`。1～3桁の10進数を指定します。
 
 引数サンプル:
 
 - `vps01`
+- `failed`
+- `25`
 
 処理内容:
 
-対象プロファイルの service 状態を表示する候補です。現時点では未実装です。
+対象プロファイルで許可済みの`list_services` SSHコマンドを実行し、指定状態に一致するサービスを指定行数まで表示します。サービスの起動、停止、有効化、無効化、再起動は行いません。
 
 実行結果サンプル:
 
 ```text
-Not implemented.
+# list_services
+sshd.service loaded active running OpenSSH server daemon
 ```
+
+注意:
+
+- サービス名や説明から導入済みsoftwareが分かる場合があります。公開前に出力内容を確認してください。
 
 ### `kelpie pkg ...`
 

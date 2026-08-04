@@ -409,6 +409,23 @@ if (string.Equals(command, "inventory", StringComparison.OrdinalIgnoreCase))
     return;
 }
 
+if (string.Equals(command, "services", StringComparison.OrdinalIgnoreCase))
+{
+    if (args.Length is < 2 or > 4)
+    {
+        Console.Error.WriteLine("Usage: kelpie services <profile> [state] [limit]");
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    var profileName = args[1];
+    var state = args.Length > 2 ? args[2] : "running";
+    var limit = args.Length > 3 ? args[3] : "100";
+    KpLog.Info($"Kelpie CLI services requested. profile={profileName}, state={state}, limit={limit}");
+    await RunServicesAsync(LoadProfileCatalog(), profileName, state, limit);
+    return;
+}
+
 if (string.Equals(command, "logs", StringComparison.OrdinalIgnoreCase))
 {
     var profileName = args.Length > 1 ? args[1] : string.Empty;
@@ -441,6 +458,7 @@ catch (Exception ex) when (ex is FileNotFoundException
     or UnauthorizedAccessException
     or IOException
     or InvalidOperationException
+    or SshCommandConnectionException
     or SshException)
 {
     KpLog.Warn(ex.Message);
@@ -1062,6 +1080,7 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpie status <profile>");
     writer.WriteLine("  kelpie diag <profile>");
     writer.WriteLine("  kelpie inventory <profile>");
+    writer.WriteLine("  kelpie services <profile> [state] [limit]");
     writer.WriteLine("  kelpie logs <profile> <service> [lines]");
     writer.WriteLine("  kelpie pkg check-updates <profile>");
     writer.WriteLine("  kelpie pkg info <profile> <package>");
@@ -3401,6 +3420,29 @@ static async Task RunInventoryAsync(SshConnectionProfileCatalog catalog, string 
     await ExecuteAndPrintAsync(CreateSshCommandService(profile), profile, "target_inventory");
 }
 
+static async Task RunServicesAsync(
+    SshConnectionProfileCatalog catalog,
+    string profileName,
+    string state,
+    string limit)
+{
+    if (!TryResolveProfile(catalog, profileName, out var profile))
+    {
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    await ExecuteAndPrintAsync(
+        CreateSshCommandService(profile),
+        profile,
+        "list_services",
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["state"] = state,
+            ["limit"] = limit,
+        });
+}
+
 static async Task RunLogsAsync(
     SshConnectionProfileCatalog catalog,
     string profileName,
@@ -3623,10 +3665,13 @@ static void PreviewPackageConfirmation(
                 ["package"] = packageName,
             });
     }
-    catch (Exception ex) when (ex is InvalidOperationException or KelpiePolicyError or SshException)
+    catch (Exception ex) when (ex is InvalidOperationException
+        or KelpiePolicyError
+        or SshCommandConnectionException
+        or SshException)
     {
         KpLog.Warn(ex.Message);
-        Console.Error.WriteLine(ex.Message);
+        Console.Error.WriteLine(SanitizeReason(ex.Message));
         Environment.ExitCode = 1;
         return;
     }

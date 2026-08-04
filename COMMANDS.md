@@ -1,6 +1,6 @@
 # KelpieSSH Commands
 
-Last updated: 2026-08-01
+Last updated: 2026-08-04
 
 This file is the English command reference for commands run directly from a terminal, such as `kelpie` and `kelpiemcp`.
 For Japanese documentation, see [docs/ja/COMMANDS.ja.md](docs/ja/COMMANDS.ja.md).
@@ -22,7 +22,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | [Initialization](#initialization) | `kelpie init [--silent] [profile]`, `kelpie config --check` | Create and validate the local Kelpie home configuration. |
 | [Profile/session](#profilesession) | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie profile trust-host-key`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | Create, edit, trust host keys for, and delete profile templates, select profiles, and manage interactive SSH sessions. |
 | [Mode/UI](#modeui) | `kelpie login --console` | Choose a temporary console launch mode. |
-| [Diagnostics](#diagnostics) | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie inventory`, `kelpie logs` | Validate profiles, show profile information, MCP server status, SSH diagnostics, target inventory, and service logs. |
+| [Diagnostics](#diagnostics) | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie inventory`, `kelpie services`, `kelpie logs` | Validate profiles, show profile information, MCP server status, SSH diagnostics, target inventory, service states, and service logs. |
 | [Packages](#packages) | `kelpie pkg check-updates`, `kelpie pkg info`, `kelpie pkg search`, `kelpie pkg list-installed`, `kelpie pkg simulate-install`, `kelpie pkg simulate-remove`, `kelpie pkg install`, `kelpie pkg remove` | Inspect packages and run confirmation-gated package operations through the selected SSH profile. |
 | [Environment](#environment) | `kelpie env keys`, `kelpie env peek`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | List, read, or persist remote environment variables under profile policy. |
 | [Help/version](#helpversion) | `kelpie version`, `kelpie help`, `kelpie --help`, `kelpie --version`, `kelpiemcp version`, `kelpiemcp help` | Show version and help text. |
@@ -1740,6 +1740,7 @@ Commands in this group:
 - [`kelpie status <profile>`](#kelpie-status-profile)
 - [`kelpie diag <profile>`](#kelpie-diag-profile)
 - [`kelpie inventory <profile>`](#kelpie-inventory-profile)
+- [`kelpie services <profile> [state] [limit]`](#kelpie-services-profile-state-limit)
 - [`kelpie logs <profile> <service> [lines]`](#kelpie-logs-profile-service-lines)
 
 #### `kelpie status <profile>`
@@ -1856,6 +1857,32 @@ Safety notes:
 
 - Inventory output may reveal installed software names and versions. Do not paste production inventory into public issues without review.
 - Do not include real host names, user names, secrets, production paths, or customer data in committed examples.
+
+#### `kelpie services <profile> [state] [limit]`
+
+Lists systemd service units through the selected SSH profile without changing service state.
+
+```powershell
+kelpie services vps01
+kelpie services vps01 failed 25
+```
+
+Arguments:
+
+- `profile`: SSH profile name.
+- `state`: Optional systemd state filter. The default is `running`.
+- `limit`: Optional maximum number of output lines. The default is `100`; accepted values contain one to three decimal digits.
+
+Return value:
+
+- Exit code `0` when the bounded service list is returned successfully.
+- Standard output starts with `# list_services` and contains the matching `systemctl list-units` rows.
+- Standard error contains validation, SSH, policy, or remote command errors.
+
+Safety notes:
+
+- This command is read-only and does not start, stop, enable, disable, or restart services.
+- Service names and descriptions may reveal installed software. Review output before sharing it publicly.
 
 #### `kelpie logs <profile> <service> [lines]`
 
