@@ -910,6 +910,18 @@ public sealed class SshConnectionProfileCatalogTests
         """;
     }
 
+    [Fact]
+    public void ToProfile_ShouldResolveAlpinePackageManagerAsApk()
+    {
+        var options = CreateProfileOptions();
+        options.Platform.OsFamily = "alpine";
+        options.Platform.PackageManager = string.Empty;
+
+        var profile = options.ToProfile(Path.GetFullPath("config"));
+
+        profile.PackageManager.Should().Be("apk");
+    }
+
     private static string CreateWebProfileJson()
     {
         return """

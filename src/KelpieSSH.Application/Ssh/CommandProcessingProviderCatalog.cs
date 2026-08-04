@@ -16,6 +16,7 @@ public static class CommandProcessingProviderCatalog
             new CommonDiagnosticCommandProvider(),
             new NginxServiceConfigCommandProvider(),
             new WebPublicFileCommandProvider(),
+            new AlpineApkCommandProvider(),
             new DebianAptCommandProvider(),
             new DebianNginxCommandProvider(),
             new RhelDnfCommandProvider(),

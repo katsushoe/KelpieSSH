@@ -26,6 +26,7 @@ public static class PackageManagerResolver
         var commandProcessingOsFamily = OsFamilyAliasResolver.Resolve(osFamily);
         return commandProcessingOsFamily switch
         {
+            "alpine" => "apk",
             "debian" => "apt",
             "rhel" => "dnf",
             _ => throw new InvalidOperationException($"SSH package manager is not configured and cannot be inferred from OS family: {osFamily}"),

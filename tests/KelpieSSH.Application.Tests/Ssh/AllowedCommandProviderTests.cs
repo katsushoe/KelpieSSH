@@ -480,6 +480,7 @@ public sealed class AllowedCommandProviderTests
     [Fact]
     public void PackageManagerResolver_ShouldUseDefaultFromOsFamily()
     {
+        PackageManagerResolver.Resolve("alpine", null).Should().Be("apk");
         PackageManagerResolver.Resolve("alma", string.Empty).Should().Be("dnf");
         PackageManagerResolver.Resolve("ubuntu", null).Should().Be("apt");
         PackageManagerResolver.Resolve("debian", "custom").Should().Be("custom");
@@ -516,6 +517,54 @@ public sealed class AllowedCommandProviderTests
             "certbot_check_install",
             "certbot_install",
         ]);
+    }
+
+    [Fact]
+    public void AlpineApkCommandProvider_ShouldExposeBoundedPackageCommands()
+    {
+        var provider = new AlpineApkCommandProvider();
+        var profile = CreateProfile("alpine", "apk");
+
+        provider.Supports(profile).Should().BeTrue();
+        provider.GetCommands(profile).Select(command => command.Name).Should().BeEquivalentTo(
+        [
+            "pkg_check_updates",
+            "pkg_info",
+            "pkg_search",
+            "pkg_list_installed",
+            "pkg_simulate_install",
+            "pkg_install",
+            "pkg_simulate_remove",
+            "pkg_remove",
+        ]);
+    }
+
+    [Theory]
+    [InlineData("pkg_simulate_install", "apk add --simulate 'nginx'")]
+    [InlineData("pkg_simulate_remove", "apk del --simulate 'nginx'")]
+    [InlineData("pkg_install", "sudo -n apk add 'nginx'")]
+    [InlineData("pkg_remove", "sudo -n apk del 'nginx'")]
+    public void AlpineApkCommandProvider_ShouldRenderPackageCommands(string commandName, string expected)
+    {
+        var provider = new AlpineApkCommandProvider();
+        var profile = CreateProfile("alpine", "apk");
+        var command = provider.GetCommands(profile).Single(item => item.Name == commandName);
+
+        command.BuildCommandText(new Dictionary<string, string> { ["package"] = "nginx" })
+            .Should().Be(expected);
+    }
+
+    [Fact]
+    public void AlpineApkCommandProvider_ShouldRejectUnsafePackageName()
+    {
+        var provider = new AlpineApkCommandProvider();
+        var profile = CreateProfile("alpine", "apk");
+        var command = provider.GetCommands(profile).Single(item => item.Name == "pkg_install");
+
+        var action = () => command.BuildCommandText(
+            new Dictionary<string, string> { ["package"] = "nginx;id" });
+
+        action.Should().Throw<InvalidOperationException>();
     }
 
     [Fact]

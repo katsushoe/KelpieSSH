@@ -1,6 +1,6 @@
 # KelpieSSH Profile Guide
 
-Last updated: 2026-07-31
+Last updated: 2026-08-05
 
 This guide explains how to configure SSH profiles for KelpieSSH.
 For Japanese documentation, see [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md).
@@ -239,8 +239,8 @@ kelpiemcp forget vps01
 | `Connection` | no | object | `{ "TimeoutSeconds": 10 }` | SSH connection behavior. |
 | `Connection.TimeoutSeconds` | no | integer | `10` | Must be positive. |
 | `Platform` | yes | object | none | Target OS metadata used to select providers. |
-| `Platform.OsFamily` | yes | string enum/alias | none | `debian`, `ubuntu`, `rhel`, `alma`, `almalinux`, `rocky`, `centos`, `oraclelinux`. Aliases resolve to an effective family. |
-| `Platform.PackageManager` | no | string | inferred from `OsFamily` | `apt` for effective `debian`, `dnf` for effective `rhel`, or an explicit package manager name. |
+| `Platform.OsFamily` | yes | string enum/alias | none | `alpine`, `debian`, `ubuntu`, `rhel`, `alma`, `almalinux`, `rocky`, `centos`, `oraclelinux`. Aliases resolve to an effective family. |
+| `Platform.PackageManager` | no | string | inferred from `OsFamily` | `apk` for `alpine`, `apt` for effective `debian`, `dnf` for effective `rhel`, or an explicit package manager name. |
 | `Mode` | no | string role expression | `Safe` | `ReadOnly`, `Safe`, `Maintenance`, `Expert`, `WebUser`, `WebAdmin`, combined with `|`. Compatibility key read as roles. |
 | `Roles` | no | string or string array | derived from `Mode` | Same role names as `Mode`. If set, it participates in role resolution. |
 | `Capabilities` | no | string, string array, or object | empty | CLI-only policy flags. MCP ignores this section. See [`Capabilities`](#capabilities). |

@@ -1,6 +1,6 @@
 # KelpieSSH Profile Guide
 
-最終更新: 2026-07-31
+最終更新: 2026-08-05
 
 この文書は、KelpieSSH の SSH profile 設定方法を説明します。
 英語版は [../../PROFILE_GUIDE.md](../../PROFILE_GUIDE.md) です。
@@ -240,8 +240,8 @@ kelpiemcp forget vps01
 | `Connection` | いいえ | object | `{ "TimeoutSeconds": 10 }` | SSH 接続動作。 |
 | `Connection.TimeoutSeconds` | いいえ | integer | `10` | 正の整数。 |
 | `Platform` | はい | object | なし | provider 選択に使う target OS metadata。 |
-| `Platform.OsFamily` | はい | string enum/alias | なし | `debian`, `ubuntu`, `rhel`, `alma`, `almalinux`, `rocky`, `centos`, `oraclelinux`。alias は effective family に解決されます。 |
-| `Platform.PackageManager` | いいえ | string | `OsFamily` から推定 | effective `debian` は `apt`、effective `rhel` は `dnf`。必要なら明示指定できます。 |
+| `Platform.OsFamily` | はい | string enum/alias | なし | `alpine`, `debian`, `ubuntu`, `rhel`, `alma`, `almalinux`, `rocky`, `centos`, `oraclelinux`。alias は effective family に解決されます。 |
+| `Platform.PackageManager` | いいえ | string | `OsFamily` から推定 | `alpine`は`apk`、effective `debian`は`apt`、effective `rhel`は`dnf`。必要なら明示指定できます。 |
 | `Mode` | いいえ | string role expression | `Safe` | `ReadOnly`, `Safe`, `Maintenance`, `Expert`, `WebUser`, `WebAdmin`。`|` で組み合わせ可能。互換 key として role expression として読み取ります。 |
 | `Roles` | いいえ | string or string array | `Mode` から解決 | `Mode` と同じ role 名。設定時は role 解決に使います。 |
 | `Capabilities` | いいえ | string, string array, or object | 空 | CLI 専用 policy flags。MCP では無視します。詳細は [`Capabilities`](#capabilities)。 |
