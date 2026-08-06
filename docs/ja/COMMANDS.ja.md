@@ -893,6 +893,8 @@ Use `kelpie login` to start a session.
 
 ### `kelpie login`
 
+SSH接続失敗は非対話コマンドと同じ固定メッセージで、到達不能、タイムアウト、認証拒否、その他のSSH失敗に分類します。内部例外の本文は表示しません。
+
 目的:
 
 現在 `kelpie open <profile>` で開いているプロファイルへログインし、永続的な SSH 対話シェルを開始します。

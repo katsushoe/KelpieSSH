@@ -458,7 +458,7 @@ catch (Exception ex) when (ex is FileNotFoundException
     or UnauthorizedAccessException
     or IOException
     or InvalidOperationException
-    or SshCommandConnectionException
+    or SshConnectionFailureException
     or SshException)
 {
     KpLog.Warn(ex.Message);
@@ -3667,7 +3667,7 @@ static void PreviewPackageConfirmation(
     }
     catch (Exception ex) when (ex is InvalidOperationException
         or KelpiePolicyError
-        or SshCommandConnectionException
+        or SshConnectionFailureException
         or SshException)
     {
         KpLog.Warn(ex.Message);

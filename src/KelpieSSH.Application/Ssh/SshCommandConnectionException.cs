@@ -3,8 +3,16 @@ namespace KelpieSSH.Application.Ssh;
 /// <summary>
 /// Represents a sanitized SSH command connection failure crossing the infrastructure boundary.
 /// </summary>
-public sealed class SshCommandConnectionException : Exception
+public sealed class SshCommandConnectionException : SshConnectionFailureException
 {
+    /// <summary>
+    /// Initializes a new instance with the standard sanitized message for the failure category.
+    /// </summary>
+    public SshCommandConnectionException(SshConnectionFailureKind failureKind, Exception? innerException = null)
+        : base(failureKind, innerException)
+    {
+    }
+
     /// <summary>
     /// Initializes a new instance of the <see cref="SshCommandConnectionException"/> class.
     /// </summary>
@@ -29,18 +37,7 @@ public sealed class SshCommandConnectionException : Exception
         string message,
         SshConnectionFailureKind failureKind,
         Exception? innerException = null)
-        : base(message, innerException)
+        : base(message, failureKind, innerException)
     {
-        FailureKind = failureKind;
     }
-
-    /// <summary>
-    /// Gets a value indicating whether the connection attempt timed out.
-    /// </summary>
-    public bool TimedOut => FailureKind == SshConnectionFailureKind.Timeout;
-
-    /// <summary>
-    /// Gets the sanitized connection failure category.
-    /// </summary>
-    public SshConnectionFailureKind FailureKind { get; }
 }

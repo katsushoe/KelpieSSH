@@ -105,17 +105,21 @@ public sealed class SshNetInteractiveShellSession : IAsyncDisposable
         {
             await Task.Run(client.Connect, cancellationToken);
         }
-        catch (SocketException ex)
+        catch (SshAuthenticationException ex)
         {
-            throw new SshConnectionException($"SSH host is unreachable: {ex.Message}", ex);
+            throw new SshConnectionFailureException(SshConnectionFailureKind.AuthenticationFailed, ex);
         }
         catch (SshOperationTimeoutException ex)
         {
-            throw new SshConnectionException($"SSH connection timed out: {ex.Message}", ex);
+            throw new SshConnectionFailureException(SshConnectionFailureKind.Timeout, ex);
+        }
+        catch (SocketException ex)
+        {
+            throw new SshConnectionFailureException(SshConnectionFailureKind.HostUnreachable, ex);
         }
         catch (SshException ex)
         {
-            throw new SshConnectionException($"SSH connection failed: {ex.Message}", ex);
+            throw new SshConnectionFailureException(SshConnectionFailureKind.ConnectionFailed, ex);
         }
     }
 
@@ -299,7 +303,7 @@ public sealed class SshNetInteractiveShellSession : IAsyncDisposable
     {
         if (!IsConnected)
         {
-            throw new SshConnectionException("Client not connected.");
+            throw new SshConnectionFailureException(SshConnectionFailureKind.ConnectionFailed);
         }
 
         var operation = Task.Run(() =>
@@ -310,7 +314,7 @@ public sealed class SshNetInteractiveShellSession : IAsyncDisposable
                 cancellationToken.ThrowIfCancellationRequested();
                 if (!IsConnected)
                 {
-                    throw new SshConnectionException("Client not connected.");
+                    throw new SshConnectionFailureException(SshConnectionFailureKind.ConnectionFailed);
                 }
 
                 return action();
@@ -322,7 +326,7 @@ public sealed class SshNetInteractiveShellSession : IAsyncDisposable
         {
             cancellationToken.ThrowIfCancellationRequested();
             DisconnectBrokenClient();
-            throw new SshConnectionException("SSH shell operation timed out.");
+            throw new SshConnectionFailureException(SshConnectionFailureKind.Timeout);
         }
 
         return await operation.WaitAsync(cancellationToken);

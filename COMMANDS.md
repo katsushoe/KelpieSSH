@@ -1569,6 +1569,7 @@ Return value:
 - Non-zero exit code when no profile is open, the profile cannot be resolved, authentication fails, or SSH rejects the connection.
 - Standard output and standard error are produced by the interactive SSH session and local validation messages.
 - Password values are not returned.
+- SSH connection failures use the same sanitized categories as non-interactive commands: unreachable host, timeout, authentication rejection, and other SSH failures. Underlying exception text is not displayed.
 
 Return value sample:
 
