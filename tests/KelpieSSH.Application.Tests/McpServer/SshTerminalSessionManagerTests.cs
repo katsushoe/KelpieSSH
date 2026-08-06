@@ -1,6 +1,12 @@
 using FluentAssertions;
 using KelpieMCPServer;
 using KelpieSSH.Application.Ssh;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace KelpieSSH.Application.Tests.McpServer;
 
@@ -34,6 +40,46 @@ public sealed class SshTerminalSessionManagerTests
 
         factory.CreatedSessions.Should().HaveCount(3);
         factory.CreatedSessions.Should().OnlyContain(session => session.IsDisposed);
+    }
+
+    [Fact]
+    public async Task CloseAsync_AfterLastSession_ShouldKeepHttpHostRunning()
+    {
+        var profile = new SshConnectionProfile
+        {
+            Name = "vps01",
+            Host = "example.invalid",
+            UserName = "tester",
+            PrivateKeyPath = "test-key",
+            OsFamily = "debian",
+            PackageManager = "apt",
+        };
+        await using var manager = new SshTerminalSessionManager(
+            new SshConnectionProfileCatalog([profile]),
+            new FakeInteractiveShellSessionFactory());
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        await using var app = builder.Build();
+        app.MapGet("/health", () => Results.Ok());
+        await app.StartAsync();
+        var addresses = app.Services
+            .GetRequiredService<IServer>()
+            .Features
+            .Get<IServerAddressesFeature>();
+        var address = addresses!.Addresses.Single();
+        using var client = new HttpClient { BaseAddress = new Uri(address) };
+
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            var opened = await manager.OpenAsync("vps01");
+            await manager.CloseAsync(opened.Handle);
+            var response = await client.GetAsync("/health");
+
+            response.EnsureSuccessStatusCode();
+            app.Lifetime.ApplicationStopping.IsCancellationRequested.Should().BeFalse();
+        }
+
+        await app.StopAsync();
     }
 
     private sealed class FakeInteractiveShellSessionFactory : IInteractiveShellSessionFactory
