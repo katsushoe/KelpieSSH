@@ -101,6 +101,14 @@ SSH command tools usually return `SshToolResult`:
 
 Expected validation and policy failures are returned as `SshToolResult` with `Ok: false` instead of an MCP invocation exception. Remote non-zero exit codes also set `Ok: false` and return `ErrorInfo.Code: "KELPIE_REMOTE_COMMAND_FAILED"` while preserving the legacy stdout/stderr fields.
 
+For successful core SSH diagnostics, `Data` also contains one command-specific projection while retaining all legacy fields:
+
+- `get_disk_usage`: `DiskUsage.Filesystems[]` with `Filesystem`, `Size`, `Used`, `Available`, `UsePercent`, and `MountPoint`.
+- `get_memory_usage`: `MemoryUsage.Rows[]` with `Kind`, `TotalMiB`, `UsedMiB`, `FreeMiB`, and optional shared/cache/available values.
+- `get_listening_ports`: `ListeningPorts.Ports[]` with `Protocol`, `State`, `LocalEndpoint`, and `PeerEndpoint`.
+
+The other command-specific properties are `null`. If an individual output row cannot be parsed, that row is omitted from the typed projection while the unchanged raw and line-oriented output remains available for compatibility and diagnosis.
+
 SSH connection failures also return `SshToolResult` instead of an MCP invocation exception. The stable codes are `KELPIE_SSH_HOST_UNREACHABLE`, `KELPIE_SSH_CONNECTION_TIMEOUT`, `KELPIE_SSH_AUTHENTICATION_FAILED`, and `KELPIE_SSH_CONNECTION_FAILED`. Connection messages are sanitized and never include the underlying infrastructure exception text. `Retryable` is `true` for unreachable-host and timeout failures, and `false` for authentication and general connection failures.
 
 `SshToolResult` return value sample:

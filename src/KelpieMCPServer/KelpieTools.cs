@@ -3288,7 +3288,14 @@ public sealed partial class KelpieTools
         string[] StderrPlain,
         DateTimeOffset StartedAt,
         DateTimeOffset CompletedAt,
-        bool TimedOut);
+        bool TimedOut)
+    {
+        public SshDiskUsageData? DiskUsage => ParseSshDiskUsage(CommandName, StandardOutput);
+
+        public SshMemoryUsageData? MemoryUsage => ParseSshMemoryUsage(CommandName, StandardOutput);
+
+        public SshListeningPortsData? ListeningPorts => ParseSshListeningPorts(CommandName, StandardOutput);
+    }
 
     public sealed record SshToolErrorInfo(
         string Code,

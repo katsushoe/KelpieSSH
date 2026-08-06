@@ -80,6 +80,14 @@ SSH接続失敗はMCP呼び出し例外ではなく、`Ok: false`の`SshToolResu
 
 入力不備や policy 拒否のような想定内の失敗は、MCP invocation exception ではなく `Ok: false` の `SshToolResult` として返ります。remote command の非0終了も `Ok: false` になり、legacy stdout / stderr fields は保持されます。
 
+主要SSH診断が成功した場合、`Data`には既存fieldに加えて、該当command専用の構造化projectionが1つ入ります。
+
+- `get_disk_usage`: `DiskUsage.Filesystems[]`に`Filesystem`、`Size`、`Used`、`Available`、`UsePercent`、`MountPoint`を返します。
+- `get_memory_usage`: `MemoryUsage.Rows[]`に`Kind`、`TotalMiB`、`UsedMiB`、`FreeMiB`と、任意のshared/cache/available値を返します。
+- `get_listening_ports`: `ListeningPorts.Ports[]`に`Protocol`、`State`、`LocalEndpoint`、`PeerEndpoint`を返します。
+
+該当しないcommand専用propertyは`null`です。個別行を解析できない場合、その行は型付きprojectionから除外しますが、互換性と診断用のraw出力および行単位出力は変更せず維持します。
+
 ## コマンド詳細
 
 ### `kelpie_ping`
