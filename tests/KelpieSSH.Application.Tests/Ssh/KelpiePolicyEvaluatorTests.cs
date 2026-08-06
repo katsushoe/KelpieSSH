@@ -46,6 +46,37 @@ public sealed class KelpiePolicyEvaluatorTests
             .WithMessage("KelpiePolicyError: AllowInstallPackage is required for command: pkg_install");
     }
 
+    [Fact]
+    public void EnsureAllowed_ShouldKeepModeAndCapabilitiesIsolatedAcrossProfiles()
+    {
+        var evaluator = KelpiePolicyEvaluator.Default;
+        var cliOnlyProfile = CreateProfile(
+            KelpiePolicyMode.Safe,
+            PolicySet.FromNames([KelpiePolicyNames.AllowInstallPackage]));
+        var maintenanceProfile = CreateProfile(KelpiePolicyMode.Maintenance, PolicySet.Empty);
+        var command = CreateCommand("pkg_install", "apt-get install nginx", SshCommandRiskLevel.ConfirmRequired);
+
+        var cliAction = () => evaluator.EnsureAllowed(
+            cliOnlyProfile,
+            command,
+            command.CommandTemplate,
+            KelpieExecutionChannel.Cli);
+        var cliProfileThroughMcpAction = () => evaluator.EnsureAllowed(
+            cliOnlyProfile,
+            command,
+            command.CommandTemplate,
+            KelpieExecutionChannel.Mcp);
+        var maintenanceProfileThroughMcpAction = () => evaluator.EnsureAllowed(
+            maintenanceProfile,
+            command,
+            command.CommandTemplate,
+            KelpieExecutionChannel.Mcp);
+
+        cliAction.Should().NotThrow();
+        cliProfileThroughMcpAction.Should().Throw<KelpiePolicyError>();
+        maintenanceProfileThroughMcpAction.Should().NotThrow();
+    }
+
     [Theory]
     [InlineData("pkg_install", "sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y nginx")]
     [InlineData("pkg_remove", "sudo -n env DEBIAN_FRONTEND=noninteractive apt-get remove -y nginx")]
