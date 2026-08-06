@@ -173,6 +173,16 @@ kelpiemcp forget vps01
 
 MCP client からは、`ssh_logout` で profile の password session を削除できます。MCP で開いた対話 SSH terminal connection を閉じる場合は、terminal handle を指定して `ssh_connection_close` を呼び出します。
 
+## 起動エラー
+
+起動失敗時はraw例外本文ではなく、安全な対処案を表示します。
+
+- `kelpiemcp.json`不正: `kelpie config check`を実行し、設定を修正します。
+- 未信頼の設定変更: 変更内容を確認後、`--reload-config`で再起動します。
+- endpoint使用中: 既存サーバーを停止するか、別の`--port`を指定します。
+- access denied: Kelpie homeの権限とcontrol pipeの所有状態を確認します。
+- その他: 詳細な内部例外はKelpie logで確認します。
+
 ## MCP コマンドラインツール
 
 MCP コマンドラインツールの一覧は [MCP_COMMANDS.ja.md](MCP_COMMANDS.ja.md) にありますので、そちらを参照してください。

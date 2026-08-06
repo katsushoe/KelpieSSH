@@ -168,7 +168,7 @@ await app.RunAsync();
 catch (Exception ex)
 {
     KpLog.Err("KelpieMCPServer startup failed.", ex);
-    Console.Error.WriteLine("KelpieMCPServer startup failed: " + ex.Message);
+    Console.Error.WriteLine(McpServerStartupFailureFormatter.Format(ex));
     Environment.ExitCode = 1;
 }
 finally

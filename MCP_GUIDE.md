@@ -173,6 +173,16 @@ The password is sent to the running `KelpieMCPServer` over the local control pip
 
 From an MCP client, use `ssh_logout` to clear the password session for a profile. To close an interactive SSH terminal connection opened through MCP, use `ssh_connection_close` with the terminal handle.
 
+## Startup Errors
+
+Startup failures are reported with sanitized guidance instead of raw exception text:
+
+- Invalid `kelpiemcp.json`: run `kelpie config check`, then correct the configuration.
+- Untrusted configuration change: restart with `--reload-config` after reviewing the change.
+- Endpoint already in use: stop the existing server or select another `--port`.
+- Access denied: verify Kelpie home permissions and control-pipe ownership.
+- Other failure: inspect the Kelpie log for the detailed internal exception.
+
 ## MCP command-line tools
 
 The MCP command-line tool list is documented in [MCP_COMMANDS.md](MCP_COMMANDS.md).
