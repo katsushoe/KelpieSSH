@@ -19,7 +19,7 @@ public sealed class SshTerminalSessionManager : IAsyncDisposable
     private static readonly TimeSpan ReadInterval = TimeSpan.FromMilliseconds(50);
 
     private readonly ISshConnectionProfileCatalog _profileCatalog;
-    private readonly ISshPasswordProvider _passwordProvider;
+    private readonly IInteractiveShellSessionFactory _sessionFactory;
     private readonly ConcurrentDictionary<string, ManagedTerminalSession> _sessions = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
@@ -30,9 +30,16 @@ public sealed class SshTerminalSessionManager : IAsyncDisposable
     public SshTerminalSessionManager(
         ISshConnectionProfileCatalog profileCatalog,
         ISshPasswordProvider passwordProvider)
+        : this(profileCatalog, new SshNetInteractiveShellSessionFactory(passwordProvider))
+    {
+    }
+
+    internal SshTerminalSessionManager(
+        ISshConnectionProfileCatalog profileCatalog,
+        IInteractiveShellSessionFactory sessionFactory)
     {
         _profileCatalog = profileCatalog;
-        _passwordProvider = passwordProvider;
+        _sessionFactory = sessionFactory;
     }
 
     /// <summary>
@@ -59,7 +66,7 @@ public sealed class SshTerminalSessionManager : IAsyncDisposable
         var safePixelWidth = Math.Max(1, pixelWidth);
         var safePixelHeight = Math.Max(1, pixelHeight);
         var handle = CreateHandle();
-        var session = new SshNetInteractiveShellSession(profile, _passwordProvider);
+        var session = _sessionFactory.Create(profile);
         var screen = new TerminalScreenBuffer(safeColumns, safeRows);
 
         try
@@ -257,7 +264,7 @@ public sealed class SshTerminalSessionManager : IAsyncDisposable
     private sealed record ManagedTerminalSession(
         string Handle,
         string ProfileName,
-        SshNetInteractiveShellSession Shell,
+        IInteractiveShellSession Shell,
         TerminalScreenBuffer Screen,
         DateTimeOffset StartedAtUtc)
     {
@@ -278,6 +285,80 @@ public sealed class SshTerminalSessionManager : IAsyncDisposable
                 StartedAtUtc,
                 DateTimeOffset.UtcNow);
         }
+    }
+}
+
+internal interface IInteractiveShellSession : IAsyncDisposable
+{
+    bool IsConnected { get; }
+
+    Task<string> ConnectAsync(
+        int columns,
+        int rows,
+        int pixelWidth,
+        int pixelHeight,
+        CancellationToken cancellationToken = default);
+
+    Task WriteAsync(string input, CancellationToken cancellationToken = default);
+
+    Task<string> ReadAvailableOutputAsync(CancellationToken cancellationToken = default);
+}
+
+internal interface IInteractiveShellSessionFactory
+{
+    IInteractiveShellSession Create(SshConnectionProfile profile);
+}
+
+internal sealed class SshNetInteractiveShellSessionFactory : IInteractiveShellSessionFactory
+{
+    private readonly ISshPasswordProvider _passwordProvider;
+
+    public SshNetInteractiveShellSessionFactory(ISshPasswordProvider passwordProvider)
+    {
+        _passwordProvider = passwordProvider;
+    }
+
+    public IInteractiveShellSession Create(SshConnectionProfile profile)
+    {
+        return new SshNetInteractiveShellSessionAdapter(
+            new SshNetInteractiveShellSession(profile, _passwordProvider));
+    }
+}
+
+internal sealed class SshNetInteractiveShellSessionAdapter : IInteractiveShellSession
+{
+    private readonly SshNetInteractiveShellSession _session;
+
+    public SshNetInteractiveShellSessionAdapter(SshNetInteractiveShellSession session)
+    {
+        _session = session;
+    }
+
+    public bool IsConnected => _session.IsConnected;
+
+    public Task<string> ConnectAsync(
+        int columns,
+        int rows,
+        int pixelWidth,
+        int pixelHeight,
+        CancellationToken cancellationToken = default)
+    {
+        return _session.ConnectAsync(columns, rows, pixelWidth, pixelHeight, cancellationToken);
+    }
+
+    public Task WriteAsync(string input, CancellationToken cancellationToken = default)
+    {
+        return _session.WriteAsync(input, cancellationToken);
+    }
+
+    public Task<string> ReadAvailableOutputAsync(CancellationToken cancellationToken = default)
+    {
+        return _session.ReadAvailableOutputAsync(cancellationToken);
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        return _session.DisposeAsync();
     }
 }
 
