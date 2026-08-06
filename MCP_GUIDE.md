@@ -10,6 +10,21 @@ The MCP server is the local bridge between an AI client and KelpieSSH. The AI cl
 
 The MCP server is only needed when an AI client uses KelpieSSH tools. Normal terminal commands such as `kelpie open vps01`, `kelpie login`, `kelpie status vps01`, `kelpie diag vps01`, and `kelpie logs ...` do not require the MCP server.
 
+## Diagnostic Boundaries
+
+KelpieSSH separates validation and diagnostics by execution target. A success in one boundary does not prove that another boundary is healthy.
+
+| Boundary | Commands or tools | What it verifies | Network behavior |
+| :--- | :--- | :--- | :--- |
+| Local static validation | `kelpie config check`, `kelpie profile check <profile>` | Local files, JSON, schema, credential references, provider selection, and policy shape | Does not start MCP or open SSH |
+| MCP server health | `kelpiemcp status`, `kelpie status <profile>`, `/health`, `kelpie_ping` | Local MCP process, control pipe, HTTP endpoint, or MCP tool dispatch | Uses local process, pipe, or loopback only; does not diagnose the SSH target |
+| MCP host diagnostics | `get_system_info`, `get_disk_usage`, `get_memory_usage`, `get_listening_ports` | The local machine running `KelpieMCPServer` | Does not open SSH |
+| SSH target diagnostics | `kelpie diag`, `kelpie inventory`, `kelpie services`, `kelpie logs`, and `ssh_*` diagnostic tools | The configured remote target through profile policy and allow-listed SSH commands | Opens SSH to the selected target |
+
+`get_system_info` describes the local MCP host; `ssh_get_system_info` describes the selected SSH target. CLI remote diagnostics execute directly in the `kelpie` process and do not require MCP. The corresponding MCP `ssh_*` tools require a running MCP server because the AI client calls them through that server.
+
+Static validation does not accept a changed trust baseline, start the server, test credentials against a target, or prove SSH reachability. Likewise, an SSH target failure does not by itself mean the local MCP server is unhealthy.
+
 ## MCP Files and Layout
 
 An installed or zip-extracted KelpieSSH layout includes the MCP frontend command and the MCP server body:

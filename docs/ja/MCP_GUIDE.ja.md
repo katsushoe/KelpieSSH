@@ -10,6 +10,21 @@ MCP サーバーは、AI client と KelpieSSH をつなぐローカルの橋渡�
 
 MCP サーバーが必要なのは、AI client から KelpieSSH tools を使う場合だけです。`kelpie open vps01`、`kelpie login`、`kelpie status vps01`、`kelpie diag vps01`、`kelpie logs ...` のような通常のターミナルコマンドには MCP サーバーは不要です。
 
+## 診断の責務境界
+
+KelpieSSHは、検証・診断対象を次の4境界に分離します。ある境界の成功は、別の境界が正常であることを保証しません。
+
+| 境界 | コマンドまたはtool | 確認対象 | ネットワーク動作 |
+| :--- | :--- | :--- | :--- |
+| ローカル静的検査 | `kelpie config check`、`kelpie profile check <profile>` | ローカルfile、JSON、schema、認証参照、provider選択、policy形式 | MCPを起動せず、SSH接続もしない |
+| MCPサーバー疎通 | `kelpiemcp status`、`kelpie status <profile>`、`/health`、`kelpie_ping` | ローカルMCP process、control pipe、HTTP endpoint、MCP tool dispatch | ローカルprocess、pipe、loopbackだけを使い、SSH対象は診断しない |
+| MCP実行ホスト診断 | `get_system_info`、`get_disk_usage`、`get_memory_usage`、`get_listening_ports` | `KelpieMCPServer`を実行しているローカルmachine | SSH接続しない |
+| SSH対象診断 | `kelpie diag`、`kelpie inventory`、`kelpie services`、`kelpie logs`、診断用`ssh_*` tools | profile policyと許可済みSSH commandを通したremote対象 | 選択した対象へSSH接続する |
+
+`get_system_info`はローカルMCP host、`ssh_get_system_info`は選択したSSH対象を返します。CLIのremote診断は`kelpie` processから直接実行するためMCPは不要です。MCPの`ssh_*` toolsはAI clientがMCPサーバー経由で呼び出すため、MCPサーバーが必要です。
+
+静的検査は、変更されたtrust baselineの受け入れ、サーバー起動、対象に対する認証確認、SSH到達確認を行いません。また、SSH対象の失敗だけでローカルMCPサーバー異常とは判断しません。
+
 ## MCP ファイルと配置
 
 インストールまたは zip 展開された KelpieSSH には、MCP frontend command と MCP server body が含まれます。

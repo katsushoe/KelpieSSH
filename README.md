@@ -357,6 +357,8 @@ kelpie logs vps01 nginx.service 200
 
 `kelpie login`, `kelpie diag`, and `kelpie logs` run SSH operations directly from the CLI process. For password profiles, the CLI asks for the password at runtime and keeps it only in the current command process. `kelpie status` can also report whether the local MCP server is running, but the server is not required for the command-line tools above.
 
+Local validation, MCP health, MCP host diagnostics, and SSH target diagnostics have separate scopes. See [MCP_GUIDE.md](MCP_GUIDE.md#diagnostic-boundaries) before interpreting one check as proof that another execution boundary is healthy.
+
 ## How to validate and inspect a profile
 
 Use `kelpie profile check <profile>` first during normal operation. It validates one profile file without opening an SSH connection and reports file, JSON, schema, authentication reference, provider, policy, user, and pending backup checks.

@@ -357,6 +357,8 @@ kelpie logs vps01 nginx.service 200
 
 `kelpie login`、`kelpie diag`、`kelpie logs` は CLI プロセスから SSH 操作を直接実行します。パスワード認証のプロファイルでは、CLI が実行時にパスワードを尋ね、そのコマンドプロセス内だけに保持します。`kelpie status` はローカル MCP サーバーの状態も表示できますが、上記のコマンドラインツールを使うだけなら MCP サーバーは不要です。
 
+ローカル静的検査、MCPサーバー疎通、MCP実行ホスト診断、SSH対象診断は、それぞれ確認範囲が異なります。1つの確認結果を別の実行境界の正常性と解釈する前に、[MCP_GUIDE.ja.md](docs/ja/MCP_GUIDE.ja.md#診断の責務境界)を参照してください。
+
 ## プロファイルの検証と確認方法
 
 通常運用では、まず `kelpie profile check <profile>` を使います。このコマンドは SSH 接続を行わず、profile file、JSON 構文、schema、認証参照、command provider、policy、user、pending backup を検証します。
