@@ -157,6 +157,12 @@ KelpieSSH は `%LOCALAPPDATA%\Programs\KelpieSSH` に配置され、その `bin`
 powershell -ExecutionPolicy Bypass -File .\Install-Kelpie.ps1 -InstallDirectory F:\Kelpie
 ```
 
+user `PATH`を変更せずに配置する場合は`-NoPath`を追加します。この場合はfull pathでcommandを実行するか、通常利用しているWindows環境変数管理手順で配置先の`bin` directoryを登録してください。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\Install-Kelpie.ps1 -InstallDirectory F:\Kelpie -NoPath
+```
+
 インストール後は新しいターミナルを開いてください。
 
 配置される主なファイルは次の構成です。
@@ -182,7 +188,12 @@ powershell -ExecutionPolicy Bypass -File .\Install-Kelpie.ps1 -InstallDirectory 
 
 ```powershell
 kelpie version
+kelpiemcp version
+Get-Command kelpie
+Get-Command kelpiemcp
 ```
+
+`Get-Command`で両commandが配置先の`bin` directoryから解決されることを確認します。installerの再実行ではprogramと文書を更新しますが、既存の設定やuser dataは削除しません。更新前にKelpie processを停止してください。
 
 出力例:
 

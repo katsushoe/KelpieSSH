@@ -157,6 +157,12 @@ To select another location:
 powershell -ExecutionPolicy Bypass -File .\Install-Kelpie.ps1 -InstallDirectory F:\Kelpie
 ```
 
+To install without changing the user `PATH`, add `-NoPath`. In that mode, invoke the commands by their full path or register the installed `bin` directory through your normal Windows environment-management process.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\Install-Kelpie.ps1 -InstallDirectory F:\Kelpie -NoPath
+```
+
 Open a new terminal after installation.
 
 The installed files have this layout:
@@ -182,7 +188,12 @@ The installed files have this layout:
 
 ```powershell
 kelpie version
+kelpiemcp version
+Get-Command kelpie
+Get-Command kelpiemcp
 ```
+
+`Get-Command` must resolve both commands from the installed `bin` directory. Rerunning the installer updates program and documentation files but does not remove existing configuration or user data. Stop Kelpie processes before upgrading.
 
 Expected output:
 
