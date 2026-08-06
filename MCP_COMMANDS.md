@@ -101,6 +101,8 @@ SSH command tools usually return `SshToolResult`:
 
 Expected validation and policy failures are returned as `SshToolResult` with `Ok: false` instead of an MCP invocation exception. Remote non-zero exit codes also set `Ok: false` and return `ErrorInfo.Code: "KELPIE_REMOTE_COMMAND_FAILED"` while preserving the legacy stdout/stderr fields.
 
+SSH connection failures also return `SshToolResult` instead of an MCP invocation exception. The stable codes are `KELPIE_SSH_HOST_UNREACHABLE`, `KELPIE_SSH_CONNECTION_TIMEOUT`, `KELPIE_SSH_AUTHENTICATION_FAILED`, and `KELPIE_SSH_CONNECTION_FAILED`. Connection messages are sanitized and never include the underlying infrastructure exception text. `Retryable` is `true` for unreachable-host and timeout failures, and `false` for authentication and general connection failures.
+
 `SshToolResult` return value sample:
 
 ```json

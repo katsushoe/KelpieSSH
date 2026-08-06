@@ -2764,6 +2764,39 @@ public sealed class KelpieToolsSshTests
         runner.LastRequest!.Arguments["service"].Should().Be("nginx.service");
     }
 
+    [Theory]
+    [InlineData(SshConnectionFailureKind.HostUnreachable, "KELPIE_SSH_HOST_UNREACHABLE", "Connection", true, false)]
+    [InlineData(SshConnectionFailureKind.Timeout, "KELPIE_SSH_CONNECTION_TIMEOUT", "Connection", true, true)]
+    [InlineData(SshConnectionFailureKind.AuthenticationFailed, "KELPIE_SSH_AUTHENTICATION_FAILED", "Authentication", false, false)]
+    [InlineData(SshConnectionFailureKind.ConnectionFailed, "KELPIE_SSH_CONNECTION_FAILED", "Connection", false, false)]
+    public async Task RunAllowedSshCommandAsync_ShouldReturnStructuredConnectionFailure(
+        SshConnectionFailureKind failureKind,
+        string expectedCode,
+        string expectedCategory,
+        bool expectedRetryable,
+        bool expectedTimedOut)
+    {
+        var profile = CreateProfile("vps01");
+        var runner = new ThrowingSshCommandRunner(new SshCommandConnectionException(failureKind));
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var result = await KelpieTools.RunAllowedSshCommandAsync(
+            service,
+            profiles,
+            "get_system_info",
+            "vps01");
+
+        result.Ok.Should().BeFalse();
+        result.ExitCode.Should().Be(-1);
+        result.TimedOut.Should().Be(expectedTimedOut);
+        result.ErrorInfo.Should().NotBeNull();
+        result.ErrorInfo!.Code.Should().Be(expectedCode);
+        result.ErrorInfo.Category.Should().Be(expectedCategory);
+        result.ErrorInfo.Retryable.Should().Be(expectedRetryable);
+        result.Error.Should().Be(new SshConnectionFailureException(failureKind).Message);
+    }
+
     [Fact]
     public async Task GetSshServiceStatusAsync_ShouldRejectUnsafeServiceArgumentBeforeExecution()
     {
@@ -4065,6 +4098,16 @@ public sealed class KelpieToolsSshTests
                 DateTimeOffset.UtcNow,
                 DateTimeOffset.UtcNow,
                 TimedOut: false));
+        }
+    }
+
+    private sealed class ThrowingSshCommandRunner(Exception exception) : ISshCommandRunner
+    {
+        public Task<SshCommandResult> ExecuteAsync(
+            SshCommandRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromException<SshCommandResult>(exception);
         }
     }
 

@@ -76,6 +76,8 @@ MCP tool の戻り値は JSON object または text です。SSH コマンド系
 - `Meta`: `SchemaVersion`, `GeneratedAt`, `ProfileName`, `CommandName`, output line count, `Truncated` を含む metadata。
 - `Error`: 互換性維持用の legacy error message。
 
+SSH接続失敗はMCP呼び出し例外ではなく、`Ok: false`の`SshToolResult`として返します。安定したコードは`KELPIE_SSH_HOST_UNREACHABLE`、`KELPIE_SSH_CONNECTION_TIMEOUT`、`KELPIE_SSH_AUTHENTICATION_FAILED`、`KELPIE_SSH_CONNECTION_FAILED`です。接続メッセージに内部例外本文は含めません。到達不能とタイムアウトは`Retryable: true`、認証失敗とその他の接続失敗は`Retryable: false`です。
+
 入力不備や policy 拒否のような想定内の失敗は、MCP invocation exception ではなく `Ok: false` の `SshToolResult` として返ります。remote command の非0終了も `Ok: false` になり、legacy stdout / stderr fields は保持されます。
 
 ## コマンド詳細

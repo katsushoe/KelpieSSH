@@ -2740,6 +2740,14 @@ public sealed partial class KelpieTools
         {
             return CreateRejectedSshToolResult(profileName, commandName, ex.Message);
         }
+        catch (SshConnectionFailureException ex)
+        {
+            return CreateRejectedSshToolResult(
+                profileName,
+                commandName,
+                ex.Message,
+                ex.FailureKind == SshConnectionFailureKind.Timeout);
+        }
     }
 
     private static SshRemoteOperationToolResult CreateRemoteOperationToolResult(
@@ -2793,7 +2801,8 @@ public sealed partial class KelpieTools
     private static SshToolResult CreateRejectedSshToolResult(
         string profileName,
         string commandName,
-        string error)
+        string error,
+        bool timedOut = false)
     {
         var completedAt = DateTimeOffset.UtcNow;
         return new SshToolResult(
@@ -2812,7 +2821,7 @@ public sealed partial class KelpieTools
             StderrPlain: [error],
             completedAt,
             completedAt,
-            TimedOut: false,
+            TimedOut: timedOut,
             Error: error);
     }
 
@@ -2851,6 +2860,11 @@ public sealed partial class KelpieTools
         bool timedOut,
         string? error)
     {
+        if (TryCreateConnectionErrorInfo(error, out var connectionErrorInfo))
+        {
+            return connectionErrorInfo;
+        }
+
         if (timedOut)
         {
             return new SshToolErrorInfo(
@@ -2917,6 +2931,42 @@ public sealed partial class KelpieTools
             "The SSH tool did not complete successfully.",
             "Check the Kelpie logs for details.",
             Retryable: false);
+    }
+
+    private static bool TryCreateConnectionErrorInfo(
+        string? error,
+        out SshToolErrorInfo errorInfo)
+    {
+        errorInfo = error switch
+        {
+            "SSH host is unreachable. Verify the host, port, and network path." => new(
+                "KELPIE_SSH_HOST_UNREACHABLE",
+                "Connection",
+                error,
+                "Verify the host, port, and network path before retrying.",
+                Retryable: true),
+            "SSH connection timed out. Verify the host, port, and connection timeout." => new(
+                "KELPIE_SSH_CONNECTION_TIMEOUT",
+                "Connection",
+                error,
+                "Verify the target state and connection timeout before retrying.",
+                Retryable: true),
+            "SSH authentication failed. Verify the configured user and credentials." => new(
+                "KELPIE_SSH_AUTHENTICATION_FAILED",
+                "Authentication",
+                error,
+                "Verify the configured user and credential reference before retrying.",
+                Retryable: false),
+            "SSH connection failed. Verify the SSH profile and host key settings." => new(
+                "KELPIE_SSH_CONNECTION_FAILED",
+                "Connection",
+                error,
+                "Verify the SSH profile and host key settings before retrying.",
+                Retryable: false),
+            _ => null!,
+        };
+
+        return errorInfo is not null;
     }
 
     private static bool IsPolicyDeniedError(string? error)

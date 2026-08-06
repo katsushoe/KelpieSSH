@@ -129,7 +129,7 @@ builder.Services
         options.ServerInfo = new()
         {
             Name = "KelpieSSH",
-            Version = "0.3.12.0",
+            Version = typeof(KelpieTools).Assembly.GetName().Version?.ToString() ?? "unknown",
         };
     })
     .WithHttpTransport(options =>
