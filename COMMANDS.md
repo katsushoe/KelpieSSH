@@ -1790,7 +1790,7 @@ Return value:
 - Exit code `0` when all required diagnostic steps complete successfully.
 - Standard output contains read-only diagnostic summaries returned by allowed SSH commands.
 - Standard error contains SSH or policy errors if the diagnostic run fails.
-- SSH connection failures are reported as short standard-error messages instead of raw stack traces.
+- SSH connection failures are reported as short standard-error messages instead of raw stack traces. The message distinguishes an unreachable host, timeout, authentication rejection, and other SSH failures without exposing the underlying exception text.
 
 Return value sample:
 
@@ -1901,7 +1901,7 @@ Return value:
 - Exit code `0` when the log command completes successfully.
 - Standard output contains the bounded log output returned by the allowed SSH command.
 - Standard error contains validation, SSH, policy, or remote command errors.
-- SSH connection failures are reported as short standard-error messages instead of raw stack traces.
+- SSH connection failures are reported as short standard-error messages instead of raw stack traces. The message distinguishes an unreachable host, timeout, authentication rejection, and other SSH failures without exposing the underlying exception text.
 
 Return value sample:
 

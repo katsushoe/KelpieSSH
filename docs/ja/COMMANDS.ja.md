@@ -1764,7 +1764,7 @@ kelpie diag vps01
 
 対象プロファイルに対して、許可済み診断コマンドをまとめて SSH 実行します。
 password profile の場合、CLI は最初に1回だけパスワードを尋ね、現在の `kelpie diag` プロセス内で各診断コマンドに使い回します。
-SSH接続失敗は raw stack trace ではなく、短い standard error メッセージとして表示します。
+SSH接続失敗は raw stack trace ではなく、短い standard error メッセージとして表示します。到達不能、タイムアウト、認証拒否、その他のSSH失敗を区別し、内部例外の本文は表示しません。
 
 実行結果サンプル:
 
@@ -1859,7 +1859,7 @@ kelpie logs vps01 nginx.service 200
 
 対象プロファイルで `tail_log` 相当の許可済み SSH コマンドを実行し、指定 service のログを取得します。
 password profile の場合、CLI は現在の `kelpie logs` プロセス用にパスワードを尋ねます。
-SSH接続失敗は raw stack trace ではなく、短い standard error メッセージとして表示します。
+SSH接続失敗は raw stack trace ではなく、短い standard error メッセージとして表示します。到達不能、タイムアウト、認証拒否、その他のSSH失敗を区別し、内部例外の本文は表示しません。
 
 実行結果サンプル:
 

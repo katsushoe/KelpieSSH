@@ -78,17 +78,25 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
         catch (Exception ex) when (ex is SocketException or SshOperationTimeoutException or SshException)
         {
             var completedAt = DateTimeOffset.UtcNow;
-            var message = ex switch
+            var failureKind = ex switch
             {
-                SocketException => $"SSH host is unreachable: {ex.Message}",
-                SshOperationTimeoutException => $"SSH connection timed out: {ex.Message}",
-                _ => $"SSH connection failed: {ex.Message}",
+                SshAuthenticationException => SshConnectionFailureKind.AuthenticationFailed,
+                SshOperationTimeoutException => SshConnectionFailureKind.Timeout,
+                SocketException => SshConnectionFailureKind.HostUnreachable,
+                _ => SshConnectionFailureKind.ConnectionFailed,
+            };
+            var message = failureKind switch
+            {
+                SshConnectionFailureKind.AuthenticationFailed => "SSH authentication failed. Verify the configured user and credentials.",
+                SshConnectionFailureKind.Timeout => "SSH connection timed out. Verify the host, port, and connection timeout.",
+                SshConnectionFailureKind.HostUnreachable => "SSH host is unreachable. Verify the host, port, and network path.",
+                _ => "SSH connection failed. Verify the SSH profile and host key settings.",
             };
             KpLog.Warn(
-                $"SSH command connection failed. profile={request.Profile.Name}, command={request.CommandName}, exceptionType={ex.GetType().FullName ?? "UnknownException"}, durationMs={(completedAt - startedAt).TotalMilliseconds:0.###}");
+                $"SSH command connection failed. profile={request.Profile.Name}, command={request.CommandName}, failureKind={failureKind}, exceptionType={ex.GetType().FullName ?? "UnknownException"}, durationMs={(completedAt - startedAt).TotalMilliseconds:0.###}");
             throw new SshCommandConnectionException(
                 message,
-                timedOut: ex is SshOperationTimeoutException,
+                failureKind,
                 ex);
         }
         catch (Exception ex)
