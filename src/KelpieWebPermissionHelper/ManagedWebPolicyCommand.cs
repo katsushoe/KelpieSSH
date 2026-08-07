@@ -329,16 +329,7 @@ internal static partial class ManagedWebPolicyCommand
         {
             if (replaced)
             {
-                var restorePath = PolicyPath + ".restore-" + Guid.NewGuid().ToString("N");
-                try
-                {
-                    WriteWithMetadata(operations, restorePath, current, metadata.Uid, metadata.Gid, mode);
-                    operations.MoveFileOverwrite(restorePath, PolicyPath);
-                }
-                finally
-                {
-                    operations.DeleteFileIfExists(restorePath);
-                }
+                RestorePolicy(operations, current, metadata.Uid, metadata.Gid, mode);
             }
 
             throw;
@@ -347,6 +338,37 @@ internal static partial class ManagedWebPolicyCommand
         {
             operations.DeleteFileIfExists(temporaryPath);
         }
+    }
+
+    private static void RestorePolicy(
+        IUnixPermissionOperations operations,
+        byte[] content,
+        uint uid,
+        uint gid,
+        uint mode)
+    {
+        Exception? lastError = null;
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var restorePath = PolicyPath + ".restore-" + Guid.NewGuid().ToString("N");
+            try
+            {
+                WriteWithMetadata(operations, restorePath, content, uid, gid, mode);
+                operations.MoveFileOverwrite(restorePath, PolicyPath);
+                ParseAndValidate(ReadSecurePolicy(operations));
+                return;
+            }
+            catch (Exception ex)
+            {
+                lastError = ex;
+            }
+            finally
+            {
+                operations.DeleteFileIfExists(restorePath);
+            }
+        }
+
+        throw new InvalidOperationException("policy restoration failed after replacement", lastError);
     }
 
     private static void AppendAudit(

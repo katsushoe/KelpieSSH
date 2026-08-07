@@ -2086,7 +2086,7 @@ kelpiemcp web-policy rollback <profile>
 
 - `list` はJSON文書全体を検証し、`site-root`、`file-path`、accessを表示します。読み取り専用であり、redirect可能です。
 - `add` は既存entryを拒否し、`remove` は存在しないentryを拒否します。`rollback` は最新のmanaged backupを復元します。
-- `apply` はpreview前に全変更を検証し、重複または競合pathを拒否します。ローカルmanifestと現在のremote policyの両方へpreviewを結合し、1回の確認と1回の原子的置換で全件を適用します。検証または置換後処理に失敗した場合は、変更前policyを維持または復元します。
+- `apply` はpreview前に全変更を検証し、重複または競合pathを拒否します。ローカルmanifestと現在のremote policyの両方へpreviewを結合し、1回の確認と1回の原子的置換で全件を適用します。検証または置換後処理に失敗した場合は、変更前policyを維持または復元します。復元時の原子的renameは最大2回試行し、両方が失敗した場合はerrorを返して復旧用managed backupを保持します。
 - 変更コマンドは標準入力と標準出力の両方に接続した人間用terminalを必須とします。選択したVPS上のhelperは、限定した非対話sudoによるeffective rootと、root所有でgroupとothersから書き込めない既存の非symlink regular policy fileを必須とします。
 - 書込み前に現在と変更後のJSON差分を表示し、暗号学的に生成したランダム確認コードの完全一致入力を要求します。EOF、不一致、redirect、余分な引数ではpolicyを変更しません。
 - 変更後JSONとbackup JSONをparseし、schemaを検証します。policyは `Sites.<site-root>.AllowedFiles.<file-path>` と `Update` または `Create` だけを受け付けます。

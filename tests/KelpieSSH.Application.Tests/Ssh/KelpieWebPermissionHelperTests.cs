@@ -21,7 +21,7 @@ public sealed class KelpieWebPermissionHelperTests
 
         exitCode.Should().Be(0);
         error.ToString().Should().BeEmpty();
-        output.ToString().Should().StartWith("kelpie-web-permission-helper 0.2.3.1");
+        output.ToString().Should().StartWith("kelpie-web-permission-helper 0.2.3.2");
     }
 
     [Fact]
@@ -789,6 +789,73 @@ public sealed class KelpieWebPermissionHelperTests
         operations.Moves.Should().BeEmpty();
     }
 
+    [Fact]
+    public void Policy_ApplyManifest_WhenReplacementFails_ShouldKeepOriginalPolicy()
+    {
+        var operations = new FakeUnixPermissionOperations();
+        ConfigureManagedPolicy(operations, "/index.php", "Update");
+        var original = operations.FileContents["/etc/kelpie/web-permission-helper-policy.json"].ToArray();
+        var manifest = Encode("{\"sites\":{\"/var/www\":{\"changes\":[{\"operation\":\"add\",\"path\":\"/a.html\",\"access\":\"Create\"}]}}}");
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(original)).ToLowerInvariant();
+        operations.FailingMoveCalls.Add(1);
+
+        PermissionHelper.Run(
+            ["policy", "apply-manifest", manifest, hash],
+            operations,
+            TextWriter.Null,
+            TextWriter.Null).Should().Be(1);
+
+        operations.FileContents["/etc/kelpie/web-permission-helper-policy.json"].Should().Equal(original);
+        operations.MoveAttempts.Should().Be(1);
+    }
+
+    [Fact]
+    public void Policy_ApplyManifest_WhenValidationAndFirstRestoreFail_ShouldRetryAndRestoreOriginalPolicy()
+    {
+        var operations = new FakeUnixPermissionOperations();
+        ConfigureManagedPolicy(operations, "/index.php", "Update");
+        var original = operations.FileContents["/etc/kelpie/web-permission-helper-policy.json"].ToArray();
+        var manifest = Encode("{\"sites\":{\"/var/www\":{\"changes\":[{\"operation\":\"add\",\"path\":\"/a.html\",\"access\":\"Create\"}]}}}");
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(original)).ToLowerInvariant();
+        operations.UnsafeOwnerAfterMoveCalls.Add(1);
+        operations.FailingMoveCalls.Add(2);
+
+        PermissionHelper.Run(
+            ["policy", "apply-manifest", manifest, hash],
+            operations,
+            TextWriter.Null,
+            TextWriter.Null).Should().Be(1);
+
+        operations.MoveAttempts.Should().Be(3);
+        operations.FileContents["/etc/kelpie/web-permission-helper-policy.json"].Should().Equal(original);
+        operations.GetOwnerIds("/etc/kelpie/web-permission-helper-policy.json").Should().Be((0, 0));
+    }
+
+    [Fact]
+    public void Policy_ApplyManifest_WhenRestorationKeepsFailing_ShouldRetainBackupAndReportFailure()
+    {
+        var operations = new FakeUnixPermissionOperations();
+        ConfigureManagedPolicy(operations, "/index.php", "Update");
+        var original = operations.FileContents["/etc/kelpie/web-permission-helper-policy.json"].ToArray();
+        var manifest = Encode("{\"sites\":{\"/var/www\":{\"changes\":[{\"operation\":\"add\",\"path\":\"/a.html\",\"access\":\"Create\"}]}}}");
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(original)).ToLowerInvariant();
+        operations.UnsafeOwnerAfterMoveCalls.Add(1);
+        operations.FailingMoveCalls.UnionWith([2, 3]);
+        using var error = new StringWriter();
+
+        PermissionHelper.Run(
+            ["policy", "apply-manifest", manifest, hash],
+            operations,
+            TextWriter.Null,
+            error).Should().Be(1);
+
+        error.ToString().Should().Contain("policy restoration failed after replacement");
+        operations.MoveAttempts.Should().Be(3);
+        operations.Writes.Should().Contain(write =>
+            write.Path.StartsWith("/etc/kelpie/.web-policy-backups/", StringComparison.Ordinal)
+            && write.Data.SequenceEqual(original));
+    }
+
     private static void ConfigureManagedPolicy(FakeUnixPermissionOperations operations, string path, string access)
     {
         const string policyPath = "/etc/kelpie/web-permission-helper-policy.json";
@@ -830,6 +897,12 @@ public sealed class KelpieWebPermissionHelperTests
         public Dictionary<string, string> Modes { get; } = new(StringComparer.Ordinal);
 
         public List<(string SourcePath, string DestinationPath)> Moves { get; } = [];
+
+        public HashSet<int> FailingMoveCalls { get; } = [];
+
+        public HashSet<int> UnsafeOwnerAfterMoveCalls { get; } = [];
+
+        public int MoveAttempts { get; private set; }
 
         public List<(string Path, uint Uid, uint Gid)> OwnerChanges { get; } = [];
 
@@ -915,12 +988,31 @@ public sealed class KelpieWebPermissionHelperTests
 
         public void MoveFileOverwrite(string sourcePath, string destinationPath)
         {
+            MoveAttempts++;
+            if (FailingMoveCalls.Contains(MoveAttempts))
+            {
+                throw new IOException("injected move failure");
+            }
+
             Files.Remove(sourcePath);
             Files.Add(destinationPath);
             if (FileContents.Remove(sourcePath, out var data))
             {
                 FileContents[destinationPath] = data;
             }
+            if (OwnerIds.Remove(sourcePath, out var owner))
+            {
+                OwnerIds[destinationPath] = owner;
+            }
+            if (Modes.Remove(sourcePath, out var mode))
+            {
+                Modes[destinationPath] = mode;
+            }
+            if (UnsafeOwnerAfterMoveCalls.Contains(MoveAttempts))
+            {
+                OwnerIds[destinationPath] = (1000, 1000);
+            }
+
             Moves.Add((sourcePath, destinationPath));
         }
 
