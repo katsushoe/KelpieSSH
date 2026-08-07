@@ -1,7 +1,8 @@
 # PACKAGES.md Version
-2026.07.30
+2026.08.07
 
 # Change History
+- 2026.08.07
 - 2026.07.30
 - 2026.06.24
 - 2026.06.17
@@ -27,9 +28,9 @@ For Japanese documentation, see [docs/ja/PACKAGES.ja.md](docs/ja/PACKAGES.ja.md)
 
 | Unit | Project | Version | Purpose | Placement |
 | :--- | :--- | :--- | :--- | :--- |
-| `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.14.1` | VPS operation CLI. | `KelpieHome/bin/kelpie.exe` |
-| `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.3.11.1` | MCP server control and human-only remote policy/helper administration CLI. | `KelpieHome/bin/kelpiemcp.exe` |
-| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.16.0` | Streamable HTTP MCP server. | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
+| `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.12.0` | VPS operation CLI. | `KelpieHome/bin/kelpie.exe` |
+| `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.3.12.0` | MCP server control and human-only remote policy/helper administration CLI. | `KelpieHome/bin/kelpiemcp.exe` |
+| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.12.0` | Streamable HTTP MCP server. | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
 | `kelpie-web-permission-helper` | `src/KelpieWebPermissionHelper/KelpieWebPermissionHelper.csproj` | `0.2.2.1` | Optional Linux-side helper for web permission and managed policy operations. | `/usr/local/libexec/kelpie/kelpie-web-permission-helper` |
 
 For the Alpha release, the Windows zip is the primary binary distribution. It includes `Install-Kelpie.ps1` for per-user automatic installation and `PATH` registration. MSI may be attached when available and may be unsigned. Internal NuGet packages are separate from the Alpha end-user binary distribution.
