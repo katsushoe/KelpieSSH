@@ -102,7 +102,7 @@ kelpiemcp start --reload-config
 
 処理内容:
 
-起動中でなければ `KelpieMCPServer` の起動を要求します。Windows で `KelpieMCPServer` が Windows Service として登録済みの場合は Windows Service を開始します。この場合は管理者権限のターミナルから実行してください。未登録の場合は通常のローカルプロセスとして起動します。すでに起動中の場合は二重起動せず、起動中であることを返します。
+起動中でなければ `KelpieMCPServer` の起動を要求します。Windows で `KelpieMCPServer` が Windows Service として登録済みの場合は Windows Service を開始します。この場合は管理者権限のターミナルから実行してください。未登録の場合は通常のローカルプロセスとして起動します。MCPサーバーは `Server.ControlPipeName` から導出したOS名前付きMutexを生存期間中保持します。同じcontrol pipeを使う2個目のprocessはnamed pipe作成を待たず、起動エラーで終了します。
 
 MCPサーバー起動時は、`kelpiemcp.json` と SSH profile ファイルの hash を protected trust store と照合します。通常起動で `kelpiemcp.json` の hash が一致しない場合、MCPサーバーは起動失敗します。通常起動で hash が一致しない profile は load エラーになり、他の profile はロード継続します。正規に `kelpiemcp.json` を編集した場合は `--reload-config` を指定して起動します。正規に profile を編集した場合は `kelpiemcp profile reload <profile>` で信頼 baseline を更新します。trust store の復号または認証に失敗した場合、MCPサーバーは起動失敗し、storeを上書きしません。
 

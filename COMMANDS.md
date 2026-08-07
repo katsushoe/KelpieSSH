@@ -111,6 +111,7 @@ Return value:
 - Exit code `0` when the start request is accepted.
 - Standard output reports whether a Windows Service start was requested, a local process was started, or the MCP server was already running.
 - Standard error contains startup failures, including service-control failures.
+- The MCP server holds an operating-system named mutex derived from `Server.ControlPipeName` for its lifetime. A second process using the same control pipe fails startup immediately instead of waiting for named-pipe creation.
 - If the protected trust store cannot be decrypted or authenticated, including when it belongs to another Windows user, the MCP server startup fails without overwriting it. An administrator must preserve the failed store for diagnosis, verify `kelpiemcp.json` and all profile files, explicitly reinitialize the store, and reapprove profiles.
 - If the `kelpiemcp.json` hash differs from the trust store during normal startup, the MCP server startup fails.
 - If one profile hash differs from the trust store during normal startup, that profile is not loaded. Other profiles may continue to load.

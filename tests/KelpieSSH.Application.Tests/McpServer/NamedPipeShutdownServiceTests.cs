@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KelpieSSH.Application.Tests.McpServer;
 
+[Collection(NamedPipeTestCollection.Name)]
 public sealed class NamedPipeShutdownServiceTests
 {
     [Fact]

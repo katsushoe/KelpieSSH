@@ -121,6 +121,9 @@ builder.Services.AddSingleton(serviceProvider => new SshCommandService(
     serviceProvider.GetRequiredService<IReadOnlyCollection<ICommandProcessingProvider>>(),
     serviceProvider.GetRequiredService<ISshCommandRunner>(),
     serviceProvider.GetRequiredService<IKelpieEnvironmentOverrideStore>()));
+builder.Services.AddSingleton<ControlPipeInstanceGuard>();
+builder.Services.AddHostedService(serviceProvider =>
+    serviceProvider.GetRequiredService<ControlPipeInstanceGuard>());
 builder.Services.AddHostedService<NamedPipeShutdownService>();
 
 builder.Services

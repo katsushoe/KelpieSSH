@@ -7,9 +7,11 @@ using FluentAssertions;
 using Kelpie.Core;
 using KelpieSSH.Application.Ssh;
 using KelpieServerCommand;
+using KelpieSSH.Application.Tests.McpServer;
 
 namespace KelpieSSH.Application.Tests.Command;
 
+[Collection(NamedPipeTestCollection.Name)]
 public sealed class KelpieServerCommandRunnerTests
 {
     private static readonly UTF8Encoding ControlPipeEncoding = new(
