@@ -11,6 +11,9 @@ internal static partial class ManagedWebPolicyCommand
     private const string PolicyPath = "/etc/kelpie/web-permission-helper-policy.json";
     private const string BackupDirectory = "/etc/kelpie/.web-policy-backups";
     private const string AuditPath = "/var/log/kelpie/web-policy-audit.jsonl";
+    private const int MaxManifestBytes = 64 * 1024;
+    private const int MaxManifestChanges = 256;
+    private const int MaxManifestSites = 32;
     private static readonly JsonSerializerOptions PrettyJson = new() { WriteIndented = true };
 
     public static int Run(
@@ -31,10 +34,162 @@ internal static partial class ManagedWebPolicyCommand
             "apply-add" => ApplyChange(args.Skip(2).ToArray(), operations, output, PolicyOperation.Add),
             "preview-remove" => PreviewChange(args.Skip(2).ToArray(), operations, output, PolicyOperation.Remove),
             "apply-remove" => ApplyChange(args.Skip(2).ToArray(), operations, output, PolicyOperation.Remove),
+            "preview-apply" => PreviewManifest(args.Skip(2).ToArray(), operations, output),
+            "apply-manifest" => ApplyManifest(args.Skip(2).ToArray(), operations, output),
             "preview-rollback" => PreviewRollback(args.Skip(2).ToArray(), operations, output),
             "apply-rollback" => ApplyRollback(args.Skip(2).ToArray(), operations, output),
             _ => WriteError(error, "ERROR: unsupported policy action"),
         };
+    }
+
+    private static int PreviewManifest(
+        IReadOnlyList<string> args,
+        IUnixPermissionOperations operations,
+        TextWriter output)
+    {
+        if (args.Count != 1)
+        {
+            throw new InvalidOperationException("policy apply preview requires one manifest");
+        }
+
+        var changes = ParseManifest(args[0]);
+        var currentBytes = ReadSecurePolicy(operations);
+        var proposed = CreateManifestProposed(ParseAndValidate(currentBytes), changes);
+        WritePreview(output, currentBytes, Encoding.UTF8.GetBytes(Serialize(proposed)));
+        return 0;
+    }
+
+    private static int ApplyManifest(
+        IReadOnlyList<string> args,
+        IUnixPermissionOperations operations,
+        TextWriter output)
+    {
+        if (args.Count != 2 || !Sha256Regex().IsMatch(args[1]))
+        {
+            throw new InvalidOperationException("policy apply arguments are invalid");
+        }
+
+        var changes = ParseManifest(args[0]);
+        var currentBytes = ReadSecurePolicy(operations);
+        EnsureHash(currentBytes, args[1]);
+        var proposed = CreateManifestProposed(ParseAndValidate(currentBytes), changes);
+        Apply(operations, "apply", string.Empty, changes.Count + " changes", currentBytes, Encoding.UTF8.GetBytes(Serialize(proposed)));
+        output.WriteLine(JsonSerializer.Serialize(new { changed = true, changeCount = changes.Count }));
+        return 0;
+    }
+
+    private static IReadOnlyList<ManifestChange> ParseManifest(string encoded)
+    {
+        byte[] content;
+        try
+        {
+            content = Convert.FromBase64String(encoded);
+        }
+        catch (FormatException ex)
+        {
+            throw new InvalidOperationException("manifest is not valid Base64", ex);
+        }
+
+        if (content.Length == 0 || content.Length > MaxManifestBytes)
+        {
+            throw new InvalidOperationException("manifest size is invalid");
+        }
+
+        using var document = JsonDocument.Parse(content, new JsonDocumentOptions
+        {
+            AllowTrailingCommas = false,
+            CommentHandling = JsonCommentHandling.Disallow,
+        });
+        var root = document.RootElement;
+        EnsureProperties(root, "sites");
+        var sites = root.GetProperty("sites");
+        if (sites.ValueKind != JsonValueKind.Object)
+        {
+            throw new InvalidOperationException("manifest sites must be an object");
+        }
+
+        var changes = new List<ManifestChange>();
+        var siteCount = 0;
+        foreach (var site in sites.EnumerateObject())
+        {
+            siteCount++;
+            if (siteCount > MaxManifestSites)
+            {
+                throw new InvalidOperationException("manifest contains too many sites");
+            }
+
+            EnsureSafeUnixPath(site.Name, allowRoot: false);
+            EnsureProperties(site.Value, "changes");
+            var siteChanges = site.Value.GetProperty("changes");
+            if (siteChanges.ValueKind != JsonValueKind.Array)
+            {
+                throw new InvalidOperationException("manifest changes must be an array");
+            }
+
+            foreach (var item in siteChanges.EnumerateArray())
+            {
+                EnsureProperties(item, "operation", "path", "access");
+                var operation = item.GetProperty("operation").GetString();
+                var path = item.GetProperty("path").GetString() ?? string.Empty;
+                var access = item.GetProperty("access").GetString();
+                if (!string.Equals(operation, "add", StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException("manifest operation must be add");
+                }
+
+                EnsureSafeUnixPath(path, allowRoot: false);
+                if (access is not ("Update" or "Create"))
+                {
+                    throw new InvalidOperationException("manifest access must be Update or Create");
+                }
+
+                changes.Add(new ManifestChange(site.Name, path, access));
+                if (changes.Count > MaxManifestChanges)
+                {
+                    throw new InvalidOperationException("manifest contains too many changes");
+                }
+            }
+        }
+
+        if (changes.Count == 0)
+        {
+            throw new InvalidOperationException("manifest must contain at least one change");
+        }
+
+        if (changes.GroupBy(change => (change.SiteRoot, change.FilePath)).Any(group => group.Count() != 1))
+        {
+            throw new InvalidOperationException("manifest contains duplicate paths");
+        }
+
+        return changes;
+    }
+
+    private static void EnsureProperties(JsonElement element, params string[] expected)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            throw new InvalidOperationException("manifest object is invalid");
+        }
+
+        var actual = element.EnumerateObject().Select(property => property.Name).ToArray();
+        if (actual.Length != expected.Length || actual.Any(name => !expected.Contains(name, StringComparer.Ordinal)))
+        {
+            throw new InvalidOperationException("manifest contains missing or unknown fields");
+        }
+    }
+
+    private static JsonObject CreateManifestProposed(JsonObject current, IReadOnlyList<ManifestChange> changes)
+    {
+        var proposed = (JsonObject)current.DeepClone();
+        foreach (var change in changes)
+        {
+            proposed = CreateProposed(
+                proposed,
+                new PolicyRequest(change.SiteRoot, change.FilePath, change.Access, null),
+                PolicyOperation.Add);
+        }
+
+        return proposed;
     }
 
     private static int List(
@@ -160,18 +315,38 @@ internal static partial class ManagedWebPolicyCommand
 
         AppendAudit(operations, operation, "confirmed", siteRoot, filePath);
         var temporaryPath = PolicyPath + ".tmp-" + Guid.NewGuid().ToString("N");
+        var replaced = false;
         try
         {
             WriteWithMetadata(operations, temporaryPath, proposed, metadata.Uid, metadata.Gid, mode);
             ParseAndValidate(operations.ReadAllBytes(temporaryPath));
             operations.MoveFileOverwrite(temporaryPath, PolicyPath);
+            replaced = true;
+            ParseAndValidate(ReadSecurePolicy(operations));
+            AppendAudit(operations, operation, "completed", siteRoot, filePath);
+        }
+        catch
+        {
+            if (replaced)
+            {
+                var restorePath = PolicyPath + ".restore-" + Guid.NewGuid().ToString("N");
+                try
+                {
+                    WriteWithMetadata(operations, restorePath, current, metadata.Uid, metadata.Gid, mode);
+                    operations.MoveFileOverwrite(restorePath, PolicyPath);
+                }
+                finally
+                {
+                    operations.DeleteFileIfExists(restorePath);
+                }
+            }
+
+            throw;
         }
         finally
         {
             operations.DeleteFileIfExists(temporaryPath);
         }
-
-        AppendAudit(operations, operation, "completed", siteRoot, filePath);
     }
 
     private static void AppendAudit(
@@ -454,4 +629,6 @@ internal static partial class ManagedWebPolicyCommand
         string FilePath,
         string Access,
         string? ExpectedHash);
+
+    private sealed record ManifestChange(string SiteRoot, string FilePath, string Access);
 }

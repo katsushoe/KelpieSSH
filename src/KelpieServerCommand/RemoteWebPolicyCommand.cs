@@ -12,6 +12,7 @@ namespace KelpieServerCommand;
 /// </summary>
 public static class RemoteWebPolicyCommand
 {
+    private const int MaxManifestBytes = 64 * 1024;
     private const string HelperPath = "/usr/local/libexec/kelpie/kelpie-web-permission-helper";
     private static readonly TimeSpan CommandTimeout = TimeSpan.FromSeconds(30);
 
@@ -47,9 +48,58 @@ public static class RemoteWebPolicyCommand
             "list" => await ListAsync(args.Skip(2).ToArray(), profile, executor, interaction, cancellationToken),
             "add" => await ChangeAsync(args.Skip(2).ToArray(), profile, executor, interaction, "add", cancellationToken),
             "remove" => await ChangeAsync(args.Skip(2).ToArray(), profile, executor, interaction, "remove", cancellationToken),
+            "apply" => await ApplyManifestAsync(args.Skip(2).ToArray(), profile, executor, interaction, cancellationToken),
             "rollback" => await RollbackAsync(args.Skip(2).ToArray(), profile, executor, interaction, cancellationToken),
             _ => WriteUsage(interaction.Error),
         };
+    }
+
+    private static async Task<int> ApplyManifestAsync(
+        IReadOnlyList<string> args,
+        SshConnectionProfile profile,
+        IWebPolicyRemoteExecutor executor,
+        IWebPolicyInteraction interaction,
+        CancellationToken cancellationToken)
+    {
+        if (args.Count != 1)
+        {
+            return WriteUsage(interaction.Error);
+        }
+
+        EnsureInteractive(interaction);
+        var manifestPath = Path.GetFullPath(args[0]);
+        var manifest = await File.ReadAllBytesAsync(manifestPath, cancellationToken);
+        ValidateManifestSize(manifest);
+        var encodedManifest = Convert.ToBase64String(manifest);
+        var previewResult = await executor.ExecuteAsync(
+            profile,
+            "preview-apply",
+            [encodedManifest],
+            cancellationToken);
+        var preview = ReadPreview(previewResult);
+        Confirm(interaction, preview);
+
+        var currentManifest = await File.ReadAllBytesAsync(manifestPath, cancellationToken);
+        ValidateManifestSize(currentManifest);
+        if (!CryptographicOperations.FixedTimeEquals(SHA256.HashData(manifest), SHA256.HashData(currentManifest)))
+        {
+            throw new InvalidOperationException("Manifest changed after preview.");
+        }
+
+        var applyResult = await executor.ExecuteAsync(
+            profile,
+            "apply-manifest",
+            [encodedManifest, preview.CurrentSha256],
+            cancellationToken);
+        return WriteResult(applyResult, interaction);
+    }
+
+    private static void ValidateManifestSize(byte[] manifest)
+    {
+        if (manifest.Length == 0 || manifest.Length > MaxManifestBytes)
+        {
+            throw new InvalidOperationException($"Manifest size must be between 1 and {MaxManifestBytes} bytes.");
+        }
     }
 
     private static SshConnectionProfile LoadProfile(string profilesDirectory, string profileName)
@@ -228,6 +278,7 @@ public static class RemoteWebPolicyCommand
         writer.WriteLine("  kelpiemcp web-policy list <profile> [<site-root>]");
         writer.WriteLine("  kelpiemcp web-policy add <profile> <site-root> <file-path> <Update|Create>");
         writer.WriteLine("  kelpiemcp web-policy remove <profile> <site-root> <file-path>");
+        writer.WriteLine("  kelpiemcp web-policy apply <profile> <manifest.json>");
         writer.WriteLine("  kelpiemcp web-policy rollback <profile>");
         return 1;
     }
@@ -276,6 +327,8 @@ public static class RemoteWebPolicyCommand
                 or "apply-add"
                 or "preview-remove"
                 or "apply-remove"
+                or "preview-apply"
+                or "apply-manifest"
                 or "preview-rollback"
                 or "apply-rollback"))
             {
@@ -285,7 +338,7 @@ public static class RemoteWebPolicyCommand
 
         private static void ValidateArgument(string argument)
         {
-            if (argument.Length > 8192
+            if (argument.Length > 90_000
                 || argument.Any(character => !(char.IsAsciiLetterOrDigit(character)
                     || character is '+' or '/' or '=')))
             {

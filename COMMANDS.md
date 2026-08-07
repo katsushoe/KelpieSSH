@@ -13,7 +13,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | :--- | :--- | :--- |
 | [MCP server control](#mcp-server-control) | `kelpiemcp start [--reload-config]`, `kelpiemcp stop`, `kelpiemcp status` | Start, stop, and inspect `KelpieMCPServer`. |
 | [MCP profile trust](#mcp-profile-trust) | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile> [--approve-privilege-expansion]`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | Add, reload, revoke, and inspect trusted SSH profile baselines. |
-| [Human web policy administration](#human-web-policy-administration) | `kelpiemcp web-policy list`, `add`, `remove`, `rollback` | Remotely inspect or interactively change the selected VPS helper policy. |
+| [Human web policy administration](#human-web-policy-administration) | `kelpiemcp web-policy list`, `add`, `remove`, `apply`, `rollback` | Remotely inspect or interactively change the selected VPS helper policy. |
 | [Human helper update](#human-helper-update) | `kelpiemcp helper update <profile> <local-artifact>` | Upload and atomically replace the fixed privileged helper through a human-only workflow. |
 | [MCP Windows Service](#mcp-windows-service) | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Register, unregister, and inspect the Windows Service entry. |
 | [MCP password session](#mcp-password-session) | `kelpiemcp password`, `kelpiemcp forget`, `kelpiemcp login`, `kelpiemcp logout` | Store or clear an SSH password in the running MCP server session. |
@@ -2254,6 +2254,7 @@ These commands run on a Windows management terminal and administer `/etc/kelpie/
 kelpiemcp web-policy list <profile> [<site-root>]
 kelpiemcp web-policy add <profile> <site-root> <file-path> <Update|Create>
 kelpiemcp web-policy remove <profile> <site-root> <file-path>
+kelpiemcp web-policy apply <profile> <manifest.json>
 kelpiemcp web-policy rollback <profile>
 ```
 
@@ -2261,11 +2262,13 @@ kelpiemcp web-policy rollback <profile>
 - `<file-path>` is a normalized absolute path relative to that site root, such as `/_webadmin/index.php`.
 - `Update` permits atomic replacement of an existing regular file. `Create` additionally permits creation of that exact missing file.
 - Options that skip confirmation are not accepted.
+- `apply` accepts a local JSON object shaped as `{"sites":{"/site/root":{"changes":[{"operation":"add","path":"/file","access":"Create"}]}}}`. The initial version supports `add` only, requires exact field names, and limits input to 64 KiB, 32 sites, and 256 changes.
 
 #### State and output specification
 
 - `list` validates the complete JSON document and prints `site-root`, `file-path`, and access. It is read-only and may be redirected.
 - `add` rejects an existing entry. `remove` rejects a missing entry. `rollback` restores the newest managed backup.
+- `apply` validates every change before preview, rejects duplicate or conflicting paths, binds the preview to both the local manifest and current remote policy, and applies all changes with one confirmation and one atomic replacement. Any validation or post-replacement failure leaves or restores the prior policy.
 - Every changing command requires a human terminal attached to both standard input and standard output. The selected VPS helper requires effective root through narrowly scoped non-interactive sudo and an existing regular non-symlink policy owned by root and not writable by group or others.
 - Before writing, the command prints the current and proposed JSON as a line-oriented difference, generates a cryptographically random confirmation code, and requires the administrator to type the exact code. EOF, mismatch, redirection, or extra arguments aborts without changing the policy.
 - The proposed and backup JSON are parsed and schema-validated. The policy accepts only `Sites.<site-root>.AllowedFiles.<file-path>` with `Update` or `Create`.

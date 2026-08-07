@@ -18,6 +18,7 @@ This ADR is the source of truth for the remote web policy management boundary. C
 kelpiemcp web-policy list <profile> [<site-root>]
 kelpiemcp web-policy add <profile> <site-root> <file-path> <Update|Create>
 kelpiemcp web-policy remove <profile> <site-root> <file-path>
+kelpiemcp web-policy apply <profile> <manifest.json>
 kelpiemcp web-policy rollback <profile>
 ```
 
@@ -28,12 +29,13 @@ Windows-local `/etc/kelpie` paths are never read or modified. The SSH profile se
 - Direct root SSH login remains prohibited.
 - The Windows command may invoke only the fixed helper path with validated action names and Base64-encoded validated arguments.
 - The MCP server and MCP callable tools cannot invoke this workflow, approve it, or elevate their own privileges.
-- `add`, `remove`, and `rollback` require a human terminal on both standard input and standard output.
+- `add`, `remove`, `apply`, and `rollback` require a human terminal on both standard input and standard output.
 - A complete current/proposed JSON comparison is displayed before mutation.
 - The operator must type an exact cryptographically random confirmation code. There is no bypass option.
 - The helper rechecks the current SHA-256 hash after confirmation and refuses a changed policy.
 - Policy JSON must match the strict `Sites.<site-root>.AllowedFiles.<file-path>` schema. Only `Update` and `Create` are accepted.
 - Existing entries are retained. Duplicate additions and removal of missing entries are rejected.
+- Bulk manifests are finite, strict-schema, add-only inputs. All changes are validated before one manifest-bound confirmation and one atomic replacement; duplicate paths and stale local or remote state fail closed.
 - Every mutation creates a timestamped backup before replacement.
 - Backup and replacement files preserve the policy UID, GID, and mode.
 - Replacement uses a temporary file in the policy directory followed by an atomic rename.
@@ -67,6 +69,7 @@ Windows-local `/etc/kelpie` paths are never read or modified. The SSH profile se
 | Explicit remote profile | `RemoteWebPolicyCommand` | `CT-050` list and profile cases | `COMMANDS.md`, `PROFILE_GUIDE.md` |
 | Human comparison and confirmation | `RemoteWebPolicyCommand` | non-interactive and mismatch cases | `COMMANDS.md` |
 | Schema and entry preservation | `ManagedWebPolicyCommand` | existing, duplicate, add, remove cases | `CONFIG.md` |
+| Manifest-bound atomic bulk apply | `RemoteWebPolicyCommand`, `ManagedWebPolicyCommand` | eight-entry, duplicate, invalid-path, stale-policy cases | `COMMANDS.md` |
 | Backup, atomic replacement, metadata, rollback | `ManagedWebPolicyCommand` | add/remove/rollback cases | `COMMANDS.md` |
 | Audit without secrets | `ManagedWebPolicyCommand` | audit and secret-absence cases | `SECURITY.md` |
 | MCP self-elevation prohibited | No MCP registration | callable-tool absence check | `MCP_COMMANDS.md` |

@@ -343,6 +343,7 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpiemcp web-policy list <profile> [<site-root>]");
     writer.WriteLine("  kelpiemcp web-policy add <profile> <site-root> <file-path> <Update|Create>");
     writer.WriteLine("  kelpiemcp web-policy remove <profile> <site-root> <file-path>");
+    writer.WriteLine("  kelpiemcp web-policy apply <profile> <manifest.json>");
     writer.WriteLine("  kelpiemcp web-policy rollback <profile>");
     writer.WriteLine("  kelpiemcp helper update <profile> <local-artifact>");
     writer.WriteLine("  kelpiemcp secret put --name <name> --from-file <path> [--ttl <duration>]");

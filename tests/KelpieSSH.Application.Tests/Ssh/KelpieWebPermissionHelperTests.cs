@@ -21,7 +21,7 @@ public sealed class KelpieWebPermissionHelperTests
 
         exitCode.Should().Be(0);
         error.ToString().Should().BeEmpty();
-        output.ToString().Should().StartWith("kelpie-web-permission-helper 0.2.2.1");
+        output.ToString().Should().StartWith("kelpie-web-permission-helper 0.2.3.0");
     }
 
     [Fact]
@@ -711,6 +711,60 @@ public sealed class KelpieWebPermissionHelperTests
     private static string Encode(string value)
     {
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
+    }
+
+    [Fact]
+    public void Policy_ShouldApplyEightManifestChangesAtomically()
+    {
+        var operations = new FakeUnixPermissionOperations();
+        ConfigureManagedPolicy(operations, "/index.php", "Update");
+        var changes = Enumerable.Range(1, 8)
+            .Select(index => new { operation = "add", path = $"/help/file{index}.html", access = "Create" })
+            .ToArray();
+        var manifest = Encode(System.Text.Json.JsonSerializer.Serialize(new
+        {
+            sites = new Dictionary<string, object> { ["/var/www"] = new { changes } },
+        }));
+        using var previewOutput = new StringWriter();
+        PermissionHelper.Run(["policy", "preview-apply", manifest], operations, previewOutput, TextWriter.Null).Should().Be(0);
+        using var preview = System.Text.Json.JsonDocument.Parse(previewOutput.ToString());
+        var hash = preview.RootElement.GetProperty("currentSha256").GetString()!;
+        using var applyOutput = new StringWriter();
+
+        PermissionHelper.Run(["policy", "apply-manifest", manifest, hash], operations, applyOutput, TextWriter.Null).Should().Be(0);
+
+        var policy = Encoding.UTF8.GetString(operations.FileContents["/etc/kelpie/web-permission-helper-policy.json"]);
+        Enumerable.Range(1, 8).Should().OnlyContain(index => policy.Contains($"/help/file{index}.html", StringComparison.Ordinal));
+        operations.Moves.Should().ContainSingle();
+        applyOutput.ToString().Should().Contain("\"changeCount\":8");
+    }
+
+    [Fact]
+    public void Policy_ManifestWithDuplicateOrInvalidChange_ShouldLeavePolicyUnchanged()
+    {
+        var operations = new FakeUnixPermissionOperations();
+        ConfigureManagedPolicy(operations, "/index.php", "Update");
+        var original = operations.FileContents["/etc/kelpie/web-permission-helper-policy.json"].ToArray();
+        var duplicate = Encode("{\"sites\":{\"/var/www\":{\"changes\":[{\"operation\":\"add\",\"path\":\"/a.html\",\"access\":\"Create\"},{\"operation\":\"add\",\"path\":\"/a.html\",\"access\":\"Update\"}]}}}");
+        var invalid = Encode("{\"sites\":{\"/var/www\":{\"changes\":[{\"operation\":\"add\",\"path\":\"../a.html\",\"access\":\"Create\"}]}}}");
+
+        PermissionHelper.Run(["policy", "preview-apply", duplicate], operations, TextWriter.Null, TextWriter.Null).Should().Be(1);
+        PermissionHelper.Run(["policy", "preview-apply", invalid], operations, TextWriter.Null, TextWriter.Null).Should().Be(1);
+        operations.FileContents["/etc/kelpie/web-permission-helper-policy.json"].Should().Equal(original);
+        operations.Moves.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Policy_ApplyManifestAfterPolicyChange_ShouldRejectWithoutWrites()
+    {
+        var operations = new FakeUnixPermissionOperations();
+        ConfigureManagedPolicy(operations, "/index.php", "Update");
+        var manifest = Encode("{\"sites\":{\"/var/www\":{\"changes\":[{\"operation\":\"add\",\"path\":\"/a.html\",\"access\":\"Create\"}]}}}");
+
+        PermissionHelper.Run(["policy", "apply-manifest", manifest, new string('0', 64)], operations, TextWriter.Null, TextWriter.Null).Should().Be(1);
+
+        operations.Writes.Should().BeEmpty();
+        operations.Moves.Should().BeEmpty();
     }
 
     private static void ConfigureManagedPolicy(FakeUnixPermissionOperations operations, string path, string access)

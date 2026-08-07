@@ -7,6 +7,32 @@ namespace KelpieSSH.Application.Tests.Command;
 public sealed class RemoteWebPolicyCommandTests
 {
     [Fact]
+    public async Task RunAsync_Apply_ShouldSendOneManifestWithOneConfirmation()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllTextAsync(path, "{\"sites\":{\"/var/www\":{\"changes\":[{\"operation\":\"add\",\"path\":\"/a.html\",\"access\":\"Create\"}]}}}");
+            var interaction = new ConfirmingInteraction();
+            var executor = new FakeExecutor(
+                Result(0, "{\"current\":\"{}\\n\",\"proposed\":\"{}\\n\",\"currentSha256\":\"" + new string('a', 64) + "\",\"backupName\":null}"),
+                Result(0, "{\"changed\":true,\"changeCount\":1}\n"));
+
+            var exitCode = await RemoteWebPolicyCommand.RunAsync(
+                ["apply", "sample", path], interaction, executor, profileOverride: CreateProfile());
+
+            exitCode.Should().Be(0);
+            interaction.ReadCount.Should().Be(1);
+            executor.Calls.Select(call => call.Action).Should().Equal("preview-apply", "apply-manifest");
+            executor.Calls[1].Arguments.Should().HaveCount(2);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task RunAsync_Add_ShouldRequireProfileAndApplyAfterInteractiveConfirmation()
     {
         var interaction = new ConfirmingInteraction();
