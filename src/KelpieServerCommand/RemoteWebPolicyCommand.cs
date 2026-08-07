@@ -31,6 +31,41 @@ public static class RemoteWebPolicyCommand
         profilesDirectory ??= KelpieRuntimePaths.GetProfilesDirectory(AppContext.BaseDirectory);
         executor ??= new SshWebPolicyRemoteExecutor();
 
+        try
+        {
+            return await RunCoreAsync(
+                args,
+                interaction,
+                executor,
+                profilesDirectory,
+                profileOverride,
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            interaction.Error.WriteLine(NormalizeCliError(ex.Message));
+            if (IsChangingAction(args))
+            {
+                interaction.Error.WriteLine("No changes were applied.");
+            }
+
+            return 1;
+        }
+    }
+
+    private static async Task<int> RunCoreAsync(
+        IReadOnlyList<string> args,
+        IWebPolicyInteraction interaction,
+        IWebPolicyRemoteExecutor executor,
+        string profilesDirectory,
+        SshConnectionProfile? profileOverride,
+        CancellationToken cancellationToken)
+    {
+
         if (args.Count < 2)
         {
             return WriteUsage(interaction.Error);
@@ -52,6 +87,22 @@ public static class RemoteWebPolicyCommand
             "rollback" => await RollbackAsync(args.Skip(2).ToArray(), profile, executor, interaction, cancellationToken),
             _ => WriteUsage(interaction.Error),
         };
+    }
+
+    private static bool IsChangingAction(IReadOnlyList<string> args)
+    {
+        return args.Count > 0 && args[0].ToLowerInvariant() is "add" or "remove" or "apply" or "rollback";
+    }
+
+    private static string NormalizeCliError(string message)
+    {
+        var detail = message
+            .Replace("\r", " ", StringComparison.Ordinal)
+            .Replace("\n", " ", StringComparison.Ordinal)
+            .Trim();
+        return detail.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase)
+            ? "ERROR:" + detail[6..]
+            : "ERROR: " + (detail.Length == 0 ? "web-policy command failed." : detail);
     }
 
     private static async Task<int> ApplyManifestAsync(
@@ -91,7 +142,7 @@ public static class RemoteWebPolicyCommand
             "apply-manifest",
             [encodedManifest, preview.CurrentSha256],
             cancellationToken);
-        return WriteResult(applyResult, interaction);
+        return WriteResult(applyResult, interaction, reportNoChanges: true);
     }
 
     private static void ValidateManifestSize(byte[] manifest)
@@ -171,7 +222,7 @@ public static class RemoteWebPolicyCommand
             "apply-" + operation,
             remoteArgs,
             cancellationToken);
-        return WriteResult(applyResult, interaction);
+        return WriteResult(applyResult, interaction, reportNoChanges: true);
     }
 
     private static async Task<int> RollbackAsync(
@@ -199,7 +250,7 @@ public static class RemoteWebPolicyCommand
             "apply-rollback",
             [preview.CurrentSha256, Encode(preview.BackupName ?? string.Empty)],
             cancellationToken);
-        return WriteResult(result, interaction);
+        return WriteResult(result, interaction, reportNoChanges: true);
     }
 
     private static RemotePolicyPreview ReadPreview(SshCommandResult result)
@@ -237,11 +288,19 @@ public static class RemoteWebPolicyCommand
         }
     }
 
-    private static int WriteResult(SshCommandResult result, IWebPolicyInteraction interaction)
+    private static int WriteResult(
+        SshCommandResult result,
+        IWebPolicyInteraction interaction,
+        bool reportNoChanges = false)
     {
         if (result.ExitCode != 0)
         {
             interaction.Error.WriteLine(CreateSafeError(result));
+            if (reportNoChanges)
+            {
+                interaction.Error.WriteLine("No changes were applied.");
+            }
+
             return 1;
         }
 
@@ -260,6 +319,11 @@ public static class RemoteWebPolicyCommand
             return "The VPS web permission helper is too old for remote web-policy management. "
                 + "Update /usr/local/libexec/kelpie/kelpie-web-permission-helper to version 0.2.1.1 or later, "
                 + "preserve root ownership and mode 0755, then retry.";
+        }
+
+        if (detail.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase))
+        {
+            return "ERROR:" + detail[6..];
         }
 
         return detail.Length == 0

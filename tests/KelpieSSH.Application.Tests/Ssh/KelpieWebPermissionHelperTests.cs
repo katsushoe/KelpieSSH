@@ -21,7 +21,7 @@ public sealed class KelpieWebPermissionHelperTests
 
         exitCode.Should().Be(0);
         error.ToString().Should().BeEmpty();
-        output.ToString().Should().StartWith("kelpie-web-permission-helper 0.2.3.0");
+        output.ToString().Should().StartWith("kelpie-web-permission-helper 0.2.3.1");
     }
 
     [Fact]
@@ -751,6 +751,28 @@ public sealed class KelpieWebPermissionHelperTests
         PermissionHelper.Run(["policy", "preview-apply", duplicate], operations, TextWriter.Null, TextWriter.Null).Should().Be(1);
         PermissionHelper.Run(["policy", "preview-apply", invalid], operations, TextWriter.Null, TextWriter.Null).Should().Be(1);
         operations.FileContents["/etc/kelpie/web-permission-helper-policy.json"].Should().Equal(original);
+        operations.Moves.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Policy_ManifestWithExistingEntry_ShouldReportRelativePathWithoutWrites()
+    {
+        var operations = new FakeUnixPermissionOperations();
+        ConfigureManagedPolicy(operations, "/products/help/index.html", "Create");
+        var original = operations.FileContents["/etc/kelpie/web-permission-helper-policy.json"].ToArray();
+        var manifest = Encode("{\"sites\":{\"/var/www\":{\"changes\":[{\"operation\":\"add\",\"path\":\"/products/help/index.html\",\"access\":\"Create\"}]}}}");
+        using var error = new StringWriter();
+
+        PermissionHelper.Run(
+            ["policy", "preview-apply", manifest],
+            operations,
+            TextWriter.Null,
+            error).Should().Be(1);
+
+        error.ToString().Should().Be(
+            "ERROR: policy entry already exists: /products/help/index.html" + Environment.NewLine);
+        operations.FileContents["/etc/kelpie/web-permission-helper-policy.json"].Should().Equal(original);
+        operations.Writes.Should().BeEmpty();
         operations.Moves.Should().BeEmpty();
     }
 

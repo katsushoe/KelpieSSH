@@ -76,14 +76,15 @@ public sealed class RemoteWebPolicyCommandTests
         var interaction = new ConfirmingInteraction(isInteractive: false);
         var executor = new FakeExecutor();
 
-        var action = () => RemoteWebPolicyCommand.RunAsync(
+        var exitCode = await RemoteWebPolicyCommand.RunAsync(
             ["remove", "sample", "/var/www", "/contact.php"],
             interaction,
             executor,
             profileOverride: CreateProfile());
 
-        await action.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*interactive human terminal*");
+        exitCode.Should().Be(1);
+        interaction.ErrorText.Should().Contain("ERROR: web-policy changes require an interactive human terminal.")
+            .And.Contain("No changes were applied.");
         executor.Calls.Should().BeEmpty();
     }
 
@@ -94,14 +95,15 @@ public sealed class RemoteWebPolicyCommandTests
         var executor = new FakeExecutor(
             Result(0, "{\"current\":\"{}\\n\",\"proposed\":\"{}\\n\",\"currentSha256\":\"" + new string('a', 64) + "\",\"backupName\":\"backup.json\"}"));
 
-        var action = () => RemoteWebPolicyCommand.RunAsync(
+        var exitCode = await RemoteWebPolicyCommand.RunAsync(
             ["rollback", "sample"],
             interaction,
             executor,
             profileOverride: CreateProfile());
 
-        await action.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*did not match*");
+        exitCode.Should().Be(1);
+        interaction.ErrorText.Should().Contain("ERROR: Confirmation code did not match.")
+            .And.Contain("No changes were applied.");
         executor.Calls.Should().ContainSingle();
     }
 
@@ -111,15 +113,71 @@ public sealed class RemoteWebPolicyCommandTests
         var interaction = new ConfirmingInteraction();
         var executor = new FakeExecutor(Result(1, string.Empty, "sudo: a password is required"));
 
-        var action = () => RemoteWebPolicyCommand.RunAsync(
+        var exitCode = await RemoteWebPolicyCommand.RunAsync(
             ["add", "sample", "/var/www", "/contact.php", "Update"],
             interaction,
             executor,
             profileOverride: CreateProfile());
 
-        await action.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*password is required*");
+        exitCode.Should().Be(1);
+        interaction.ErrorText.Should().Contain("password is required")
+            .And.Contain("No changes were applied.")
+            .And.NotContain("InvalidOperationException")
+            .And.NotContain(" at ");
         interaction.OutputText.ToLowerInvariant().Should().NotContain("secret");
+    }
+
+    [Fact]
+    public async Task RunAsync_Apply_WhenEntryExists_ShouldReportPathAndNoChangesWithoutStackTrace()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllTextAsync(path, "{\"sites\":{\"/var/www\":{\"changes\":[{\"operation\":\"add\",\"path\":\"/products/help/index.html\",\"access\":\"Create\"}]}}}");
+            var interaction = new ConfirmingInteraction();
+            var executor = new FakeExecutor(
+                Result(1, string.Empty, "ERROR: policy entry already exists: /products/help/index.html"));
+
+            var exitCode = await RemoteWebPolicyCommand.RunAsync(
+                ["apply", "sample", path], interaction, executor, profileOverride: CreateProfile());
+
+            exitCode.Should().Be(1);
+            interaction.ErrorText.Should().Be(
+                "ERROR: policy entry already exists: /products/help/index.html" + Environment.NewLine
+                + "No changes were applied." + Environment.NewLine);
+            interaction.ErrorText.Should().NotContain("InvalidOperationException")
+                .And.NotContain(" at ");
+            executor.Calls.Should().ContainSingle(call => call.Action == "preview-apply");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_Apply_WhenRemoteApplyFails_ShouldReportNoChanges()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllTextAsync(path, "{\"sites\":{\"/var/www\":{\"changes\":[{\"operation\":\"add\",\"path\":\"/a.html\",\"access\":\"Create\"}]}}}");
+            var interaction = new ConfirmingInteraction();
+            var executor = new FakeExecutor(
+                Result(0, "{\"current\":\"{}\\n\",\"proposed\":\"{}\\n\",\"currentSha256\":\"" + new string('a', 64) + "\",\"backupName\":null}"),
+                Result(1, string.Empty, "ERROR: current policy changed after preview"));
+
+            var exitCode = await RemoteWebPolicyCommand.RunAsync(
+                ["apply", "sample", path], interaction, executor, profileOverride: CreateProfile());
+
+            exitCode.Should().Be(1);
+            interaction.ErrorText.Should().Contain("ERROR: current policy changed after preview")
+                .And.Contain("No changes were applied.");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 
     [Fact]

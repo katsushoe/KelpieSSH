@@ -451,7 +451,7 @@ internal static partial class ManagedWebPolicyCommand
             var files = siteNode!.AsObject()["AllowedFiles"]!.AsObject();
             if (files.ContainsKey(request.FilePath))
             {
-                throw new InvalidOperationException("policy entry already exists");
+                throw new InvalidOperationException("policy entry already exists: " + request.FilePath);
             }
 
             files[request.FilePath] = request.Access;
