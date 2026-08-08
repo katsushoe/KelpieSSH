@@ -128,6 +128,19 @@ public static class RemoteWebPolicyCommand
             [encodedManifest],
             cancellationToken);
         var preview = ReadPreview(previewResult);
+        if (preview.Changed == false)
+        {
+            interaction.Output.WriteLine(JsonSerializer.Serialize(new
+            {
+                success = true,
+                changed = false,
+                addedCount = preview.AddedCount,
+                updatedCount = preview.UpdatedCount,
+                unchangedCount = preview.UnchangedCount,
+            }));
+            return 0;
+        }
+
         Confirm(interaction, preview);
 
         var currentManifest = await File.ReadAllBytesAsync(manifestPath, cancellationToken);
@@ -272,9 +285,9 @@ public static class RemoteWebPolicyCommand
         interaction.Output.Write(preview.Current);
         interaction.Output.WriteLine("+++ proposed");
         interaction.Output.Write(preview.Proposed);
-        var code = Convert.ToHexString(RandomNumberGenerator.GetBytes(4));
+        var code = Convert.ToHexString(RandomNumberGenerator.GetBytes(2)).ToLowerInvariant();
         interaction.Output.Write($"Type {code} to apply: ");
-        if (!string.Equals(interaction.ReadLine(), code, StringComparison.Ordinal))
+        if (!string.Equals(interaction.ReadLine(), code, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Confirmation code did not match.");
         }
@@ -351,7 +364,11 @@ public static class RemoteWebPolicyCommand
         string Current,
         string Proposed,
         string CurrentSha256,
-        string? BackupName);
+        string? BackupName,
+        bool? Changed = null,
+        int? AddedCount = null,
+        int? UpdatedCount = null,
+        int? UnchangedCount = null);
 
     private sealed class SshWebPolicyRemoteExecutor : IWebPolicyRemoteExecutor
     {

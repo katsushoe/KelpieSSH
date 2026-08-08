@@ -54,8 +54,8 @@ internal static partial class ManagedWebPolicyCommand
 
         var changes = ParseManifest(args[0]);
         var currentBytes = ReadSecurePolicy(operations);
-        var proposed = CreateManifestProposed(ParseAndValidate(currentBytes), changes);
-        WritePreview(output, currentBytes, Encoding.UTF8.GetBytes(Serialize(proposed)));
+        var plan = CreateManifestPlan(ParseAndValidate(currentBytes), changes);
+        WriteManifestPreview(output, currentBytes, plan);
         return 0;
     }
 
@@ -72,9 +72,15 @@ internal static partial class ManagedWebPolicyCommand
         var changes = ParseManifest(args[0]);
         var currentBytes = ReadSecurePolicy(operations);
         EnsureHash(currentBytes, args[1]);
-        var proposed = CreateManifestProposed(ParseAndValidate(currentBytes), changes);
-        Apply(operations, "apply", string.Empty, changes.Count + " changes", currentBytes, Encoding.UTF8.GetBytes(Serialize(proposed)));
-        output.WriteLine(JsonSerializer.Serialize(new { changed = true, changeCount = changes.Count }));
+        var plan = CreateManifestPlan(ParseAndValidate(currentBytes), changes);
+        if (plan.AddedCount + plan.UpdatedCount == 0)
+        {
+            WriteManifestResult(output, plan);
+            return 0;
+        }
+
+        Apply(operations, "apply", string.Empty, changes.Count + " changes", currentBytes, Encoding.UTF8.GetBytes(Serialize(plan.Proposed)));
+        WriteManifestResult(output, plan);
         return 0;
     }
 
@@ -178,18 +184,40 @@ internal static partial class ManagedWebPolicyCommand
         }
     }
 
-    private static JsonObject CreateManifestProposed(JsonObject current, IReadOnlyList<ManifestChange> changes)
+    private static ManifestPlan CreateManifestPlan(JsonObject current, IReadOnlyList<ManifestChange> changes)
     {
         var proposed = (JsonObject)current.DeepClone();
+        var sites = proposed["Sites"]!.AsObject();
+        var addedCount = 0;
+        var updatedCount = 0;
+        var unchangedCount = 0;
         foreach (var change in changes)
         {
-            proposed = CreateProposed(
-                proposed,
-                new PolicyRequest(change.SiteRoot, change.FilePath, change.Access, null),
-                PolicyOperation.Add);
+            if (sites[change.SiteRoot] is not JsonObject site)
+            {
+                site = new JsonObject { ["AllowedFiles"] = new JsonObject() };
+                sites[change.SiteRoot] = site;
+            }
+
+            var allowedFiles = site["AllowedFiles"]!.AsObject();
+            if (allowedFiles[change.FilePath] is null)
+            {
+                allowedFiles[change.FilePath] = change.Access;
+                addedCount++;
+            }
+            else if (string.Equals(allowedFiles[change.FilePath]!.GetValue<string>(), change.Access, StringComparison.Ordinal))
+            {
+                unchangedCount++;
+            }
+            else
+            {
+                allowedFiles[change.FilePath] = change.Access;
+                updatedCount++;
+            }
         }
 
-        return proposed;
+        Validate(proposed);
+        return new ManifestPlan(proposed, addedCount, updatedCount, unchangedCount);
     }
 
     private static int List(
@@ -247,7 +275,7 @@ internal static partial class ManagedWebPolicyCommand
         var current = ParseAndValidate(currentBytes);
         var proposedBytes = Encoding.UTF8.GetBytes(Serialize(CreateProposed(current, request, operation)));
         Apply(operations, operation.ToString().ToLowerInvariant(), request.SiteRoot, request.FilePath, currentBytes, proposedBytes);
-        output.WriteLine("{\"changed\":true}");
+        output.WriteLine("{\"success\":true,\"changed\":true}");
         return 0;
     }
 
@@ -294,7 +322,7 @@ internal static partial class ManagedWebPolicyCommand
 
         ParseAndValidate(latest.Content);
         Apply(operations, "rollback", string.Empty, string.Empty, current, latest.Content);
-        output.WriteLine("{\"changed\":true}");
+        output.WriteLine("{\"success\":true,\"changed\":true}");
         return 0;
     }
 
@@ -588,6 +616,33 @@ internal static partial class ManagedWebPolicyCommand
         }));
     }
 
+    private static void WriteManifestPreview(TextWriter output, byte[] current, ManifestPlan plan)
+    {
+        output.WriteLine(JsonSerializer.Serialize(new
+        {
+            current = Encoding.UTF8.GetString(current),
+            proposed = Serialize(plan.Proposed),
+            currentSha256 = ComputeHash(current),
+            backupName = (string?)null,
+            changed = plan.AddedCount + plan.UpdatedCount != 0,
+            addedCount = plan.AddedCount,
+            updatedCount = plan.UpdatedCount,
+            unchangedCount = plan.UnchangedCount,
+        }));
+    }
+
+    private static void WriteManifestResult(TextWriter output, ManifestPlan plan)
+    {
+        output.WriteLine(JsonSerializer.Serialize(new
+        {
+            success = true,
+            changed = plan.AddedCount + plan.UpdatedCount != 0,
+            addedCount = plan.AddedCount,
+            updatedCount = plan.UpdatedCount,
+            unchangedCount = plan.UnchangedCount,
+        }));
+    }
+
     private static (string Path, byte[] Content) ReadLatestBackup(IUnixPermissionOperations operations)
     {
         if (!operations.DirectoryExists(BackupDirectory))
@@ -653,4 +708,10 @@ internal static partial class ManagedWebPolicyCommand
         string? ExpectedHash);
 
     private sealed record ManifestChange(string SiteRoot, string FilePath, string Access);
+
+    private sealed record ManifestPlan(
+        JsonObject Proposed,
+        int AddedCount,
+        int UpdatedCount,
+        int UnchangedCount);
 }

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Kelpie.Core;
 using KelpieSSH.Application.Ssh;
 using KelpieSSH.Infrastructure.Ssh;
@@ -27,6 +28,30 @@ public static class HelperUpdateCommand
         interaction ??= new ConsoleWebPolicyInteraction();
         remote ??= new SshHelperUpdateRemote();
         profilesDirectory ??= KelpieRuntimePaths.GetProfilesDirectory(AppContext.BaseDirectory);
+        try
+        {
+            return await RunCoreAsync(args, interaction, remote, profilesDirectory, profileOverride, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            interaction.Error.WriteLine("ERROR: " + ex.Message.Replace("\r", " ", StringComparison.Ordinal).Replace("\n", " ", StringComparison.Ordinal));
+            interaction.Error.WriteLine("No changes were applied.");
+            return 1;
+        }
+    }
+
+    private static async Task<int> RunCoreAsync(
+        IReadOnlyList<string> args,
+        IWebPolicyInteraction interaction,
+        IHelperUpdateRemote remote,
+        string profilesDirectory,
+        SshConnectionProfile? profileOverride,
+        CancellationToken cancellationToken)
+    {
         if (args.Count != 3 || !string.Equals(args[0], "update", StringComparison.OrdinalIgnoreCase))
         {
             interaction.Error.WriteLine("Usage: kelpiemcp helper update <profile> <local-artifact>");
@@ -51,9 +76,20 @@ public static class HelperUpdateCommand
         interaction.Output.WriteLine($"Current: {preview.CurrentVersion}");
         interaction.Output.WriteLine($"Current SHA-256: {preview.CurrentHash}");
         interaction.Output.WriteLine($"Proposed SHA-256: {artifactHash}");
-        var code = Convert.ToHexString(RandomNumberGenerator.GetBytes(4));
+        if (string.Equals(preview.CurrentHash, artifactHash, StringComparison.OrdinalIgnoreCase))
+        {
+            interaction.Output.WriteLine(JsonSerializer.Serialize(new
+            {
+                success = true,
+                changed = false,
+                message = "Helper is already up to date.",
+            }));
+            return 0;
+        }
+
+        var code = Convert.ToHexString(RandomNumberGenerator.GetBytes(2)).ToLowerInvariant();
         interaction.Output.Write($"Type {code} to apply: ");
-        if (!string.Equals(interaction.ReadLine(), code, StringComparison.Ordinal))
+        if (!string.Equals(interaction.ReadLine(), code, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Confirmation code did not match.");
         }
@@ -65,7 +101,12 @@ public static class HelperUpdateCommand
             return 1;
         }
 
-        interaction.Output.WriteLine(result.Message);
+        interaction.Output.WriteLine(JsonSerializer.Serialize(new
+        {
+            success = true,
+            changed = true,
+            message = result.Message,
+        }));
         return 0;
     }
 

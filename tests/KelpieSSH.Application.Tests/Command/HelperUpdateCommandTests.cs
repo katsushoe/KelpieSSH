@@ -24,7 +24,36 @@ public sealed class HelperUpdateCommandTests
             remote.Calls.Should().Equal("upload", "preview", "apply");
             interaction.OutputText.Should().Contain("Current:")
                 .And.Contain("Proposed SHA-256:")
-                .And.Contain("Helper update completed.");
+                .And.Contain("\"success\":true")
+                .And.Contain("\"changed\":true")
+                .And.Contain("\"message\":\"Helper update completed.\"");
+        }
+        finally
+        {
+            File.Delete(artifact);
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenHashesMatch_ShouldSucceedWithoutConfirmationOrApply()
+    {
+        var artifact = CreateArtifact();
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(await File.ReadAllBytesAsync(artifact))).ToLowerInvariant();
+        var interaction = new TestInteraction(confirm: false);
+        var remote = new FakeRemote(currentHash: hash);
+        try
+        {
+            var exitCode = await HelperUpdateCommand.RunAsync(
+                ["update", "sample", artifact],
+                interaction,
+                remote,
+                profileOverride: CreateProfile());
+
+            exitCode.Should().Be(0);
+            remote.Calls.Should().Equal("upload", "preview");
+            interaction.OutputText.Should().Contain("\"success\":true")
+                .And.Contain("\"changed\":false")
+                .And.NotContain("Type ");
         }
         finally
         {
@@ -39,14 +68,15 @@ public sealed class HelperUpdateCommandTests
         var remote = new FakeRemote();
         try
         {
-            var action = () => HelperUpdateCommand.RunAsync(
+            var interaction = new TestInteraction(isInteractive: false);
+            var exitCode = await HelperUpdateCommand.RunAsync(
                 ["update", "sample", artifact],
-                new TestInteraction(isInteractive: false),
+                interaction,
                 remote,
                 profileOverride: CreateProfile());
 
-            await action.Should().ThrowAsync<InvalidOperationException>()
-                .WithMessage("*interactive human terminal*");
+            exitCode.Should().Be(1);
+            interaction.ErrorText.Should().Contain("interactive human terminal");
             remote.Calls.Should().BeEmpty();
         }
         finally
@@ -62,14 +92,15 @@ public sealed class HelperUpdateCommandTests
         var remote = new FakeRemote(stagedHashMatches: false);
         try
         {
-            var action = () => HelperUpdateCommand.RunAsync(
+            var interaction = new TestInteraction();
+            var exitCode = await HelperUpdateCommand.RunAsync(
                 ["update", "sample", artifact],
-                new TestInteraction(),
+                interaction,
                 remote,
                 profileOverride: CreateProfile());
 
-            await action.Should().ThrowAsync<InvalidOperationException>()
-                .WithMessage("*SHA-256 did not match*");
+            exitCode.Should().Be(1);
+            interaction.ErrorText.Should().Contain("SHA-256 did not match");
             remote.Calls.Should().Equal("upload", "preview");
         }
         finally
@@ -85,14 +116,16 @@ public sealed class HelperUpdateCommandTests
         var remote = new FakeRemote();
         try
         {
-            var action = () => HelperUpdateCommand.RunAsync(
+            var interaction = new TestInteraction(confirm: false);
+            var exitCode = await HelperUpdateCommand.RunAsync(
                 ["update", "sample", artifact],
-                new TestInteraction(confirm: false),
+                interaction,
                 remote,
                 profileOverride: CreateProfile());
 
-            await action.Should().ThrowAsync<InvalidOperationException>()
-                .WithMessage("*Confirmation code did not match*");
+            exitCode.Should().Be(1);
+            interaction.ErrorText.Should().Contain("ERROR: Confirmation code did not match.")
+                .And.Contain("No changes were applied.");
             remote.Calls.Should().Equal("upload", "preview");
         }
         finally
@@ -133,7 +166,7 @@ public sealed class HelperUpdateCommandTests
         };
     }
 
-    private sealed class FakeRemote(bool stagedHashMatches = true) : IHelperUpdateRemote
+    private sealed class FakeRemote(bool stagedHashMatches = true, string? currentHash = null) : IHelperUpdateRemote
     {
         public List<string> Calls { get; } = [];
 
@@ -154,7 +187,7 @@ public sealed class HelperUpdateCommandTests
             Calls.Add("preview");
             return Task.FromResult(new HelperUpdatePreview(
                 "helper 0.1.0.4",
-                new string('a', 64),
+                currentHash ?? new string('a', 64),
                 stagedHashMatches));
         }
 
@@ -179,6 +212,7 @@ public sealed class HelperUpdateCommandTests
         public TextWriter Output => _output;
         public TextWriter Error => _error;
         public string OutputText => _output.ToString();
+        public string ErrorText => _error.ToString();
 
         public string? ReadLine()
         {
@@ -189,7 +223,7 @@ public sealed class HelperUpdateCommandTests
 
             var text = _output.ToString();
             var start = text.LastIndexOf("Type ", StringComparison.Ordinal) + 5;
-            return text.Substring(start, 8);
+            return text.Substring(start, 4).ToLowerInvariant();
         }
     }
 }

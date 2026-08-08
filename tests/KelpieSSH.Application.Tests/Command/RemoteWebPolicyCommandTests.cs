@@ -128,7 +128,7 @@ public sealed class RemoteWebPolicyCommandTests
     }
 
     [Fact]
-    public async Task RunAsync_Apply_WhenEntryExists_ShouldReportPathAndNoChangesWithoutStackTrace()
+    public async Task RunAsync_Apply_WhenAllEntriesAreUnchanged_ShouldSkipConfirmationAndRemoteApply()
     {
         var path = Path.GetTempFileName();
         try
@@ -136,17 +136,16 @@ public sealed class RemoteWebPolicyCommandTests
             await File.WriteAllTextAsync(path, "{\"sites\":{\"/var/www\":{\"changes\":[{\"operation\":\"add\",\"path\":\"/products/help/index.html\",\"access\":\"Create\"}]}}}");
             var interaction = new ConfirmingInteraction();
             var executor = new FakeExecutor(
-                Result(1, string.Empty, "ERROR: policy entry already exists: /products/help/index.html"));
+                Result(0, "{\"current\":\"{}\\n\",\"proposed\":\"{}\\n\",\"currentSha256\":\"" + new string('a', 64) + "\",\"backupName\":null,\"changed\":false,\"addedCount\":0,\"updatedCount\":0,\"unchangedCount\":1}"));
 
             var exitCode = await RemoteWebPolicyCommand.RunAsync(
                 ["apply", "sample", path], interaction, executor, profileOverride: CreateProfile());
 
-            exitCode.Should().Be(1);
-            interaction.ErrorText.Should().Be(
-                "ERROR: policy entry already exists: /products/help/index.html" + Environment.NewLine
-                + "No changes were applied." + Environment.NewLine);
-            interaction.ErrorText.Should().NotContain("InvalidOperationException")
-                .And.NotContain(" at ");
+            exitCode.Should().Be(0);
+            interaction.ReadCount.Should().Be(0);
+            interaction.OutputText.Should().Contain("\"success\":true")
+                .And.Contain("\"changed\":false")
+                .And.Contain("\"unchangedCount\":1");
             executor.Calls.Should().ContainSingle(call => call.Action == "preview-apply");
         }
         finally
@@ -268,7 +267,7 @@ public sealed class RemoteWebPolicyCommandTests
 
             var marker = "Type ";
             var start = _output.ToString().LastIndexOf(marker, StringComparison.Ordinal) + marker.Length;
-            return _output.ToString().Substring(start, 8);
+            return _output.ToString().Substring(start, 4).ToUpperInvariant();
         }
     }
 }

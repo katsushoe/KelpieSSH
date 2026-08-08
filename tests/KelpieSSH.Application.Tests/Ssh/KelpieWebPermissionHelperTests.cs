@@ -21,7 +21,7 @@ public sealed class KelpieWebPermissionHelperTests
 
         exitCode.Should().Be(0);
         error.ToString().Should().BeEmpty();
-        output.ToString().Should().StartWith("kelpie-web-permission-helper 0.2.3.2");
+        output.ToString().Should().StartWith("kelpie-web-permission-helper 0.2.3.3");
     }
 
     [Fact]
@@ -736,7 +736,9 @@ public sealed class KelpieWebPermissionHelperTests
         var policy = Encoding.UTF8.GetString(operations.FileContents["/etc/kelpie/web-permission-helper-policy.json"]);
         Enumerable.Range(1, 8).Should().OnlyContain(index => policy.Contains($"/help/file{index}.html", StringComparison.Ordinal));
         operations.Moves.Should().ContainSingle();
-        applyOutput.ToString().Should().Contain("\"changeCount\":8");
+        applyOutput.ToString().Should().Contain("\"addedCount\":8")
+            .And.Contain("\"updatedCount\":0")
+            .And.Contain("\"unchangedCount\":0");
     }
 
     [Fact]
@@ -755,25 +757,65 @@ public sealed class KelpieWebPermissionHelperTests
     }
 
     [Fact]
-    public void Policy_ManifestWithExistingEntry_ShouldReportRelativePathWithoutWrites()
+    public void Policy_ManifestWithUnchangedEntry_ShouldSucceedWithoutWrites()
     {
         var operations = new FakeUnixPermissionOperations();
         ConfigureManagedPolicy(operations, "/products/help/index.html", "Create");
         var original = operations.FileContents["/etc/kelpie/web-permission-helper-policy.json"].ToArray();
         var manifest = Encode("{\"sites\":{\"/var/www\":{\"changes\":[{\"operation\":\"add\",\"path\":\"/products/help/index.html\",\"access\":\"Create\"}]}}}");
-        using var error = new StringWriter();
+        using var previewOutput = new StringWriter();
 
         PermissionHelper.Run(
             ["policy", "preview-apply", manifest],
             operations,
-            TextWriter.Null,
-            error).Should().Be(1);
+            previewOutput,
+            TextWriter.Null).Should().Be(0);
+        using var preview = System.Text.Json.JsonDocument.Parse(previewOutput.ToString());
+        using var applyOutput = new StringWriter();
+        PermissionHelper.Run(
+            ["policy", "apply-manifest", manifest, preview.RootElement.GetProperty("currentSha256").GetString()!],
+            operations,
+            applyOutput,
+            TextWriter.Null).Should().Be(0);
 
-        error.ToString().Should().Be(
-            "ERROR: policy entry already exists: /products/help/index.html" + Environment.NewLine);
+        preview.RootElement.GetProperty("changed").GetBoolean().Should().BeFalse();
+        preview.RootElement.GetProperty("unchangedCount").GetInt32().Should().Be(1);
+        applyOutput.ToString().Should().Contain("\"success\":true")
+            .And.Contain("\"changed\":false");
         operations.FileContents["/etc/kelpie/web-permission-helper-policy.json"].Should().Equal(original);
         operations.Writes.Should().BeEmpty();
         operations.Moves.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Policy_ManifestWithAddedUpdatedAndUnchangedEntries_ShouldApplyAtomically()
+    {
+        var operations = new FakeUnixPermissionOperations();
+        ConfigureManagedPolicy(operations, "/same.html", "Create");
+        var policy = System.Text.Json.Nodes.JsonNode.Parse(
+            operations.FileContents["/etc/kelpie/web-permission-helper-policy.json"])!.AsObject();
+        policy["Sites"]!["/var/www"]!["AllowedFiles"]!["/update.html"] = "Create";
+        operations.FileContents["/etc/kelpie/web-permission-helper-policy.json"] = Encoding.UTF8.GetBytes(policy.ToJsonString());
+        var manifest = Encode("{\"sites\":{\"/var/www\":{\"changes\":[{\"operation\":\"add\",\"path\":\"/same.html\",\"access\":\"Create\"},{\"operation\":\"add\",\"path\":\"/update.html\",\"access\":\"Update\"},{\"operation\":\"add\",\"path\":\"/new.html\",\"access\":\"Create\"}]}}}");
+        using var previewOutput = new StringWriter();
+
+        PermissionHelper.Run(["policy", "preview-apply", manifest], operations, previewOutput, TextWriter.Null).Should().Be(0);
+        using var preview = System.Text.Json.JsonDocument.Parse(previewOutput.ToString());
+        using var applyOutput = new StringWriter();
+        PermissionHelper.Run(
+            ["policy", "apply-manifest", manifest, preview.RootElement.GetProperty("currentSha256").GetString()!],
+            operations,
+            applyOutput,
+            TextWriter.Null).Should().Be(0);
+
+        preview.RootElement.GetProperty("addedCount").GetInt32().Should().Be(1);
+        preview.RootElement.GetProperty("updatedCount").GetInt32().Should().Be(1);
+        preview.RootElement.GetProperty("unchangedCount").GetInt32().Should().Be(1);
+        applyOutput.ToString().Should().Contain("\"success\":true")
+            .And.Contain("\"changed\":true");
+        Encoding.UTF8.GetString(operations.FileContents["/etc/kelpie/web-permission-helper-policy.json"])
+            .Should().Contain("/new.html").And.Contain("Update");
+        operations.Moves.Should().ContainSingle();
     }
 
     [Fact]

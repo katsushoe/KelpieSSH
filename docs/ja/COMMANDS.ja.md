@@ -2086,9 +2086,9 @@ kelpiemcp web-policy rollback <profile>
 
 - `list` はJSON文書全体を検証し、`site-root`、`file-path`、accessを表示します。読み取り専用であり、redirect可能です。
 - `add` は既存entryを拒否し、`remove` は存在しないentryを拒否します。`rollback` は最新のmanaged backupを復元します。
-- `apply` はpreview前に全変更を検証し、重複または競合pathを拒否します。ローカルmanifestと現在のremote policyの両方へpreviewを結合し、1回の確認と1回の原子的置換で全件を適用します。検証または置換後処理に失敗した場合は、変更前policyを維持または復元します。復元時の原子的renameは最大2回試行し、両方が失敗した場合はerrorを返して復旧用managed backupを保持します。
+- `apply` はpreview前に全変更を検証し、重複pathを拒否します。各manifest entryはupsertとして扱い、未登録なら追加、異なるaccessなら更新、同じaccessなら無変更とします。混在時は1回の確認と1回の原子的置換で適用し、全件無変更なら確認、backup、置換、成功auditを行わず正常終了します。`add`、`remove`、`apply`、`rollback`の成功結果には`success: true`を出力し、`apply`ではさらに`changed`、`addedCount`、`updatedCount`、`unchangedCount`を出力します。検証または置換後処理に失敗した場合は、変更前policyを維持または復元します。復元時の原子的renameは最大2回試行し、両方が失敗した場合はerrorを返して復旧用managed backupを保持します。
 - 変更コマンドは標準入力と標準出力の両方に接続した人間用terminalを必須とします。選択したVPS上のhelperは、限定した非対話sudoによるeffective rootと、root所有でgroupとothersから書き込めない既存の非symlink regular policy fileを必須とします。
-- 書込み前に現在と変更後のJSON差分を表示し、暗号学的に生成したランダム確認コードの完全一致入力を要求します。EOF、不一致、redirect、余分な引数ではpolicyを変更しません。
+- 書込み前に現在と変更後のJSON差分を表示し、暗号学的に生成した小文字16進数4桁の確認コードを要求します。入力比較では大文字・小文字を区別しません。EOF、不一致、redirect、余分な引数ではpolicyを変更しません。
 - 変更後JSONとbackup JSONをparseし、schemaを検証します。policyは `Sites.<site-root>.AllowedFiles.<file-path>` と `Update` または `Create` だけを受け付けます。
 - 元fileのUID、GID、Unix modeをbackupと一時fileへ適用します。同じdirectory内の原子的renameで置換し、置換後のmetadataも検証します。
 - backupは `/etc/kelpie/.web-policy-backups/` に保存します。rollbackを含む各変更でtimestamp付きbackupを作るため、rollback操作自体も復旧できます。
@@ -2096,7 +2096,7 @@ kelpiemcp web-policy rollback <profile>
 
 #### エラー仕様
 
-構文またはJSON不正、未対応fieldや値、危険なpath、非対話実行、非root実行、安全でない所有者やmode、確認コード不一致、entryまたはbackup不足、metadata維持失敗、backup失敗、監査失敗、原子的置換失敗では終了code `1`を返します。既存entryと競合した場合は、manifest内で最初に競合したsite root相対pathと、変更を適用しなかったことを明示します。想定済みのcommand失敗では、例外型、source path、行番号、stack traceを表示せず簡潔なerrorを出力します。VPS helperが`policy` actionに未対応の場合は、root所有とmode `0755`を維持してhelper `0.2.1.0`以降へ更新するよう案内します。要求した読み取りまたは変更が完了した場合だけ`0`を返します。
+構文またはJSON不正、未対応fieldや値、危険なpath、非対話実行、非root実行、安全でない所有者やmode、確認コード不一致、entryまたはbackup不足、metadata維持失敗、backup失敗、監査失敗、原子的置換失敗では終了code `1`を返します。単発の`add`は既存entryを引き続き拒否しますが、`apply`は更新または無変更として扱います。想定済みのcommand失敗では、例外型、source path、行番号、stack traceを表示せず簡潔なerrorを出力します。VPS helperが`policy` actionに未対応の場合は、root所有とmode `0755`を維持してhelper `0.2.1.0`以降へ更新するよう案内します。要求した読み取り、変更、または確認済みの無変更が完了した場合に`0`を返します。
 
 ### 人間用helper更新
 
@@ -2108,7 +2108,7 @@ kelpiemcp helper update <profile> <local-artifact>
 
 `<local-artifact>`は単一の実行可能な通常fileである必要があります。Linux x64 helperは、`--self-contained true -p:PublishSingleFile=true`を指定してpublishしてください。隣接runtime fileを必要とするframework-dependent apphost単体は、更新artifactとして使用できません。
 
-local regular fileを検証してhashを計算し、内部SFTPで固定staging pathへ転送します。remote hashを照合し、現在versionとhashを表示した後、ランダム確認コードの完全一致を要求します。非公開の固定コマンドwrapperが現行helperをbackupし、root所有の一時fileを再検証して`root:root`、mode `0755`を設定し、対象へ原子的に置換してidentityを確認し、`logger`へ完了を記録します。特権処理が失敗した場合はrollbackを試みます。
+local regular fileを検証してhashを計算し、内部SFTPで固定staging pathへ転送します。remote hashを照合し、現在versionとhashを表示します。hashが同じ場合は確認と置換を行わず、`changed: false`で正常終了します。異なる場合は小文字16進数4桁のランダム確認コードを要求し、入力比較では大文字・小文字を区別しません。非公開の固定コマンドwrapperが現行helperをbackupし、root所有の一時fileを再検証して`root:root`、mode `0755`を設定し、対象へ原子的に置換してidentityを確認し、`logger`へ完了を記録します。成功時は`success`、`changed`、`message`を含むJSON結果を出力します。特権処理が失敗した場合はrollbackを試みます。
 
 特権処理はKelpieSSHの既存内部encoded root-command channelを再利用します。完全固定scriptをCLI内へ埋め込み、検証済みSHA-256だけを引数として受け取ります。command providerやMCP toolには登録せず、helper更新専用sudoersの追加も不要です。
 
