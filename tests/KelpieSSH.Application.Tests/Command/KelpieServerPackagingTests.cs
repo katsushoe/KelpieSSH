@@ -25,7 +25,7 @@ public sealed class KelpieServerPackagingTests
             var publish = await RunAsync(
                 repositoryRoot,
                 "dotnet",
-                ["publish", projectPath, "-c", "Release", "--no-restore", "-o", outputDirectory]);
+                ["publish", projectPath, "-c", "Release", "--no-restore", "--disable-build-servers", "-o", outputDirectory]);
             publish.ExitCode.Should().Be(0, publish.StandardError);
 
             File.Exists(Path.Combine(outputDirectory, "Renci.SshNet.dll")).Should().BeTrue();
@@ -86,7 +86,18 @@ public sealed class KelpieServerPackagingTests
         process.Start();
         var standardOutput = process.StandardOutput.ReadToEndAsync();
         var standardError = process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+        try
+        {
+            await process.WaitForExitAsync(timeout.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync();
+            throw new TimeoutException($"Process timed out: {fileName} {string.Join(' ', arguments)}");
+        }
+
         return new ProcessResult(
             process.ExitCode,
             await standardOutput,
