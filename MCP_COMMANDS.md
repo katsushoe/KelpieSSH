@@ -7643,9 +7643,11 @@ Safety notes:
 
 ### `ssh_file_export`
 
-Exports one remote regular file directly into the Kelpie data directory's `exports` folder. The matching `AllowedRoots` rule must grant both `@Read` and `@Export`. Every remote path component is checked; symlinks, directories, special files, root escapes, oversized files, and files changed during transfer are rejected. A `SpecialPaths: Confirm` match additionally requires `confirmSpecialPath=true`.
+Exports one remote regular file directly into the Kelpie data directory's `exports` folder. The matching `AllowedRoots` rule must grant both `@Read` and `@Export`. Every remote path component is checked without requiring directory-list permission; symlinks, directories, special files, root escapes, oversized files, and files changed during transfer are rejected. A `SpecialPaths: Confirm` match additionally requires `confirmSpecialPath=true`.
 
 Inputs are `profileName`, absolute `remotePath`, `localPath` (relative to the export folder, or absolute inside it), and optional `confirmSpecialPath`. The response contains only paths, SHA-256, size, numeric owner/group IDs, and warnings. File content and Base64 content are never returned.
+
+Failures distinguish profile-policy rejection, SSH authentication failure, and SFTP operation failure. SFTP diagnostics include the selected profile user, absolute-path classification, and SFTP status, but never credentials or file content.
 
 ## Web bulk transfers
 
