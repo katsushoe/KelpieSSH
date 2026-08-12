@@ -410,6 +410,28 @@ public sealed class KelpieToolsSshTests
     }
 
     [Fact]
+    public async Task GetSshCapabilitiesAsync_ShouldReturnFileExportAvailabilityFromAllowedRoots()
+    {
+        var profile = CreateProfile(
+            "vps01",
+            allowedRootRules:
+            [
+                new AllowedRootRule("/srv/exports", AllowedRootAccess.Read | AllowedRootAccess.Export),
+            ]);
+        var runner = new FakeSshCommandRunner();
+        var service = CreateProviderBackedService(runner);
+        var profiles = new SshConnectionProfileCatalog([profile]);
+
+        var result = await KelpieTools.GetSshCapabilitiesAsync(service, profiles, "vps01");
+
+        result.Tools.Should().Contain(tool =>
+            tool.ToolName == "ssh_file_export"
+            && tool.Available
+            && tool.RiskLevel == nameof(SshCommandRiskLevel.ReadOnly)
+            && !tool.RequiresConfirmation);
+    }
+
+    [Fact]
     public async Task PeekEnvironmentValueAsync_ShouldReturnPolicyErrorResult()
     {
         var profile = CreateProfile("vps01");
@@ -3721,10 +3743,37 @@ public sealed class KelpieToolsSshTests
         var result = await KelpieTools.ExportSshFileAsync(
             profiles, exporter, "vps01", "/etc/app/private.pem", "private.pem", confirmSpecialPath: true);
 
-        result.Should().Be(expected);
-        result.Should().NotBeOfType<string>();
+        result.Ok.Should().BeTrue();
+        result.Data.Should().Be(expected);
+        result.Error.Should().BeNull();
         await exporter.Received(1).ExportAsync(
             profile, "/etc/app/private.pem", "private.pem", true, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExportSshFileAsync_ShouldReturnStructuredPolicyFailure()
+    {
+        var profile = CreateProfile("vps01");
+        var profiles = new SshConnectionProfileCatalog([profile]);
+        var exporter = NSubstitute.Substitute.For<ISshFileExporter>();
+        exporter.ExportAsync(profile, "/etc/app/private.pem", "C:\\Tmp\\private.pem", true, Arg.Any<CancellationToken>())
+            .Returns<Task<SshFileExportResult>>(_ => throw new KelpiePolicyError(
+                "local destination must be inside the configured Kelpie export directory."));
+
+        var result = await KelpieTools.ExportSshFileAsync(
+            profiles,
+            exporter,
+            "vps01",
+            "/etc/app/private.pem",
+            "C:\\Tmp\\private.pem",
+            confirmSpecialPath: true);
+
+        result.Ok.Should().BeFalse();
+        result.Data.Should().BeNull();
+        result.Error.Should().Be("KelpiePolicyError: local destination must be inside the configured Kelpie export directory.");
+        result.ErrorInfo.Should().NotBeNull();
+        result.ErrorInfo!.Code.Should().Be("KELPIE_POLICY_FILE_EXPORT_DENIED");
+        result.ErrorInfo.Category.Should().Be("PolicyDenied");
     }
 
     [Fact]
@@ -3936,7 +3985,8 @@ public sealed class KelpieToolsSshTests
         string packageManager = "apt",
         PolicySet? capabilities = null,
         IReadOnlyCollection<EnvironmentValueRule>? environmentValues = null,
-        IReadOnlyCollection<WebPublicSite>? webPublicSites = null)
+        IReadOnlyCollection<WebPublicSite>? webPublicSites = null,
+        IReadOnlyCollection<AllowedRootRule>? allowedRootRules = null)
     {
         return new SshConnectionProfile
         {
@@ -3950,6 +4000,7 @@ public sealed class KelpieToolsSshTests
             Capabilities = capabilities ?? PolicySet.Empty,
             EnvironmentValues = environmentValues ?? [],
             WebPublicSites = webPublicSites ?? [],
+            AllowedRootRules = allowedRootRules ?? [],
         };
     }
 

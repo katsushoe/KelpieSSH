@@ -633,6 +633,7 @@ KelpieMCPServer validates the MCP schema arguments, resolves any saved profile o
 Return value:
 
 - Return type: `SshCapabilityResult`.
+- `ssh_file_export` is reported as available when at least one `AllowedRoots` rule grants both `@Read` and `@Export`.
 - The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
 - Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
 
@@ -7645,7 +7646,7 @@ Safety notes:
 
 Exports one remote regular file directly into the Kelpie data directory's `exports` folder. The matching `AllowedRoots` rule must grant both `@Read` and `@Export`. Every remote path component is checked without requiring directory-list permission; symlinks, directories, special files, root escapes, oversized files, and files changed during transfer are rejected. A `SpecialPaths: Confirm` match additionally requires `confirmSpecialPath=true`.
 
-Inputs are `profileName`, absolute `remotePath`, `localPath` (relative to the export folder, or absolute inside it), and optional `confirmSpecialPath`. The response contains only paths, SHA-256, size, numeric owner/group IDs, and warnings. File content and Base64 content are never returned.
+Inputs are `profileName`, absolute `remotePath`, `localPath` (relative to the export folder, or absolute inside it), and optional `confirmSpecialPath`. The response is a structured `SshFileExportToolResult`: successful calls place metadata in `Data`; rejected or failed calls set `Ok=false`, `Error`, and `ErrorInfo` without creating a partial local file. File content and Base64 content are never returned.
 
 Failures distinguish profile-policy rejection, SSH authentication failure, and SFTP operation failure. SFTP diagnostics include the selected profile user, absolute-path classification, and SFTP status, but never credentials or file content.
 

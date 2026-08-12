@@ -127,6 +127,7 @@ public sealed partial class KelpieTools
             CreateSshToolCapability("ssh_service_restart", "service_restart", commands),
             CreateSshToolCapability("ssh_service_stop", "service_stop", commands),
             CreateSshToolCapability("ssh_service_disable", "service_disable", commands),
+            CreateFileExportToolCapability(profile),
             CreateEnvironmentToolCapability(
                 profile,
                 "get_environment_keys",
@@ -164,6 +165,20 @@ public sealed partial class KelpieTools
                 KelpiePolicyNames.AllowSetEnvironmentValues,
                 "EnvironmentSet"),
         ];
+    }
+
+    private static SshToolCapability CreateFileExportToolCapability(SshConnectionProfile profile)
+    {
+        var requiredAccess = AllowedRootAccess.Read | AllowedRootAccess.Export;
+        var available = profile.AllowedRootRules.Any(rule => (rule.Access & requiredAccess) == requiredAccess);
+
+        return new SshToolCapability(
+            "ssh_file_export",
+            "file_export",
+            available,
+            available ? nameof(SshCommandRiskLevel.ReadOnly) : string.Empty,
+            RequiresConfirmation: false,
+            available ? null : "No AllowedRoots rule grants both @Read and @Export.");
     }
 
     private static SshToolCapability CreateSshToolCapability(
