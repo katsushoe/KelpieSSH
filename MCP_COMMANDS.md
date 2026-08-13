@@ -6779,7 +6779,7 @@ Input arguments:
 - `siteKey`: Configured web site key.
 - `path`: Target path validated by the tool policy or provider.
 - `contentType`: Content type metadata for written content.
-- `usePrivilegedHelper`: When true, also verifies that the root-owned managed helper policy permits this exact site root and path.
+- `usePrivilegedHelper`: When true, requires both the normal profile decision and approval from the root-owned managed helper policy. A missing site root, an unmatched exact or directory-glob entry, or insufficient `Create` access returns `canWrite: false`; the check never falls back to the normal write permission alone.
 
 `tools/call` params sample:
 

@@ -5589,7 +5589,7 @@ Web 公開ルート配下の1ディレクトリツリーへ、sudo helper 経由
 
 ## 管理対象Webファイルのatomic更新
 
-- `web_file_check_write`の`usePrivilegedHelper=true`は、通常の`AllowedFiles`判定に加えて、root所有の`/etc/kelpie/web-permission-helper-policy.json`に同じsite rootと完全一致パスが登録されていることを確認します。
+- `web_file_check_write`の`usePrivilegedHelper=true`は、通常のprofile判定とroot所有の`/etc/kelpie/web-permission-helper-policy.json`による許可を両方必須とします。site root不足、完全一致またはdirectory glob不一致、`Create`許可不足では`canWrite: false`を返し、通常の書込み許可だけへfallbackしません。
 - 事前確認結果は、新規作成可否、特権付きatomic更新、owner/group/mode維持、backup、rollback、更新前後のSHA-256確認の利用可否を返します。
 - `web_file_write`では`expectedSha256`、`createBackup`、`preservePermissions`を指定できます。既存ファイルはuid、gid、modeを維持し、helper policyで`Create`とした完全一致パスだけroot所有・`0644`で新規作成できます。
 - backupと本体は対象ディレクトリ内の一時ファイルへ書き、同一filesystem内のrenameでatomicに置換します。symlink、ルート外、未登録パス、実行可能modeは拒否します。

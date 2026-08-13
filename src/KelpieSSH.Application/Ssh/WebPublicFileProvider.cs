@@ -622,6 +622,7 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
 
         var helperAvailable = false;
         var helperCreateAllowed = false;
+        string? helperReason = null;
         if (usePrivilegedHelper && (remote.CanWrite || IsPermissionOnlyWriteFailure(remote.Reason)))
         {
             var helperResult = await sshCommandService.ExecuteAsync(
@@ -642,13 +643,20 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 helperAvailable = managed.Allowed;
                 helperCreateAllowed = managed.CreateAllowed;
             }
+            else
+            {
+                helperReason = CreateSafeErrorDetail(helperResult.StandardError);
+            }
         }
 
-        var canWrite = remote.CanWrite || helperAvailable;
+        var canWrite = usePrivilegedHelper ? helperAvailable : remote.CanWrite;
+        var reason = usePrivilegedHelper && !helperAvailable
+            ? helperReason ?? remote.Reason ?? "Managed web permission policy does not allow this write."
+            : remote.Reason;
 
         var failure = canWrite
             ? WebPublicWriteFailure.None
-            : CreateWriteFailure(remote.Reason);
+            : CreateWriteFailure(reason);
 
         return new WebPublicFileWriteCheckResult(
             site.SiteKey,
@@ -660,7 +668,7 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             RequiresConfirmation: canWrite,
             confirmation,
             resolvedContentType,
-            remote.Reason,
+            reason,
             Warnings: [],
             Error: null,
             ReasonCode: failure.ReasonCode,
