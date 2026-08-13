@@ -33,7 +33,7 @@ Windows-local `/etc/kelpie` paths are never read or modified. The SSH profile se
 - A complete current/proposed JSON comparison is displayed before mutation.
 - The operator must type an exact cryptographically random confirmation code. There is no bypass option.
 - The helper rechecks the current SHA-256 hash after confirmation and refuses a changed policy.
-- Policy JSON must match the strict `Sites.<site-root>.AllowedFiles.<file-path>` schema. Only `Update` and `Create` are accepted.
+- Policy JSON must match the strict `Sites.<site-root>.AllowedFiles.<file-path>` schema. Only `Update` and `Create` are accepted. A file path may use only a terminal `/*` for direct children or `/**` for recursive descendants. Root-wide and intermediate globs are rejected; exact entries take precedence. The privileged helper rechecks the resolved regular-file target against the policy, so traversal, directory targets, and symbolic-link escapes remain outside the trust boundary.
 - Existing entries are retained. Duplicate additions and removal of missing entries are rejected.
 - Bulk manifests are finite, strict-schema, add-only inputs. All changes are validated before one manifest-bound confirmation and one atomic replacement; duplicate paths and stale local or remote state fail closed.
 - Every mutation creates a timestamped backup before replacement.

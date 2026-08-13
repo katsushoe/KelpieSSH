@@ -2077,7 +2077,7 @@ kelpiemcp web-policy rollback <profile>
 ```
 
 - `<site-root>` は `/var/www` のような正規化済みUnix絶対pathです。
-- `<file-path>` は `/_webadmin/index.php` のようなsite root相対の絶対pathです。
+- `<file-path>` は `/_webadmin/index.php` のようなsite root相対の絶対pathです。末尾`/*`はそのdirectory直下の通常fileだけ、`/**`は配下の通常fileを再帰的に照合します。root全体または途中のglob、空segment、path traversal、directory自体、symlink逸脱は拒否します。完全一致entryは一致するdirectory globより優先します。
 - `Update` は既存regular fileの原子的置換を許可します。`Create` は、その完全一致pathが存在しない場合の作成も許可します。
 - 確認を省略するoptionは受け付けません。
 - `apply` は `{"sites":{"/site/root":{"changes":[{"operation":"add","path":"/file","access":"Create"}]}}}` 形式のローカルJSON objectを受け取ります。初期版は`add`だけを扱い、field名の完全一致を要求し、64 KiB、32 site、256変更を上限とします。
@@ -2089,7 +2089,7 @@ kelpiemcp web-policy rollback <profile>
 - `apply` はpreview前に全変更を検証し、重複pathを拒否します。各manifest entryはupsertとして扱い、未登録なら追加、異なるaccessなら更新、同じaccessなら無変更とします。混在時は1回の確認と1回の原子的置換で適用し、全件無変更なら確認、backup、置換、成功auditを行わず正常終了します。`add`、`remove`、`apply`、`rollback`の成功結果には`success: true`を出力し、`apply`ではさらに`changed`、`addedCount`、`updatedCount`、`unchangedCount`を出力します。検証または置換後処理に失敗した場合は、変更前policyを維持または復元します。復元時の原子的renameは最大2回試行し、両方が失敗した場合はerrorを返して復旧用managed backupを保持します。
 - 変更コマンドは標準入力と標準出力の両方に接続した人間用terminalを必須とします。選択したVPS上のhelperは、限定した非対話sudoによるeffective rootと、root所有でgroupとothersから書き込めない既存の非symlink regular policy fileを必須とします。
 - 書込み前に現在と変更後のJSON差分を表示し、暗号学的に生成した小文字16進数4桁の確認コードを要求します。入力比較では大文字・小文字を区別しません。EOF、不一致、redirect、余分な引数ではpolicyを変更しません。
-- 変更後JSONとbackup JSONをparseし、schemaを検証します。policyは `Sites.<site-root>.AllowedFiles.<file-path>` と `Update` または `Create` だけを受け付けます。
+- 変更後JSONとbackup JSONをparseし、schemaを検証します。policyは `Sites.<site-root>.AllowedFiles.<file-path>` と `Update` または `Create` だけを受け付けます。helperは解決済み書込みpathに対して完全一致entryと限定directory globを再評価します。存在しないfileには`Create`が必要で、`Update`は既存の通常fileだけを許可します。
 - 元fileのUID、GID、Unix modeをbackupと一時fileへ適用します。同じdirectory内の原子的renameで置換し、置換後のmetadataも検証します。
 - backupは `/etc/kelpie/.web-policy-backups/` に保存します。rollbackを含む各変更でtimestamp付きbackupを作るため、rollback操作自体も復旧できます。
 - 置換前と完了後に `/var/log/kelpie/web-policy-audit.jsonl` へ監査eventを追記してflushします。監査logはroot所有mode `0600`で、操作metadataとpathだけを記録し、file内容は記録しません。

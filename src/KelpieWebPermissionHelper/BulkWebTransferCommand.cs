@@ -324,9 +324,9 @@ internal static partial class BulkWebTransferCommand
         foreach (var file in files)
         {
             var exists = File.Exists(ResolveTarget(root, file.Path));
-            if (!allowed.TryGetProperty(file.Path, out var access)
-                || (exists && access.GetString() is not ("Update" or "Create"))
-                || (!exists && access.GetString() != "Create"))
+            var access = ManagedWebPolicyRules.GetAccess(allowed, file.Path);
+            if ((exists && access is not ("Update" or "Create"))
+                || (!exists && access != "Create"))
             {
                 throw new InvalidOperationException(file.Path + ": managed web policy does not allow this write");
             }

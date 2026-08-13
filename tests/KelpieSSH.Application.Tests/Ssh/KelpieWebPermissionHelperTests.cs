@@ -21,7 +21,7 @@ public sealed class KelpieWebPermissionHelperTests
 
         exitCode.Should().Be(0);
         error.ToString().Should().BeEmpty();
-        output.ToString().Should().StartWith("kelpie-web-permission-helper 0.2.3.3");
+        output.ToString().Should().StartWith("kelpie-web-permission-helper 0.2.3.4");
     }
 
     [Fact]
@@ -602,6 +602,55 @@ public sealed class KelpieWebPermissionHelperTests
         exitCode.Should().Be(0);
         output.ToString().Should().Contain("\"/index.php\": \"Update\"");
         error.ToString().Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("/products/download/*", "/products/download/package.zip", true)]
+    [InlineData("/products/download/*", "/products/download/archive/package.zip", false)]
+    [InlineData("/products/download/**", "/products/download/archive/package.zip", true)]
+    [InlineData("/products/download/**", "/products/other/package.zip", false)]
+    public void CheckManagedFile_DirectoryGlob_ShouldMatchOnlyItsDefinedScope(
+        string policyPath,
+        string requestedPath,
+        bool expectedAllowed)
+    {
+        var operations = new FakeUnixPermissionOperations();
+        ConfigureManagedPolicy(operations, policyPath, "Create");
+        using var output = new StringWriter();
+
+        var exitCode = PermissionHelper.Run(
+            ["check-managed-file", Encode("/var/www"), Encode(requestedPath), "1"],
+            operations,
+            output,
+            TextWriter.Null);
+
+        exitCode.Should().Be(expectedAllowed ? 0 : 1);
+        if (expectedAllowed)
+        {
+            output.ToString().Should().Contain("\"allowed\":true");
+        }
+        else
+        {
+            output.ToString().Should().BeEmpty();
+        }
+    }
+
+    [Theory]
+    [InlineData("/**")]
+    [InlineData("/*")]
+    [InlineData("/products/**/package.zip")]
+    [InlineData("/products//download/**")]
+    [InlineData("/products/download/***")]
+    public void Policy_Add_ShouldRejectUnsafeGlob(string path)
+    {
+        var operations = new FakeUnixPermissionOperations();
+        ConfigureManagedPolicy(operations, "/index.php", "Update");
+
+        PermissionHelper.Run(
+            ["policy", "preview-add", Encode("/var/www"), Encode(path), "Create"],
+            operations,
+            TextWriter.Null,
+            TextWriter.Null).Should().Be(1);
     }
 
     [Fact]
