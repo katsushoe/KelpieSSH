@@ -129,6 +129,7 @@ builder.Services.AddHostedService<NamedPipeShutdownService>();
 builder.Services
     .AddMcpServer(options =>
     {
+        options.ServerInstructions = KelpieMcpGuidance.ServerInstructions;
         options.ServerInfo = new()
         {
             Name = "KelpieSSH",
@@ -139,7 +140,8 @@ builder.Services
     {
         options.Stateless = true;
     })
-    .WithToolsFromAssembly();
+    .WithToolsFromAssembly()
+    .WithPromptsFromAssembly();
 
 var app = builder.Build();
 

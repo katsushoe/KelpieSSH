@@ -25,6 +25,14 @@ KelpieSSHは、検証・診断対象を次の4境界に分離します。ある�
 
 静的検査は、変更されたtrust baselineの受け入れ、サーバー起動、対象に対する認証確認、SSH到達確認を行いません。また、SSH対象の失敗だけでローカルMCPサーバー異常とは判断しません。
 
+## Server Instructions と Prompt
+
+KelpieSSH は MCP 初期化時に、製品の目的と安全境界を示す Server Instructions を通知します。対応する AI client は、対象と capability の事前確認、専用の読み取り専用 tool の優先、認証情報の保護、変更前の preview、profile policy・確認・監査・rollback の順守に関する案内を受け取ります。
+
+また、KelpieSSH は MCP prompt `kelpie_get_started` を公開します。Prompt 対応 MCP client で選択し、必要に応じて診断または保守の目的を指定すると、`get_target_inventory`、`ssh_get_capabilities`、必要最小限の診断、変更前検査、承認、変更後検証の順に AI を案内します。目的には認証情報や秘密値を含めないでください。
+
+Server Instructions と prompt は AI client への案内であり、権限を追加しません。選択した profile の `Mode`、`AllowedRoots`、`SpecialPaths`、trust 状態、各 tool の検証結果が常に優先されます。
+
 ## MCP ファイルと配置
 
 インストールまたは zip 展開された KelpieSSH には、MCP frontend command と MCP server body が含まれます。
