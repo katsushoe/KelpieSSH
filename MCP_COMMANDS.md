@@ -1,6 +1,6 @@
 # KelpieSSH MCP Commands
 
-Last updated: 2026-07-31
+Last updated: 2026-08-30
 
 This file is the English command reference for MCP callable tools exposed by `KelpieMCPServer`.
 For Japanese documentation, see [docs/ja/MCP_COMMANDS.ja.md](docs/ja/MCP_COMMANDS.ja.md).
@@ -54,6 +54,7 @@ This document describes the `name` and `arguments` used inside `tools/call`. In 
 | [Profile management](#profile-management) | `profile_reload`, `ssh_profile_capabilities` | Reload saved SSH profiles and inspect profile operation capabilities for an open SSH terminal connection. |
 | [Local diagnostics](#local-diagnostics) | `get_system_info`, `get_disk_usage`, `get_memory_usage`, `get_listening_ports` | Inspect the local host running `KelpieMCPServer`. |
 | [Capabilities and inventory](#capabilities-and-inventory) | `ssh_get_capabilities`, `get_target_inventory` | Inspect target command/tool support and installed helper/software inventory. |
+| [Staged server deployment](#staged-server-deployment) | `provider_version`, `provider_capabilities`, `target_status`, `deploy_prepare`, `deploy_upload`, `deploy_activate`, `deploy_verify`, `deploy_rollback`, `deploy_cleanup` | Run an idempotent, hash-bound deployment through a configured target without disclosing credentials. |
 | [SSH diagnostics](#ssh-diagnostics) | `ssh_get_system_info`, `ssh_get_os_release`, `ssh_get_uptime`, `ssh_get_disk_usage`, `ssh_get_memory_usage`, `ssh_get_process_summary`, `ssh_get_inode_usage`, `ssh_get_mounts`, `ssh_get_network_addresses`, `ssh_get_routes`, `ssh_get_dns_config`, `ssh_check_http_local`, `ssh_check_tcp_connect_local`, `ssh_get_listening_ports`, `ssh_get_failed_services`, `ssh_get_journal_recent`, `ssh_tail_log` | Run allow-listed read-oriented diagnostics over SSH. |
 | [Cron, certificate, user, firewall, backup, and audit checks](#cron-certificate-user-firewall-backup-and-audit-checks) | `ssh_cron_list`, `ssh_cron_validate`, `ssh_cron_check_write`, `ssh_cron_write`, `ssh_cron_rollback`, `ssh_cert_inspect`, `ssh_cert_expiry_check`, `ssh_user_list`, `ssh_user_info`, `ssh_group_list`, `ssh_group_info`, `ssh_sudoers_check`, `ssh_user_usage_check`, `ssh_user_check_group_change`, `ssh_user_apply_group_change`, `ssh_user_rollback_group_change`, `ssh_user_check_permission_change`, `ssh_user_apply_permission_change`, `ssh_user_rollback_permission_change`, `ssh_user_file_ownership_check`, `ssh_user_service_usage_check`, `ssh_service_residual_config_check`, `ssh_support_report_collect`, `ssh_firewall_status`, `ssh_firewall_check_rule`, `ssh_firewall_apply_rule`, `ssh_backup_plan_check`, `ssh_backup_run`, `ssh_backup_verify`, `ssh_audit_verify`, `ssh_audit_export` | Inspect or change sensitive server-maintenance state through bounded checks and confirmation-gated operations. |
 | [Environment](#environment) | `get_environment_keys`, `peek_environment_value`, `set_environment_value`, `list_persistent_environment_keys`, `persist_environment_value`, `remove_persistent_environment_value` | List, read, temporarily set, or persist remote environment variables under profile policy. |
@@ -633,6 +634,7 @@ KelpieMCPServer validates the MCP schema arguments, resolves any saved profile o
 Return value:
 
 - Return type: `SshCapabilityResult`.
+- `ssh_file_export` is reported as available when at least one `AllowedRoots` rule grants both `@Read` and `@Export`.
 - The returned object is serialized as MCP tool content, usually as `structuredContent` when the client supports structured tool results.
 - Error fields are empty on success and contain validation, policy, connection, or execution errors when the tool cannot complete normally.
 
@@ -6778,7 +6780,7 @@ Input arguments:
 - `siteKey`: Configured web site key.
 - `path`: Target path validated by the tool policy or provider.
 - `contentType`: Content type metadata for written content.
-- `usePrivilegedHelper`: When true, also verifies that the root-owned managed helper policy permits this exact site root and path.
+- `usePrivilegedHelper`: When true, requires both the normal profile decision and approval from the root-owned managed helper policy. A missing site root, an unmatched exact or directory-glob entry, or insufficient `Create` access returns `canWrite: false`; the check never falls back to the normal write permission alone.
 
 `tools/call` params sample:
 
@@ -7643,9 +7645,11 @@ Safety notes:
 
 ### `ssh_file_export`
 
-Exports one remote regular file directly into the Kelpie data directory's `exports` folder. The matching `AllowedRoots` rule must grant both `@Read` and `@Export`. Every remote path component is checked; symlinks, directories, special files, root escapes, oversized files, and files changed during transfer are rejected. A `SpecialPaths: Confirm` match additionally requires `confirmSpecialPath=true`.
+Exports one remote regular file directly into the Kelpie data directory's `exports` folder. The matching `AllowedRoots` rule must grant both `@Read` and `@Export`. Every remote path component is checked without requiring directory-list permission; symlinks, directories, special files, root escapes, oversized files, and files changed during transfer are rejected. A `SpecialPaths: Confirm` match additionally requires `confirmSpecialPath=true`.
 
-Inputs are `profileName`, absolute `remotePath`, `localPath` (relative to the export folder, or absolute inside it), and optional `confirmSpecialPath`. The response contains only paths, SHA-256, size, numeric owner/group IDs, and warnings. File content and Base64 content are never returned.
+Inputs are `profileName`, absolute `remotePath`, `localPath` (relative to the export folder, or absolute inside it), and optional `confirmSpecialPath`. The response is a structured `SshFileExportToolResult`: successful calls place metadata in `Data`; rejected or failed calls set `Ok=false`, `Error`, and `ErrorInfo` without creating a partial local file. File content and Base64 content are never returned.
+
+Failures distinguish profile-policy rejection, SSH authentication failure, and SFTP operation failure. SFTP diagnostics include the selected profile user, absolute-path classification, and SFTP status, but never credentials or file content.
 
 ## Web bulk transfers
 
@@ -7674,3 +7678,15 @@ web_bulk_transfer_execute:<transferId>:<manifestSha256>
 Only `web_bulk_transfer_execute` requires confirmation. Commit and rollback are valid only while the transfer is `Applied`; cancel cannot remove an executing or applied transfer.
 
 The remote helper rejects absolute archive entry names, traversal, backslashes, duplicate entries or remote paths, symbolic links, hard-link/non-regular ZIP entries, undeclared entries, missing entries, count or size excess, and content whose size or SHA-256 differs from the manifest. Every target is checked again against the managed web helper policy. Files are fully extracted and verified in a private transaction directory before placement. If any placement fails, already placed files are restored in reverse order so a partial deployment is not retained.
+
+## Staged Server Deployment
+
+The staged deployment contract exposes `provider_version`, `provider_capabilities`, `target_status`, `deploy_prepare`, `deploy_upload`, `deploy_activate`, `deploy_verify`, `deploy_rollback`, and `deploy_cleanup`. `deploymentId` is the correlation and idempotency key. `targetName` selects a saved KelpieSSH profile; optional `targetId` is returned for caller correlation but never resolves credentials. `siteKey` defaults to `default`.
+
+`deploy_prepare` binds the deployment ID to the target, site, and destination. `deploy_upload` accepts a local regular `artifactPath` and required lowercase or uppercase SHA-256; it rejects changed or mismatching content. `deploy_activate` reuses the managed web policy, bounded ZIP transfer, atomic placement, and rollback data. `deploy_verify` obtains a metadata-only remote SHA-256. `deploy_cleanup` commits verified deployments, cancels unactivated drafts, or closes rolled-back deployments.
+
+Every stage returns `Success` and `Deployment`. `Deployment` contains state and an optional `Error` with stable `Code`, safe `Message`, and `Retryable`. Stable codes are `target-not-found`, `deployment-not-found`, `invalid-request`, `idempotency-conflict`, `invalid-state`, `artifact-hash-mismatch`, `upload-failed`, `activate-failed`, `verify-failed`, `rollback-failed`, and `cleanup-failed`. Retry only when `Retryable` is `true`, using the same deployment ID and unchanged inputs. Successful repeated stage calls return the existing result.
+
+The provider never returns SSH passwords, private keys, passphrases, secret references, artifact bytes, Base64 content, or raw provider output. The 256 MiB artifact limit and the target profile's managed web policy remain authoritative.
+
+For a disposable SSH container bound to loopback port 2222, start from `config_samples/servers/moyai-deploy-loopback.json`. It restricts deployment to `/tmp/kelpie-deploy-test/artifacts/**`; replace only the disposable test key material. The architectural decision and intentional MCP-provider/CLI asymmetry are recorded in [ADR-0003](docs/adr/ADR-0003-STAGED-SERVER-DEPLOYMENT.md).

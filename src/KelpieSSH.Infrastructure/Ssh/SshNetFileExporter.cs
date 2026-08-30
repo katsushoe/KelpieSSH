@@ -4,6 +4,7 @@ using Kelpie.Core;
 using KelpieSSH.Application.Ssh;
 using Renci.SshNet;
 using Renci.SshNet.Common;
+using Renci.SshNet.Sftp;
 
 namespace KelpieSSH.Infrastructure.Ssh;
 
@@ -74,6 +75,16 @@ public sealed class SshNetFileExporter : ISshFileExporter
                 linkedSource.Token);
             KpLog.Info($"SSH file export completed. profile={profile.Name}, remotePath={normalizedRemotePath}, localPath={destination}, size={result.Size}, sha256={result.Hash}");
             return result;
+        }
+        catch (SshAuthenticationException ex)
+        {
+            KpLog.Warn($"SSH file export authentication failed. profile={profile.Name}, user={profile.UserName}, remotePathKind=absolute, exceptionType={ex.GetType().FullName}");
+            throw new SshConnectionException("SSH file export authentication failed.", ex);
+        }
+        catch (SftpException ex)
+        {
+            KpLog.Warn($"SSH file export SFTP operation failed. profile={profile.Name}, user={profile.UserName}, remotePathKind=absolute, sftpStatus={ex.StatusCode}, exceptionType={ex.GetType().FullName}");
+            throw new SshConnectionException($"SSH file export SFTP operation failed with status {ex.StatusCode}.", ex);
         }
         catch (Exception ex) when (ex is SocketException or SshException)
         {
@@ -147,19 +158,17 @@ public sealed class SshNetFileExporter : ISshFileExporter
             ["File content was not returned in the MCP response.", "SFTP did not expose a portable numeric mode value."]);
     }
 
-    private static void EnsureNoSymlinkComponents(SftpClient client, string path)
+    internal static void EnsureNoSymlinkComponents(ISftpClient client, string path)
     {
         var current = "/";
         foreach (var segment in path.Split('/', StringSplitOptions.RemoveEmptyEntries))
         {
-            var entry = client.ListDirectory(current).SingleOrDefault(candidate => string.Equals(candidate.Name, segment, StringComparison.Ordinal))
-                ?? throw new FileNotFoundException("remote path component was not found.");
+            current = current == "/" ? "/" + segment : current + "/" + segment;
+            var entry = client.Get(current);
             if (entry.IsSymbolicLink)
             {
                 throw new KelpiePolicyError("ssh_file_export rejects symlinks in every remote path component.");
             }
-
-            current = current == "/" ? "/" + segment : current + "/" + segment;
         }
     }
 }

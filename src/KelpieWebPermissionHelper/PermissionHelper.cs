@@ -322,14 +322,12 @@ public static partial class PermissionHelper
             || !sites.TryGetProperty(siteRoot, out var site)
             || site.ValueKind != JsonValueKind.Object
             || !site.TryGetProperty("AllowedFiles", out var files)
-            || files.ValueKind != JsonValueKind.Object
-            || !files.TryGetProperty(path, out var access)
-            || access.ValueKind != JsonValueKind.String)
+            || files.ValueKind != JsonValueKind.Object)
         {
             throw new InvalidOperationException("managed web file is not allowed by helper policy");
         }
 
-        var accessValue = access.GetString();
+        var accessValue = ManagedWebPolicyRules.GetAccess(files, path);
         if (!string.Equals(accessValue, "Update", StringComparison.Ordinal)
             && !string.Equals(accessValue, "Create", StringComparison.Ordinal))
         {

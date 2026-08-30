@@ -25,6 +25,14 @@ KelpieSSH separates validation and diagnostics by execution target. A success in
 
 Static validation does not accept a changed trust baseline, start the server, test credentials against a target, or prove SSH reachability. Likewise, an SSH target failure does not by itself mean the local MCP server is unhealthy.
 
+## Server Instructions and Prompt
+
+During MCP initialization, KelpieSSH announces server instructions that describe its purpose and safety boundaries. Compatible AI clients receive guidance to discover the target and its capabilities first, prefer dedicated read-only tools, protect credentials, preview changes, and respect profile policy, confirmation, audit, and rollback controls.
+
+KelpieSSH also exposes the `kelpie_get_started` MCP prompt. Select it in a prompt-capable MCP client and optionally provide a diagnosis or maintenance goal. The returned workflow leads the AI through `get_target_inventory`, `ssh_get_capabilities`, focused diagnostics, change checks, approval, and post-change verification. A goal must not contain credentials or secret values.
+
+Server instructions and prompts guide the AI client but do not grant permissions. The selected profile's `Mode`, `AllowedRoots`, `SpecialPaths`, trust state, and each tool's validation remain authoritative.
+
 ## MCP Files and Layout
 
 An installed or zip-extracted KelpieSSH layout includes the MCP frontend command and the MCP server body:

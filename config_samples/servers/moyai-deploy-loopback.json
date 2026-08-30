@@ -1,0 +1,36 @@
+{
+  "Host": {
+    "Address": "127.0.0.1",
+    "Port": 2222
+  },
+  "Auth": {
+    "UserName": "kelpie-test",
+    "Method": "privateKey",
+    "PrivateKeyFile": "moyai_deploy_test_ed25519"
+  },
+  "Connection": {
+    "TimeoutSeconds": 5
+  },
+  "Platform": {
+    "OsFamily": "debian"
+  },
+  "Mode": "Safe",
+  "AllowedRoots": {
+    "/tmp/kelpie-deploy-test": "@Read|@Write|@List"
+  },
+  "SpecialPaths": {
+    "**/.env": "Deny",
+    "**/.ssh/**": "Deny"
+  },
+  "WebPublicSites": {
+    "default": {
+      "Root": "/tmp/kelpie-deploy-test",
+      "AllowedFiles": {
+        "file:artifacts/**": "@Read|@Write"
+      },
+      "CreateDirectories": true,
+      "MaxReadBytes": 268435456,
+      "MaxWriteBytes": 268435456
+    }
+  }
+}

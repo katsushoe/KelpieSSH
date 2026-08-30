@@ -106,6 +106,7 @@ builder.Services.AddSingleton(CommandProcessingProviderCatalog.CreateDefault());
 builder.Services.AddSingleton(ServiceConfigPathsProviderCatalog.CreateDefault());
 builder.Services.AddSingleton<IWebPublicFileProvider, WebPublicFileProvider>();
 builder.Services.AddSingleton<WebBulkTransferStore>();
+builder.Services.AddSingleton<ServerDeploymentStore>();
 builder.Services.AddSingleton<IKelpieSecretStore, InMemoryKelpieSecretStore>();
 builder.Services.AddSingleton<IKelpieEnvironmentOverrideStore, InMemoryKelpieEnvironmentOverrideStore>();
 builder.Services.AddSingleton<ISshPasswordSessionStore, InMemorySshPasswordSessionStore>();
@@ -129,6 +130,7 @@ builder.Services.AddHostedService<NamedPipeShutdownService>();
 builder.Services
     .AddMcpServer(options =>
     {
+        options.ServerInstructions = KelpieMcpGuidance.ServerInstructions;
         options.ServerInfo = new()
         {
             Name = "KelpieSSH",
@@ -139,7 +141,8 @@ builder.Services
     {
         options.Stateless = true;
     })
-    .WithToolsFromAssembly();
+    .WithToolsFromAssembly()
+    .WithPromptsFromAssembly();
 
 var app = builder.Build();
 

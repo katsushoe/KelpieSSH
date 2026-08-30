@@ -355,6 +355,38 @@ public sealed class WebPublicFileProviderTests
     }
 
     [Fact]
+    public async Task CheckWriteAsync_ShouldRejectWhenPrivilegedHelperPolicyRejectsWritablePath()
+    {
+        var profile = CreateProfile(KelpiePolicyMode.Expert);
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput(
+                StandardOutput: """{"resolvedPath":"/var/www/html/outside.txt","exists":false,"canWrite":true,"reason":null}""",
+                StandardError: string.Empty),
+            new FakeSshCommandOutput(
+                StandardOutput: string.Empty,
+                StandardError: "ERROR: managed web file is not allowed by helper policy",
+                ExitCode: 1),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new WebPublicFileProvider();
+
+        var result = await provider.CheckWriteAsync(
+            service,
+            profile,
+            "default",
+            "/outside.txt",
+            contentType: "text/plain",
+            usePrivilegedHelper: true);
+
+        result.CanWrite.Should().BeFalse();
+        result.RequiresConfirmation.Should().BeFalse();
+        result.PrivilegedAtomicUpdate.Should().BeFalse();
+        result.Reason.Should().Be("ERROR: managed web file is not allowed by helper policy");
+        result.ReasonCode.Should().Be("WriteRejected");
+        runner.LastRequest!.CommandName.Should().Be("web_public_file_check_managed_internal");
+    }
+
+    [Fact]
     public async Task CheckSecretWriteAsync_ShouldRequireExplicitAllowedFileRule()
     {
         var profile = CreateProfile(

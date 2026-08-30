@@ -124,7 +124,7 @@ internal static partial class ManagedWebPolicyCommand
                 throw new InvalidOperationException("manifest contains too many sites");
             }
 
-            EnsureSafeUnixPath(site.Name, allowRoot: false);
+            ManagedWebPolicyRules.ValidatePath(site.Name, allowRoot: false, allowGlob: false);
             EnsureProperties(site.Value, "changes");
             var siteChanges = site.Value.GetProperty("changes");
             if (siteChanges.ValueKind != JsonValueKind.Array)
@@ -143,7 +143,7 @@ internal static partial class ManagedWebPolicyCommand
                     throw new InvalidOperationException("manifest operation must be add");
                 }
 
-                EnsureSafeUnixPath(path, allowRoot: false);
+                ManagedWebPolicyRules.ValidatePath(path, allowRoot: false, allowGlob: true);
                 if (access is not ("Update" or "Create"))
                 {
                     throw new InvalidOperationException("manifest access must be Update or Create");
@@ -463,8 +463,8 @@ internal static partial class ManagedWebPolicyCommand
 
         var siteRoot = DecodePath(args[0], "siteRoot");
         var filePath = DecodePath(args[1], "filePath");
-        EnsureSafeUnixPath(siteRoot, allowRoot: false);
-        EnsureSafeUnixPath(filePath, allowRoot: false);
+        ManagedWebPolicyRules.ValidatePath(siteRoot, allowRoot: false, allowGlob: false);
+        ManagedWebPolicyRules.ValidatePath(filePath, allowRoot: false, allowGlob: true);
         var access = operation == PolicyOperation.Add ? args[2] : string.Empty;
         if (operation == PolicyOperation.Add
             && !string.Equals(access, "Update", StringComparison.Ordinal)
@@ -560,7 +560,7 @@ internal static partial class ManagedWebPolicyCommand
 
         foreach (var site in sites)
         {
-            EnsureSafeUnixPath(site.Key, allowRoot: false);
+            ManagedWebPolicyRules.ValidatePath(site.Key, allowRoot: false, allowGlob: false);
             if (site.Value is not JsonObject siteObject
                 || siteObject.Count != 1
                 || siteObject["AllowedFiles"] is not JsonObject files)
@@ -570,7 +570,7 @@ internal static partial class ManagedWebPolicyCommand
 
             foreach (var file in files)
             {
-                EnsureSafeUnixPath(file.Key, allowRoot: false);
+                ManagedWebPolicyRules.ValidatePath(file.Key, allowRoot: false, allowGlob: true);
                 var access = file.Value?.GetValue<string>();
                 if (!string.Equals(access, "Update", StringComparison.Ordinal)
                     && !string.Equals(access, "Create", StringComparison.Ordinal))
@@ -578,14 +578,6 @@ internal static partial class ManagedWebPolicyCommand
                     throw new InvalidOperationException("policy access must be Update or Create");
                 }
             }
-        }
-    }
-
-    private static void EnsureSafeUnixPath(string path, bool allowRoot)
-    {
-        if (!SafeUnixPathRegex().IsMatch(path) || (!allowRoot && string.Equals(path, "/", StringComparison.Ordinal)))
-        {
-            throw new InvalidOperationException("policy path is invalid");
         }
     }
 
@@ -688,9 +680,6 @@ internal static partial class ManagedWebPolicyCommand
         error.WriteLine(message);
         return 1;
     }
-
-    [GeneratedRegex(@"^/(?:[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*)?$", RegexOptions.CultureInvariant)]
-    private static partial Regex SafeUnixPathRegex();
 
     [GeneratedRegex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)]
     private static partial Regex Sha256Regex();
