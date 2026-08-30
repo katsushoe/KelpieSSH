@@ -1,6 +1,6 @@
 # KelpieSSH MCP コマンド
 
-最終更新: 2026-07-31
+最終更新: 2026-08-30
 
 このファイルは、KelpieSSH が MCP callable tool として公開するコマンドの正本です。
 通常のターミナルで実行する `kelpie` / `kelpiemcp` CLI コマンドは `COMMANDS.ja.md` を正本とします。
@@ -51,6 +51,7 @@ HTTP request body は REST 形式ではなく JSON-RPC です。たとえば診�
 | profile 管理 | `profile_reload`, `ssh_profile_capabilities` | 保存済み SSH profiles の再読み込みと、接続中 terminal の profile 操作可否確認を行う。 |
 | ローカル診断 | `get_system_info`, `get_disk_usage`, `get_memory_usage`, `get_listening_ports` | `KelpieMCPServer` 実行ホストの診断。 |
 | 機能可否確認 | `ssh_get_capabilities`, `get_target_inventory` | SSH 接続先 profile ごとの OS / command / tool 可否、helper / software inventory を確認する。 |
+| 段階Server Deploy | `provider_version`, `provider_capabilities`, `target_status`, `deploy_prepare`, `deploy_upload`, `deploy_activate`, `deploy_verify`, `deploy_rollback`, `deploy_cleanup` | 資格情報を公開せず、設定済みtargetへ冪等かつhash拘束されたdeployを実行する。 |
 | SSH 診断 | `ssh_get_system_info`, `ssh_get_os_release`, `ssh_get_uptime`, `ssh_get_disk_usage`, `ssh_get_memory_usage`, `ssh_get_process_summary`, `ssh_get_inode_usage`, `ssh_get_mounts`, `ssh_get_network_addresses`, `ssh_get_routes`, `ssh_get_dns_config`, `ssh_cron_list`, `ssh_cron_validate`, `ssh_cron_check_write`, `ssh_cron_write`, `ssh_cron_rollback`, `ssh_cert_inspect`, `ssh_cert_expiry_check`, `ssh_user_list`, `ssh_user_info`, `ssh_group_list`, `ssh_group_info`, `ssh_sudoers_check`, `ssh_user_usage_check`, `ssh_user_check_group_change`, `ssh_user_apply_group_change`, `ssh_user_rollback_group_change`, `ssh_user_check_permission_change`, `ssh_user_apply_permission_change`, `ssh_user_rollback_permission_change`, `ssh_user_file_ownership_check`, `ssh_user_service_usage_check`, `ssh_service_residual_config_check`, `ssh_support_report_collect`, `ssh_firewall_status`, `ssh_firewall_check_rule`, `ssh_firewall_apply_rule`, `ssh_backup_plan_check`, `ssh_backup_run`, `ssh_backup_verify`, `ssh_audit_verify`, `ssh_audit_export`, `ssh_check_http_local`, `ssh_check_tcp_connect_local`, `ssh_get_listening_ports`, `ssh_get_failed_services`, `ssh_get_journal_recent`, `ssh_tail_log`, `ssh_run_allowed_command`, `ssh_run_remote_operation` | 許可済み SSH 診断コマンドの実行。 |
 | 環境変数 | `get_environment_keys`, `peek_environment_value`, `set_environment_value`, `list_persistent_environment_keys`, `persist_environment_value`, `remove_persistent_environment_value` | profile policy に従って remote 環境変数の key 表示、値参照、一時設定、永続化を行う。 |
 | SSH ターミナル / session cleanup | `ssh_terminal_open`, `ssh_terminal_send`, `ssh_terminal_snapshot`, `ssh_terminal_close`, `ssh_connection_close`, `ssh_logout` | PTY 付き対話ターミナルの操作と MCP password session の破棄。 |
@@ -5622,3 +5623,15 @@ web_bulk_transfer_execute:<transferId>:<manifestSha256>
 確認を要求するのは`web_bulk_transfer_execute`だけです。commitとrollbackは転送状態が`Applied`の間だけ実行できます。実行中または適用済みの転送はcancelできません。
 
 remote helperは、絶対archive entry名、path traversal、backslash、重複entryまたはremote path、symbolic link、hard linkまたは通常ファイルではないZIP entry、manifest未記載entry、entry不足、件数・size超過、manifestとsizeまたはSHA-256が異なる内容を拒否します。各targetはmanaged web helper policyでも再検証します。全ファイルを非公開transaction directoryへ展開・検証してから配置し、配置中に失敗した場合は適用済みファイルを逆順に復元するため、部分配置を残しません。
+
+## 段階Server Deploy
+
+段階Deploy契約は`provider_version`、`provider_capabilities`、`target_status`、`deploy_prepare`、`deploy_upload`、`deploy_activate`、`deploy_verify`、`deploy_rollback`、`deploy_cleanup`を公開します。`deploymentId`は相関IDと冪等性keyを兼ねます。`targetName`は保存済みKelpieSSH profileを選択します。任意の`targetId`は呼び出し元の相関用途として返しますが、資格情報の解決には使用しません。`siteKey`の初期値は`default`です。
+
+`deploy_prepare`はdeployment IDをtarget、site、destinationへ拘束します。`deploy_upload`はローカル通常ファイルの`artifactPath`と必須SHA-256を受け取り、変更またはhash不一致を拒否します。`deploy_activate`はmanaged web policy、上限付きZIP転送、atomic配置、rollbackデータを再利用します。`deploy_verify`は本文を含まないremote SHA-256を取得します。`deploy_cleanup`は検証済みdeployのcommit、未activate draftのcancel、rollback済みdeployの終了を行います。
+
+各段階は`Success`と`Deployment`を返します。`Deployment`は状態と任意の`Error`を含み、`Error`には安定した`Code`、安全な`Message`、`Retryable`があります。安定codeは`target-not-found`、`deployment-not-found`、`invalid-request`、`idempotency-conflict`、`invalid-state`、`artifact-hash-mismatch`、`upload-failed`、`activate-failed`、`verify-failed`、`rollback-failed`、`cleanup-failed`です。`Retryable`が`true`の場合だけ、同じdeployment IDと同じ入力で再試行します。成功済み段階の再呼び出しは既存結果を返します。
+
+providerはSSH password、private key、passphrase、secret reference、artifact bytes、Base64本文、raw provider outputを返しません。256 MiBのartifact上限とtarget profileのmanaged web policyが常に優先されます。
+
+loopback port 2222へ接続する破棄可能SSH containerでは、`config_samples/servers/moyai-deploy-loopback.json`を元にします。このsampleはdeploy範囲を`/tmp/kelpie-deploy-test/artifacts/**`へ制限します。差し替えるのは破棄可能な検証用keyだけです。設計判断とMCP provider／CLIの意図的な非対称性は[ADR-0003](../adr/ADR-0003-STAGED-SERVER-DEPLOYMENT.md)を正本とします。
