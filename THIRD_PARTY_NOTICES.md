@@ -66,7 +66,7 @@ BouncyCastle.Cryptography is published on NuGet as MIT. Its package README also 
 | `ModelContextProtocol` | `1.3.0` | Apache-2.0 | https://csharp.sdk.modelcontextprotocol.io/ | Copyright (c) Model Context Protocol a Series of LF Projects, LLC. |
 | `ModelContextProtocol.AspNetCore` | `1.3.0` | Apache-2.0 | https://csharp.sdk.modelcontextprotocol.io/ | Copyright (c) Model Context Protocol a Series of LF Projects, LLC. |
 | `ModelContextProtocol.Core` | `1.3.0` | Apache-2.0 | https://csharp.sdk.modelcontextprotocol.io/ | Copyright (c) Model Context Protocol a Series of LF Projects, LLC. |
-| `SSH.NET` | `2025.1.0` | MIT | https://github.com/sshnet/SSH.NET | Copyright (c) Renci 2010-2025 |
+| `SSH.NET` | `2026.0.0` | MIT | https://github.com/sshnet/SSH.NET | Copyright (c) Renci 2010-2026 |
 | `System.Diagnostics.DiagnosticSource` | `10.0.8` | MIT | https://dot.net/ | Copyright (c) Microsoft Corporation. All rights reserved. |
 | `System.Diagnostics.EventLog` | `10.0.8` | MIT | https://dot.net/ | Copyright (c) Microsoft Corporation. All rights reserved. |
 | `System.IO.Pipelines` | `10.0.8` | MIT | https://dot.net/ | Copyright (c) Microsoft Corporation. All rights reserved. |
