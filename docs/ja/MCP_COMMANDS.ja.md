@@ -5626,11 +5626,29 @@ remote helperは、絶対archive entry名、path traversal、backslash、重複e
 
 ## 段階Server Deploy
 
-段階Deploy契約は`provider_version`、`provider_capabilities`、`target_status`、`deploy_prepare`、`deploy_upload`、`deploy_activate`、`deploy_verify`、`deploy_rollback`、`deploy_cleanup`を公開します。`deploymentId`は相関IDと冪等性keyを兼ねます。`targetName`は保存済みKelpieSSH profileを選択します。任意の`targetId`は呼び出し元の相関用途として返しますが、資格情報の解決には使用しません。`siteKey`の初期値は`default`です。
+段階Deploy契約は`provider_version`、`provider_capabilities`、`target_status`、`deploy_prepare`、`deploy_upload`、`deploy_activate`、`deploy_verify`、`deploy_rollback`、`deploy_cleanup`、`deploy_status`を公開します。`deploymentId`は永続的な相関IDと冪等性キーです。`targetName`は管理者が登録したProfile・Project・Targetの対応を選択します。任意の`targetId`は登録済みの不変Target IDと一致する必要があり、省略時は登録値を使用します。`siteKey`の初期値は`default`です。
 
 `deploy_prepare`はdeployment IDをtarget、site、destinationへ拘束します。`deploy_upload`はローカル通常ファイルの`artifactPath`と必須SHA-256を受け取り、変更またはhash不一致を拒否します。`deploy_activate`はmanaged web policy、上限付きZIP転送、atomic配置、rollbackデータを再利用します。`deploy_verify`は本文を含まないremote SHA-256を取得します。`deploy_cleanup`は検証済みdeployのcommit、未activate draftのcancel、rollback済みdeployの終了を行います。
 
-各段階は`Success`と`Deployment`を返します。`Deployment`は状態と任意の`Error`を含み、`Error`には安定した`Code`、安全な`Message`、`Retryable`があります。安定codeは`target-not-found`、`deployment-not-found`、`invalid-request`、`idempotency-conflict`、`invalid-state`、`artifact-hash-mismatch`、`upload-failed`、`activate-failed`、`verify-failed`、`rollback-failed`、`cleanup-failed`です。`Retryable`が`true`の場合だけ、同じdeployment IDと同じ入力で再試行します。成功済み段階の再呼び出しは既存結果を返します。
+成功時のHTTP応答は`success`と`deployment`を含みます。JSONのキーはcamelCase、列挙状態は`prepared`などの文字列です。HTTP認証境界で拒否した要求はMCPの`isError`と安定したコードを返します。段階処理の診断は`deployment_stage_failed`へ正規化し、例外本文を返しません。処理中の停止は`deployment_result_unknown`として永続化します。完了済み段階に同一入力を渡した場合は保存結果を返し、入力差は`idempotency-conflict`で拒否します。通信結果が不明な場合は状態照会を行い、段階処理を自動再実行しません。実行前の`auth_assertion_expired`に限り、認可を再評価して新しいAssertionで最大1回再試行できます。
+
+| Tool | 必須Scope | 入力 | 出力 |
+| :--- | :--- | :--- | :--- |
+| `provider_version`、`provider_capabilities` | なし | なし | バージョン、または操作一覧と認証仕様。 |
+| `target_status` | `target.status` | `targetName`、任意の`targetId` | 登録対象の利用可否。 |
+| `deploy_prepare` | `deploy.prepare` | `deploymentId`、`targetName`、`destination`、任意の`targetId`、`siteKey` | 段階結果。 |
+| `deploy_upload` | `deploy.upload` | `deploymentId`、`artifactPath`、`sha256`、任意の`contentType` | 段階結果。 |
+| `deploy_activate` | `deploy.activate` | `deploymentId` | 段階結果。 |
+| `deploy_verify` | `deploy.verify` | `deploymentId` | 段階結果。 |
+| `deploy_rollback` | `deploy.rollback` | `deploymentId` | 段階結果。 |
+| `deploy_cleanup` | `deploy.cleanup` | `deploymentId` | 段階結果。 |
+| `deploy_status` | `deploy.status` | `deploymentId` | `deploymentId`、`projectId`、`targetId`、`state`、`resultUnknown`。 |
+
+保護対象の8操作は、実際のHTTP Tool要求に`Authorization: Bearer <assertion>`と`X-Moyai-Operation-Id`を必要とします。初期化、discovery、Provider基本情報にはAssertionを要求しません。資格情報をMCP引数に渡してはいけません。認証仕様はES256、Protocol `2`、Audience／Provider `kelpiessh`、Replay防止必須、Resource種別`kelpie_target`です。`server`、Repository用Assertion、未登録の対応、過大なScopeは拒否します。管理設定は[CONFIG.ja.md](CONFIG.ja.md)を参照してください。旧MCP Service Tokenの受入はありません。
+
+`deploy_status`は再起動後も永続ジャーナルから登録対応を解決します。`state`は小文字の保存済み状態、`not-started`、または`result-unknown`です。未完了の実行予約がある場合は`resultUnknown=true`となりますが、復元完了や再試行許可を意味しません。正常終了した転送情報は後続段階のために復元します。入力プロパティの順序は無視しますが、省略した任意引数と明示値は区別します。記録の保持管理と結果不明の調査は管理者が行います。
+
+実処理、状態応答、保存済み結果の返却の直前に、検証済みPrincipalを使って期限・最新Trust Bundleの鍵状態・Capabilityを再確認します。Replayは再予約しません。実処理前の認証拒否では当該段階の予約だけを解除し、使用済みAssertionは使用済みのまま維持します。新しい認可による要求で再試行できます。実行結果が不明な場合は予約を残し、自動再実行を許可しません。
 
 providerはSSH password、private key、passphrase、secret reference、artifact bytes、Base64本文、raw provider outputを返しません。256 MiBのartifact上限とtarget profileのmanaged web policyが常に優先されます。
 

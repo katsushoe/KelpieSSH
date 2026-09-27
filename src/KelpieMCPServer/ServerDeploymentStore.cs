@@ -10,6 +10,10 @@ public sealed class ServerDeploymentStore
     private const int MaximumDeployments = 100;
     private readonly ConcurrentDictionary<string, ServerDeployment> _deployments = new(StringComparer.Ordinal);
 
+    internal ServerDeployment? Find(string id) => _deployments.GetValueOrDefault(id);
+
+    internal void Restore(ServerDeployment deployment) => _deployments[deployment.DeploymentId] = deployment;
+
     /// <summary>
     /// Creates a deployment or returns the existing deployment for the same idempotency key.
     /// </summary>

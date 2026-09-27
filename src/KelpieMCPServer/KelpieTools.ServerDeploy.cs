@@ -10,17 +10,22 @@ public sealed partial class KelpieTools
     [McpServerTool(Name = "provider_version")]
     [Description("Returns the staged deployment provider name and version.")]
     public static ProviderVersionResult GetProviderVersion() =>
-        new("KelpieSSH", typeof(KelpieTools).Assembly.GetName().Version?.ToString() ?? "unknown", "1");
+        new("KelpieSSH", typeof(KelpieTools).Assembly.GetName().Version?.ToString() ?? "unknown", "2");
 
     [McpServerTool(Name = "provider_capabilities")]
     [Description("Returns the staged deployment operations and bounded transfer limits.")]
     public static ProviderCapabilitiesResult GetProviderCapabilities() =>
         new(
-            ["target_status", "deploy_prepare", "deploy_upload", "deploy_activate", "deploy_verify", "deploy_rollback", "deploy_cleanup"],
+            ["target_status", "deploy_prepare", "deploy_upload", "deploy_activate", "deploy_verify", "deploy_rollback", "deploy_cleanup", "deploy_status"],
             "sha256",
             256L * 1024 * 1024,
             true,
             true);
+
+    [McpServerTool(Name = "deploy_status", ReadOnly = true)]
+    [Description("Returns durable deployment state. Requires the deploy.status assertion scope.")]
+    public static LifecycleDeploymentStatus GetDeploymentStatus(string deploymentId) =>
+        throw new InvalidOperationException("Lifecycle authorization is required.");
 
     [McpServerTool(Name = "target_status")]
     [Description("Returns whether a named KelpieSSH target is configured without exposing credentials.")]
@@ -388,6 +393,9 @@ public sealed record ProviderCapabilitiesResult(
     string HashAlgorithm,
     long MaximumArtifactBytes,
     bool SupportsRollback,
-    bool CredentialsManagedByProvider);
+    bool CredentialsManagedByProvider)
+{
+    public Moyai.ProviderAuthentication.AssertionCapability Authentication => LifecycleContract.Capability;
+}
 
 public sealed record TargetStatusResult(string TargetName, string? TargetId, bool Available, string Status);

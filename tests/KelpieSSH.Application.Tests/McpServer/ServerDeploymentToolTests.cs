@@ -213,7 +213,7 @@ public sealed class ServerDeploymentToolTests
         }
     }
 
-    private static DeploymentContext CreateDeploymentContext(string hash, string? rollbackError = null)
+    internal static DeploymentContext CreateDeploymentContext(string hash, string? rollbackError = null)
     {
         var provider = Substitute.For<IWebPublicFileProvider>();
         provider.CheckWriteAsync(
@@ -279,7 +279,7 @@ public sealed class ServerDeploymentToolTests
             ?? throw new InvalidOperationException("Could not locate the repository root.");
     }
 
-    private sealed record DeploymentContext(
+    internal sealed record DeploymentContext(
         SshConnectionProfileCatalog Catalog,
         IWebPublicFileProvider Provider,
         SshCommandService Service,

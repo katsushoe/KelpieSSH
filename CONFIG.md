@@ -288,3 +288,23 @@ Privileged managed web writes also require `/etc/kelpie/web-permission-helper-po
 - Do not commit private keys, passwords, passphrases, real host names, or real user names.
 - Keep production `profiles/`, `keys/`, `dat/`, and `logs/` outside this public repository.
 - Do not store plain text passwords in JSON configuration files.
+# Lifecycle Provider Authentication
+
+Add `Lifecycle` to the trusted MCP configuration to enable the staged deployment provider. If absent, Lifecycle tools return `authentication_unavailable`; bootstrap remains available. Invalid configuration fails startup. Configuration edits require the existing administrator configuration-trust/reload workflow and a restart. This section cannot be changed by an MCP assertion.
+
+| Key | Required | Initial value | Meaning |
+| :--- | :--- | :--- | :--- |
+| `Lifecycle.Issuer` | yes | none | Explicit trusted Moyai issuer, starting with `moyai:`. |
+| `Lifecycle.TrustBundlePath` | yes | none | Absolute path to a provider-managed public Trust Bundle. Read on every request. |
+| `Lifecycle.ReplayDatabasePath` | yes | none | Absolute SQLite replay DB path shared by all consumers of this provider. |
+| `Lifecycle.DeploymentDatabasePath` | yes | none | Absolute private SQLite deployment journal path, distinct from the replay DB. |
+| `Lifecycle.Targets` | no | empty | Administrator-registered target mappings; empty permits no targets. |
+| `Lifecycle.Targets[].ProjectId` | yes | none | Non-empty Moyai Project UUID. |
+| `Lifecycle.Targets[].TargetId` | yes | none | Unique immutable target identifier; case-sensitive. |
+| `Lifecycle.Targets[].ProfileName` | yes | none | Unique registered SSH profile name; matched case-insensitively. |
+
+Use `config_samples/lifecycle.example.json` as a template. Replace each path placeholder with an absolute provider-owned path; placeholders deliberately do not form a runnable configuration. Protect configuration, Trust Bundle, and both databases so only the service account and administrators can modify them. Parent directories are created when initializing the databases. This does not grant OS file permissions or install a service.
+
+Trust Bundle JSON must use the shared package's `AssertionJson.Options` (snake_case property names). It contains public verification keys only, never SSH credentials or Moyai signing keys. Key revocation is effective on the next request. JWT and operation ID belong in HTTP headers, never this configuration or tool arguments. Static Service Token and dual-accept settings do not apply.
+
+Deployment snapshots contain paths, hashes and transaction metadata, but no file contents or SSH credentials. Completed stages and unfinished reservations survive restart. Do not remove a pending reservation to retry an uncertain operation. See [ADR-0003](docs/adr/ADR-0003-STAGED-SERVER-DEPLOYMENT.md) for recovery and retention conditions.

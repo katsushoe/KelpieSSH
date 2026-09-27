@@ -107,6 +107,24 @@ builder.Services.AddSingleton(ServiceConfigPathsProviderCatalog.CreateDefault())
 builder.Services.AddSingleton<IWebPublicFileProvider, WebPublicFileProvider>();
 builder.Services.AddSingleton<WebBulkTransferStore>();
 builder.Services.AddSingleton<ServerDeploymentStore>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<LifecycleToolFilter>();
+if (builder.Configuration.GetSection("Lifecycle").Exists())
+{
+    var lifecycle = builder.Configuration.GetSection("Lifecycle").Get<LifecycleOptions>()!;
+    lifecycle.Validate();
+    var replay = new Moyai.ProviderAuthentication.SqliteAssertionReplayCache(
+        new(lifecycle.ReplayDatabasePath));
+    await replay.InitializeAsync();
+    var journal = new LifecycleDeploymentStore(lifecycle.DeploymentDatabasePath);
+    await journal.InitializeAsync();
+    builder.Services.AddSingleton(lifecycle);
+    builder.Services.AddSingleton(journal);
+    builder.Services.AddSingleton<Moyai.ProviderAuthentication.IAssertionValidator>(
+        new Moyai.ProviderAuthentication.Es256AssertionValidator(
+            new Moyai.ProviderAuthentication.FileAssertionTrustStore(lifecycle.TrustBundlePath),
+            replay, new(lifecycle.Issuer), LifecycleContract.Capability));
+}
 builder.Services.AddSingleton<IKelpieSecretStore, InMemoryKelpieSecretStore>();
 builder.Services.AddSingleton<IKelpieEnvironmentOverrideStore, InMemoryKelpieEnvironmentOverrideStore>();
 builder.Services.AddSingleton<ISshPasswordSessionStore, InMemorySshPasswordSessionStore>();
@@ -141,6 +159,8 @@ builder.Services
     {
         options.Stateless = true;
     })
+    .WithRequestFilters(filters => filters.AddCallToolFilter(next => (request, cancellationToken) =>
+        request.Services!.GetRequiredService<LifecycleToolFilter>().InvokeAsync(request, next, cancellationToken)))
     .WithToolsFromAssembly()
     .WithPromptsFromAssembly();
 

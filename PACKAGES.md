@@ -52,6 +52,8 @@ KelpieSSH libraries are packable where appropriate.
 
 ## Direct Runtime Dependencies
 
+`KelpieMCPServer` additionally references `Moyai.ProviderAuthentication` 1.0.2 (.NET 8) for ES256 v2 validation, Trust Bundle loading and durable replay prevention. Obtain the provider-distributed package and verify its published SHA-256 before restore. Supply that package directory as an additional NuGet source (`dotnet restore --source <package-directory> --source <existing-feed>`). No source copy or cross-repository ProjectReference is used. The package is not assumed to be available on nuget.org.
+
 | Package | Used by | Purpose |
 | :--- | :--- | :--- |
 | `SSH.NET` | `KelpieSSH.Infrastructure` | SSH connection, authentication, command execution, and shell sessions. |

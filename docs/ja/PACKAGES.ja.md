@@ -298,3 +298,6 @@ dotnet pack src\KelpieSSH.Domain\KelpieSSH.Domain.csproj -c Release
 dotnet pack src\KelpieSSH.Application\KelpieSSH.Application.csproj -c Release
 dotnet pack src\KelpieSSH.Infrastructure\KelpieSSH.Infrastructure.csproj -c Release
 ```
+# Lifecycle認証の追加依存
+
+`KelpieMCPServer`はES256 v2検証、Trust Bundle読み込み、永続Replay防止のため、.NET 8対応の`Moyai.ProviderAuthentication` 1.0.2を参照します。Providerから配布されたパッケージを取得し、提示されたSHA-256を検証してから復元してください。パッケージのディレクトリを追加NuGetソースとして指定します（`dotnet restore --source <package-directory> --source <existing-feed>`）。ソースの複製や別リポジトリへのProjectReferenceは使用しません。nuget.orgで取得できることは前提としていません。

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted on 2026-08-30 for the Moyai provider integration.
+Accepted on 2026-08-30; amended on 2026-09-07 for Lifecycle Assertion v2 and durable stage recovery.
 
 ## Context
 
@@ -10,7 +10,7 @@ Moyai delegates server deployment through the Streamable HTTP MCP endpoint and r
 
 ## Decision
 
-KelpieMCPServer exposes `provider_version`, `provider_capabilities`, `target_status`, and six staged deployment tools. A caller-supplied `deploymentId` is both the correlation and idempotency key. Deployment state is process-local and bounded. The implementation reuses the existing managed web policy, bounded archive transfer, atomic placement, metadata-only SHA-256 verification, commit, and rollback mechanisms.
+KelpieMCPServer exposes provider bootstrap, target status, six deployment stages, and `deploy_status`. A caller-supplied `deploymentId` is the durable correlation and idempotency key. A private SQLite journal stores the administrator-resolved Project UUID, immutable Target ID, profile, argument hash, deployment and transfer snapshots, and completed stage result. Reservation commits before dispatch; an interrupted stage remains result-unknown and cannot be automatically repeated. The implementation reuses the existing managed web policy, bounded archive transfer, atomic placement, metadata-only SHA-256 verification, commit, and rollback mechanisms.
 
 The contract is MCP-specific because it is a provider protocol implemented for a service orchestrator. Existing `web_bulk_transfer_*` tools and Kelpie CLI-managed web operations remain the human/operator alternative. A second CLI spelling for every provider stage would duplicate protocol orchestration state and is intentionally not added.
 
@@ -19,11 +19,11 @@ The contract is MCP-specific because it is a provider protocol implemented for a
 - A single deploy call was rejected because it cannot expose stage-specific failures or safe retry boundaries.
 - Caller-supplied SSH credentials were rejected because they would move the credential boundary into Moyai.
 - A separate unrestricted SFTP implementation was rejected because it would bypass the managed web policy and existing rollback transaction.
-- Persistent deployment records were deferred because the v1 contract requires bounded orchestration, not recovery across an MCP server restart.
+- Process-only deployment records were replaced because the v2 contract requires state resolution across server restarts.
 
 ## Consequences
 
-Deployment IDs cannot resume after the MCP server process restarts. Callers must query capabilities and target status, use unchanged inputs for retries, and create a new deployment after process loss. One deployment currently contains one artifact; multi-file deployment remains available through `web_bulk_transfer_*`.
+Completed snapshots and results survive restart. Successful stages restore their transfer context for subsequent stages; unresolved reservations require operator investigation. Callers must query `deploy_status` after a transport failure. They must not create a new ID to bypass an unknown result. One deployment contains one artifact. Each stage is accepted once per deployment; identical normalized arguments return its cached result, and different arguments conflict. Property ordering is ignored; omitted optional arguments and explicit values are otherwise distinct.
 
 ## Security Conditions
 
@@ -32,10 +32,16 @@ Deployment IDs cannot resume after the MCP server process restarts. Callers must
 - Artifact SHA-256 is mandatory, and activation revalidates the local file before transfer.
 - Destination paths remain constrained by the selected profile's managed web site policy.
 - Rollback data is removed only after verification and cleanup.
+- Lifecycle tools require the shared `Moyai.ProviderAuthentication` validator, ES256, protocol `2`, audience/provider `kelpiessh`, resource kind `kelpie_target`, an administrator-bound Project and Target, a single tool scope, and a request operation ID. `server` is never an accepted audience.
+- Bootstrap does not require an assertion. Authorization is read only for the actual tool request. A lifecycle assertion cannot invoke other SSH or administrator tools. Existing non-Lifecycle tool/profile authorization remains a separate boundary.
+- Mapping registration is offline administrator configuration protected by the existing configuration trust mechanism; assertions cannot register or change targets. Protect configuration, Trust Bundle and private databases from other writers.
+- JWT parsing, key validation and persistent replay prevention come from the shared NuGet package. There is no legacy MCP Service Token verifier and therefore no dual-accept migration.
 
 ## Operational Conditions
 
 The public endpoint remains loopback-only. Integration tests use a disposable SSH target restricted to `/tmp/kelpie-deploy-test`; the sample profile is `config_samples/servers/moyai-deploy-loopback.json`. Test credentials and target contents must be disposable and must never be committed.
+
+Configure `Lifecycle` in the trusted MCP configuration before using deployment tools. Without that section the tools fail closed. Trust revocation is read for every request. Pending and completed journal records have no automatic expiry; database retention is an administrator responsibility. Database loss or corruption must not be treated as authorization to replay an operation.
 
 ## Implementation, Tests, and Documentation
 

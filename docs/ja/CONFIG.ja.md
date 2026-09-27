@@ -283,3 +283,23 @@ Log directory は次の順で解決します。
 - private keys、passwords、passphrases、real host names、real user names を commit しないでください。
 - production `profiles/`、`keys/`、`dat/`、`logs/` は public repository の外に置いてください。
 - plain text password を JSON 設定ファイルに保存してはいけません。
+# Lifecycle Provider認証
+
+信頼済みMCP設定に`Lifecycle`を追加すると段階Deploy Providerを有効にできます。省略時はLifecycle Toolが`authentication_unavailable`を返し、基本情報だけ利用できます。不正な設定では起動に失敗します。変更には既存の管理者向け設定承認・再読み込み手順と再起動が必要です。MCPのAssertionから設定を変更することはできません。
+
+| キー | 必須 | 初期値 | 意味 |
+| :--- | :--- | :--- | :--- |
+| `Lifecycle.Issuer` | はい | なし | 信頼するMoyaiの発行者。`moyai:`で始まる値を明示します。 |
+| `Lifecycle.TrustBundlePath` | はい | なし | Provider管理の公開Trust Bundleへの絶対パス。要求ごとに読み込みます。 |
+| `Lifecycle.ReplayDatabasePath` | はい | なし | 同一Providerの全Consumerで共有するSQLite Replay DBの絶対パス。 |
+| `Lifecycle.DeploymentDatabasePath` | はい | なし | 非公開のSQLite Deploymentジャーナルの絶対パス。Replay DBとは分離します。 |
+| `Lifecycle.Targets` | いいえ | 空 | 管理者が登録した対象の対応表。空の場合は対象を許可しません。 |
+| `Lifecycle.Targets[].ProjectId` | はい | なし | 空でないMoyai Project UUID。 |
+| `Lifecycle.Targets[].TargetId` | はい | なし | 一意で不変の対象ID。大文字と小文字を区別します。 |
+| `Lifecycle.Targets[].ProfileName` | はい | なし | 一意な登録済みSSH Profile名。大文字と小文字を区別せず照合します。 |
+
+雛形は`config_samples/lifecycle.example.json`です。各パスの仮値をProvider管理の絶対パスへ置き換えてください。仮値のまま実行できない構成にしています。設定・Trust Bundle・両DBはサービスアカウントと管理者だけが変更できるよう保護してください。DB初期化時に親ディレクトリを作成しますが、OSの権限付与やサービスのインストールは行いません。
+
+Trust BundleのJSONには共通パッケージの`AssertionJson.Options`を使用します。プロパティ名はsnake_caseです。保存するのは公開検証鍵だけで、SSH資格情報やMoyai署名秘密鍵を含めません。失効は次の要求から適用します。JWTと操作IDはHTTPヘッダーに渡し、設定やTool引数には保存しません。Service Tokenとdual-acceptの設定は非該当です。
+
+Deployment記録にはパス、ハッシュ、トランザクション情報を含みますが、ファイル本文やSSH資格情報は含めません。完了済み段階と未完了の実行予約は再起動後も残ります。結果不明の操作を再試行するために実行予約を削除してはいけません。復旧・保持条件は[ADR-0003](../adr/ADR-0003-STAGED-SERVER-DEPLOYMENT.md)を参照してください。

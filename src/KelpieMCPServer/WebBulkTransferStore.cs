@@ -14,6 +14,10 @@ public sealed class WebBulkTransferStore
     private readonly ConcurrentDictionary<string, WebBulkTransfer> _transfers = new(StringComparer.Ordinal);
     private readonly TimeProvider _timeProvider;
 
+    internal WebBulkTransfer? Find(string id) => _transfers.GetValueOrDefault(id);
+
+    internal void Restore(WebBulkTransfer transfer) => _transfers[transfer.Id] = transfer;
+
     /// <summary>
     /// Initializes a new bulk transfer store.
     /// </summary>
