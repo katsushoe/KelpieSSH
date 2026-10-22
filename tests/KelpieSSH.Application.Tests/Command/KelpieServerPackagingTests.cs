@@ -25,8 +25,9 @@ public sealed class KelpieServerPackagingTests
             var publish = await RunAsync(
                 repositoryRoot,
                 "dotnet",
-                ["publish", projectPath, "-c", "Release", "--no-restore", "--disable-build-servers", "-o", outputDirectory]);
-            publish.ExitCode.Should().Be(0, publish.StandardError);
+                ["publish", projectPath, "-c", "Release", "--no-restore", "--disable-build-servers", "-o", outputDirectory],
+                TimeSpan.FromMinutes(5));
+            publish.ExitCode.Should().Be(0, publish.StandardOutput + publish.StandardError);
 
             File.Exists(Path.Combine(outputDirectory, "Renci.SshNet.dll")).Should().BeTrue();
             var dependencyManifest = await File.ReadAllTextAsync(
@@ -35,7 +36,7 @@ public sealed class KelpieServerPackagingTests
             dependencyManifest.Should().Contain("Renci.SshNet");
 
             var executable = Path.Combine(outputDirectory, "kelpiemcp.exe");
-            var version = await RunAsync(outputDirectory, executable, ["--version"]);
+            var version = await RunAsync(outputDirectory, executable, ["--version"], TimeSpan.FromSeconds(30));
             version.ExitCode.Should().Be(0, version.StandardError);
             version.StandardOutput.Should().Contain("kelpiemcp 0.3.12.1");
         }
@@ -64,7 +65,8 @@ public sealed class KelpieServerPackagingTests
     private static async Task<ProcessResult> RunAsync(
         string workingDirectory,
         string fileName,
-        IReadOnlyList<string> arguments)
+        IReadOnlyList<string> arguments,
+        TimeSpan timeoutDuration)
     {
         using var process = new Process
         {
@@ -86,16 +88,23 @@ public sealed class KelpieServerPackagingTests
         process.Start();
         var standardOutput = process.StandardOutput.ReadToEndAsync();
         var standardError = process.StandardError.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+        using var timeout = new CancellationTokenSource(timeoutDuration);
         try
         {
             await process.WaitForExitAsync(timeout.Token);
         }
         catch (OperationCanceledException)
         {
-            process.Kill(entireProcessTree: true);
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
             await process.WaitForExitAsync();
-            throw new TimeoutException($"Process timed out: {fileName} {string.Join(' ', arguments)}");
+            throw new TimeoutException(
+                $"Process timed out after {timeoutDuration}: {fileName} {string.Join(' ', arguments)}" +
+                $"{Environment.NewLine}Working directory: {workingDirectory}" +
+                $"{Environment.NewLine}Standard output:{Environment.NewLine}{await standardOutput}" +
+                $"{Environment.NewLine}Standard error:{Environment.NewLine}{await standardError}");
         }
 
         return new ProcessResult(
