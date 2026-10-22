@@ -48,6 +48,8 @@ public sealed class LifecycleToolFilter(
         string? authorization, string? operationId, Func<Task<CallToolResult>> invoke,
         CancellationToken cancellationToken = default)
     {
+        string? diagnosticDeploymentId = null;
+        DateTimeOffset? startedAtUtc = null;
         await _gate.WaitAsync(cancellationToken);
         try
         {
@@ -64,9 +66,13 @@ public sealed class LifecycleToolFilter(
             LifecycleTarget target;
             if (tool is "target_status" or "deploy_prepare")
             {
-                var profile = Required(arguments, "targetName");
-                target = options.Targets.SingleOrDefault(t => string.Equals(t.ProfileName, profile, StringComparison.OrdinalIgnoreCase))
-                    ?? throw new ProviderAuthenticationException("auth_project_mismatch");
+                var name = Required(arguments, "targetName");
+                var candidates = options.Targets.Where(t =>
+                    string.Equals(t.ProfileName, name, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(t.TargetId, name, StringComparison.Ordinal)).Take(2).ToArray();
+                if (candidates.Length != 1)
+                    throw new ProviderAuthenticationException("auth_project_mismatch");
+                target = candidates[0];
                 if (arguments?.TryGetValue("targetId", out var supplied) == true
                     && supplied.ValueKind != JsonValueKind.Null && supplied.GetString() != target.TargetId)
                     throw new ProviderAuthenticationException("auth_project_mismatch");
@@ -79,8 +85,8 @@ public sealed class LifecycleToolFilter(
             if (validator is not IAssertionExecutionValidator executionValidator)
                 throw new ProviderAuthenticationException("authentication_unavailable");
             var principal = await validator.ValidateAsync(authorization[7..], expected, cancellationToken);
-            logger.LogInformation("Lifecycle authentication accepted. Tool={Tool} Project={Project} Target={Target} Operation={Operation}",
-                tool, target.ProjectId, target.TargetId, operationId);
+            Audit(() => logger.LogInformation("Lifecycle authentication accepted. Tool={Tool} Project={Project} Target={Target} Operation={Operation}",
+                tool, target.ProjectId, target.TargetId, operationId));
 
             if (tool == "deploy_status")
             {
@@ -121,18 +127,23 @@ public sealed class LifecycleToolFilter(
                 await journal.CancelBeforeDispatchAsync(id, tool, inputHash, CancellationToken.None);
                 throw;
             }
+            diagnosticDeploymentId = id;
+            startedAtUtc = DateTimeOffset.UtcNow;
             var result = await invoke();
             // Keep exceptions/provider diagnostics out of persisted and returned stage errors.
             var deployment = deployments.Find(id);
             var stage = result.IsError == true ? null : ReadStageResult(result);
-            if (deployment is null) result = Failure("deployment_stage_failed");
+            if (deployment is null) result = Failure("deployment_stage_failed",
+                Diagnostic(id, tool, operationId, SafeStageCode(stage?.Deployment.Error?.Code), startedAtUtc.Value));
             else
             {
                 var success = stage?.Success == true && deployment.Error is null;
+                var diagnostic = Diagnostic(id, tool, operationId,
+                    success ? null : SafeStageCode(stage?.Deployment.Error?.Code ?? deployment.Error?.Code), startedAtUtc.Value);
                 if (!success)
                     deployment = deployment with { Error = new("deployment_stage_failed", "Deployment stage failed.", false) };
                 deployments.Restore(deployment);
-                result = Result(new ServerDeployResult(success, deployment));
+                result = Result(new ServerDeployResult(success, deployment, diagnostic));
             }
             WebBulkTransfer? transfer = deployment is null ? null : transfers.Find(deployment.TransferId);
             if (transfer?.Error is not null) transfer = transfer with { Error = "Deployment stage failed." };
@@ -141,16 +152,42 @@ public sealed class LifecycleToolFilter(
         }
         catch (ProviderAuthenticationException ex)
         {
-            logger.LogWarning("Lifecycle request rejected. Code={Code}", ex.Code);
+            Audit(() => logger.LogWarning("Lifecycle request rejected. Code={Code}", ex.Code));
             return Failure(ex.Code);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // The journal reservation remains pending if dispatch may have begun.
-            logger.LogError("Lifecycle request failed. Type={Type}", ex.GetType().Name);
-            return Failure("deployment_result_unknown");
+            Audit(() => logger.LogError("Lifecycle request failed. Type={Type}", ex.GetType().Name));
+            return Failure("deployment_result_unknown", startedAtUtc is null ? null
+                : Diagnostic(diagnosticDeploymentId!, tool, operationId!, "unexpected-stage-failure", startedAtUtc.Value));
         }
         finally { _gate.Release(); }
+    }
+
+    private static LifecycleStageDiagnostic Diagnostic(string id, string tool, string operationId,
+        string? code, DateTimeOffset startedAtUtc) =>
+        new(id, tool, operationId, code, startedAtUtc, DateTimeOffset.UtcNow);
+
+    private static string SafeStageCode(string? code) => code switch
+    {
+        "target-not-found" or "invalid-request" or "invalid-state" or "idempotency-conflict"
+            or "artifact-hash-mismatch" or "deployment-not-found" or "upload-failed"
+            or "activate-failed" or "verify-failed" or "rollback-failed" or "cleanup-failed" => code,
+        _ => "unclassified-stage-failure",
+    };
+
+    private static void Audit(Action write)
+    {
+        try { write(); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // A failed EventLog sink must not change authorization, dispatch or journal outcomes.
+            // Never include the logging exception or the original log state in the fallback.
+            try { Console.Error.WriteLine("Lifecycle logging provider unavailable."); }
+            catch (Exception fallback) when (fallback is IOException or ObjectDisposedException)
+            { System.Diagnostics.Debug.WriteLine("Lifecycle logging fallback unavailable."); }
+        }
     }
 
     private static string Required(IDictionary<string, JsonElement>? args, string name)
@@ -197,10 +234,11 @@ public sealed class LifecycleToolFilter(
         StructuredContent = JsonSerializer.SerializeToElement(value, ResultJson),
     };
 
-    internal static CallToolResult Failure(string code) => new()
+    internal static CallToolResult Failure(string code, LifecycleStageDiagnostic? diagnostic = null) => new()
     {
         IsError = true,
         Content = [new TextContentBlock { Text = code }],
+        StructuredContent = diagnostic is null ? null : JsonSerializer.SerializeToElement(new { errorCode = code, diagnostic }, ResultJson),
     };
 }
 

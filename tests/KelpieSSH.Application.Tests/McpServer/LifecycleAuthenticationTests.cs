@@ -57,8 +57,10 @@ public sealed class LifecycleAuthenticationTests
         (await fixture.Journal.FindAsync("flow"))!.Deployment!.State.Should().Be(ServerDeploymentState.Cleaned);
     }
 
-    [Fact]
-    public async Task HttpTransport_WhenBootstrapAndProtectedCalls_UsesRequestHeaderBoundary()
+    [Theory]
+    [InlineData("TEST")]
+    [InlineData("target-1")]
+    public async Task HttpTransport_WhenBootstrapAndProtectedCalls_UsesRequestHeaderBoundary(string targetName)
     {
         using var fixture = new Fixture();
         await fixture.InitializeAsync();
@@ -122,7 +124,7 @@ public sealed class LifecycleAuthenticationTests
             var accepted = await Post(call, token);
             accepted.Should().Contain("result-unknown").And.NotContain(token);
             var prepare = new { jsonrpc = "2.0", id = 5, method = "tools/call", @params = new
-            { name = "deploy_prepare", arguments = new { deploymentId = "http-prepare", targetName = "TEST", destination = "/release/app" } } };
+            { name = "deploy_prepare", arguments = new { deploymentId = "http-prepare", targetName, destination = "/release/app" } } };
             var prepared = await Post(prepare, fixture.Sign("deploy_prepare"));
             prepared.Should().Contain("target-1").And.NotContain("deployment_stage_failed").And.NotContain("deployment_result_unknown");
             (await fixture.Journal.FindAsync("http-prepare"))!.Deployment!.TargetName.Should().Be("test");
@@ -244,12 +246,46 @@ public sealed class LifecycleAuthenticationTests
         calls.Should().Be(0);
     }
 
-    [Fact]
-    public async Task Target_WhenCallerSuppliesAnotherId_RejectsWithoutInvocation()
+    [Theory]
+    [InlineData("test")]
+    [InlineData("target-1")]
+    public async Task Target_WhenCallerSuppliesAnotherId_RejectsWithoutInvocation(string targetName)
     {
         using var fixture = new Fixture();
         await fixture.InitializeAsync();
-        var result = await fixture.Filter.ExecuteAsync("target_status", Args(new { targetName = "test", targetId = "forged" }),
+        var result = await fixture.Filter.ExecuteAsync("target_status", Args(new { targetName, targetId = "forged" }),
+            "Bearer " + fixture.Sign("target_status"), "operation-1", () => throw new Exception("must not run"));
+        result.Content.OfType<TextContentBlock>().Single().Text.Should().Be("auth_project_mismatch");
+    }
+
+    [Theory]
+    [InlineData("target_status")]
+    [InlineData("deploy_prepare")]
+    public async Task Target_WhenSelectedByRegisteredId_InvokesCanonicalProfile(string tool)
+    {
+        using var fixture = new Fixture();
+        await fixture.InitializeAsync();
+        var arguments = tool == "target_status"
+            ? Args(new { targetName = "target-1", targetId = "target-1" })
+            : Args(new { deploymentId = "id-alias", targetName = "target-1", targetId = "target-1", destination = "/release/app" });
+        var calls = 0;
+        await fixture.Filter.ExecuteAsync(tool, arguments, "Bearer " + fixture.Sign(tool), "operation-1", () =>
+        {
+            calls++;
+            arguments["targetName"].GetString().Should().Be("test");
+            arguments["targetId"].GetString().Should().Be("target-1");
+            return Task.FromResult(LifecycleToolFilter.Result(new { ok = true }));
+        });
+        calls.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Target_WhenIdCollidesWithAnotherProfile_RejectsWithoutInvocation()
+    {
+        using var fixture = new Fixture();
+        fixture.Options.Targets.Add(new(Guid.NewGuid(), "target-2", "target-1"));
+        await fixture.InitializeAsync();
+        var result = await fixture.Filter.ExecuteAsync("target_status", Args(new { targetName = "target-1", targetId = "target-1" }),
             "Bearer " + fixture.Sign("target_status"), "operation-1", () => throw new Exception("must not run"));
         result.Content.OfType<TextContentBlock>().Single().Text.Should().Be("auth_project_mismatch");
     }
@@ -395,6 +431,111 @@ public sealed class LifecycleAuthenticationTests
         }
     }
 
+    [Theory]
+    [InlineData("activate-failed", "activate-failed")]
+    [InlineData("secret-provider-code", "unclassified-stage-failure")]
+    [InlineData(null, "unclassified-stage-failure")]
+    public async Task StageDiagnostic_WhenStageFails_IsSafeAndSurvivesRestart(string? code, string expected)
+    {
+        using var fixture = new Fixture();
+        await fixture.InitializeAsync();
+        await SeedDiagnosticDeploymentAsync(fixture);
+        var calls = 0;
+        var before = DateTimeOffset.UtcNow;
+        var result = await fixture.Filter.ExecuteAsync("deploy_activate", Args(new { deploymentId = "diagnostic-1" }),
+            "Bearer " + fixture.Sign("deploy_activate"), "operation-1", () =>
+            {
+                calls++;
+                var current = fixture.Deployments.Get("diagnostic-1");
+                var failed = fixture.Deployments.Update(current,
+                    current with { Error = new(code!, "secret-provider-message", true) });
+                return Task.FromResult(LifecycleToolFilter.Result(new ServerDeployResult(false, failed)));
+            });
+        var diagnostic = result.StructuredContent!.Value.GetProperty("diagnostic");
+        diagnostic.GetProperty("errorCode").GetString().Should().Be(expected);
+        diagnostic.GetProperty("deploymentId").GetString().Should().Be("diagnostic-1");
+        diagnostic.GetProperty("operationId").GetString().Should().Be("operation-1");
+        diagnostic.GetProperty("tool").GetString().Should().Be("deploy_activate");
+        diagnostic.GetProperty("startedAtUtc").GetDateTimeOffset().Should().BeOnOrAfter(before);
+        diagnostic.GetProperty("completedAtUtc").GetDateTimeOffset().Should()
+            .BeOnOrAfter(diagnostic.GetProperty("startedAtUtc").GetDateTimeOffset());
+        var json = result.StructuredContent.Value.GetRawText();
+        json.Should().Contain("deployment_stage_failed").And.NotContain("secret-provider");
+        var snapshot = await fixture.Journal.FindAsync("diagnostic-1");
+        snapshot!.Deployment!.Error!.Code.Should().Be("deployment_stage_failed");
+        snapshot.Deployment.Error.Message.Should().NotContain("secret-provider");
+        await fixture.InitializeAsync();
+        var cached = await fixture.Filter.ExecuteAsync("deploy_activate", Args(new { deploymentId = "diagnostic-1" }),
+            "Bearer " + fixture.Sign("deploy_activate"), "operation-1", () => throw new Exception("must not replay"));
+        System.Text.Json.Nodes.JsonNode.DeepEquals(System.Text.Json.Nodes.JsonNode.Parse(json),
+            System.Text.Json.Nodes.JsonNode.Parse(cached.StructuredContent!.Value.GetRawText())).Should().BeTrue();
+        calls.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task StageDiagnostic_WhenStageSucceeds_HasTimingAndNoErrorClassification()
+    {
+        using var fixture = new Fixture();
+        await fixture.InitializeAsync();
+        var result = await SeedDiagnosticDeploymentAsync(fixture);
+        var data = result.StructuredContent!.Value;
+        data.GetProperty("success").GetBoolean().Should().BeTrue();
+        data.GetProperty("diagnostic").GetProperty("errorCode").ValueKind.Should().Be(JsonValueKind.Null);
+        data.GetProperty("diagnostic").GetProperty("tool").GetString().Should().Be("deploy_prepare");
+    }
+
+    [Fact]
+    public async Task StageDiagnostic_WhenDispatchThrows_LeavesUnknownReservationAndHidesMessage()
+    {
+        using var fixture = new Fixture();
+        await fixture.InitializeAsync();
+        await SeedDiagnosticDeploymentAsync(fixture);
+        var result = await fixture.Filter.ExecuteAsync("deploy_activate", Args(new { deploymentId = "diagnostic-1" }),
+            "Bearer " + fixture.Sign("deploy_activate"), "operation-1", () => throw new IOException("secret-provider-message"));
+        result.IsError.Should().BeTrue();
+        var json = result.StructuredContent!.Value.GetRawText();
+        json.Should().Contain("unexpected-stage-failure").And.Contain("operation-1").And.NotContain("secret-provider");
+        (await fixture.Journal.FindAsync("diagnostic-1"))!.ResultUnknown.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Logging_WhenProviderThrows_DoesNotAlterAuthorizationOrDispatch(bool authorized)
+    {
+        using var fixture = new Fixture();
+        await fixture.InitializeAsync(new ThrowingLifecycleLogger());
+        var calls = 0;
+        var result = await fixture.Filter.ExecuteAsync("target_status", Args(new { targetName = "test" }),
+            authorized ? "Bearer " + fixture.Sign("target_status") : null, "operation-1", () =>
+            {
+                calls++;
+                return Task.FromResult(LifecycleToolFilter.Result(new { ok = true }));
+            });
+        calls.Should().Be(authorized ? 1 : 0);
+        if (authorized) result.IsError.Should().NotBe(true);
+        else result.Content.OfType<TextContentBlock>().Single().Text.Should().Be("auth_assertion_missing");
+        JsonSerializer.Serialize(result).Should().NotContain("secret-logger-message");
+    }
+
+    private static Task<CallToolResult> SeedDiagnosticDeploymentAsync(Fixture fixture) =>
+        fixture.Filter.ExecuteAsync("deploy_prepare", Args(new { deploymentId = "diagnostic-1", targetName = "test", destination = "/release/app" }),
+            "Bearer " + fixture.Sign("deploy_prepare"), "operation-1", () =>
+            {
+                var transfer = fixture.Transfers.Create("test", "default");
+                var deployment = fixture.Deployments.Prepare("diagnostic-1", "test", "target-1", "default", transfer.Id);
+                deployment = fixture.Deployments.Update(deployment, deployment with { State = ServerDeploymentState.Uploaded });
+                return Task.FromResult(LifecycleToolFilter.Result(new ServerDeployResult(true, deployment)));
+            });
+
+    private sealed class ThrowingLifecycleLogger : ILogger<LifecycleToolFilter>
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) => throw new UnauthorizedAccessException("secret-logger-message");
+    }
+
     private sealed class ReservationClock : TimeProvider
     {
         public DateTimeOffset Now { get; set; } = DateTimeOffset.UtcNow;
@@ -441,7 +582,7 @@ public sealed class LifecycleAuthenticationTests
             WriteTrust(SigningKeyState.Active);
         }
 
-        public async Task InitializeAsync()
+        public async Task InitializeAsync(ILogger<LifecycleToolFilter>? logger = null)
         {
             Options.Validate();
             var replay = new SqliteAssertionReplayCache(new(Options.ReplayDatabasePath));
@@ -452,7 +593,7 @@ public sealed class LifecycleAuthenticationTests
             Transfers = new();
             Validator = new Es256AssertionValidator(new FileAssertionTrustStore(Options.TrustBundlePath), replay,
                 new(Options.Issuer), LifecycleContract.Capability);
-            Filter = new(new HttpContextAccessor(), Deployments, Transfers, NullLogger<LifecycleToolFilter>.Instance,
+            Filter = new(new HttpContextAccessor(), Deployments, Transfers, logger ?? NullLogger<LifecycleToolFilter>.Instance,
                 Options, Validator, Journal);
         }
 

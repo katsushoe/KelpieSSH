@@ -19,7 +19,7 @@ public sealed class KelpieServerCommandRunnerTests
         throwOnInvalidBytes: true);
 
     [Fact]
-    public async Task StartAsync_ShouldStartWindowsServiceWhenServiceIsRegistered()
+    public async Task StartAsync_ShouldStartWindowsServiceOnlyOnWindows()
     {
         var options = CreateOptions();
         using var output = new StringWriter();
@@ -43,8 +43,10 @@ public sealed class KelpieServerCommandRunnerTests
             Console.SetOut(previousOutput);
         }
 
-        serviceStartCalled.Should().BeTrue();
-        output.ToString().Should().Contain("Windows Service start requested: KelpieMCPServer");
+        serviceStartCalled.Should().Be(OperatingSystem.IsWindows());
+        output.ToString().Should().Contain(OperatingSystem.IsWindows()
+            ? "Windows Service start requested: KelpieMCPServer"
+            : "KelpieMCPServer start requested.");
     }
 
     [Fact]
@@ -90,7 +92,9 @@ public sealed class KelpieServerCommandRunnerTests
         output.ToString().Should().Contain("KelpieMCPServer: running");
         output.ToString().Should().Contain("MCP URL: http://127.0.0.1:45432/mcp");
         output.ToString().Should().Contain($"Control pipe: {options.ControlPipeName}");
-        output.ToString().Should().Contain("Registered as Windows service: yes");
+        output.ToString().Should().Contain(OperatingSystem.IsWindows()
+            ? "Registered as Windows service: yes"
+            : "Registered as Windows service: no");
     }
 
     [Fact]

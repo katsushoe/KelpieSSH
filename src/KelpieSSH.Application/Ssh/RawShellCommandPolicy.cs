@@ -406,7 +406,12 @@ public sealed class RawShellCommandPolicy
         return StartsWithCommand(commandText, "apt install")
             || StartsWithCommand(commandText, "apt-get install")
             || StartsWithCommand(commandText, "dnf install")
-            || StartsWithCommand(commandText, "yum install");
+            || StartsWithCommand(commandText, "yum install")
+            || StartsWithCommand(commandText, "pacman -S")
+            || StartsWithCommand(commandText, "pacman --sync")
+            || StartsWithCommand(commandText, "zypper install")
+            || StartsWithCommand(commandText, "zypper --non-interactive install")
+            || StartsWithCommand(commandText, "zypper --no-refresh install");
     }
 
     private static bool IsPackageRemoveCommand(string commandText)
@@ -416,7 +421,12 @@ public sealed class RawShellCommandPolicy
             || StartsWithCommand(commandText, "apt-get remove")
             || StartsWithCommand(commandText, "apt-get purge")
             || StartsWithCommand(commandText, "dnf remove")
-            || StartsWithCommand(commandText, "yum remove");
+            || StartsWithCommand(commandText, "yum remove")
+            || StartsWithCommand(commandText, "pacman -R")
+            || StartsWithCommand(commandText, "pacman --remove")
+            || StartsWithCommand(commandText, "zypper remove")
+            || StartsWithCommand(commandText, "zypper --non-interactive remove")
+            || StartsWithCommand(commandText, "zypper --no-refresh remove");
     }
 
     private static bool IsPackageUpdateIndexCommand(string commandText)
@@ -424,7 +434,10 @@ public sealed class RawShellCommandPolicy
         return StartsWithCommand(commandText, "apt update")
             || StartsWithCommand(commandText, "apt-get update")
             || StartsWithCommand(commandText, "dnf check-update")
-            || StartsWithCommand(commandText, "yum check-update");
+            || StartsWithCommand(commandText, "yum check-update")
+            || StartsWithCommand(commandText, "pacman -Sy")
+            || StartsWithCommand(commandText, "pacman --sync --refresh")
+            || StartsWithCommand(commandText, "zypper refresh");
     }
 
     private static bool IsPackageListCommand(string commandText)
@@ -440,6 +453,17 @@ public sealed class RawShellCommandPolicy
             || StartsWithCommand(commandText, "yum list")
             || StartsWithCommand(commandText, "yum search")
             || StartsWithCommand(commandText, "yum info")
+            || StartsWithCommand(commandText, "pacman -Q")
+            || StartsWithCommand(commandText, "pacman --query")
+            || StartsWithCommand(commandText, "pacman -Si")
+            || StartsWithCommand(commandText, "pacman -Ss")
+            || StartsWithCommand(commandText, "pacman --sync --info")
+            || StartsWithCommand(commandText, "pacman --sync --search")
+            || StartsWithCommand(commandText, "zypper search")
+            || StartsWithCommand(commandText, "zypper info")
+            || StartsWithCommand(commandText, "zypper --no-refresh search")
+            || StartsWithCommand(commandText, "zypper --no-refresh info")
+            || StartsWithCommand(commandText, "zypper --no-refresh list-updates")
             || StartsWithCommand(commandText, "rpm -q");
     }
 

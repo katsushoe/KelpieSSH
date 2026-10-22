@@ -1,7 +1,8 @@
 # PACKAGES.md Version
-2026.08.07
+2026.10.13
 
 # Change History
+- 2026.10.13
 - 2026.08.07
 - 2026.07.30
 - 2026.06.24
@@ -28,27 +29,28 @@ For Japanese documentation, see [docs/ja/PACKAGES.ja.md](docs/ja/PACKAGES.ja.md)
 
 | Unit | Project | Version | Purpose | Placement |
 | :--- | :--- | :--- | :--- | :--- |
-| `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.12.0` | VPS operation CLI. | `KelpieHome/bin/kelpie.exe` |
-| `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.3.12.0` | MCP server control and human-only remote policy/helper administration CLI. | `KelpieHome/bin/kelpiemcp.exe` |
-| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.12.0` | Streamable HTTP MCP server. | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
-| `kelpie-web-permission-helper` | `src/KelpieWebPermissionHelper/KelpieWebPermissionHelper.csproj` | `0.2.2.1` | Optional Linux-side helper for web permission and managed policy operations. | `/usr/local/libexec/kelpie/kelpie-web-permission-helper` |
+| `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.12.1` | VPS operation CLI. | `KelpieHome/bin/kelpie.exe` |
+| `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.3.12.1` | MCP server control and human-only remote policy/helper administration CLI. | `KelpieHome/bin/kelpiemcp.exe` |
+| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.15.1` | Streamable HTTP MCP server. | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
+| `kelpie-web-permission-helper` | `src/KelpieWebPermissionHelper/KelpieWebPermissionHelper.csproj` | `0.2.3.5` | Optional Linux-side helper for web permission and managed policy operations. | `/usr/local/libexec/kelpie/kelpie-web-permission-helper` |
 
 For the Alpha release, the Windows zip is the primary binary distribution. It includes `Install-Kelpie.ps1` for per-user automatic installation and `PATH` registration. MSI may be attached when available and may be unsigned. Internal NuGet packages are separate from the Alpha end-user binary distribution.
 
 ## Package Sources
 
-Package sources are controlled by `nuget.config` and the standard NuGet package resolution rules.
+Package sources follow the NuGet.Config hierarchy of the consuming project and the standard NuGet package resolution rules. This repository does not contain a repository-level `nuget.config`.
 Do not publish private feed credentials or tokens in this repository.
 
 ## Internal NuGet Packages
 
 KelpieSSH libraries are packable where appropriate.
 
-| Package | Project | Purpose |
-| :--- | :--- | :--- |
-| `Akatsukisoft.Kelpie.Core` | `Kelpie.Core` | Common runtime support. |
-| `Akatsukisoft.KelpieSSH.Application` | `KelpieSSH.Application` | SSH application services and policy models. |
-| `Akatsukisoft.KelpieSSH.Infrastructure` | `KelpieSSH.Infrastructure` | SSH.NET infrastructure implementation. |
+| Package | Project | NuGet Version | Purpose |
+| :--- | :--- | :--- | :--- |
+| `Akatsukisoft.Kelpie.Core` | `Kelpie.Core` | `0.3.1-alpha` | Common runtime support. |
+| `Akatsukisoft.KelpieSSH.Domain` | `KelpieSSH.Domain` | `0.1.1-alpha` | Domain models and value objects. |
+| `Akatsukisoft.KelpieSSH.Application` | `KelpieSSH.Application` | `0.3.7.2-alpha` | SSH application services and policy models. |
+| `Akatsukisoft.KelpieSSH.Infrastructure` | `KelpieSSH.Infrastructure` | `0.1.2.2-alpha` | SSH.NET infrastructure implementation. |
 
 ## Direct Runtime Dependencies
 

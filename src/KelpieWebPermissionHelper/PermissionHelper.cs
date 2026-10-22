@@ -154,8 +154,10 @@ public static partial class PermissionHelper
                 try
                 {
                     CopyFile(operations, target.ResolvedPath, backupTempPath);
-                    operations.ChangeOwner(backupTempPath, uid, gid);
-                    operations.ChangeMode(backupTempPath, finalMode);
+                    var originalOwnerIds = operations.GetOwnerIds(target.ResolvedPath);
+                    var originalMode = ValidateMode(operations.GetMode(target.ResolvedPath));
+                    operations.ChangeOwner(backupTempPath, originalOwnerIds.Uid, originalOwnerIds.Gid);
+                    operations.ChangeMode(backupTempPath, originalMode);
                     operations.MoveFileOverwrite(backupTempPath, backupPath);
                 }
                 catch

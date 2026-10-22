@@ -1,4 +1,7 @@
 using System.Security.Cryptography;
+using System.Security.AccessControl;
+using System.Security.Principal;
+using System.Runtime.Versioning;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -13,11 +16,13 @@ public sealed class SshProfileTrustStore
     private const int NonceSize = 12;
     private const int TagSize = 16;
     private const int DataKeySize = 32;
-    private const int CurrentFormatVersion = 3;
-    private const int LegacyFormatVersion = 2;
+    private const int CurrentFormatVersion = 4;
+    private const int LegacyFileKeyFormatVersion = 2;
+    private const int LegacyDpapiFormatVersion = 3;
     private const string KeyProtectionDpapiCurrentUser = "dpapi-current-user";
-    private const string KeyProtectionFile = "file";
+    private const string KeyProtectionFileAcl = "file-acl";
     private const int MutexTimeoutSeconds = 30;
+    private const UnixFileMode UnixKeyFileMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -32,15 +37,18 @@ public sealed class SshProfileTrustStore
     private bool _configChanged;
     private string _creatorPathHashSha256;
     private bool _creatorPathHashChanged;
+    private byte[]? _dataKey;
 
     private SshProfileTrustStore(
         string creatorPathHashSha256,
         SshConfigTrustEntry? config,
-        Dictionary<string, SshProfileTrustEntry> profiles)
+        Dictionary<string, SshProfileTrustEntry> profiles,
+        byte[]? dataKey = null)
     {
         _creatorPathHashSha256 = creatorPathHashSha256;
         _config = config;
         _profiles = profiles;
+        _dataKey = dataKey;
     }
 
     /// <summary>
@@ -74,12 +82,11 @@ public sealed class SshProfileTrustStore
         try
         {
             using var mutex = AcquireMutex(filePath);
-            var store = ReadStore(filePath, allowLegacyKeyFile: true, out var requiresMigration);
+            var store = ReadStore(filePath, out var requiresMigration);
             if (requiresMigration)
             {
                 WriteStoreAtomic(filePath, store);
-                _ = ReadStore(filePath, allowLegacyKeyFile: false, out _);
-                File.Delete(GetKeyFilePath(filePath));
+                _ = ReadStore(filePath, out _);
             }
 
             return store;
@@ -114,7 +121,7 @@ public sealed class SshProfileTrustStore
 
         using var mutex = AcquireMutex(filePath);
         var target = File.Exists(filePath)
-            ? ReadStore(filePath, allowLegacyKeyFile: true, out _)
+            ? ReadStore(filePath, out _)
             : new SshProfileTrustStore(string.Empty, null, new Dictionary<string, SshProfileTrustEntry>(StringComparer.OrdinalIgnoreCase));
         ApplyChanges(target);
         WriteStoreAtomic(filePath, target);
@@ -285,17 +292,16 @@ public sealed class SshProfileTrustStore
 
     private static SshProfileTrustStore ReadStore(
         string filePath,
-        bool allowLegacyKeyFile,
         out bool requiresMigration)
     {
         var envelope = JsonSerializer.Deserialize<StoreEnvelope>(File.ReadAllText(filePath), JsonOptions)
             ?? throw new InvalidOperationException("MCP trust store is empty.");
-        if (envelope.FormatVersion is not (CurrentFormatVersion or LegacyFormatVersion))
+        if (envelope.FormatVersion is not (CurrentFormatVersion or LegacyFileKeyFormatVersion or LegacyDpapiFormatVersion))
         {
             throw new InvalidOperationException("MCP trust store format version is not supported.");
         }
 
-        var dataKey = UnprotectDataKey(filePath, envelope, allowLegacyKeyFile, out requiresMigration);
+        var dataKey = UnprotectDataKey(filePath, envelope, out requiresMigration);
         var nonce = Convert.FromBase64String(envelope.Nonce);
         var tag = Convert.FromBase64String(envelope.Tag);
         var payload = Convert.FromBase64String(envelope.Payload);
@@ -307,7 +313,7 @@ public sealed class SshProfileTrustStore
         var buffer = new byte[payload.Length];
         using (var guard = new AesGcm(dataKey, TagSize))
         {
-            var associatedData = envelope.FormatVersion == CurrentFormatVersion
+            var associatedData = envelope.FormatVersion is CurrentFormatVersion or LegacyDpapiFormatVersion
                 ? CreateAssociatedData(envelope.FormatVersion, envelope.KeyProtection)
                 : null;
             guard.Decrypt(nonce, payload, tag, buffer, associatedData);
@@ -318,7 +324,7 @@ public sealed class SshProfileTrustStore
         var profiles = manifest.Profiles
             .Where(entry => !string.IsNullOrWhiteSpace(entry.Name))
             .ToDictionary(entry => entry.Name, StringComparer.OrdinalIgnoreCase);
-        return new SshProfileTrustStore(manifest.CreatorPathHashSha256, manifest.Config, profiles)
+        return new SshProfileTrustStore(manifest.CreatorPathHashSha256, manifest.Config, profiles, dataKey)
         {
             FileExisted = true,
         };
@@ -327,40 +333,55 @@ public sealed class SshProfileTrustStore
     private static byte[] UnprotectDataKey(
         string filePath,
         StoreEnvelope envelope,
-        bool allowLegacyKeyFile,
         out bool requiresMigration)
     {
         requiresMigration = false;
         if (envelope.FormatVersion == CurrentFormatVersion
+            && string.Equals(envelope.KeyProtection, KeyProtectionFileAcl, StringComparison.Ordinal))
+        {
+            if (!string.IsNullOrEmpty(envelope.ProtectedKey))
+            {
+                throw new CryptographicException("MCP trust store must not embed the data key.");
+            }
+
+            requiresMigration = false;
+            return ReadKeyFile(filePath);
+        }
+
+        if (envelope.FormatVersion == LegacyFileKeyFormatVersion
+            && string.Equals(envelope.KeyProtection, "file", StringComparison.OrdinalIgnoreCase))
+        {
+            requiresMigration = true;
+            return ReadKeyFile(filePath, protectLegacyKey: true);
+        }
+
+        if (envelope.FormatVersion == LegacyDpapiFormatVersion
             && string.Equals(envelope.KeyProtection, KeyProtectionDpapiCurrentUser, StringComparison.Ordinal))
         {
             if (!OperatingSystem.IsWindows())
             {
-                throw new PlatformNotSupportedException("MCP trust store DPAPI protection requires Windows.");
+                throw new PlatformNotSupportedException("Legacy MCP trust store migration requires Windows.");
             }
 
             var protectedKey = Convert.FromBase64String(envelope.ProtectedKey);
             var dataKey = ProtectedData.Unprotect(protectedKey, null, DataProtectionScope.CurrentUser);
-            return dataKey.Length == DataKeySize
-                ? dataKey
-                : throw new CryptographicException("MCP trust store data key length is invalid.");
-        }
-
-        if (allowLegacyKeyFile
-            && envelope.FormatVersion == LegacyFormatVersion
-            && string.Equals(envelope.KeyProtection, KeyProtectionFile, StringComparison.OrdinalIgnoreCase))
-        {
-            var keyPath = GetKeyFilePath(filePath);
-            if (!File.Exists(keyPath))
+            if (dataKey.Length != DataKeySize)
             {
-                throw new CryptographicException("MCP trust store legacy key file is missing.");
+                throw new CryptographicException("MCP trust store data key length is invalid.");
             }
 
-            var dataKey = Convert.FromBase64String(File.ReadAllText(keyPath));
+            var keyPath = GetKeyFilePath(filePath);
+            if (File.Exists(keyPath))
+            {
+                var existingKey = ReadKeyFile(filePath);
+                if (!CryptographicOperations.FixedTimeEquals(dataKey, existingKey))
+                {
+                    throw new CryptographicException("MCP trust store migration key does not match the legacy key.");
+                }
+            }
+
             requiresMigration = true;
-            return dataKey.Length == DataKeySize
-                ? dataKey
-                : throw new CryptographicException("MCP trust store legacy data key length is invalid.");
+            return dataKey;
         }
 
         throw new CryptographicException("MCP trust store key protection is not supported.");
@@ -368,11 +389,6 @@ public sealed class SshProfileTrustStore
 
     private static void WriteStoreAtomic(string filePath, SshProfileTrustStore store)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            throw new PlatformNotSupportedException("MCP trust store DPAPI protection requires Windows.");
-        }
-
         var manifest = new TrustStoreManifest
         {
             CreatorPathHashSha256 = store._creatorPathHashSha256,
@@ -380,20 +396,30 @@ public sealed class SshProfileTrustStore
             Profiles = store._profiles.Values.OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase).ToArray(),
         };
         var buffer = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(manifest, JsonOptions));
-        var dataKey = RandomNumberGenerator.GetBytes(DataKeySize);
+        var dataKey = store._dataKey
+            ?? (File.Exists(GetKeyFilePath(filePath))
+                ? ReadKeyFile(filePath)
+                : RandomNumberGenerator.GetBytes(DataKeySize));
+        if (dataKey.Length != DataKeySize)
+        {
+            throw new CryptographicException("MCP trust store data key length is invalid.");
+        }
+
+        WriteKeyFileIfMissing(filePath, dataKey);
+        store._dataKey = dataKey;
         var nonce = RandomNumberGenerator.GetBytes(NonceSize);
         var payload = new byte[buffer.Length];
         var tag = new byte[TagSize];
         using (var guard = new AesGcm(dataKey, TagSize))
         {
-            guard.Encrypt(nonce, buffer, payload, tag, CreateAssociatedData(CurrentFormatVersion, KeyProtectionDpapiCurrentUser));
+            guard.Encrypt(nonce, buffer, payload, tag, CreateAssociatedData(CurrentFormatVersion, KeyProtectionFileAcl));
         }
 
         var envelope = new StoreEnvelope
         {
             FormatVersion = CurrentFormatVersion,
-            KeyProtection = KeyProtectionDpapiCurrentUser,
-            ProtectedKey = Convert.ToBase64String(ProtectedData.Protect(dataKey, null, DataProtectionScope.CurrentUser)),
+            KeyProtection = KeyProtectionFileAcl,
+            ProtectedKey = string.Empty,
             Nonce = Convert.ToBase64String(nonce),
             Tag = Convert.ToBase64String(tag),
             Payload = Convert.ToBase64String(payload),
@@ -453,6 +479,167 @@ public sealed class SshProfileTrustStore
     private static string GetKeyFilePath(string trustStorePath)
     {
         return trustStorePath + ".key";
+    }
+
+    private static byte[] ReadKeyFile(string filePath, bool protectLegacyKey = false)
+    {
+        var keyPath = GetKeyFilePath(filePath);
+        if (!File.Exists(keyPath))
+        {
+            throw new CryptographicException("MCP trust store key file is missing.");
+        }
+
+        if (OperatingSystem.IsWindows())
+        {
+            if (protectLegacyKey)
+            {
+                FileSystemAclExtensions.SetAccessControl(new FileInfo(keyPath), CreateKeyFileSecurity());
+            }
+
+            ValidateKeyFileAcl(keyPath);
+        }
+        else if (File.GetUnixFileMode(keyPath) != UnixKeyFileMode)
+        {
+            File.SetUnixFileMode(keyPath, UnixKeyFileMode);
+        }
+
+        var dataKey = Convert.FromBase64String(File.ReadAllText(keyPath));
+        return dataKey.Length == DataKeySize
+            ? dataKey
+            : throw new CryptographicException("MCP trust store data key length is invalid.");
+    }
+
+    private static void WriteKeyFileIfMissing(string filePath, byte[] dataKey)
+    {
+        var keyPath = GetKeyFilePath(filePath);
+        if (File.Exists(keyPath))
+        {
+            var existingKey = ReadKeyFile(filePath);
+            if (!CryptographicOperations.FixedTimeEquals(dataKey, existingKey))
+            {
+                throw new CryptographicException("MCP trust store key file does not match the active key.");
+            }
+
+            return;
+        }
+
+        var tempPath = keyPath + ".tmp-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            var bytes = Encoding.ASCII.GetBytes(Convert.ToBase64String(dataKey));
+            using (var stream = CreateKeyFile(tempPath))
+            {
+                stream.Write(bytes);
+                stream.Flush(flushToDisk: true);
+            }
+
+            try
+            {
+                File.Move(tempPath, keyPath);
+            }
+            catch (IOException) when (File.Exists(keyPath))
+            {
+                var existingKey = ReadKeyFile(filePath);
+                if (!CryptographicOperations.FixedTimeEquals(dataKey, existingKey))
+                {
+                    throw new CryptographicException("MCP trust store key file does not match the active key.");
+                }
+            }
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+        }
+    }
+
+    private static FileStream CreateKeyFile(string path)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return new FileStream(path, new FileStreamOptions
+            {
+                Mode = FileMode.CreateNew,
+                Access = FileAccess.Write,
+                Share = FileShare.None,
+                UnixCreateMode = UnixKeyFileMode,
+            });
+        }
+
+        return CreateWindowsKeyFile(path);
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static FileStream CreateWindowsKeyFile(string path)
+    {
+        var security = CreateKeyFileSecurity();
+        return new FileInfo(path).Create(
+            FileMode.CreateNew,
+            FileSystemRights.FullControl,
+            FileShare.None,
+            4096,
+            FileOptions.WriteThrough,
+            security);
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static void ValidateKeyFileAcl(string path)
+    {
+        var security = FileSystemAclExtensions.GetAccessControl(new FileInfo(path));
+        var descriptor = new RawSecurityDescriptor(security.GetSecurityDescriptorBinaryForm(), 0);
+        if (!security.AreAccessRulesProtected || descriptor.DiscretionaryAcl is null)
+        {
+            throw new CryptographicException("MCP trust store key ACL must disable inheritance and restrict access.");
+        }
+
+        foreach (FileSystemAccessRule rule in security.GetAccessRules(true, true, typeof(SecurityIdentifier)))
+        {
+            if (rule.AccessControlType != AccessControlType.Allow)
+            {
+                continue;
+            }
+
+            var sid = (SecurityIdentifier)rule.IdentityReference;
+            if (sid.IsWellKnown(WellKnownSidType.WorldSid)
+                || sid.IsWellKnown(WellKnownSidType.AuthenticatedUserSid)
+                || sid.IsWellKnown(WellKnownSidType.BuiltinUsersSid)
+                || sid.IsWellKnown(WellKnownSidType.BuiltinGuestsSid)
+                || sid.IsWellKnown(WellKnownSidType.AnonymousSid)
+                || sid.IsWellKnown(WellKnownSidType.NetworkSid)
+                || sid.IsWellKnown(WellKnownSidType.InteractiveSid)
+                || sid.Value is "S-1-15-2-1" or "S-1-15-2-2")
+            {
+                throw new CryptographicException("MCP trust store key ACL grants access to a broad principal.");
+            }
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static FileSecurity CreateKeyFileSecurity()
+    {
+        var security = new FileSecurity();
+        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+        AddFullControl(security, new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null));
+        AddFullControl(security, new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null));
+
+        var currentSid = WindowsIdentity.GetCurrent().User;
+        if (currentSid is not null)
+        {
+            AddFullControl(security, currentSid);
+        }
+
+        return security;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static void AddFullControl(FileSecurity security, SecurityIdentifier sid)
+    {
+        security.AddAccessRule(new FileSystemAccessRule(
+            sid,
+            FileSystemRights.FullControl,
+            AccessControlType.Allow));
     }
 
     private sealed class MutexLease(Mutex mutex) : IDisposable

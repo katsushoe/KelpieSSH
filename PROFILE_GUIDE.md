@@ -239,8 +239,8 @@ kelpiemcp forget vps01
 | `Connection` | no | object | `{ "TimeoutSeconds": 10 }` | SSH connection behavior. |
 | `Connection.TimeoutSeconds` | no | integer | `10` | Must be positive. |
 | `Platform` | yes | object | none | Target OS metadata used to select providers. |
-| `Platform.OsFamily` | yes | string enum/alias | none | `alpine`, `debian`, `ubuntu`, `rhel`, `alma`, `almalinux`, `rocky`, `centos`, `oraclelinux`. Aliases resolve to an effective family. |
-| `Platform.PackageManager` | no | string | inferred from `OsFamily` | `apk` for `alpine`, `apt` for effective `debian`, `dnf` for effective `rhel`, or an explicit package manager name. |
+| `Platform.OsFamily` | yes | string enum/alias | none | `alpine`, `debian`, `ubuntu`, `rhel`, `alma`, `almalinux`, `rocky`, `centos`, `oraclelinux`, `arch`, `archlinux`, `suse`, `opensuse`, `opensuse-leap`, `opensuse-tumbleweed`, `sles`, `sled`. Aliases resolve to an effective family. |
+| `Platform.PackageManager` | no | string | inferred from `OsFamily` | `apk` for `alpine`, `apt` for effective `debian`, `dnf` for effective `rhel`, `pacman` for effective `arch`, `zypper` for effective `suse`, or an explicit package manager name. |
 | `Mode` | no | string role expression | `Safe` | `ReadOnly`, `Safe`, `Maintenance`, `Expert`, `WebUser`, `WebAdmin`, combined with `|`. Compatibility key read as roles. |
 | `Roles` | no | string or string array | derived from `Mode` | Same role names as `Mode`. If set, it participates in role resolution. |
 | `Capabilities` | no | string, string array, or object | empty | CLI-only policy flags. MCP ignores this section. See [`Capabilities`](#capabilities). |
@@ -587,6 +587,16 @@ Common `OsFamily` values:
 | `rocky` | `rhel` | Rocky Linux |
 | `centos` | `rhel` | CentOS / CentOS Stream |
 | `oraclelinux` | `rhel` | Oracle Linux |
+| `arch` | `arch` | Arch Linux |
+| `archlinux` | `arch` | Arch Linux |
+| `suse` | `suse` | SUSE family |
+| `opensuse` | `suse` | openSUSE |
+| `opensuse-leap` | `suse` | openSUSE Leap |
+| `opensuse-tumbleweed` | `suse` | openSUSE Tumbleweed |
+| `sles` | `suse` | SUSE Linux Enterprise Server |
+| `sled` | `suse` | SUSE Linux Enterprise Desktop |
+
+Package commands are available for Alpine (`apk`), Debian/Ubuntu (`apt`), RHEL (`dnf`), Arch (`pacman`), and SUSE (`zypper`) families. `pkg_install` and `pkg_remove` require confirmation. Arch update candidates use the existing local sync database; use a separately authorized maintenance operation to refresh repository metadata or upgrade the system.
 
 Troubleshooting:
 

@@ -47,6 +47,7 @@ This file is the public source of truth for KelpieSSH Git-managed public documen
 | `ADR-0001: Remote Web Policy Management` | `docs/adr/ADR-0001-REMOTE-WEB-POLICY-MANAGEMENT.md` | Yes | Canonical remote helper-policy management design and security boundary. |
 | `ADR-0002: Privileged Helper Update` | `docs/adr/ADR-0002-PRIVILEGED-HELPER-UPDATE.md` | Yes | Canonical human-only helper update and privileged command boundary. |
 | `ADR-0003: Staged Server Deployment Contract` | `docs/adr/ADR-0003-STAGED-SERVER-DEPLOYMENT.md` | Yes | Canonical staged deployment state, trust boundary, retry, and MCP-specific provider contract. |
+| `ADR-0004: Trust Key ACL Validation` | `docs/adr/ADR-0004-TRUST-KEY-ACL-VALIDATION.md` | Yes | Existing Windows trust key ACL validation and explicit runtime Read access. |
 
 ## Private Document Handling
 

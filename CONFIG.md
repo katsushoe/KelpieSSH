@@ -31,11 +31,7 @@ F:\Kelpie
 └─ bin
 ```
 
-Kelpie home is resolved in this order:
-
-1. If `--bin-dir <dir>` is specified as a runtime path override, the parent directory of `<dir>` is Kelpie home.
-2. If `KELPIE_HOME` is set and the directory exists, `KELPIE_HOME` is Kelpie home.
-3. Otherwise, the parent directory of the startup directory is Kelpie home.
+Kelpie home is resolved from the parent directory of the command startup directory. A `--bin-dir <dir>` runtime path override resolves Kelpie home from the parent directory of `<dir>`.
 
 KelpieSSH does not read `KELPIEPRO_HOME`.
 

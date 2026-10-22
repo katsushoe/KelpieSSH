@@ -18,6 +18,7 @@ namespace KelpieMCPServer;
 public sealed class NamedPipeShutdownService : BackgroundService
 {
     private static readonly TimeSpan InitialCommandReadTimeout = TimeSpan.FromSeconds(5);
+    private const int UnixControlPipeListenerCount = 8;
     private static readonly UTF8Encoding ControlPipeEncoding = new(
         encoderShouldEmitUTF8Identifier: false,
         throwOnInvalidBytes: true);
@@ -33,6 +34,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
     private readonly KelpieProfileOperationsOptions _profileOperations;
     private readonly Func<bool> _isWindowsService;
     private readonly string? _serverUserSid;
+    private readonly SemaphoreSlim _controlCommandSemaphore = new(1, 1);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="NamedPipeShutdownService"/> class.
@@ -74,7 +76,14 @@ public sealed class NamedPipeShutdownService : BackgroundService
     }
 
     /// <inheritdoc />
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        var listenerCount = OperatingSystem.IsWindows() ? 1 : UnixControlPipeListenerCount;
+        return Task.WhenAll(Enumerable.Range(0, listenerCount)
+            .Select(_ => ExecuteControlPipeListenerAsync(stoppingToken)));
+    }
+
+    private async Task ExecuteControlPipeListenerAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -84,165 +93,173 @@ public sealed class NamedPipeShutdownService : BackgroundService
 
                 await pipe.WaitForConnectionAsync(stoppingToken);
 
-                using var reader = new StreamReader(pipe, ControlPipeEncoding);
-                var writer = new StreamWriter(pipe, ControlPipeEncoding)
+                await _controlCommandSemaphore.WaitAsync(stoppingToken);
+                try
                 {
-                    AutoFlush = true,
-                };
-                using var commandReadCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-                commandReadCancellation.CancelAfter(InitialCommandReadTimeout);
-                var message = await reader.ReadLineAsync(commandReadCancellation.Token);
-                var caller = ResolveCaller(pipe);
-                if (!ControlPipeAccessPolicy.IsAllowed(message, caller))
-                {
-                    KpLog.Warn($"Control command forbidden. command={GetCommandName(message)}, callerSid={caller.UserSid ?? "(unavailable)"}");
-                    await writer.WriteLineAsync("forbidden");
-                    await writer.FlushAsync(stoppingToken);
-                    continue;
-                }
+                    using var commandReadCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                    commandReadCancellation.CancelAfter(InitialCommandReadTimeout);
+                    using var reader = new StreamReader(pipe, ControlPipeEncoding);
+                    var writer = new StreamWriter(pipe, ControlPipeEncoding)
+                    {
+                        AutoFlush = true,
+                    };
+                    var message = await reader.ReadLineAsync(commandReadCancellation.Token);
+                    var caller = ResolveCaller(pipe);
+                    if (!ControlPipeAccessPolicy.IsAllowed(message, caller))
+                    {
+                        KpLog.Warn($"Control command forbidden. command={GetCommandName(message)}, callerSid={caller.UserSid ?? "(unavailable)"}");
+                        await writer.WriteLineAsync("forbidden");
+                        await writer.FlushAsync(stoppingToken);
+                        continue;
+                    }
 
-                if (string.Equals(message, "stop", StringComparison.OrdinalIgnoreCase))
-                {
-                    KpLog.Info("Stop command received.");
-                    _logger.LogInformation("Stop command received.");
-                    await writer.WriteLineAsync("stopping");
-                    await writer.FlushAsync(stoppingToken);
-                    _applicationLifetime.StopApplication();
-                    return;
-                }
+                    if (string.Equals(message, "stop", StringComparison.OrdinalIgnoreCase))
+                    {
+                        KpLog.Info("Stop command received.");
+                        _logger.LogInformation("Stop command received.");
+                        await writer.WriteLineAsync("stopping");
+                        await writer.FlushAsync(stoppingToken);
+                        _applicationLifetime.StopApplication();
+                        return;
+                    }
 
-                if (string.Equals(message, "ping", StringComparison.OrdinalIgnoreCase))
-                {
-                    KpLog.Debug("Ping command received.");
-                    await writer.WriteLineAsync(CreatePingResponse());
-                    await writer.FlushAsync(stoppingToken);
-                    continue;
-                }
+                    if (string.Equals(message, "ping", StringComparison.OrdinalIgnoreCase))
+                    {
+                        KpLog.Debug("Ping command received.");
+                        await writer.WriteLineAsync(CreatePingResponse());
+                        await writer.FlushAsync(stoppingToken);
+                        continue;
+                    }
 
-                if (string.Equals(message, "sessions", StringComparison.OrdinalIgnoreCase))
-                {
-                    await HandleSessionsAsync(writer, stoppingToken, caller.RequiresRedaction);
-                    continue;
-                }
+                    if (string.Equals(message, "sessions", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await HandleSessionsAsync(writer, stoppingToken, caller.RequiresRedaction);
+                        continue;
+                    }
 
-                if (TryGetArgument(message, "open-session", out var openSessionProfileName))
-                {
-                    await HandleOpenSessionAsync(openSessionProfileName, writer, stoppingToken);
-                    continue;
-                }
+                    if (TryGetArgument(message, "open-session", out var openSessionProfileName))
+                    {
+                        await HandleOpenSessionAsync(openSessionProfileName, writer, stoppingToken);
+                        continue;
+                    }
 
-                if (TryGetArgument(message, "close-session", out var closeSessionHandle))
-                {
-                    await HandleKillAsync(closeSessionHandle, writer, stoppingToken);
-                    continue;
-                }
+                    if (TryGetArgument(message, "close-session", out var closeSessionHandle))
+                    {
+                        await HandleKillAsync(closeSessionHandle, writer, stoppingToken);
+                        continue;
+                    }
 
-                if (TryGetArgument(message, "send-command", out var sendCommandHandle))
-                {
-                    await HandleSendCommandAsync(sendCommandHandle, reader, writer, stoppingToken);
-                    continue;
-                }
+                    if (TryGetArgument(message, "send-command", out var sendCommandHandle))
+                    {
+                        await HandleSendCommandAsync(sendCommandHandle, reader, writer, stoppingToken);
+                        continue;
+                    }
 
-                if (TryGetArgument(message, "login", out var loginProfileName))
-                {
-                    await HandleLoginAsync(loginProfileName, reader, writer, stoppingToken);
-                    continue;
-                }
+                    if (TryGetArgument(message, "login", out var loginProfileName))
+                    {
+                        await HandleLoginAsync(loginProfileName, reader, writer, stoppingToken);
+                        continue;
+                    }
 
-                if (TryGetArgument(message, "logout", out var logoutProfileName))
-                {
-                    await HandleLogoutAsync(logoutProfileName, writer, stoppingToken);
-                    continue;
-                }
+                    if (TryGetArgument(message, "logout", out var logoutProfileName))
+                    {
+                        await HandleLogoutAsync(logoutProfileName, writer, stoppingToken);
+                        continue;
+                    }
 
-                if (TryGetArgument(message, "secret-put", out var secretPutRequestJson))
-                {
-                    await HandleSecretPutAsync(secretPutRequestJson, reader, writer, stoppingToken);
-                    continue;
-                }
+                    if (TryGetArgument(message, "secret-put", out var secretPutRequestJson))
+                    {
+                        await HandleSecretPutAsync(secretPutRequestJson, reader, writer, stoppingToken);
+                        continue;
+                    }
 
-                if (string.Equals(message, "secret-list", StringComparison.OrdinalIgnoreCase))
-                {
-                    await HandleSecretListAsync(writer, stoppingToken, caller.RequiresRedaction);
-                    continue;
-                }
+                    if (string.Equals(message, "secret-list", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await HandleSecretListAsync(writer, stoppingToken, caller.RequiresRedaction);
+                        continue;
+                    }
 
-                if (TryGetArgument(message, "secret-forget", out var secretName))
-                {
-                    await HandleSecretForgetAsync(secretName, writer, stoppingToken);
-                    continue;
-                }
+                    if (TryGetArgument(message, "secret-forget", out var secretName))
+                    {
+                        await HandleSecretForgetAsync(secretName, writer, stoppingToken);
+                        continue;
+                    }
 
-                if (TryGetArgument(message, "env-put", out var envPutRequestJson))
-                {
-                    await HandleEnvPutAsync(envPutRequestJson, reader, writer, stoppingToken);
-                    continue;
-                }
+                    if (TryGetArgument(message, "env-put", out var envPutRequestJson))
+                    {
+                        await HandleEnvPutAsync(envPutRequestJson, reader, writer, stoppingToken);
+                        continue;
+                    }
 
-                if (TryGetArgument(message, "env-list", out var envListRequestJson))
-                {
-                    await HandleEnvListAsync(envListRequestJson, writer, stoppingToken, caller.RequiresRedaction);
-                    continue;
-                }
+                    if (TryGetArgument(message, "env-list", out var envListRequestJson))
+                    {
+                        await HandleEnvListAsync(envListRequestJson, writer, stoppingToken, caller.RequiresRedaction);
+                        continue;
+                    }
 
-                if (TryGetArgument(message, "env-forget", out var envForgetRequestJson))
-                {
-                    await HandleEnvForgetAsync(envForgetRequestJson, writer, stoppingToken);
-                    continue;
-                }
+                    if (TryGetArgument(message, "env-forget", out var envForgetRequestJson))
+                    {
+                        await HandleEnvForgetAsync(envForgetRequestJson, writer, stoppingToken);
+                        continue;
+                    }
 
-                if (TryGetArgument(message, "env-clear", out var envClearRequestJson))
-                {
-                    await HandleEnvClearAsync(envClearRequestJson, writer, stoppingToken);
-                    continue;
-                }
+                    if (TryGetArgument(message, "env-clear", out var envClearRequestJson))
+                    {
+                        await HandleEnvClearAsync(envClearRequestJson, writer, stoppingToken);
+                        continue;
+                    }
 
-                if (TryGetArgument(message, "profile-add", out var profileAddName))
-                {
-                    await HandleProfileTrustOperationAsync(profileAddName, "add", writer, stoppingToken);
-                    continue;
-                }
+                    if (TryGetArgument(message, "profile-add", out var profileAddName))
+                    {
+                        await HandleProfileTrustOperationAsync(profileAddName, "add", writer, stoppingToken);
+                        continue;
+                    }
 
-                if (TryGetArgument(message, "profile-reload", out var profileReloadName))
-                {
-                    await HandleProfileTrustOperationAsync(profileReloadName, "reload", writer, stoppingToken);
-                    continue;
-                }
+                    if (TryGetArgument(message, "profile-reload", out var profileReloadName))
+                    {
+                        await HandleProfileTrustOperationAsync(profileReloadName, "reload", writer, stoppingToken);
+                        continue;
+                    }
 
-                if (TryGetArgument(message, "profile-reload-approved", out var approvedProfileReloadName))
-                {
-                    await HandleProfileTrustOperationAsync(
-                        approvedProfileReloadName,
-                        "reload-approved",
-                        writer,
-                        stoppingToken);
-                    continue;
-                }
+                    if (TryGetArgument(message, "profile-reload-approved", out var approvedProfileReloadName))
+                    {
+                        await HandleProfileTrustOperationAsync(
+                            approvedProfileReloadName,
+                            "reload-approved",
+                            writer,
+                            stoppingToken);
+                        continue;
+                    }
 
-                if (TryGetArgument(message, "profile-revoke", out var profileRevokeName))
-                {
-                    await HandleProfileTrustOperationAsync(profileRevokeName, "revoke", writer, stoppingToken);
-                    continue;
-                }
+                    if (TryGetArgument(message, "profile-revoke", out var profileRevokeName))
+                    {
+                        await HandleProfileTrustOperationAsync(profileRevokeName, "revoke", writer, stoppingToken);
+                        continue;
+                    }
 
-                if (TryGetArgument(message, "profile-capabilities", out var profileCapabilitiesName))
-                {
-                    await HandleProfileCapabilitiesAsync(profileCapabilitiesName, writer, stoppingToken, caller.RequiresRedaction);
-                    continue;
-                }
+                    if (TryGetArgument(message, "profile-capabilities", out var profileCapabilitiesName))
+                    {
+                        await HandleProfileCapabilitiesAsync(profileCapabilitiesName, writer, stoppingToken, caller.RequiresRedaction);
+                        continue;
+                    }
 
-                if (TryGetArgument(message, "kill", out var sessionHandle))
-                {
-                    await HandleKillAsync(sessionHandle, writer, stoppingToken);
-                    continue;
-                }
+                    if (TryGetArgument(message, "kill", out var sessionHandle))
+                    {
+                        await HandleKillAsync(sessionHandle, writer, stoppingToken);
+                        continue;
+                    }
 
-                if (!string.IsNullOrWhiteSpace(message))
+                    if (!string.IsNullOrWhiteSpace(message))
+                    {
+                        KpLog.Debug($"Control command ignored: {message}");
+                        _logger.LogDebug("Control command ignored: {Command}", message);
+                        await writer.WriteLineAsync("unknown");
+                        await writer.FlushAsync(stoppingToken);
+                    }
+                }
+                finally
                 {
-                    KpLog.Debug($"Control command ignored: {message}");
-                    _logger.LogDebug("Control command ignored: {Command}", message);
-                    await writer.WriteLineAsync("unknown");
-                    await writer.FlushAsync(stoppingToken);
+                    _controlCommandSemaphore.Release();
                 }
             }
             catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
@@ -1040,7 +1057,7 @@ public sealed class NamedPipeShutdownService : BackgroundService
             return new NamedPipeServerStream(
                 pipeName,
                 PipeDirection.InOut,
-                1,
+                UnixControlPipeListenerCount,
                 PipeTransmissionMode.Byte,
                 PipeOptions.Asynchronous);
         }

@@ -6,7 +6,7 @@
 通常のターミナルで実行する `kelpie` / `kelpiemcp` CLI コマンドは `COMMANDS.ja.md` を正本とします。
 特権helper更新はMCP callable toolおよび`ssh_run_allowed_command`から意図的に利用できません。正本は[ADR-0002](../adr/ADR-0002-PRIVILEGED-HELPER-UPDATE.md)です。
 
-## MCP tool の呼び出し方式
+## MCPツールの呼び出し方式
 
 KelpieSSH の MCP tool は REST resource ではありません。Streamable HTTP MCP transport 上で送受信される MCP JSON-RPC method です。
 
@@ -445,7 +445,7 @@ MCP server は terminal handle から接続中 profile を解決します。`kel
 
 - 読み取り専用です。
 
-### 環境変数 tool
+### 環境変数ツール
 
 対象 tool:
 
@@ -5588,15 +5588,15 @@ Web 公開ルート配下の1ディレクトリツリーへ、sudo helper 経由
 - `owner` / `group` に `root` または `0` は指定できません。
 - `mode` は3桁 octal のみ許可し、world-writable になる mode は拒否します。
 
-## 管理対象Webファイルのatomic更新
+## 管理対象Webファイルのアトミック更新
 
 - `web_file_check_write`の`usePrivilegedHelper=true`は、通常のprofile判定とroot所有の`/etc/kelpie/web-permission-helper-policy.json`による許可を両方必須とします。site root不足、完全一致またはdirectory glob不一致、`Create`許可不足では`canWrite: false`を返し、通常の書込み許可だけへfallbackしません。
 - 事前確認結果は、新規作成可否、特権付きatomic更新、owner/group/mode維持、backup、rollback、更新前後のSHA-256確認の利用可否を返します。
 - `web_file_write`では`expectedSha256`、`createBackup`、`preservePermissions`を指定できます。既存ファイルはuid、gid、modeを維持し、helper policyで`Create`とした完全一致パスだけroot所有・`0644`で新規作成できます。
 - backupと本体は対象ディレクトリ内の一時ファイルへ書き、同一filesystem内のrenameでatomicに置換します。symlink、ルート外、未登録パス、実行可能modeは拒否します。
-- `web_file_rollback`は現在のSHA-256一致後にbackupをatomic復元し、`web_file_commit`は検証完了後にbackupを削除します。
+- バックアップは、書込み時にowner/modeを変更する場合も、変更前の内容・所有者・グループ・モードを保存します。`web_file_rollback`は現在のSHA-256一致後に元の状態へ原子的に復元し、`web_file_commit`は検証完了後にバックアップを削除します。
 - ファイル本文、Base64本文、stdin、raw stdout/stderrは通常ログと監査ログへ記録しません。
-## Webバルク転送
+## Web一括転送
 
 Kelpieは、最大100個のローカル通常ファイルを1回のSSH転送で配置するdraft方式のワークフローを公開します。ZIPは内部転送形式であり、呼び出し元から受け取らず、呼び出し元へ返しません。
 
@@ -5624,7 +5624,7 @@ web_bulk_transfer_execute:<transferId>:<manifestSha256>
 
 remote helperは、絶対archive entry名、path traversal、backslash、重複entryまたはremote path、symbolic link、hard linkまたは通常ファイルではないZIP entry、manifest未記載entry、entry不足、件数・size超過、manifestとsizeまたはSHA-256が異なる内容を拒否します。各targetはmanaged web helper policyでも再検証します。全ファイルを非公開transaction directoryへ展開・検証してから配置し、配置中に失敗した場合は適用済みファイルを逆順に復元するため、部分配置を残しません。
 
-## 段階Server Deploy
+## 段階サーバー配備
 
 段階Deploy契約は`provider_version`、`provider_capabilities`、`target_status`、`deploy_prepare`、`deploy_upload`、`deploy_activate`、`deploy_verify`、`deploy_rollback`、`deploy_cleanup`、`deploy_status`を公開します。`deploymentId`は永続的な相関IDと冪等性キーです。`targetName`は管理者が登録したProfile・Project・Targetの対応を選択します。任意の`targetId`は登録済みの不変Target IDと一致する必要があり、省略時は登録値を使用します。`siteKey`の初期値は`default`です。
 
@@ -5632,7 +5632,9 @@ remote helperは、絶対archive entry名、path traversal、backslash、重複e
 
 成功時のHTTP応答は`success`と`deployment`を含みます。JSONのキーはcamelCase、列挙状態は`prepared`などの文字列です。HTTP認証境界で拒否した要求はMCPの`isError`と安定したコードを返します。段階処理の診断は`deployment_stage_failed`へ正規化し、例外本文を返しません。処理中の停止は`deployment_result_unknown`として永続化します。完了済み段階に同一入力を渡した場合は保存結果を返し、入力差は`idempotency-conflict`で拒否します。通信結果が不明な場合は状態照会を行い、段階処理を自動再実行しません。実行前の`auth_assertion_expired`に限り、認可を再評価して新しいAssertionで最大1回再試行できます。
 
-| Tool | 必須Scope | 入力 | 出力 |
+認証済みの段階応答には`diagnostic`を追加します。項目は`deploymentId`、`tool`、検証済みの`operationId`、UTCの`startedAtUtc`・`completedAtUtc`、`errorCode`（成功時はnull）です。分類は`target-not-found`、`invalid-request`、`invalid-state`、`idempotency-conflict`、`artifact-hash-mismatch`、`deployment-not-found`、`upload-failed`、`activate-failed`、`verify-failed`、`rollback-failed`、`cleanup-failed`だけを許可し、その他は`unclassified-stage-failure`へ置換します。診断にはメッセージ、資格情報、パス、生出力、Assertionを含めません。再起動後を含む保存結果の再取得では、元の診断情報を返します。古い保存結果では省略される場合があります。実行中の予期しない例外は`unexpected-stage-failure`を診断へ返し、予約は結果不明のまま維持して再実行しません。実行前の認証拒否には段階診断を付けません。ログ出力失敗時は固定の安全な標準エラー出力へ切り替え、処理結果を変えません。
+
+| MCPツール | 必須権限範囲 | 入力 | 出力 |
 | :--- | :--- | :--- | :--- |
 | `provider_version`、`provider_capabilities` | なし | なし | バージョン、または操作一覧と認証仕様。 |
 | `target_status` | `target.status` | `targetName`、任意の`targetId` | 登録対象の利用可否。 |
@@ -5646,10 +5648,15 @@ remote helperは、絶対archive entry名、path traversal、backslash、重複e
 
 保護対象の8操作は、実際のHTTP Tool要求に`Authorization: Bearer <assertion>`と`X-Moyai-Operation-Id`を必要とします。初期化、discovery、Provider基本情報にはAssertionを要求しません。資格情報をMCP引数に渡してはいけません。認証仕様はES256、Protocol `2`、Audience／Provider `kelpiessh`、Replay防止必須、Resource種別`kelpie_target`です。`server`、Repository用Assertion、未登録の対応、過大なScopeは拒否します。管理設定は[CONFIG.ja.md](CONFIG.ja.md)を参照してください。旧MCP Service Tokenの受入はありません。
 
-`deploy_status`は再起動後も永続ジャーナルから登録対応を解決します。`state`は小文字の保存済み状態、`not-started`、または`result-unknown`です。未完了の実行予約がある場合は`resultUnknown=true`となりますが、復元完了や再試行許可を意味しません。正常終了した転送情報は後続段階のために復元します。入力プロパティの順序は無視しますが、省略した任意引数と明示値は区別します。記録の保持管理と結果不明の調査は管理者が行います。
+`deploy_status`は再起動後も永続ジャーナルから登録対応を解決します。`state`は保存済みの列挙名を小文字へ変換した`prepared`、`uploaded`、`activated`、`verified`、`rolledback`、`cleaned`、`failed`、または追加状態の`not-started`、`result-unknown`です。復元完了の状態名はアンダースコアなしの`rolledback`です。未完了の実行予約がある場合は`resultUnknown=true`となりますが、復元完了や再試行許可を意味しません。正常終了した転送情報は後続段階のために復元します。入力プロパティの順序は無視しますが、省略した任意引数と明示値は区別します。記録の保持管理と結果不明の調査は管理者が行います。
 
 実処理、状態応答、保存済み結果の返却の直前に、検証済みPrincipalを使って期限・最新Trust Bundleの鍵状態・Capabilityを再確認します。Replayは再予約しません。実処理前の認証拒否では当該段階の予約だけを解除し、使用済みAssertionは使用済みのまま維持します。新しい認可による要求で再試行できます。実行結果が不明な場合は予約を残し、自動再実行を許可しません。
 
 providerはSSH password、private key、passphrase、secret reference、artifact bytes、Base64本文、raw provider outputを返しません。256 MiBのartifact上限とtarget profileのmanaged web policyが常に優先されます。
 
 loopback port 2222へ接続する破棄可能SSH containerでは、`config_samples/servers/moyai-deploy-loopback.json`を元にします。このsampleはdeploy範囲を`/tmp/kelpie-deploy-test/artifacts/**`へ制限します。差し替えるのは破棄可能な検証用keyだけです。設計判断とMCP provider／CLIの意図的な非対称性は[ADR-0003](../adr/ADR-0003-STAGED-SERVER-DEPLOYMENT.md)を正本とします。
+
+
+### 登録済みTarget IDによる選択
+
+targetNameは登録Profile名（大文字小文字を区別しない）または不変Target ID（大文字小文字を区別する）を受け付けます。候補が複数ある場合は実行前にauth_project_mismatchで拒否し、指定targetIdは登録値との一致を要求します。登録Project/Targetの認証を維持し、実行には正規Profile名を使います。rollbackはcleanup前のActivatedまたはVerifiedだけが対象です。Verifiedのcleanupはcommitしてtransaction/backupを削除し、Cleanedからのrollbackはできません。通常Deploy完了とcleanup前rollbackは別deployment IDで試験します。

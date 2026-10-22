@@ -7247,7 +7247,7 @@ Safety notes:
 - `WritableExecutableExtensions` bypasses the executable extension write block and the `AllowedExtensions` shortage for that write only. Traversal checks, dotfile and secret-file denial, size limits, and content type rules still apply.
 - Managed writes, rollback, and commit require an exact entry in the root-owned `/etc/kelpie/web-permission-helper-policy.json`. `Update` permits existing-file replacement only; `Create` also permits creation at that exact path.
 - Managed replacement and backup creation use temporary files in the target directory followed by same-filesystem atomic rename. Symlinks and paths outside the resolved site root are rejected.
-- `web_file_rollback` restores the managed backup only when the current file matches `expectedSha256`. `web_file_commit` removes the backup after deployment verification. Both require their exact confirmation token.
+- Backups preserve the original content, owner, group, and mode even when the replacement requests different permissions. `web_file_rollback` restores that original state only when the current file matches `expectedSha256`. `web_file_commit` removes the backup after deployment verification. Both require their exact confirmation token.
 
 #### `web_file_write_from_local`
 
@@ -7687,6 +7687,8 @@ The staged deployment contract exposes `provider_version`, `provider_capabilitie
 
 Successful HTTP stage responses contain `success` and `deployment` (camelCase JSON; enum states are strings such as `prepared`). The HTTP authorization boundary returns MCP `isError` with a stable code for rejected requests; failed stage diagnostics are normalized to `deployment_stage_failed` without raw exception messages. A stage reservation survives a crash as `deployment_result_unknown`. Repeating a completed stage with identical arguments returns its saved result; different arguments return `idempotency-conflict`. After any uncertain transport result, query status and do not automatically repeat a stage. Only `auth_assertion_expired` before dispatch allows the caller to re-evaluate authorization and issue one new assertion.
 
+Authenticated stage responses also include `diagnostic`: `deploymentId`, `tool`, validated `operationId`, `startedAtUtc`, `completedAtUtc` (UTC), and `errorCode` (null on success). The classification allows only `target-not-found`, `invalid-request`, `invalid-state`, `idempotency-conflict`, `artifact-hash-mismatch`, `deployment-not-found`, `upload-failed`, `activate-failed`, `verify-failed`, `rollback-failed`, and `cleanup-failed`; other provider codes become `unclassified-stage-failure`. No message, credentials, paths, raw output or assertions appear in this object. Completed results retain the original diagnostic on cached replay, including after restart. Old cached results may omit it. Unexpected dispatch exceptions return `unexpected-stage-failure` in the diagnostic and leave the reservation result-unknown; they are not replayed or marked completed. Before-dispatch authentication rejections have no stage diagnostic. Logging failures use a fixed safe stderr fallback without changing the result.
+
 | Tool | Required scope | Inputs | Output |
 | :--- | :--- | :--- | :--- |
 | `provider_version`, `provider_capabilities` | none | none | Version or operations and authentication capability. |
@@ -7701,10 +7703,15 @@ Successful HTTP stage responses contain `success` and `deployment` (camelCase JS
 
 The eight protected tools require `Authorization: Bearer <assertion>` and `X-Moyai-Operation-Id` on the actual HTTP tool request. Initialization, discovery and provider bootstrap need no assertion. Credentials are never MCP arguments. Capability advertises ES256, protocol `2`, audience/provider `kelpiessh`, mandatory replay prevention and resource kind `kelpie_target`. `server`, Repository assertions, unregistered contexts and non-minimal scopes are rejected. See [CONFIG.md](CONFIG.md) for administrator setup. No legacy MCP Service Token is accepted.
 
-`deploy_status` resolves context from the durable journal, including after restart. `state` is the saved stage state in lowercase, `not-started`, or `result-unknown`. An unresolved reservation makes `resultUnknown=true`; it does not imply rollback or permission to retry. Completed transfer snapshots can support later stages after restart. Property ordering does not change the argument hash; omitted optional arguments and explicit values are otherwise distinct. Journal retention and unknown-result investigation require an administrator.
+`deploy_status` resolves context from the durable journal, including after restart. `state` is the saved enum name converted to lowercase: `prepared`, `uploaded`, `activated`, `verified`, `rolledback`, `cleaned`, or `failed`; the additional states are `not-started` and `result-unknown`. In particular, rollback status is `rolledback` without an underscore. An unresolved reservation makes `resultUnknown=true`; it does not imply rollback or permission to retry. Completed transfer snapshots can support later stages after restart. Property ordering does not change the argument hash; omitted optional arguments and explicit values are otherwise distinct. Journal retention and unknown-result investigation require an administrator.
 
 Immediately before dispatch, status response, or cached-result return, the provider rechecks expiry, the latest Trust Bundle key state, and capability using the validated principal without reserving Replay again. Authentication rejection before dispatch releases only that stage reservation; the consumed assertion remains consumed. A newly authorized request can retry. Uncertain dispatch outcomes remain pending and cannot be replayed automatically.
 
 The provider never returns SSH passwords, private keys, passphrases, secret references, artifact bytes, Base64 content, or raw provider output. The 256 MiB artifact limit and the target profile's managed web policy remain authoritative.
 
 For a disposable SSH container bound to loopback port 2222, start from `config_samples/servers/moyai-deploy-loopback.json`. It restricts deployment to `/tmp/kelpie-deploy-test/artifacts/**`; replace only the disposable test key material. The architectural decision and intentional MCP-provider/CLI asymmetry are recorded in [ADR-0003](docs/adr/ADR-0003-STAGED-SERVER-DEPLOYMENT.md).
+
+
+### Registered Target ID selection
+
+targetName accepts either a registered profile name (case-insensitive) or immutable Target ID (case-sensitive). Ambiguous matches are rejected with auth_project_mismatch before dispatch; a supplied targetId must match. Authentication still checks the registered Project/Target, and dispatch uses the canonical profile. Rollback is allowed only before cleanup, while Activated or Verified. Cleanup commits a verified deployment and deletes its transaction/backup; Cleaned cannot be rolled back. Test normal deploy/cleanup and rollback-before-cleanup with separate deployment IDs.

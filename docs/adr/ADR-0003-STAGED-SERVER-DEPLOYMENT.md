@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted on 2026-08-30; amended on 2026-09-07 for Lifecycle Assertion v2 and durable stage recovery.
+Accepted on 2026-08-30; amended on 2026-09-07 for Lifecycle Assertion v2 and durable stage recovery, and on 2026-10-13 for safe stage diagnostic metadata and logging failure isolation.
 
 ## Context
 
@@ -26,6 +26,10 @@ The contract is MCP-specific because it is a provider protocol implemented for a
 Completed snapshots and results survive restart. Successful stages restore their transfer context for subsequent stages; unresolved reservations require operator investigation. Callers must query `deploy_status` after a transport failure. They must not create a new ID to bypass an unknown result. One deployment contains one artifact. Each stage is accepted once per deployment; identical normalized arguments return its cached result, and different arguments conflict. Property ordering is ignored; omitted optional arguments and explicit values are otherwise distinct.
 
 ## Security Conditions
+
+Completed authenticated stages include an additive `diagnostic` object containing deployment ID, tool, validated request operation ID, UTC start/end times, and an allowlisted stage error code (null for success). Unknown provider codes become `unclassified-stage-failure`; exception messages, raw output, paths, credentials and assertion bytes are never copied into this object. The generic `deployment_stage_failed` contract remains unchanged. The complete stage response, including diagnostic metadata, is cached in the existing journal; replay returns the original operation ID and timestamps. Unexpected dispatch exceptions return safe diagnostic metadata with `deployment_result_unknown`, while the reservation remains pending rather than being marked complete. Authentication failures before dispatch do not expose stage diagnostics. Old cached responses without this optional object remain valid.
+
+Logging-provider failures use a fixed, secret-free stderr fallback and cannot change authorization or journal outcomes. Raw provider diagnostics were rejected because they may disclose credentials or filesystem content. The additive metadata is documented in the MCP command reference and verified for secret exclusion, cached restart recovery, unknown reservations and failing log sinks.
 
 - Target credentials remain in KelpieSSH profiles and secret stores.
 - Responses and ordinary logs exclude credentials, artifact bytes, Base64 content, and raw provider output.

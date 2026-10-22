@@ -10,22 +10,22 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 
 | 分類 | コマンド | 内容 |
 | :--- | :--- | :--- |
-| MCP server control | `kelpiemcp start [--reload-config]`, `kelpiemcp stop`, `kelpiemcp status` | `KelpieMCPServer` の起動、停止、状態確認を行う。 |
-| MCP profile trust | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile> [--approve-privilege-expansion]`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | SSH profile の信頼 baseline 追加、更新、取り消し、確認を行う。 |
+| MCPサーバー制御 | `kelpiemcp start [--reload-config]`, `kelpiemcp stop`, `kelpiemcp status` | `KelpieMCPServer` の起動、停止、状態確認を行う。 |
+| MCPプロファイルの信頼管理 | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile> [--approve-privilege-expansion]`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | SSH profile の信頼 baseline 追加、更新、取り消し、確認を行う。 |
 | 人間用Web policy管理 | `kelpiemcp web-policy list`, `add`, `remove`, `apply`, `rollback` | 選択したVPSのmanaged Web helper policyをリモートで確認または対話的に変更する。 |
 | 人間用helper更新 | `kelpiemcp helper update <profile> <local-artifact>` | 人間専用workflowで固定された特権helperを転送し、原子的に置換する。 |
-| MCP Windows Service | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Windows Service 登録、登録解除、登録状態確認を行う。 |
-| MCP password session | `kelpiemcp password`, `kelpiemcp forget` | 起動中の MCP server に SSH パスワードを一時保存、削除する。 |
-| MCP secret session | `kelpiemcp secret put`, `kelpiemcp secret list`, `kelpiemcp secret forget` | 起動中の MCP server に短命の秘密ファイル内容を一時保存、一覧表示、削除する。 |
-| MCP environment session | `kelpiemcp env put`, `kelpiemcp env list`, `kelpiemcp env forget`, `kelpiemcp env clear` | 起動中の MCP server に短命の環境変数 override を一時保存、一覧表示、削除する。 |
-| Compatibility | `kelpiemcp login`, `kelpiemcp logout` | 旧名互換。新規利用では `password` / `forget` を使う。 |
-| Initialization | `kelpie init [--silent] [profile]`, `kelpie config --check` | `KelpieHome` 配下の初期ディレクトリとサンプル設定を作成・検証する。 |
-| Profile/session | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie profile trust-host-key`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイルひな形作成・編集・ホスト鍵信頼登録・削除、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
-| Mode/UI | `kelpie login --console` | 一時的に別コンソールで起動する。 |
-| Diagnostics | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie inventory`, `kelpie services`, `kelpie logs` | プロファイル検証、プロファイル情報、MCP server 状態、SSH 診断、接続先 inventory、サービス状態、サービスログを表示する。 |
-| Packages | `kelpie pkg check-updates`, `kelpie pkg info`, `kelpie pkg search`, `kelpie pkg list-installed`, `kelpie pkg simulate-install`, `kelpie pkg simulate-remove`, `kelpie pkg install`, `kelpie pkg remove` | SSH profile の package provider を使って package 確認と確認付き変更を行う。 |
-| Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | profile policy に従って remote 環境変数の key 表示、値参照、永続化を行う。 |
-| Help/version | `kelpie version`, `kelpie help`, `kelpiemcp version`, `kelpiemcp help` | バージョンとヘルプを表示する。 |
+| MCP Windowsサービス | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Windowsサービスの登録、登録解除、登録状態確認を行う。 |
+| MCPパスワードセッション | `kelpiemcp password`, `kelpiemcp forget` | 起動中のMCPサーバーにSSHパスワードを一時保存、削除する。 |
+| MCP秘密情報セッション | `kelpiemcp secret put`, `kelpiemcp secret list`, `kelpiemcp secret forget` | 起動中のMCPサーバーに短期の秘密ファイル内容を一時保存、一覧表示、削除する。 |
+| MCP環境変数セッション | `kelpiemcp env put`, `kelpiemcp env list`, `kelpiemcp env forget`, `kelpiemcp env clear` | 起動中のMCPサーバーに短期の環境変数上書きを一時保存、一覧表示、削除する。 |
+| 互換コマンド | `kelpiemcp login`, `kelpiemcp logout` | 旧名互換。新規利用では `password` / `forget` を使う。 |
+| 初期化 | `kelpie init [--silent] [profile]`, `kelpie config --check` | `KelpieHome` 配下の初期ディレクトリとサンプル設定を作成・検証する。 |
+| プロファイル/セッション | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie profile trust-host-key`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSHプロファイルひな形作成・編集・ホスト鍵信頼登録・削除、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
+| モード/UI | `kelpie login --console` | 一時的に別コンソールで起動する。 |
+| 診断 | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie inventory`, `kelpie services`, `kelpie logs` | プロファイル検証、プロファイル情報、MCPサーバー状態、SSH診断、接続先一覧、サービス状態、サービスログを表示する。 |
+| パッケージ | `kelpie pkg check-updates`, `kelpie pkg info`, `kelpie pkg search`, `kelpie pkg list-installed`, `kelpie pkg simulate-install`, `kelpie pkg simulate-remove`, `kelpie pkg install`, `kelpie pkg remove` | SSHプロファイルのパッケージproviderを使って確認と確認付き変更を行う。 |
+| 環境変数 | `kelpie env keys`, `kelpie env peek`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | profile policy に従い、remote環境変数のkey表示、値参照、永続化を行う。 |
+| ヘルプ/バージョン | `kelpie version`, `kelpie help`, `kelpiemcp version`, `kelpiemcp help` | バージョンとヘルプを表示する。 |
 
 ## 共通ルール
 

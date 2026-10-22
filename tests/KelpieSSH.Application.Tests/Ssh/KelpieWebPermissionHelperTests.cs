@@ -21,7 +21,7 @@ public sealed class KelpieWebPermissionHelperTests
 
         exitCode.Should().Be(0);
         error.ToString().Should().BeEmpty();
-        output.ToString().Should().StartWith("kelpie-web-permission-helper 0.2.3.4");
+        output.ToString().Should().StartWith("kelpie-web-permission-helper 0.2.3.5");
     }
 
     [Fact]
@@ -334,6 +334,47 @@ public sealed class KelpieWebPermissionHelperTests
         operations.OwnerChanges.Should().Contain(change => change.Uid == 0 && change.Gid == 0);
         output.ToString().Should().Contain("\"PermissionsPreserved\":true");
         output.ToString().Should().Contain("\"PreviousSha256\":\"" + expectedHash + "\"");
+    }
+
+    [Fact]
+    public void Run_ShouldRestoreOriginalPermissionsAfterPermissionOverrideWrite()
+    {
+        const string target = "/var/www/_webadmin/index.php";
+        var original = Encoding.UTF8.GetBytes("old");
+        var replacement = Encoding.UTF8.GetBytes("new");
+        var operations = new FakeUnixPermissionOperations();
+        ConfigureManagedPolicy(operations, "/_webadmin/index.php", "Update");
+        operations.Directories.Add("/var/www/_webadmin");
+        operations.Files.Add(target);
+        operations.FileContents[target] = original;
+        operations.OwnerIds[target] = (0, 0);
+        operations.Modes[target] = "644";
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+        var originalHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(original)).ToLowerInvariant();
+        var replacementHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(replacement)).ToLowerInvariant();
+
+        PermissionHelper.Run(
+            ["write-file", Encode("/var/www"), Encode("/_webadmin/index.php"),
+                Convert.ToBase64String(replacement), "1000", "0",
+                Encode("deploy:www-data"), Encode("600"), originalHash, "1", "0"],
+            operations, output, error).Should().Be(0);
+
+        operations.GetOwnerIds(target).Should().Be((1000u, 33u));
+        operations.GetMode(target).Should().Be("600");
+        operations.GetOwnerIds(target + ".kelpiebakup").Should().Be((0u, 0u));
+        operations.GetMode(target + ".kelpiebakup").Should().Be("644");
+        operations.FileContents[target + ".kelpiebakup"].Should().Equal(original);
+
+        PermissionHelper.Run(
+            ["rollback-file", Encode("/var/www"), Encode("/_webadmin/index.php"), replacementHash],
+            operations, output, error).Should().Be(0);
+
+        operations.FileContents[target].Should().Equal(original);
+        operations.GetOwnerIds(target).Should().Be((0u, 0u));
+        operations.GetMode(target).Should().Be("644");
+        operations.Files.Should().NotContain(target + ".kelpiebakup");
+        error.ToString().Should().BeEmpty();
     }
 
     [Fact]

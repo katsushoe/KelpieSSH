@@ -126,4 +126,10 @@ public sealed record ServerDeployError(string Code, string Message, bool Retryab
 /// <summary>
 /// Represents the result of one deployment stage.
 /// </summary>
-public sealed record ServerDeployResult(bool Success, ServerDeployment Deployment);
+public sealed record ServerDeployResult(bool Success, ServerDeployment Deployment,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    LifecycleStageDiagnostic? Diagnostic = null);
+
+/// <summary>Allowlisted stage metadata without provider messages, credentials or paths.</summary>
+public sealed record LifecycleStageDiagnostic(string DeploymentId, string Tool, string OperationId,
+    string? ErrorCode, DateTimeOffset StartedAtUtc, DateTimeOffset CompletedAtUtc);

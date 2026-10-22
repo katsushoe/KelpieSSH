@@ -90,6 +90,25 @@ public sealed class AllowedCommandCatalogTests
         commandText.Should().Be("sudo -n dnf install -y --setopt=tsflags=test 'nginx'");
     }
 
+    [Theory]
+    [InlineData("archlinux", "pacman", "pkg_simulate_install", "pacman --sync --print --print-format '%n %v' 'nginx'")]
+    [InlineData("opensuse-leap", "zypper", "pkg_simulate_install", "sudo -n zypper --non-interactive install --dry-run 'nginx'")]
+    [InlineData("sles", "zypper", "pkg_simulate_remove", "sudo -n zypper --non-interactive remove --dry-run 'nginx'")]
+    public void CreateForProfile_ShouldUseArchAndSuseCommandProviders(
+        string osFamily,
+        string packageManager,
+        string commandName,
+        string expected)
+    {
+        var catalog = AllowedCommandCatalog.CreateForProfile(
+            CreateProfile(osFamily, packageManager),
+            CommandProcessingProviderCatalog.CreateDefault());
+
+        catalog.TryGet(commandName, out var command).Should().BeTrue();
+        command.BuildCommandText(new Dictionary<string, string> { ["package"] = "nginx" })
+            .Should().Be(expected);
+    }
+
     [Fact]
     public void CreateForProfile_ShouldUseDebianPackageAndServiceProviders()
     {

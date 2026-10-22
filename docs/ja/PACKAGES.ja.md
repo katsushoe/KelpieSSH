@@ -1,7 +1,8 @@
 # PACKAGES.ja.md Version
-2026.08.07
+2026.10.13
 
 # 変更履歴
+- 2026.10.13
 - 2026.08.07
 - 2026.07.30
 - 2026.06.24
@@ -11,11 +12,15 @@
 - 2026.06.14
 - 2026.06.11
 
-# KelpieSSH Packages
+# KelpieSSH パッケージ
 
 このファイルは、KelpieSSH の配布単位、内部 NuGet パッケージ、外部 NuGet 依存パッケージをまとめる公開ドキュメントです。
 
 対象はリポジトリ内の直接参照です。NuGet が自動解決する推移的依存関係は、各パッケージのロックファイルまたは NuGet メタデータを正とします。
+
+## パッケージソース
+
+パッケージソースは利用するプロジェクトのNuGet.Config階層と標準のNuGet解決規則に従います。このリポジトリにはルートの`nuget.config`を含めていません。
 
 # パッケージ分類
 
@@ -30,10 +35,10 @@
 
 | 実行ファイル | プロジェクト | バージョン | 主な責務 | 配置例 |
 | :--- | :--- | :--- | :--- | :--- |
-| `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.12.0` | VPS 操作 CLI。初期化、プロファイル確認、診断、ログ取得、GUI/CLI モード切替を担当します。 | `KelpieHome/bin/kelpie.exe` |
-| `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.3.12.0` | MCPサーバー制御と人間専用のリモートpolicy/helper管理CLI。 | `KelpieHome/bin/kelpiemcp.exe` |
-| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.12.0` | Streamable HTTP MCP サーバー本体。Codex などの MCP クライアントへ SSH 診断ツールを公開します。 | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
-| `kelpie-web-permission-helper` | `src/KelpieWebPermissionHelper/KelpieWebPermissionHelper.csproj` | `0.2.2.1` | SSH先に配置するsudo helper。Web公開ルートの操作とmanaged policy管理を行います。 | `/usr/local/libexec/kelpie/kelpie-web-permission-helper` |
+| `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.12.1` | VPS 操作 CLI。初期化、プロファイル確認、診断、ログ取得、GUI/CLI モード切替を担当します。 | `KelpieHome/bin/kelpie.exe` |
+| `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.3.12.1` | MCPサーバー制御と人間専用のリモートpolicy/helper管理CLI。 | `KelpieHome/bin/kelpiemcp.exe` |
+| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.15.1` | Streamable HTTP MCP サーバー本体。Codex などの MCP クライアントへ SSH 診断ツールを公開します。 | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
+| `kelpie-web-permission-helper` | `src/KelpieWebPermissionHelper/KelpieWebPermissionHelper.csproj` | `0.2.3.5` | SSH先に配置するsudo helper。Web公開ルートの操作とmanaged policy管理を行います。 | `/usr/local/libexec/kelpie/kelpie-web-permission-helper` |
 
 ## `kelpie`
 
@@ -119,12 +124,12 @@
 
 # 内部 NuGet パッケージ
 
-| PackageId | プロジェクト | バージョン | ライセンス | Packable | 主な責務 |
+| パッケージID | プロジェクト | バージョン | ライセンス | パッケージ化 | 主な責務 |
 | :--- | :--- | :--- | :--- | :---: | :--- |
-| `Akatsukisoft.Kelpie.Core` | `src/Kelpie.Core/Kelpie.Core.csproj` | `0.3.0.4-alpha` | Apache-2.0 | yes | Kelpie 共通ランタイム、設定解決、サーバー制御オプションなどを提供します。 |
-| `Akatsukisoft.KelpieSSH.Domain` | `src/KelpieSSH.Domain/KelpieSSH.Domain.csproj` | `0.1.0.0-alpha` | Apache-2.0 | yes | SSH 実行結果、値オブジェクト、ドメイン表現を提供します。 |
-| `Akatsukisoft.KelpieSSH.Application` | `src/KelpieSSH.Application/KelpieSSH.Application.csproj` | `0.3.2.2-alpha` | Apache-2.0 | yes | ユースケース、ポリシー、コマンド許可ロジック、SSH 抽象を提供します。 |
-| `Akatsukisoft.KelpieSSH.Infrastructure` | `src/KelpieSSH.Infrastructure/KelpieSSH.Infrastructure.csproj` | `0.1.0.0-alpha` | Apache-2.0 | yes | SSH.NET を使った SSH 接続、コマンド実行、ShellStream 連携などのインフラ実装を提供します。 |
+| `Akatsukisoft.Kelpie.Core` | `src/Kelpie.Core/Kelpie.Core.csproj` | `0.3.1-alpha` | Apache-2.0 | yes | Kelpie 共通ランタイム、設定解決、サーバー制御オプションなどを提供します。 |
+| `Akatsukisoft.KelpieSSH.Domain` | `src/KelpieSSH.Domain/KelpieSSH.Domain.csproj` | `0.1.1-alpha` | Apache-2.0 | yes | SSH 実行結果、値オブジェクト、ドメイン表現を提供します。 |
+| `Akatsukisoft.KelpieSSH.Application` | `src/KelpieSSH.Application/KelpieSSH.Application.csproj` | `0.3.7.2-alpha` | Apache-2.0 | yes | ユースケース、ポリシー、コマンド許可ロジック、SSH 抽象を提供します。 |
+| `Akatsukisoft.KelpieSSH.Infrastructure` | `src/KelpieSSH.Infrastructure/KelpieSSH.Infrastructure.csproj` | `0.1.2.2-alpha` | Apache-2.0 | yes | SSH.NET を使った SSH 接続、コマンド実行、ShellStream 連携などのインフラ実装を提供します。 |
 
 ## `Akatsukisoft.Kelpie.Core`
 

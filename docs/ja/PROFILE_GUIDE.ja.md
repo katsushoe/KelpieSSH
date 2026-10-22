@@ -1,4 +1,4 @@
-# KelpieSSH Profile Guide
+# KelpieSSH SSHプロファイルガイド
 
 最終更新: 2026-08-05
 
@@ -7,7 +7,7 @@
 
 `kelpie.json` や `kelpiemcp.json` などの全体設定は [CONFIG.ja.md](CONFIG.ja.md) を参照してください。
 
-## Profile の安全責任
+## プロファイルの安全上の責任
 
 Profile は、KelpieSSH がどのサーバーへ接続し、どの remote path、user、policy、service、Web root を操作できるかを定義します。Profile の編集は security-sensitive な変更として扱ってください。
 
@@ -15,7 +15,7 @@ Profile は、自分が所有している、または管理権限を持つシス
 
 本番環境で profile を使う前に、同じ profile 構成を安全な環境で検証し、重要なサーバーとデータには復元可能な backup を用意してください。KelpieSSH の policy check はリスクを下げますが、運用者による確認、backup、復旧計画の代替にはなりません。
 
-## Profile とは
+## SSHプロファイルとは
 
 SSH profile は、保存済み SSH 接続設定です。
 Profile は `KelpieHome\profiles` 配下の JSON ファイルとして保存します。
@@ -36,7 +36,7 @@ kelpie status vps01
 
 Terminal CLI commands は command flow ごとに profile file を読み取ります。`KelpieMCPServer` は起動中、profiles を in-memory catalog として保持します。MCP 利用中に profile JSON files を編集した場合は、利用者が `kelpiemcp profile reload <profile>` を実行して trust store と in-memory profile catalog を更新してください。`profile_reload` MCP tool は trust store の profile hash を更新しないため、正規の profile 編集を受け入れる操作には使いません。
 
-## Profile の作成
+## SSHプロファイルの作成
 
 名前付き profile を作成します。
 
@@ -67,7 +67,7 @@ kelpie init vps01
 対応する公開鍵は、事前にサーバー側へ登録されている必要があります。
 通常は remote user の `~/.ssh/authorized_keys` に登録します。
 
-## ホスト鍵 pinning
+## ホスト鍵の固定
 
 `Host.HostKeyFingerprintSha256` を設定すると、SSH サーバーのホスト鍵 fingerprint を pin できます。
 この値がある場合、KelpieSSH は接続時に受信した SSH ホスト鍵 fingerprint と profile の設定値を照合してから接続を信頼します。
@@ -91,7 +91,7 @@ kelpie profile trust-host-key vps01
 表示された fingerprint は、VPS 管理画面など信頼できる別経路で確認してから信頼してください。
 初回 SSH 接続が中間者攻撃を受けている場合、攻撃者のホスト鍵を pin する危険があります。
 
-## 最小秘密鍵 profile
+## 最小の秘密鍵プロファイル
 
 ```json
 {
@@ -120,7 +120,7 @@ kelpie profile trust-host-key vps01
 <KelpieHome>\keys\vps01_ed25519
 ```
 
-## 最小パスワード profile
+## 最小のパスワードプロファイル
 
 平文パスワードを profile に保存してはいけません。
 Profile には secret reference name だけを書きます。
@@ -166,7 +166,7 @@ kelpiemcp password vps01
 kelpiemcp forget vps01
 ```
 
-## Full Example
+## 全体例
 
 ```json
 {
@@ -240,8 +240,8 @@ kelpiemcp forget vps01
 | `Connection` | いいえ | object | `{ "TimeoutSeconds": 10 }` | SSH 接続動作。 |
 | `Connection.TimeoutSeconds` | いいえ | integer | `10` | 正の整数。 |
 | `Platform` | はい | object | なし | provider 選択に使う target OS metadata。 |
-| `Platform.OsFamily` | はい | string enum/alias | なし | `alpine`, `debian`, `ubuntu`, `rhel`, `alma`, `almalinux`, `rocky`, `centos`, `oraclelinux`。alias は effective family に解決されます。 |
-| `Platform.PackageManager` | いいえ | string | `OsFamily` から推定 | `alpine`は`apk`、effective `debian`は`apt`、effective `rhel`は`dnf`。必要なら明示指定できます。 |
+| `Platform.OsFamily` | はい | string enum/alias | なし | `alpine`, `debian`, `ubuntu`, `rhel`, `alma`, `almalinux`, `rocky`, `centos`, `oraclelinux`, `arch`, `archlinux`, `suse`, `opensuse`, `opensuse-leap`, `opensuse-tumbleweed`, `sles`, `sled`。alias は effective family に解決されます。 |
+| `Platform.PackageManager` | いいえ | string | `OsFamily` から推定 | `alpine`は`apk`、effective `debian`は`apt`、effective `rhel`は`dnf`、effective `arch`は`pacman`、effective `suse`は`zypper`。必要なら明示指定できます。 |
 | `Mode` | いいえ | string role expression | `Safe` | `ReadOnly`, `Safe`, `Maintenance`, `Expert`, `WebUser`, `WebAdmin`。`|` で組み合わせ可能。互換 key として role expression として読み取ります。 |
 | `Roles` | いいえ | string or string array | `Mode` から解決 | `Mode` と同じ role 名。設定時は role 解決に使います。 |
 | `Capabilities` | いいえ | string, string array, or object | 空 | CLI 専用 policy flags。MCP では無視します。詳細は [`Capabilities`](#capabilities)。 |
@@ -526,7 +526,7 @@ SSH 接続先です。
 | `Host.Address` | はい | なし | Host name または IP address。 |
 | `Host.Port` | いいえ | `22` | SSH port。 |
 
-Troubleshooting:
+対処方法:
 
 - `Host.Address` が `example.invalid` のままなら、接続前に実ホストへ変更してください。
 - SSH port が標準以外の場合は `Host.Port` を設定してください。
@@ -546,7 +546,7 @@ SSH 認証設定です。
 | `Auth.PrivateKeyPassphrase` | いいえ | `null` | 秘密鍵 passphrase。logs や public files に出してはいけません。 |
 | `Auth.PasswordSecretName` | `password` では はい | `null` | Secret reference name。実 password は runtime に入力します。 |
 
-Troubleshooting:
+対処方法:
 
 - `SSH private key path is required`: `Auth.PrivateKeyFile` を設定するか、`Auth.Method` を `password` に変更してください。
 - `SSH password secret name is required`: `Auth.PasswordSecretName` を設定してください。
@@ -561,7 +561,7 @@ Troubleshooting:
 | :--- | :---: | :--- | :--- |
 | `Connection.TimeoutSeconds` | いいえ | `10` | SSH connection timeout 秒数。 |
 
-Troubleshooting:
+対処方法:
 
 - 遅い server で timeout する場合は `TimeoutSeconds` を増やしてください。
 - 待ち時間が長すぎる場合は `TimeoutSeconds` を下げてください。
@@ -587,13 +587,23 @@ Troubleshooting:
 | `rocky` | `rhel` | Rocky Linux |
 | `centos` | `rhel` | CentOS / CentOS Stream |
 | `oraclelinux` | `rhel` | Oracle Linux |
+| `arch` | `arch` | Arch Linux |
+| `archlinux` | `arch` | Arch Linux |
+| `suse` | `suse` | SUSE系 |
+| `opensuse` | `suse` | openSUSE |
+| `opensuse-leap` | `suse` | openSUSE Leap |
+| `opensuse-tumbleweed` | `suse` | openSUSE Tumbleweed |
+| `sles` | `suse` | SUSE Linux Enterprise Server |
+| `sled` | `suse` | SUSE Linux Enterprise Desktop |
 
-Troubleshooting:
+パッケージ操作コマンドは、Alpine（`apk`）、Debian/Ubuntu（`apt`）、RHEL（`dnf`）、Arch（`pacman`）、SUSE（`zypper`）で利用できます。`pkg_install` と `pkg_remove` には確認が必要です。Archの更新候補は既存のローカルsync databaseを参照します。repository metadataの更新やシステム全体のupgradeは別途許可された保守操作として行ってください。
+
+対処方法:
 
 - package command が拒否される、または合わない場合は `OsFamily` と `PackageManager` を確認してください。
 - OS が不明な場合でも、実際の target family と一致しない値は設定しないでください。
 
-### `Mode` and `Roles`
+### `Mode`と`Roles`
 
 `Mode` は互換用 key で、role expression として読み取ります。
 
@@ -620,7 +630,7 @@ Troubleshooting:
 }
 ```
 
-Troubleshooting:
+対処方法:
 
 - path operation が拒否される場合、`Mode` だけでは不足です。`AllowedRoots` を設定してください。
 - CLI-only permission が MCP で効かない場合、それが `Capabilities` か確認してください。
@@ -663,7 +673,7 @@ MCP 実行では `Capabilities` を無視し、mode-based permissions のみを�
 - `AllowMoveFiles`
 - `AllowMoveDirectory`
 
-Troubleshooting:
+対処方法:
 
 - Unknown name は configuration error です。
 - MCP 権限を `Capabilities` で増やすことはできません。
@@ -820,7 +830,7 @@ Glob rules:
 - 単体の `*` または `**` は明示的な global permission です。
 - 正規表現は使いません。
 
-Troubleshooting:
+対処方法:
 
 - `AllowedRoots` を array で書くと互換 read-only behavior になります。新規 profile では object form を使ってください。
 - `Read` や `Write` のような bare value は無効です。`@Read` や `@Write` を使ってください。
@@ -849,12 +859,12 @@ Troubleshooting:
 | `Confirm` | operation candidate にはできますが、強い確認を要求します。 |
 | `Allow` | 通常の `AllowedRoots`, `Mode`, `Capabilities` evaluation に任せます。 |
 
-Troubleshooting:
+対処方法:
 
 - allowed root 配下でも `.env` や `.ssh` が拒否される場合は `SpecialPaths` を確認してください。
 - `Allow` は意図した例外だけに使ってください。
 
-### `Users` and `DefaultUser`
+### `Users`と`DefaultUser`
 
 同じ server profile で複数 SSH login users を使う場合は `Users` を使います。
 `DefaultUser` は、command が user を指定しない場合に使います。
@@ -895,7 +905,7 @@ Notes:
 - Detailed object values では mode, roles, auth, allowed roots, special paths を user 別に上書きできます。
 - Shared `Auth` values は user が上書きしない限り継承されます。
 
-Troubleshooting:
+対処方法:
 
 - 複数 users があり default user がない場合は、user を明示するか `DefaultUser` を設定してください。
 - Duplicate user names は configuration error です。
@@ -1376,7 +1386,7 @@ Object form のサンプル:
 - この設定は書き込み判定だけに効きます。読み取り判定、パストラバーサル拒否、ドットファイル拒否、秘密ファイル拒否、サイズ上限、MIME type 判定は従来どおり適用されます。
 - 許可はサイト単位です。ほかのサイトやほかのプロファイルでは、同じ拡張子でも明示許可がなければ拒否されます。
 
-## Validation Checklist
+## 検証チェックリスト
 
 接続前に確認してください。
 
@@ -1394,7 +1404,7 @@ Object form のサンプル:
 - write、package、service、permission、configuration 操作を使う前に、重要なサーバーとデータの復元可能な backup がある。
 - 本番環境へ反映する前に、安全な環境で変更を検証している。
 
-## Troubleshooting
+## トラブルシューティング
 
 ### `SSH profile name is required`
 
@@ -1433,12 +1443,12 @@ Known family の `Platform.OsFamily` を設定するか、`Platform.PackageManag
 - access flags が requested operation を含んでいる。
 - `SpecialPaths` がその path を deny していない。
 
-### CLI では許可される command が MCP では許可されない
+### CLIでは許可されるコマンドがMCPでは許可されない
 
 MCP は `Capabilities` を無視します。
 `Mode`、roles、`AllowedRoots`、supported MCP tools を使ってください。
 
-### CLI では password login できるが MCP では失敗する
+### CLIではパスワードでログインできるがMCPでは失敗する
 
 CLI と MCP の password session は別です。
 MCP では server を起動してから password を登録します。

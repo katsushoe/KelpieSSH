@@ -483,7 +483,118 @@ public sealed class AllowedCommandProviderTests
         PackageManagerResolver.Resolve("alpine", null).Should().Be("apk");
         PackageManagerResolver.Resolve("alma", string.Empty).Should().Be("dnf");
         PackageManagerResolver.Resolve("ubuntu", null).Should().Be("apt");
+        PackageManagerResolver.Resolve("archlinux", null).Should().Be("pacman");
+        PackageManagerResolver.Resolve("opensuse-leap", null).Should().Be("zypper");
+        PackageManagerResolver.Resolve("sles", null).Should().Be("zypper");
         PackageManagerResolver.Resolve("debian", "custom").Should().Be("custom");
+    }
+
+    [Fact]
+    public void OsFamilyAliasResolver_ShouldResolveArchAndSuseAliases()
+    {
+        OsFamilyAliasResolver.Resolve("archlinux").Should().Be("arch");
+        OsFamilyAliasResolver.Resolve("opensuse").Should().Be("suse");
+        OsFamilyAliasResolver.Resolve("opensuse-tumbleweed").Should().Be("suse");
+        OsFamilyAliasResolver.Resolve("sles").Should().Be("suse");
+        OsFamilyAliasResolver.Resolve("sled").Should().Be("suse");
+    }
+
+    [Theory]
+    [InlineData("arch", "pacman", "pkg_simulate_install", "pacman --sync --print --print-format '%n %v' 'nginx'")]
+    [InlineData("arch", "pacman", "pkg_simulate_remove", "pacman --remove --print --print-format '%n %v' 'nginx'")]
+    [InlineData("suse", "zypper", "pkg_simulate_install", "sudo -n zypper --non-interactive install --dry-run 'nginx'")]
+    [InlineData("suse", "zypper", "pkg_simulate_remove", "sudo -n zypper --non-interactive remove --dry-run 'nginx'")]
+    public void ArchAndSusePackageProviders_ShouldRenderSafeSimulationCommands(
+        string osFamily,
+        string packageManager,
+        string commandName,
+        string expected)
+    {
+        IAllowedCommandProvider provider = osFamily == "arch"
+            ? new ArchPacmanCommandProvider()
+            : new SuseZypperCommandProvider();
+        var profile = CreateProfile(osFamily, packageManager);
+        var command = provider.GetCommands(profile).Single(item => item.Name == commandName);
+
+        command.BuildCommandText(new Dictionary<string, string> { ["package"] = "nginx" })
+            .Should().Be(expected);
+        command.RiskLevel.Should().Be(SshCommandRiskLevel.ReadOnly);
+    }
+
+    [Theory]
+    [InlineData("arch", "pacman", "pkg_search", "query", "sh -c 'output=$(pacman --sync --search \"$1\"); code=$?; printf \"%s\\n\" \"$output\" | head -n \"$2\"; exit \"$code\"' -- 'nginx' '5'")]
+    [InlineData("arch", "pacman", "pkg_list_installed", "filter", "sh -c 'output=$(pacman --query --quiet); code=$?; printf \"%s\\n\" \"$output\" | grep -i -- \"$1\" | head -n \"$2\"; exit \"$code\"' -- 'nginx' '5'")]
+    [InlineData("suse", "zypper", "pkg_search", "query", "sh -c 'output=$(zypper --no-refresh search \"$1\"); code=$?; printf \"%s\\n\" \"$output\" | head -n \"$2\"; exit \"$code\"' -- 'nginx' '5'")]
+    [InlineData("suse", "zypper", "pkg_list_installed", "filter", "sh -c 'output=$(zypper --no-refresh search -i \"$1\"); code=$?; printf \"%s\\n\" \"$output\" | head -n \"$2\"; exit \"$code\"' -- 'nginx' '5'")]
+    public void ArchAndSusePackageProviders_ShouldPreserveScriptArguments(
+        string osFamily,
+        string packageManager,
+        string commandName,
+        string valueName,
+        string expected)
+    {
+        IAllowedCommandProvider provider = osFamily == "arch"
+            ? new ArchPacmanCommandProvider()
+            : new SuseZypperCommandProvider();
+        var command = provider.GetCommands(CreateProfile(osFamily, packageManager))
+            .Single(item => item.Name == commandName);
+
+        command.BuildCommandText(new Dictionary<string, string>
+        {
+            [valueName] = "nginx",
+            ["limit"] = "5",
+        }).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("arch", "pacman", "pkg_install", "sudo -n pacman --sync --noconfirm 'nginx'")]
+    [InlineData("suse", "zypper", "pkg_remove", "sudo -n zypper --non-interactive remove 'nginx'")]
+    public void ArchAndSusePackageProviders_ShouldMarkMutationsAsConfirmRequired(
+        string osFamily,
+        string packageManager,
+        string commandName,
+        string expected)
+    {
+        IAllowedCommandProvider provider = osFamily == "arch"
+            ? new ArchPacmanCommandProvider()
+            : new SuseZypperCommandProvider();
+        var profile = CreateProfile(osFamily, packageManager);
+        var command = provider.GetCommands(profile).Single(item => item.Name == commandName);
+
+        command.BuildCommandText(new Dictionary<string, string> { ["package"] = "nginx" })
+            .Should().Be(expected);
+        command.RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
+    }
+
+    [Theory]
+    [InlineData("arch", "pacman", "nginx;id")]
+    [InlineData("suse", "zypper", "nginx;id")]
+    public void ArchAndSusePackageProviders_ShouldRejectUnsafePackageName(
+        string osFamily,
+        string packageManager,
+        string packageName)
+    {
+        IAllowedCommandProvider provider = osFamily == "arch"
+            ? new ArchPacmanCommandProvider()
+            : new SuseZypperCommandProvider();
+        var command = provider.GetCommands(CreateProfile(osFamily, packageManager))
+            .Single(item => item.Name == "pkg_install");
+
+        var action = () => command.BuildCommandText(new Dictionary<string, string> { ["package"] = packageName });
+
+        action.Should().Throw<InvalidOperationException>();
+    }
+
+    [Theory]
+    [InlineData("arch", "apt")]
+    [InlineData("suse", "pacman")]
+    public void ArchAndSusePackageProviders_ShouldRejectMismatchedPackageManager(string osFamily, string packageManager)
+    {
+        var provider = osFamily == "arch"
+            ? (IAllowedCommandProvider)new ArchPacmanCommandProvider()
+            : new SuseZypperCommandProvider();
+
+        provider.Supports(CreateProfile(osFamily, packageManager)).Should().BeFalse();
     }
 
     [Fact]
