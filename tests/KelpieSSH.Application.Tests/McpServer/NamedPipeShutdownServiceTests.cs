@@ -508,7 +508,13 @@ public sealed class NamedPipeShutdownServiceTests
 
         await service.StartAsync(CancellationToken.None);
 
-        var requests = Enumerable.Range(0, 8).Select(_ => SendControlCommandAsync(pipeName, "ping")).ToArray();
+        // ConnectAsync queues a blocking connection wait on the shared worker pool.
+        // Keep those waits off the pool used by the in-process server continuations.
+        var requests = Enumerable.Range(0, 8).Select(_ => Task.Factory.StartNew(
+            () => SendControlCommandAsync(pipeName, "ping", connectSynchronously: true),
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default).Unwrap()).ToArray();
         string?[] responses;
         try
         {
@@ -584,7 +590,10 @@ public sealed class NamedPipeShutdownServiceTests
         }
     }
 
-    private static async Task<string?> SendControlCommandAsync(string pipeName, string command)
+    private static async Task<string?> SendControlCommandAsync(
+        string pipeName,
+        string command,
+        bool connectSynchronously = false)
     {
         await using var pipe = new NamedPipeClientStream(
             ".",
@@ -594,7 +603,14 @@ public sealed class NamedPipeShutdownServiceTests
             TokenImpersonationLevel.Identification);
 
         using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await pipe.ConnectAsync(cancellationTokenSource.Token);
+        if (connectSynchronously)
+        {
+            pipe.Connect(10000);
+        }
+        else
+        {
+            await pipe.ConnectAsync(cancellationTokenSource.Token);
+        }
 
         var writer = new StreamWriter(pipe)
         {
