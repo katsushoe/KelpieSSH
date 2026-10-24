@@ -5596,6 +5596,14 @@ Web 公開ルート配下の1ディレクトリツリーへ、sudo helper 経由
 - backupと本体は対象ディレクトリ内の一時ファイルへ書き、同一filesystem内のrenameでatomicに置換します。symlink、ルート外、未登録パス、実行可能modeは拒否します。
 - バックアップは、書込み時にowner/modeを変更する場合も、変更前の内容・所有者・グループ・モードを保存します。`web_file_rollback`は現在のSHA-256一致後に元の状態へ原子的に復元し、`web_file_commit`は検証完了後にバックアップを削除します。
 - ファイル本文、Base64本文、stdin、raw stdout/stderrは通常ログと監査ログへ記録しません。
+### `ssh_file_export`
+
+リモートの通常ファイル1個を、Kelpieのデータディレクトリ内の`exports`へ直接搬出します。一致する`AllowedRoots`ルールに`@Read`と`@Export`の両方が必要です。ディレクトリ一覧の権限を要求せず、リモートパスの各要素を検査します。シンボリックリンク、ディレクトリ、特殊ファイル、許可ルート外への逸脱、上限を超えるファイル、転送中に変わったファイルは拒否します。`SpecialPaths: Confirm`に一致する場合は、さらに`confirmSpecialPath=true`が必要です。
+
+入力は`profileName`、絶対パスの`remotePath`、搬出先フォルダーを基準とした相対パスまたは同フォルダー内の絶対パスである`localPath`、任意の`confirmSpecialPath`です。構造化された`SshFileExportToolResult`を返します。成功時のメタデータは`Data`に入り、拒否・失敗時は`Ok=false`、`Error`、`ErrorInfo`を返し、不完全なローカルファイルを残しません。本文やBase64化した本文は返しません。
+
+失敗結果は、プロファイルポリシーの拒否、SSH認証失敗、SFTP操作失敗を区別します。SFTP診断には選択したプロファイルのユーザー、絶対パスの分類、SFTP状態を含みますが、資格情報やファイル本文は含めません。
+
 ## Web一括転送
 
 Kelpieは、最大100個のローカル通常ファイルを1回のSSH転送で配置するdraft方式のワークフローを公開します。ZIPは内部転送形式であり、呼び出し元から受け取らず、呼び出し元へ返しません。

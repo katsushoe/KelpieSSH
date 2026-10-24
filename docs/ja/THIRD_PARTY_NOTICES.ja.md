@@ -1,38 +1,85 @@
 # THIRD_PARTY_NOTICES.ja.md Version
-2026.06.17
+2026.10.25
 
 # KelpieSSH サードパーティ通知
 
-English documentation is available in [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md).
+英語版は [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md) を参照してください。
 
-このファイルは、KelpieSSH の runtime libraries と配布 binaries が使用する third-party NuGet packages の通知をまとめる日本語版です。
+KelpieSSHのライセンスはApache-2.0です。著作権表示はCopyright (c) 2026 Akatsukisoftです。
+プロジェクト: https://github.com/katsushoe/KelpieSSH
 
-KelpieSSH 自体は Apache License 2.0 で公開されています。
+## 一覧の根拠
 
-- Product: KelpieSSH
-- Copyright: Copyright (c) 2026 Akatsukisoft
-- License: Apache-2.0
-- Project URL: https://github.com/katsushoe/KelpieSSH
-- Notice source: `dotnet list package --include-transitive` と local package cache 内の NuGet `.nuspec` metadata
+この一覧は、リポジトリ内の8個の製品ソースプロジェクトで解決された直接・推移NuGet依存を記録します。バージョンは各プロジェクトの`obj/project.assets.json`、ライセンス識別子・プロジェクトURL・著作権表示は対応するパッケージの`.nuspec`を根拠にしています。旧形式の`System.Memory` 4.5.3は同梱の`LICENSE.TXT`でMITを明示しています。表中の`not declared`は、調べたメタデータに当該項目の記載がないことを意味します。
 
-`xunit`、`FluentAssertions`、`coverlet.collector`、`Microsoft.NET.Test.Sdk` などの test-only packages は、KelpieSSH または KelpiePro と再配布する runtime dependencies ではないため、この通知対象から除外します。
+`xunit`、`FluentAssertions`、`coverlet.collector`、`Microsoft.NET.Test.Sdk`などのテスト専用パッケージは対象外です。ビルド専用の`Microsoft.NET.ILLink.Tasks`も除外します。この解決済み依存一覧は、すべての製品やランタイム識別子の配布物に全パッケージが含まれることを意味しません。
 
-# ライセンスリスク概要
+## 解決済みランタイム依存の通知
 
-現在の KelpieSSH runtime dependency set では、GPL、AGPL、LGPL、SSPL、Commons Clause、その他の non-permissive runtime NuGet dependencies は確認されていません。
+| パッケージ | バージョン | ライセンス | プロジェクトURL | 著作権表示 |
+| :--- | :--- | :--- | :--- | :--- |
+| `BouncyCastle.Cryptography` | `2.7.0` | MIT | https://www.bouncycastle.org/stable/nuget/csharp/website | Copyright © Legion of the Bouncy Castle Inc. 2000-2026 |
+| `Microsoft.Data.Sqlite` | `8.0.12` | MIT | https://docs.microsoft.com/dotnet/standard/data/sqlite/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Data.Sqlite.Core` | `8.0.12` | MIT | https://docs.microsoft.com/dotnet/standard/data/sqlite/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.AI.Abstractions` | `10.5.2` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Caching.Abstractions` | `10.0.7` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Configuration` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Configuration.Abstractions` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Configuration.Binder` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Configuration.CommandLine` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Configuration.EnvironmentVariables` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Configuration.FileExtensions` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Configuration.Json` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Configuration.UserSecrets` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.DependencyInjection` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.DependencyInjection.Abstractions` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.DependencyInjection.Abstractions` | `8.0.0` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.DependencyInjection.Abstractions` | `8.0.2` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Diagnostics` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Diagnostics.Abstractions` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.FileProviders.Abstractions` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.FileProviders.Physical` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.FileSystemGlobbing` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Hosting` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Hosting.Abstractions` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Hosting.WindowsServices` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Logging` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Logging.Abstractions` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Logging.Abstractions` | `8.0.0` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Logging.Abstractions` | `8.0.3` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Logging.Configuration` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Logging.Console` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Logging.Debug` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Logging.EventLog` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Logging.EventSource` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Options` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Options.ConfigurationExtensions` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `Microsoft.Extensions.Primitives` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `ModelContextProtocol` | `1.3.0` | Apache-2.0 | https://csharp.sdk.modelcontextprotocol.io/ | © Model Context Protocol a Series of LF Projects, LLC. |
+| `ModelContextProtocol.AspNetCore` | `1.3.0` | Apache-2.0 | https://csharp.sdk.modelcontextprotocol.io/ | © Model Context Protocol a Series of LF Projects, LLC. |
+| `ModelContextProtocol.Core` | `1.3.0` | Apache-2.0 | https://csharp.sdk.modelcontextprotocol.io/ | © Model Context Protocol a Series of LF Projects, LLC. |
+| `Moyai.ProviderAuthentication` | `1.0.2` | MIT | not declared | not declared |
+| `SQLitePCLRaw.bundle_e_sqlite3` | `2.1.6` | Apache-2.0 | not declared | Copyright 2014-2023 SourceGear, LLC |
+| `SQLitePCLRaw.core` | `2.1.6` | Apache-2.0 | not declared | Copyright 2014-2023 SourceGear, LLC |
+| `SQLitePCLRaw.lib.e_sqlite3` | `2.1.6` | Apache-2.0 | not declared | Copyright 2014-2023 SourceGear, LLC |
+| `SQLitePCLRaw.provider.e_sqlite3` | `2.1.6` | Apache-2.0 | not declared | Copyright 2014-2023 SourceGear, LLC |
+| `SSH.NET` | `2026.0.0` | MIT | not declared | Copyright © Renci 2010-2026 |
+| `System.Diagnostics.DiagnosticSource` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `System.Diagnostics.EventLog` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `System.IO.Pipelines` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `System.Memory` | `4.5.3` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `System.Net.ServerSentEvents` | `10.0.7` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `System.Security.Cryptography.ProtectedData` | `8.0.0` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `System.ServiceProcess.ServiceController` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `System.Text.Encodings.Web` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
+| `System.Text.Json` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |
 
-Runtime package を追加または更新した場合は、英語版 [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md) を更新し、日本語版も必要に応じて同期してください。
+## KelpieProで再配布する場合
 
-# 主要 runtime dependencies
+KelpieSSHのライブラリや実行ファイルを再配布する場合は、KelpieSSHの`LICENSE`、この第三者通知一覧、および配布物に実際に含める依存のライセンス・通知ファイルを同梱します。KelpiePro側で追加する依存には、それぞれの通知が必要です。
 
-| Package | 用途 |
-| :--- | :--- |
-| `SSH.NET` | SSH 接続、認証、command execution、shell session。 |
-| `ModelContextProtocol` | MCP server abstractions。 |
-| `ModelContextProtocol.AspNetCore` | Streamable HTTP MCP transport。 |
-| `Microsoft.Extensions.Hosting` | ASP.NET Core hosting support。 |
-| `Microsoft.Extensions.Hosting.WindowsServices` | Windows Service hosting integration。 |
+パッケージ更新後は復元し、解決済みのパッケージメタデータを確認してから、この一覧を更新します。
 
-# 再配布時の注意
-
-KelpieSSH packages または binaries を KelpiePro などの別製品に同梱して再配布する場合は、KelpieSSH の Apache License 2.0 notice と third-party notices を installer、application about box、bundled documentation、または同等の notices location に含めてください。
+```powershell
+dotnet list package --include-transitive
+```

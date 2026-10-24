@@ -1,7 +1,8 @@
 # PACKAGES.ja.md Version
-2026.10.13
+2026.10.25
 
 # 変更履歴
+- 2026.10.25
 - 2026.10.13
 - 2026.08.07
 - 2026.07.30
@@ -13,6 +14,8 @@
 - 2026.06.11
 
 # KelpieSSH パッケージ
+
+英語版は [PACKAGES.md](../../PACKAGES.md) を参照してください。
 
 このファイルは、KelpieSSH の配布単位、内部 NuGet パッケージ、外部 NuGet 依存パッケージをまとめる公開ドキュメントです。
 
@@ -35,9 +38,9 @@
 
 | 実行ファイル | プロジェクト | バージョン | 主な責務 | 配置例 |
 | :--- | :--- | :--- | :--- | :--- |
-| `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.12.1` | VPS 操作 CLI。初期化、プロファイル確認、診断、ログ取得、GUI/CLI モード切替を担当します。 | `KelpieHome/bin/kelpie.exe` |
+| `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.13.0` | VPS 操作 CLI。初期化、プロファイル確認、診断、ログ取得、対話ログインを担当します。 | `KelpieHome/bin/kelpie.exe` |
 | `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.3.12.1` | MCPサーバー制御と人間専用のリモートpolicy/helper管理CLI。 | `KelpieHome/bin/kelpiemcp.exe` |
-| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.15.1` | Streamable HTTP MCP サーバー本体。Codex などの MCP クライアントへ SSH 診断ツールを公開します。 | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
+| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.16.0` | Streamable HTTP MCP サーバー本体。Codex などの MCP クライアントへ SSH 診断ツールを公開します。 | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
 | `kelpie-web-permission-helper` | `src/KelpieWebPermissionHelper/KelpieWebPermissionHelper.csproj` | `0.2.3.5` | SSH先に配置するsudo helper。Web公開ルートの操作とmanaged policy管理を行います。 | `/usr/local/libexec/kelpie/kelpie-web-permission-helper` |
 
 ## `kelpie`
@@ -204,6 +207,9 @@ KelpieSSH の外部接続実装を持つライブラリです。
 | :--- | :--- | :--- | :--- | :--- |
 | `Microsoft.Extensions.Configuration.Abstractions` | `10.0.8` | MIT | `Kelpie.Core` | 設定読み取りの抽象 API。設定値をコードへ直書きせず、JSON や外部設定から扱うために使います。 |
 | `Microsoft.Extensions.Configuration.Json` | `10.0.8` | MIT | `KelpieClientCommand`, `KelpieServerCommand` | `kelpie.json` / `kelpiemcp.json` などの JSON 設定ファイル読み取りに使います。 |
+| `Microsoft.Extensions.Logging.Abstractions` | `8.0.0` | MIT | `KelpieSSH.Application` | アプリケーションサービスのログ抽象化に使います。 |
+| `System.Security.Cryptography.ProtectedData` | `8.0.0` | MIT | `KelpieSSH.Application` | 保存する信頼情報のWindows DPAPI保護に使います。 |
+| `Moyai.ProviderAuthentication` | `1.0.2` | MIT | `KelpieMCPServer` | 署名付きProvider要求、Trust Bundle、永続的な再送防止の検証に使います。 |
 | `Microsoft.Extensions.Hosting` | `10.0.8` | MIT | `KelpieMCPServer` | MCP サーバーのホスト、DI、ライフサイクル管理に使います。 |
 | `Microsoft.Extensions.Hosting.WindowsServices` | `10.0.8` | MIT | `KelpieMCPServer` | Windows Service として MCP サーバーをホストするために使います。 |
 | `ModelContextProtocol` | `1.3.0` | Apache-2.0 | `KelpieMCPServer` | MCP ツール定義、MCP プロトコル連携に使います。 |
