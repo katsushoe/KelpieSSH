@@ -133,6 +133,9 @@ builder.Services.AddSingleton<ISshPasswordProvider>(serviceProvider =>
 builder.Services.AddSingleton<SshTerminalSessionManager>();
 builder.Services.AddSingleton<TargetInventoryCache>();
 builder.Services.AddSingleton<ISshCommandRunner, SshNetCommandRunner>();
+builder.Services.AddSingleton<IHostRebootStore>(new FileHostRebootStore(
+    Path.Combine(KelpieRuntimePaths.GetDataDirectory(runtimeBaseDirectory), "host-reboots")));
+builder.Services.AddSingleton<HostRebootService>();
 builder.Services.AddSingleton<ISshFileExporter>(serviceProvider => new SshNetFileExporter(
     serviceProvider.GetRequiredService<ISshPasswordProvider>(),
     Path.Combine(KelpieRuntimePaths.GetDataDirectory(runtimeBaseDirectory), "exports")));

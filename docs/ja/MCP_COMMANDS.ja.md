@@ -1,6 +1,6 @@
 # KelpieSSH MCP コマンド
 
-最終更新: 2026-08-30
+最終更新: 2026-10-22
 
 このファイルは、KelpieSSH が MCP callable tool として公開するコマンドの正本です。
 通常のターミナルで実行する `kelpie` / `kelpiemcp` CLI コマンドは `COMMANDS.ja.md` を正本とします。
@@ -5660,3 +5660,25 @@ loopback port 2222へ接続する破棄可能SSH containerでは、`config_sampl
 ### 登録済みTarget IDによる選択
 
 targetNameは登録Profile名（大文字小文字を区別しない）または不変Target ID（大文字小文字を区別する）を受け付けます。候補が複数ある場合は実行前にauth_project_mismatchで拒否し、指定targetIdは登録値との一致を要求します。登録Project/Targetの認証を維持し、実行には正規Profile名を使います。rollbackはcleanup前のActivatedまたはVerifiedだけが対象です。Verifiedのcleanupはcommitしてtransaction/backupを削除し、Cleanedからのrollbackはできません。通常Deploy完了とcleanup前rollbackは別deployment IDで試験します。
+
+## ホスト通常再起動ツール
+
+| ツール | 必須入力 | 任意入力 | 動作 |
+| :--- | :--- | :--- | :--- |
+| `ssh_host_reboot_preview` | `profileName` | なし | 起動情報を読み取り、保存したプレビューを返す。 |
+| `ssh_host_reboot_request` | `profileName`, `operationId`, `confirmation` | なし | 人間の管理者による明示承認後、一度だけ送信。 |
+| `ssh_host_reboot_inspect` | `profileName`, `operationId` | `wait=false` | 同じホストを観測し、再送しない。 |
+
+### `ssh_host_reboot_preview`
+
+入力例: `{"profileName":"sample"}`。対象、現在のboot IDとカーネル、影響、確認項目、操作ID、確認トークンを返します。再起動しません。
+
+### `ssh_host_reboot_request`
+
+入力例: `{"profileName":"sample","operationId":"<preview ID>","confirmation":"<exact preview token>"}`。先に人間の管理者から、当該対象と停止影響への明示承認を得てください。Accepted、FailedまたはUnknownを返し、同じIDを再送しません。
+
+### `ssh_host_reboot_inspect`
+
+入力例: `{"profileName":"sample","operationId":"<same ID>","wait":true}`。boot ID変更、カーネル、サービス・HTTPの確認結果を返します。`wait=false`では一度だけ観測し、待機時も元の送信期限を延長しません。
+
+すべて`HostRebootOperation`を返します。全出力項目、例、設定、状態、エラー、安全・承認手順は[ホストの通常再起動](HOST_REBOOT.ja.md)を参照してください。3ツールは`ssh_get_capabilities`へ反映されます。保存済みプロファイルだけを受け付け、`ssh_run_allowed_command`から再起動しません。

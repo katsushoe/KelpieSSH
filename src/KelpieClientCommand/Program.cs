@@ -49,6 +49,12 @@ if (IsVersionCommand(command))
     return;
 }
 
+if (string.Equals(command, "host-reboot", StringComparison.OrdinalIgnoreCase))
+{
+    await RunHostRebootAsync(args);
+    return;
+}
+
 if (string.Equals(command, "init", StringComparison.OrdinalIgnoreCase))
 {
     KpLog.Info("Kelpie CLI init requested.");
@@ -1079,6 +1085,9 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpie profile show <profile-pattern> [--pager|--no-pager]");
     writer.WriteLine("  kelpie status <profile>");
     writer.WriteLine("  kelpie diag <profile>");
+    writer.WriteLine("  kelpie host-reboot preview <profile>");
+    writer.WriteLine("  kelpie host-reboot request <profile> <operationId> <confirmation>");
+    writer.WriteLine("  kelpie host-reboot inspect <profile> <operationId> [--wait]");
     writer.WriteLine("  kelpie inventory <profile>");
     writer.WriteLine("  kelpie services <profile> [state] [limit]");
     writer.WriteLine("  kelpie logs <profile> <service> [lines]");
@@ -3988,6 +3997,37 @@ static SshCommandService CreateSshCommandService(SshConnectionProfile profile)
     return new SshCommandService(
         CommandProcessingProviderCatalog.CreateDefault(),
         passwordProvider is null ? new SshNetCommandRunner() : new SshNetCommandRunner(passwordProvider));
+}
+
+static async Task RunHostRebootAsync(string[] arguments)
+{
+    const string usage = "Usage: kelpie host-reboot preview <profile> | request <profile> <operationId> <confirmation> | inspect <profile> <operationId> [--wait]";
+    if (arguments.Length < 3 || arguments[1] is not ("preview" or "request" or "inspect")
+        || (arguments[1] == "preview" && arguments.Length != 3)
+        || (arguments[1] == "request" && arguments.Length != 5)
+        || (arguments[1] == "inspect" && (arguments.Length is < 4 or > 5 || (arguments.Length == 5 && arguments[4] != "--wait"))))
+    {
+        Console.Error.WriteLine(usage);
+        Environment.ExitCode = 1;
+        return;
+    }
+    if (!TryResolveProfile(LoadProfileCatalog(), arguments[2], out var profile))
+    {
+        Environment.ExitCode = 1;
+        return;
+    }
+    var passwordProvider = CreateCliPasswordProvider(profile);
+    var runner = passwordProvider is null ? new SshNetCommandRunner() : new SshNetCommandRunner(passwordProvider);
+    var store = new FileHostRebootStore(Path.Combine(KelpieRuntimePaths.GetDataDirectory(AppContext.BaseDirectory), "host-reboots"));
+    var service = new HostRebootService(runner, store);
+    var result = arguments[1] switch
+    {
+        "preview" => await service.PreviewAsync(profile),
+        "request" => await service.RequestAsync(profile, arguments[3], arguments[4]),
+        _ => await service.InspectAsync(profile, arguments[3], arguments.Length == 5),
+    };
+    Console.WriteLine(JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
+    if (result.Error is not null || result.State is "Failed" or "Unknown") Environment.ExitCode = 1;
 }
 
 static SshCommandService CreateSshCommandPreviewService()

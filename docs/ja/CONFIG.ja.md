@@ -1,6 +1,6 @@
 # KelpieSSH 設定
 
-最終更新: 2026-07-31
+最終更新: 2026-10-22
 
 この文書は、KelpieSSH の設定ファイル配置と host level settings をまとめる公開リファレンスです。
 Profile の詳細な設定ガイダンスは [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) を参照してください。
@@ -299,3 +299,7 @@ Log directory は次の順で解決します。
 Trust BundleのJSONには共通パッケージの`AssertionJson.Options`を使用します。プロパティ名はsnake_caseです。保存するのは公開検証鍵だけで、SSH資格情報やMoyai署名秘密鍵を含めません。失効は次の要求から適用します。JWTと操作IDはHTTPヘッダーに渡し、設定やTool引数には保存しません。Service Tokenとdual-acceptの設定は非該当です。
 
 Deployment記録にはパス、ハッシュ、トランザクション情報を含みますが、ファイル本文やSSH資格情報は含めません。完了済み段階と未完了の実行予約は再起動後も残ります。結果不明の操作を再試行するために実行予約を削除してはいけません。復旧・保持条件は[ADR-0003](../adr/ADR-0003-STAGED-SERVER-DEPLOYMENT.md)を参照してください。
+
+## ホスト再起動の設定
+
+プロファイルの任意ルート`HostReboot`は`Paths={}`（有効時はリモートパスの明示指定が必須）、`Enabled=false`、`ExpectedKernel=""`、`Services=[]`、`HttpUrls=[]`、`TimeoutSeconds=120`、`PollSeconds=3`を初期値とします。有効化にはMaintenance/Expert、root以外のユーザー、固定ホスト鍵、引数まで限定したsudo権限、信頼登録の権限拡張承認が必要です。入力検証、初期値、出力・状態・エラー、管理者の手順は[ホストの通常再起動](HOST_REBOOT.ja.md)を参照してください。選択ユーザーにも設定を引き継ぎますが、Safe/ReadOnlyユーザーでは利用できません。

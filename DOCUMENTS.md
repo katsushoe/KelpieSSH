@@ -48,6 +48,8 @@ This file is the public source of truth for KelpieSSH Git-managed public documen
 | `ADR-0002: Privileged Helper Update` | `docs/adr/ADR-0002-PRIVILEGED-HELPER-UPDATE.md` | Yes | Canonical human-only helper update and privileged command boundary. |
 | `ADR-0003: Staged Server Deployment Contract` | `docs/adr/ADR-0003-STAGED-SERVER-DEPLOYMENT.md` | Yes | Canonical staged deployment state, trust boundary, retry, and MCP-specific provider contract. |
 | `ADR-0004: Trust Key ACL Validation` | `docs/adr/ADR-0004-TRUST-KEY-ACL-VALIDATION.md` | Yes | Existing Windows trust key ACL validation and explicit runtime Read access. |
+| `HOST_REBOOT.md` | `HOST_REBOOT.md` | Yes | Normal reboot configuration, approval, durable state and recovery. Japanese version: `docs/ja/HOST_REBOOT.ja.md`. |
+| `ADR-0005: Host Reboot Verification` | `docs/adr/ADR-0005-HOST-REBOOT-VERIFICATION.md` | Yes | Dedicated normal reboot, single dispatch and bounded verification design. |
 
 ## Private Document Handling
 

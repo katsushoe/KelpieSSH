@@ -61,6 +61,9 @@ public sealed partial class KelpieTools
     {
         return
         [
+            CreateHostRebootCapability(profile, "ssh_host_reboot_preview", false),
+            CreateHostRebootCapability(profile, "ssh_host_reboot_request", true),
+            CreateHostRebootCapability(profile, "ssh_host_reboot_inspect", false),
             CreateSshToolCapability("ssh_get_system_info", "get_system_info", commands),
             CreateSshToolCapability("ssh_get_os_release", "get_os_release", commands),
             CreateSshToolCapability("get_target_inventory", "target_inventory", commands),
@@ -179,6 +182,13 @@ public sealed partial class KelpieTools
             available ? nameof(SshCommandRiskLevel.ReadOnly) : string.Empty,
             RequiresConfirmation: false,
             available ? null : "No AllowedRoots rule grants both @Read and @Export.");
+    }
+
+    private static SshToolCapability CreateHostRebootCapability(SshConnectionProfile profile, string name, bool confirmation)
+    {
+        var allowed = HostRebootService.IsAllowed(profile);
+        return new(name, "host_reboot", allowed, confirmation ? "ConfirmRequired" : "ReadOnly", confirmation,
+            allowed ? null : "Requires HostReboot.Enabled, Maintenance/Expert, a non-root user, a pinned host key and Debian/RHEL.");
     }
 
     private static SshToolCapability CreateSshToolCapability(

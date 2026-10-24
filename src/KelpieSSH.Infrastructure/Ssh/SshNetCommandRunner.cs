@@ -123,14 +123,20 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
         };
 
         using var client = new SshClient(connectionInfo);
+        var hostKeyMismatch = false;
         client.HostKeyReceived += (_, args) =>
         {
             args.CanTrust = SshHostKeyVerifier.IsTrusted(
                 request.Profile.HostKeyFingerprintSha256,
                 args.FingerPrintSHA256);
+            hostKeyMismatch = !args.CanTrust;
         };
 
-        client.Connect();
+        try { client.Connect(); }
+        catch (SshException ex) when (hostKeyMismatch)
+        {
+            throw new SshCommandConnectionException(SshConnectionFailureKind.HostKeyMismatch, ex);
+        }
         cancellationToken.ThrowIfCancellationRequested();
 
         var commandText = BuildExecutionCommandText(request);

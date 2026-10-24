@@ -51,6 +51,7 @@ $payloadItems = @(
     "CLI_OPTIONS.md",
     "COMMANDS.md",
     "CONFIG.md",
+    "HOST_REBOOT.md",
     "PROFILE_GUIDE.md",
     "MCP_GUIDE.md",
     "DOCUMENTS.md",

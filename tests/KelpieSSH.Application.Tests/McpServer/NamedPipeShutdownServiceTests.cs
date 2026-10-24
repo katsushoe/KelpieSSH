@@ -497,9 +497,10 @@ public sealed class NamedPipeShutdownServiceTests
     {
         var lifetime = new FakeHostApplicationLifetime();
         var pipeName = "KelpieTest." + Guid.NewGuid().ToString("N");
+        var pipeLogger = new ConcurrentPingLogger();
         using var service = new NamedPipeShutdownService(
             lifetime,
-            NullLogger<NamedPipeShutdownService>.Instance,
+            pipeLogger,
             new KelpieServerControlOptions(pipeName),
             CreateProfileCatalog(),
             new InMemorySshPasswordSessionStore(),
@@ -507,14 +508,33 @@ public sealed class NamedPipeShutdownServiceTests
 
         await service.StartAsync(CancellationToken.None);
 
-        var responses = await Task.WhenAll(
-            Enumerable.Range(0, 8)
-                .Select(_ => SendControlCommandAsync(pipeName, "ping")));
+        var requests = Enumerable.Range(0, 8).Select(_ => SendControlCommandAsync(pipeName, "ping")).ToArray();
+        string?[] responses;
+        try
+        {
+            responses = await Task.WhenAll(requests);
+        }
+        catch (Exception ex)
+        {
+            ThreadPool.GetMinThreads(out var minWorkers, out _);
+            throw new InvalidOperationException(
+                $"Concurrent ping failed. stopRequested={lifetime.StopRequested}; completed={requests.Count(task => task.IsCompletedSuccessfully)}/8; cpu={Environment.ProcessorCount}; minWorkers={minWorkers}; threads={ThreadPool.ThreadCount}; pending={ThreadPool.PendingWorkItemCount}; listener={string.Join(" | ", pipeLogger.Messages)}", ex);
+        }
 
         await service.StopAsync(CancellationToken.None);
 
         responses.Should().OnlyContain(response => response == "pong;windowsService=false");
         lifetime.StopRequested.Should().BeFalse();
+    }
+
+    private sealed class ConcurrentPingLogger : Microsoft.Extensions.Logging.ILogger<NamedPipeShutdownService>
+    {
+        public System.Collections.Concurrent.ConcurrentQueue<string> Messages { get; } = new();
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId,
+            TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            => Messages.Enqueue(formatter(state, exception) + (exception is null ? "" : $" [{exception.GetType().Name}, 0x{exception.HResult:X8}]"));
     }
 
     [Fact]

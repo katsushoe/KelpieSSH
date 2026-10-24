@@ -1,6 +1,6 @@
 # KelpieSSH Profile Guide
 
-Last updated: 2026-08-05
+Last updated: 2026-10-22
 
 This guide explains how to configure SSH profiles for KelpieSSH.
 For Japanese documentation, see [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md).
@@ -1459,3 +1459,7 @@ kelpiemcp password vps01
 ```
 
 
+
+## Host Reboot Policy
+
+The optional profile root `HostReboot` object contains `Paths={}` (explicit remote paths required when enabled), `Enabled=false`, `ExpectedKernel=""`, `Services=[]`, `HttpUrls=[]`, `TimeoutSeconds=120` and `PollSeconds=3`. Enabling requires Maintenance/Expert, a non-root user, a pinned host key, exact sudo permission and trust privilege-expansion approval. See [Normal Host Reboot](HOST_REBOOT.md) for input validation, defaults, output/state/error contracts and administrator ownership. The policy is inherited by selected users but cannot enable reboot for Safe/ReadOnly users.

@@ -46,6 +46,7 @@ public class SshConnectionFailureException : Exception
     {
         return failureKind switch
         {
+            SshConnectionFailureKind.HostKeyMismatch => "SSH host key does not match the pinned fingerprint.",
             SshConnectionFailureKind.AuthenticationFailed => "SSH authentication failed. Verify the configured user and credentials.",
             SshConnectionFailureKind.Timeout => "SSH connection timed out. Verify the host, port, and connection timeout.",
             SshConnectionFailureKind.HostUnreachable => "SSH host is unreachable. Verify the host, port, and network path.",

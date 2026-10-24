@@ -1,6 +1,6 @@
 # KelpieSSH Commands
 
-Last updated: 2026-08-04
+Last updated: 2026-10-22
 
 This file is the English command reference for commands run directly from a terminal, such as `kelpie` and `kelpiemcp`.
 For Japanese documentation, see [docs/ja/COMMANDS.ja.md](docs/ja/COMMANDS.ja.md).
@@ -2446,3 +2446,25 @@ Safety notes:
 - Dangerous operations require dedicated commands, policy checks, and confirmation strings.
 - Passwords are session-only for the MCP server process.
 - Production profile files and private keys must stay outside the public repository.
+
+## Normal Host Reboot
+
+| Command | Purpose |
+| :--- | :--- |
+| `kelpie host-reboot preview <profile>` | Read current boot/kernel and create an approval preview. |
+| `kelpie host-reboot request <profile> <operationId> <confirmation>` | Submit the approved normal reboot exactly once. |
+| `kelpie host-reboot inspect <profile> <operationId> [--wait]` | Observe boot and health within the original deadline. |
+
+### `host-reboot preview`
+
+Requires an explicit saved profile. Returns target, impact, baseline boot/kernel, checks and the exact confirmation token without rebooting. Example: `kelpie host-reboot preview sample`.
+
+### `host-reboot request`
+
+Requires the preview ID and exact token after human administrator approval. Example: `kelpie host-reboot request sample <OperationId> <Confirmation>`. Returns Accepted, Failed or Unknown; no automatic retry.
+
+### `host-reboot inspect`
+
+Requires the same profile and operation ID. `--wait` polls only until the original deadline; omission performs one observation. Returns structured boot/kernel/health status without resending reboot.
+
+See [Normal Host Reboot](HOST_REBOOT.md) for configuration, output fields, state/error tables, sudo ownership, approval and recovery. CLI prints JSON; nonzero exit indicates an error or Failed/Unknown result.

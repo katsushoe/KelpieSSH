@@ -26,5 +26,22 @@
     "**/.env": "Deny",
     "**/.ssh/**": "Deny",
     "/var/www/.well-known/**": "Allow"
+  },
+  "HostReboot": {
+    "Enabled": false,
+    "ExpectedKernel": "",
+    "Services": [],
+    "HttpUrls": [],
+    "TimeoutSeconds": 120,
+    "PollSeconds": 3,
+    "Paths": {
+      "Sudo": "/usr/bin/sudo",
+      "Systemctl": "/usr/bin/systemctl",
+      "Cat": "/usr/bin/cat",
+      "Uname": "/usr/bin/uname",
+      "Curl": "/usr/bin/curl",
+      "BootId": "/proc/sys/kernel/random/boot_id",
+      "NullDevice": "/dev/null"
+    }
   }
 }

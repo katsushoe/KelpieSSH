@@ -1,6 +1,6 @@
 # KelpieSSH SSHプロファイルガイド
 
-最終更新: 2026-08-05
+最終更新: 2026-10-22
 
 この文書は、KelpieSSH の SSH profile 設定方法を説明します。
 英語版は [../../PROFILE_GUIDE.md](../../PROFILE_GUIDE.md) です。
@@ -1458,3 +1458,7 @@ kelpiemcp start
 kelpiemcp password vps01
 ```
 
+
+## ホスト再起動の設定
+
+プロファイルの任意ルート`HostReboot`は`Paths={}`（有効時はリモートパスの明示指定が必須）、`Enabled=false`、`ExpectedKernel=""`、`Services=[]`、`HttpUrls=[]`、`TimeoutSeconds=120`、`PollSeconds=3`を初期値とします。有効化にはMaintenance/Expert、root以外のユーザー、固定ホスト鍵、引数まで限定したsudo権限、信頼登録の権限拡張承認が必要です。入力検証、初期値、出力・状態・エラー、管理者の手順は[ホストの通常再起動](HOST_REBOOT.ja.md)を参照してください。選択ユーザーにも設定を引き継ぎますが、Safe/ReadOnlyユーザーでは利用できません。

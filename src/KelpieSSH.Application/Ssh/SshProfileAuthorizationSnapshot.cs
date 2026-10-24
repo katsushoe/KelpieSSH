@@ -16,6 +16,8 @@ public sealed record SshProfileAuthorizationSnapshot(
     IReadOnlyCollection<SshProfileSpecialPathSnapshot> SpecialPaths,
     IReadOnlyCollection<SshProfileUserAuthorizationSnapshot> Users)
 {
+    /// <summary>Approved enabled reboot policy; null preserves legacy disabled baselines.</summary>
+    public string? HostRebootPolicy { get; init; }
     /// <summary>
     /// Creates a normalized snapshot without secret values.
     /// </summary>
@@ -43,7 +45,10 @@ public sealed record SshProfileAuthorizationSnapshot(
                 NormalizeRoots(user.AllowedRootRules),
                 NormalizeSpecialPaths(user.SpecialPaths)))
                 .OrderBy(user => user.UserName, StringComparer.Ordinal)
-                .ToArray());
+                .ToArray())
+        {
+            HostRebootPolicy = profile.HostReboot.Enabled ? System.Text.Json.JsonSerializer.Serialize(profile.HostReboot) : null,
+        };
     }
 
     private static string ResolveCredentialReference(string? privateKeyPath, string? passwordSecretName)
@@ -132,6 +137,11 @@ public static class SshProfileAuthorizationEvaluator
         var reductions = new HashSet<string>(StringComparer.Ordinal);
 
         CompareIdentity(baseline, proposed, expansions);
+        if (baseline.HostRebootPolicy != proposed.HostRebootPolicy)
+        {
+            if (proposed.HostRebootPolicy is not null) expansions.Add("HostReboot");
+            else reductions.Add("HostReboot");
+        }
         ComparePermissionSet("Capabilities", baseline.Capabilities, proposed.Capabilities, expansions, reductions);
         ComparePermissionSet("Roles", baseline.Roles, proposed.Roles, expansions, reductions);
         CompareMode("Mode", baseline.Mode, proposed.Mode, expansions, reductions);

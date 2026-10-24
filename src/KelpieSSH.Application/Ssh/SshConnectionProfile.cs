@@ -5,6 +5,8 @@ namespace KelpieSSH.Application.Ssh;
 /// </summary>
 public sealed class SshConnectionProfile
 {
+    /// <summary>Gets the administrator-owned normal reboot policy.</summary>
+    public HostRebootOptions HostReboot { get; init; } = new();
     /// <summary>
     /// Gets the profile name.
     /// </summary>
@@ -133,6 +135,7 @@ public sealed class SshConnectionProfile
         return new SshConnectionProfile
         {
             Name = Name,
+            HostReboot = HostReboot,
             Host = Host,
             Port = Port,
             HostKeyFingerprintSha256 = HostKeyFingerprintSha256,
@@ -162,6 +165,7 @@ public sealed class SshConnectionProfile
     /// </summary>
     public void Validate()
     {
+        HostRebootService.ValidateConfiguration(HostReboot);
         if (string.IsNullOrWhiteSpace(Name))
         {
             throw new InvalidOperationException("SSH profile name is required.");

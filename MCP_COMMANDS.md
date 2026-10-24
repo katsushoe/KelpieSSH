@@ -1,6 +1,6 @@
 # KelpieSSH MCP Commands
 
-Last updated: 2026-08-30
+Last updated: 2026-10-22
 
 This file is the English command reference for MCP callable tools exposed by `KelpieMCPServer`.
 For Japanese documentation, see [docs/ja/MCP_COMMANDS.ja.md](docs/ja/MCP_COMMANDS.ja.md).
@@ -7715,3 +7715,25 @@ For a disposable SSH container bound to loopback port 2222, start from `config_s
 ### Registered Target ID selection
 
 targetName accepts either a registered profile name (case-insensitive) or immutable Target ID (case-sensitive). Ambiguous matches are rejected with auth_project_mismatch before dispatch; a supplied targetId must match. Authentication still checks the registered Project/Target, and dispatch uses the canonical profile. Rollback is allowed only before cleanup, while Activated or Verified. Cleanup commits a verified deployment and deletes its transaction/backup; Cleaned cannot be rolled back. Test normal deploy/cleanup and rollback-before-cleanup with separate deployment IDs.
+
+## Normal Host Reboot Tools
+
+| Tool | Required input | Optional input | Behavior |
+| :--- | :--- | :--- | :--- |
+| `ssh_host_reboot_preview` | `profileName` | none | Read current boot/kernel and return a stored preview. |
+| `ssh_host_reboot_request` | `profileName`, `operationId`, `confirmation` | none | Dispatch once after explicit human approval. |
+| `ssh_host_reboot_inspect` | `profileName`, `operationId` | `wait=false` | Observe the same host; never resend reboot. |
+
+### `ssh_host_reboot_preview`
+
+Example input: `{"profileName":"sample"}`. Returns the target, current boot/kernel, impact, configured checks, operation ID and confirmation token. No reboot occurs.
+
+### `ssh_host_reboot_request`
+
+Example input: `{"profileName":"sample","operationId":"<preview ID>","confirmation":"<exact preview token>"}`. Obtain human administrator approval of that exact target and outage first. Returns Accepted, Failed or Unknown. Duplicate IDs are never redispatched.
+
+### `ssh_host_reboot_inspect`
+
+Example input: `{"profileName":"sample","operationId":"<same ID>","wait":true}`. Returns changed boot ID, kernel and configured service/HTTP checks. `wait=false` performs one observation; waiting uses the original dispatch deadline.
+
+All return `HostRebootOperation`; see [Normal Host Reboot](HOST_REBOOT.md) for complete fields, samples, configuration, states, errors and safety/approval rules. All three tools appear in `ssh_get_capabilities`. They accept configured profiles only; `ssh_run_allowed_command` cannot dispatch reboot.

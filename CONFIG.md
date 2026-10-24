@@ -1,6 +1,6 @@
 # KelpieSSH Configuration
 
-Last updated: 2026-07-31
+Last updated: 2026-10-22
 
 This file is the English reference for KelpieSSH configuration file locations and host-level settings.
 For Japanese documentation, see [docs/ja/CONFIG.ja.md](docs/ja/CONFIG.ja.md).
@@ -304,3 +304,7 @@ Use `config_samples/lifecycle.example.json` as a template. Replace each path pla
 Trust Bundle JSON must use the shared package's `AssertionJson.Options` (snake_case property names). It contains public verification keys only, never SSH credentials or Moyai signing keys. Key revocation is effective on the next request. JWT and operation ID belong in HTTP headers, never this configuration or tool arguments. Static Service Token and dual-accept settings do not apply.
 
 Deployment snapshots contain paths, hashes and transaction metadata, but no file contents or SSH credentials. Completed stages and unfinished reservations survive restart. Do not remove a pending reservation to retry an uncertain operation. See [ADR-0003](docs/adr/ADR-0003-STAGED-SERVER-DEPLOYMENT.md) for recovery and retention conditions.
+
+## Host Reboot Policy
+
+The optional profile root `HostReboot` object contains `Paths={}` (explicit remote paths required when enabled), `Enabled=false`, `ExpectedKernel=""`, `Services=[]`, `HttpUrls=[]`, `TimeoutSeconds=120` and `PollSeconds=3`. Enabling requires Maintenance/Expert, a non-root user, a pinned host key, exact sudo permission and trust privilege-expansion approval. See [Normal Host Reboot](HOST_REBOOT.md) for input validation, defaults, output/state/error contracts and administrator ownership. The policy is inherited by selected users but cannot enable reboot for Safe/ReadOnly users.

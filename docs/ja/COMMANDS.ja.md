@@ -1,6 +1,6 @@
 # KelpieSSH コマンド
 
-最終更新: 2026-08-04
+最終更新: 2026-10-22
 
 このファイルは、利用者が通常のターミナルから直接実行する `kelpie` / `kelpiemcp` CLI コマンドの正本です。
 コマンドラインオプションの詳細は [CLI_OPTIONS.md](../../CLI_OPTIONS.md) を参照してください。
@@ -2428,3 +2428,25 @@ Run after review: kelpie pkg install vps01 nginx --confirm pkg_install:nginx
 - `kelpie login` の対話セッションでは、送信前に Kelpie の `Mode` / `Capabilities` によるポリシー評価を行います。
 - `kelpiemcp password <profile>` で保存したパスワードは、起動中の `KelpieMCPServer` のメモリ上だけに保持します。
 - `/mcp` は MCP クライアント用の Streamable HTTP endpoint です。ブラウザで起動確認する場合は `http://127.0.0.1:45432/health` を使います。
+
+## ホストの通常再起動
+
+| コマンド | 内容 |
+| :--- | :--- |
+| `kelpie host-reboot preview <profile>` | 現在の起動情報を読み取り、承認用プレビューを作成。 |
+| `kelpie host-reboot request <profile> <operationId> <confirmation>` | 人間の管理者が承認した通常再起動を一度だけ送信。 |
+| `kelpie host-reboot inspect <profile> <operationId> [--wait]` | 元の期限内に起動と稼働状態を確認。 |
+
+### `host-reboot preview`
+
+保存済みプロファイルの明示指定が必要です。例: `kelpie host-reboot preview sample`。再起動せず、対象、停止影響、現在のboot IDとカーネル、確認項目、トークンを返します。
+
+### `host-reboot request`
+
+プレビューの操作IDと、人間の管理者が承認した完全一致のトークンが必要です。例: `kelpie host-reboot request sample <OperationId> <Confirmation>`。Accepted、FailedまたはUnknownを返し、自動再送しません。
+
+### `host-reboot inspect`
+
+同じプロファイルと操作IDを指定します。`--wait`は元の期限まで確認し、省略時は一度だけ観測します。再送せず、起動・カーネル・稼働確認の構造化結果を返します。
+
+設定、出力項目、状態・エラー、sudoの管理者手順、承認と復旧は[ホストの通常再起動](HOST_REBOOT.ja.md)を参照してください。CLIはJSONを出力し、エラーまたはFailed/Unknownで非0終了します。
