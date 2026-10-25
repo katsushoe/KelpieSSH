@@ -21,9 +21,8 @@ This file is the public source of truth for KelpieSSH Git-managed public documen
 | `docs/` | Yes | Public supplemental documentation. |
 | `docs/adr/` | Yes | Public architecture decision records. |
 | `docs/ja/` | Yes | Public Japanese documentation. |
-| `installer/` | Yes | Installer source and installer-specific public documentation. |
 | `config_samples/` | Yes | Public sample configuration files without secrets. |
-| `scripts/` | Yes | Build, package, and maintenance scripts. |
+| `scripts/` | Yes | Build, package, installation, and maintenance scripts. |
 | `servers/` | Yes | Public server-side sample/support files. |
 | `src/` | Yes | Product source code. |
 | `tests/` | Yes | Automated tests. |
@@ -37,6 +36,8 @@ This file is the public source of truth for KelpieSSH Git-managed public documen
 | `DOCUMENTS.md` | `DOCUMENTS.md` | Yes | Directory and document canonical-location index. |
 | `DOCUMENTS.ja.md` | `docs/ja/DOCUMENTS.ja.md` | Yes | Japanese public document-location index. |
 | `CLI_OPTIONS.md` | `CLI_OPTIONS.md` | Yes | Public command-line option guide for silent mode, dry-run, runtime directory overrides, and profile transaction options. |
+| `INSTALLATION.md` | `docs/INSTALLATION.md` | Yes | Windows installation, runtime prerequisites, user PATH, command resolution, updates and removal. |
+| `INSTALLATION.ja.md` | `docs/ja/INSTALLATION.ja.md` | Yes | Japanese Windows installation and command-resolution guide. |
 | `COMMANDS.md` | `COMMANDS.md` | Yes | Public terminal CLI command reference. Japanese version is under `docs/ja/`. |
 | `MCP_COMMANDS.md` | `MCP_COMMANDS.md` | Yes | Public MCP callable tool reference. Japanese version is under `docs/ja/`. |
 | `MCP_GUIDE.md` | `MCP_GUIDE.md` | Yes | Public AI MCP server setup, layout, startup, and usage guide. Japanese version is under `docs/ja/`. |

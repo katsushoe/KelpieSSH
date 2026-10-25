@@ -21,9 +21,8 @@
 | `docs/` | はい | 公開する補足文書。 |
 | `docs/adr/` | はい | 公開するアーキテクチャ決定記録。 |
 | `docs/ja/` | はい | 公開文書の日本語版。 |
-| `installer/` | はい | インストーラーのソースと公開文書。 |
 | `config_samples/` | はい | 秘密情報を含まない設定例。 |
-| `scripts/` | はい | ビルド、パッケージ作成、保守のスクリプト。 |
+| `scripts/` | はい | ビルド、パッケージ作成、インストール、保守のスクリプト。 |
 | `servers/` | はい | サーバー側の補助ファイルと例。 |
 | `src/` | はい | 製品ソース。 |
 | `tests/` | はい | 自動テスト。 |
@@ -37,6 +36,8 @@
 | `DOCUMENTS.md` | `DOCUMENTS.md` | はい | ディレクトリと文書の正本配置。 |
 | `DOCUMENTS.ja.md` | `docs/ja/DOCUMENTS.ja.md` | はい | 文書配置一覧の日本語版。 |
 | `CLI_OPTIONS.md` | `CLI_OPTIONS.md` | はい | 非対話実行、変更予行、実行ディレクトリ指定、プロファイル変更処理のオプション。 |
+| `INSTALLATION.md` | `docs/INSTALLATION.md` | はい | Windows導入、ランタイムの前提、ユーザーPATH、コマンド解決、更新、削除。 |
+| `INSTALLATION.ja.md` | `docs/ja/INSTALLATION.ja.md` | はい | Windows導入とコマンド解決の日本語版。 |
 | `COMMANDS.md` | `COMMANDS.md` | はい | 端末CLIコマンドのリファレンス。日本語版は`docs/ja/COMMANDS.ja.md`。 |
 | `MCP_COMMANDS.md` | `MCP_COMMANDS.md` | はい | MCPツールのリファレンス。日本語版は`docs/ja/MCP_COMMANDS.ja.md`。 |
 | `MCP_GUIDE.md` | `MCP_GUIDE.md` | はい | MCPサーバーの設定、配置、起動、利用方法。日本語版は`docs/ja/MCP_GUIDE.ja.md`。 |

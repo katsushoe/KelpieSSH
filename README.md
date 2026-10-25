@@ -8,6 +8,8 @@ Command details are documented in [COMMANDS.md](COMMANDS.md).
 
 Command-line options are documented in [CLI_OPTIONS.md](CLI_OPTIONS.md).
 
+Windows installation, command resolution, updates, and user `PATH` setup are documented in [INSTALLATION.md](docs/INSTALLATION.md).
+
 MCP command details are documented in [MCP_COMMANDS.md](MCP_COMMANDS.md).
 
 Configuration details are documented in [CONFIG.md](CONFIG.md).
@@ -54,7 +56,7 @@ kelpie version
 Expected output:
 
 ```text
-kelpie 0.3.4.0
+kelpie x.x.x.x
 ```
 
 #### 2. Initializing Kelpie home and creating a profile

@@ -8,6 +8,8 @@ KelpieSSH は、SSH 越しの VPS 診断と保守を安全に補助するため�
 
 コマンドラインオプションは [CLI_OPTIONS.md](CLI_OPTIONS.md) を参照してください。
 
+Windowsへの導入、コマンドの解決先、更新、ユーザー`PATH`設定は [INSTALLATION.ja.md](docs/ja/INSTALLATION.ja.md) を参照してください。
+
 MCP ツールの詳細は [docs/ja/MCP_COMMANDS.ja.md](docs/ja/MCP_COMMANDS.ja.md) を参照してください。
 
 設定の詳細は [docs/ja/CONFIG.ja.md](docs/ja/CONFIG.ja.md) を参照してください。
@@ -54,7 +56,7 @@ kelpie version
 出力例:
 
 ```text
-kelpie 0.3.4.0
+kelpie x.x.x.x
 ```
 
 #### 2. Kelpie home を初期化してプロファイルを作成する
