@@ -308,3 +308,7 @@ Deployment snapshots contain paths, hashes and transaction metadata, but no file
 ## Host Reboot Policy
 
 The optional profile root `HostReboot` object contains `Paths={}` (explicit remote paths required when enabled), `Enabled=false`, `ExpectedKernel=""`, `Services=[]`, `HttpUrls=[]`, `TimeoutSeconds=120` and `PollSeconds=3`. Enabling requires Maintenance/Expert, a non-root user, a pinned host key, exact sudo permission and trust privilege-expansion approval. See [Normal Host Reboot](HOST_REBOOT.md) for input validation, defaults, output/state/error contracts and administrator ownership. The policy is inherited by selected users but cannot enable reboot for Safe/ReadOnly users.
+
+### Nginx transaction helper policy
+
+Nginx configuration mutations require helper 0.2.4.0 or later and protocol 1 on Linux x64. Configure the independent root-owned `/etc/kelpie/nginx-config-helper-policy.json` and a private root-owned transaction directory. The SSH profile cannot extend this policy. The sample `config_samples/nginx-config-helper-policy.json` denies all callers and targets until configured. See [Nginx transaction helper](docs/NGINX_HELPER.md) for every key, ownership, permissions, limits, recovery states and fixed sudo rules. The existing web permission policy remains a separate contract.

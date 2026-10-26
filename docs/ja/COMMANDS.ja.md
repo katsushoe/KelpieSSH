@@ -2450,3 +2450,7 @@ Run after review: kelpie pkg install vps01 nginx --confirm pkg_install:nginx
 同じプロファイルと操作IDを指定します。`--wait`は元の期限まで確認し、省略時は一度だけ観測します。再送せず、起動・カーネル・稼働確認の構造化結果を返します。
 
 設定、出力項目、状態・エラー、sudoの管理者手順、承認と復旧は[ホストの通常再起動](HOST_REBOOT.ja.md)を参照してください。CLIはJSONを出力し、エラーまたはFailed/Unknownで非0終了します。
+
+## nginxの特権helperコマンド
+
+リモートLinux helperには固定操作`nginx-plan 1`、`nginx-check 1`、`nginx-apply 1`、`nginx-status 1`、`nginx-commit 1`、`nginx-rollback 1`を追加しました。構造化入力は標準入力で渡し、ファイル内容をシェル引数に含めません。これらはプロバイダー内部の操作です。プロトコル、エラー、作用、導入は[nginx専用トランザクションhelper](NGINX_HELPER.ja.md)を参照してください。`kelpie`や`kelpiemcp`のサブコマンドは追加しません。この機能のためにPythonや汎用シェルへsudo権限を付与しないでください。

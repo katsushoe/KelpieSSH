@@ -1,5 +1,5 @@
 # DOCUMENTS.ja.md Version
-2026.10.25
+2026.10.26
 
 英語版は [DOCUMENTS.md](../../DOCUMENTS.md) を参照してください。
 
@@ -62,3 +62,10 @@
 ## 更新規則
 
 Git管理する公開文書を追加・削除・改名・移動した場合は、同じ変更で英語版と日本語版の一覧を更新します。`README.md`を更新した場合は、`README.ja.md`も同じ変更で更新し、セクションの対象範囲と公開向けのセットアップ情報を揃えます。
+
+## nginx専用トランザクションhelperの文書
+
+- [契約と導入](NGINX_HELPER.ja.md)
+- [英語版の契約](../NGINX_HELPER.md)
+- [ADR-0006: nginxトランザクション](ADR-0006-NGINX-HELPER-TRANSACTIONS.ja.md)
+- [英語版ADR-0006](../adr/ADR-0006-NGINX-HELPER-TRANSACTIONS.md)

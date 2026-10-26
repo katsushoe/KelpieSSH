@@ -1,0 +1,10 @@
+{
+  "protocol": 1,
+  "revision": "configure-before-use",
+  "stateDirectory": "/var/lib/kelpie/nginx-transactions",
+  "callerUids": [],
+  "targets": [],
+  "directories": [],
+  "sitesEnabledDirectory": "",
+  "siteTargetDirectories": []
+}

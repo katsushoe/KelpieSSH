@@ -1,5 +1,5 @@
 # DOCUMENTS.md Version
-2026.10.25
+2026.10.26
 
 For Japanese documentation, see [DOCUMENTS.ja.md](docs/ja/DOCUMENTS.ja.md).
 
@@ -65,3 +65,10 @@ Do not add private document names, private document paths, real-environment note
 
 When adding, removing, renaming, or moving any Git-managed public document, update this file in the same change.
 When updating `README.md`, update `README.ja.md` in the same change, and keep both entry documents aligned in section coverage and release-facing setup information.
+
+## Nginx transaction helper documents
+
+- [Helper contract and installation](docs/NGINX_HELPER.md)
+- [Japanese helper contract](docs/ja/NGINX_HELPER.ja.md)
+- [ADR-0006: Nginx transactions](docs/adr/ADR-0006-NGINX-HELPER-TRANSACTIONS.md)
+- [Japanese ADR-0006](docs/ja/ADR-0006-NGINX-HELPER-TRANSACTIONS.ja.md)

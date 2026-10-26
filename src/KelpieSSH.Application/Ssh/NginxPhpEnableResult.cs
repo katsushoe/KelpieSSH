@@ -16,4 +16,8 @@ public sealed record NginxPhpEnableResult(
     bool Committed,
     int BytesWritten,
     IReadOnlyList<string> Warnings,
-    string? Error = null);
+    string? Error = null)
+{
+    /// <summary>Whether the reported effects are known after dispatch.</summary>
+    public bool OutcomeKnown { get; init; } = true;
+}

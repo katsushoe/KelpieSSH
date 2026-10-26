@@ -2468,3 +2468,7 @@ Requires the preview ID and exact token after human administrator approval. Exam
 Requires the same profile and operation ID. `--wait` polls only until the original deadline; omission performs one observation. Returns structured boot/kernel/health status without resending reboot.
 
 See [Normal Host Reboot](HOST_REBOOT.md) for configuration, output fields, state/error tables, sudo ownership, approval and recovery. CLI prints JSON; nonzero exit indicates an error or Failed/Unknown result.
+
+## Nginx privileged helper commands
+
+The remote Linux helper adds six fixed commands: `nginx-plan 1`, `nginx-check 1`, `nginx-apply 1`, `nginx-status 1`, `nginx-commit 1`, and `nginx-rollback 1`. Structured inputs use standard input; file content is never a shell argument. These are provider implementation commands, with protocol, errors, effects and installation described in [Nginx transaction helper](docs/NGINX_HELPER.md). They do not add a new `kelpie` or `kelpiemcp` subcommand. Do not grant sudo access to Python or a general shell for this feature.

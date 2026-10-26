@@ -6302,7 +6302,7 @@ Processing:
 
 Kelpie resolves the Nginx site key to a provider-approved site include file such as `/etc/nginx/conf.d/<site>.conf` or `/etc/nginx/sites-enabled/<site>`. It does not choose module include files such as `/etc/nginx/modules-enabled/*.conf` as PHP site targets.
 
-Provider-validated path, allow-list, size, and rollback arguments are passed to the bounded Nginx helper scripts as the first and subsequent script arguments without inserting an extra positional separator argument.
+Provider requests use the six fixed commands and structured standard input described in [Nginx transaction helper](docs/NGINX_HELPER.md). The helper independently checks its root-owned policy, caller UID, precondition hashes and transaction identity.
 
 Kelpie reads the target file and applies only the fixed PHP-FPM template. If the target site file does not exist, Kelpie creates a minimal fixed server block and then applies the same template:
 
@@ -6316,12 +6316,12 @@ location ~ \.php$ {
 }
 ```
 
-The tool does not accept arbitrary Nginx blocks, `proxy_pass`, `root`, or `alias` values. Before testing, it disables conflicting `/etc/nginx/sites-enabled/<name>` symbolic links whose target contains `listen 80 ... default_server` by recording the symlink target under `/etc/nginx/.kelpie-disabled-sites/` and removing only the enabled symlink from `sites-enabled`. This keeps the disabled site outside the common `include /etc/nginx/sites-enabled/*;` glob. Regular files are not edited. After writing and conflict resolution, it runs `nginx -t`. If the test fails, Kelpie rolls the file back from the generated backup and restores any symlink disabled by this run. Reloading Nginx is intentionally separate; use `ssh_service_reload` after this tool succeeds.
+The tool does not accept arbitrary Nginx blocks, `proxy_pass`, `root`, or `alias` values. One durable helper transaction binds the configuration change and conflicting port-80 default-site symlink removals. Original link targets are recorded in the private transaction journal, outside the Nginx include directories. Only approved symlinks are removed; their target files are preserved. After applying, Kelpie runs `nginx -t`, then commits on success or restores both file and links on failure. Unrelated edits cause a conflict instead of being overwritten. Reloading remains a separate `ssh_service_reload` operation.
 
 Return value:
 
 - Return type: `NginxPhpEnableResult`.
-- `Changed` is `false` when the same fixed template already exists.
+- `Changed` is `false` only when neither the fixed template nor conflicting site links need a change. A complete no-op skips `nginx -t`.
 - `Tested` is `true` only after `nginx -t` was executed.
 - `RolledBack` is `true` when the tool wrote a change and then restored it after `nginx -t` failed.
 - `Committed` is `true` when `nginx -t` passed and the generated backup was removed.
@@ -7737,3 +7737,7 @@ Example input: `{"profileName":"sample","operationId":"<preview ID>","confirmati
 Example input: `{"profileName":"sample","operationId":"<same ID>","wait":true}`. Returns changed boot ID, kernel and configured service/HTTP checks. `wait=false` performs one observation; waiting uses the original dispatch deadline.
 
 All return `HostRebootOperation`; see [Normal Host Reboot](HOST_REBOOT.md) for complete fields, samples, configuration, states, errors and safety/approval rules. All three tools appear in `ssh_get_capabilities`. They accept configured profiles only; `ssh_run_allowed_command` cannot dispatch reboot.
+
+### Nginx transaction outcomes
+
+`ServiceConfigFileWriteResult`, `ServiceConfigFileBackupActionResult`, and `NginxPhpEnableResult` add `OutcomeKnown` (boolean, initially `true`). Existing tool names, arguments, confirmation tokens and positional result fields are preserved. After an ambiguous mutation reply, Kelpie makes one bounded status query and does not repeat the mutation. If the final effect cannot be established, `OutcomeKnown=false` and `Error` is non-empty; do not treat zero counts or false flags as proof of no change. Inspect the preserved helper transaction before recovery. Check-write does not create a target or backup. Standalone writes retain the owned `.kelpiebakup` until explicit commit/rollback; old or unrelated backups cause a conflict. See [Nginx transaction helper](docs/NGINX_HELPER.md) for state transitions and recovery.

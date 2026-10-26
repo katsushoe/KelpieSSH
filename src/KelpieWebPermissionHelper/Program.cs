@@ -4,6 +4,11 @@ internal static class Program
 {
     public static int Main(string[] args)
     {
+        if (args.Length > 0 && args[0].StartsWith("nginx-", StringComparison.Ordinal))
+        {
+            return NginxHelperCommand.Run(args, Console.OpenStandardInput(), Console.Out);
+        }
+
         if (args.Length > 0 && string.Equals(args[0], "bulk-write", StringComparison.Ordinal))
         {
             return BulkWebTransferCommand.Write(

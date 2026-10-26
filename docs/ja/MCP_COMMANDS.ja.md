@@ -4374,7 +4374,7 @@ provider が許可した nginx site 設定に、PHP-FPM 連携用の固定テン
 
 Kelpie は nginx site key を `/etc/nginx/conf.d/<site>.conf` や `/etc/nginx/sites-enabled/<site>` のような provider 許可済み site include file に解決します。`/etc/nginx/modules-enabled/*.conf` のような module include file は PHP site 設定の対象にしません。
 
-provider で検証済みの path、許可リスト、size、rollback 引数は、余分な位置引数を挿入せず、限定された nginx helper script の第1引数以降に渡します。
+プロバイダーは[nginx専用トランザクションhelper](NGINX_HELPER.ja.md)に記載した6つの固定操作と構造化した標準入力を使います。helperはroot所有のポリシー、呼出元UID、変更前ハッシュ、トランザクション識別子を独立して検証します。
 
 Kelpie は対象ファイルを読み取り、次の固定テンプレートだけを適用します。対象 site file が存在しない場合は、最小限の固定 server block を新規作成してから同じテンプレートを適用します。
 
@@ -4388,7 +4388,7 @@ location ~ \.php$ {
 }
 ```
 
-任意の nginx block、`proxy_pass`、`root`、`alias` は受け取りません。設定テスト前に、`/etc/nginx/sites-enabled/<name>` の symlink 先が `listen 80 ... default_server` を含む場合は競合する有効 site とみなし、symlink target を `/etc/nginx/.kelpie-disabled-sites/` 配下へ記録してから `sites-enabled` 上の symlink だけを削除します。これにより一般的な `include /etc/nginx/sites-enabled/*;` の対象外へ退避します。regular file や provider 外の `sites-available` 本文は編集しません。書き込みと競合解消後に `nginx -t` を実行し、失敗した場合は作成済み backup から rollback し、この実行で退避した symlink も復元します。nginx の reload はこの tool では行いません。成功後に `ssh_service_reload` を別途実行します。
+任意のnginxブロック、`proxy_pass`、`root`、`alias`は受け取りません。設定変更と競合する80番ポートの既定サイトリンク削除を、永続化した1つのトランザクションへ結び付けます。元のリンク先はnginxの読込ディレクトリ外にある専用台帳へ保存します。許可されたシンボリックリンクだけを削除し、リンク先ファイルは保持します。適用後に`nginx -t`を実行し、成功時は確定、失敗時は設定とリンクの両方を復元します。無関係の変更は上書きせず競合として扱います。再読込は引き続き別の`ssh_service_reload`操作です。
 
 戻り値:
 
@@ -5690,3 +5690,7 @@ targetNameは登録Profile名（大文字小文字を区別しない）または
 入力例: `{"profileName":"sample","operationId":"<same ID>","wait":true}`。boot ID変更、カーネル、サービス・HTTPの確認結果を返します。`wait=false`では一度だけ観測し、待機時も元の送信期限を延長しません。
 
 すべて`HostRebootOperation`を返します。全出力項目、例、設定、状態、エラー、安全・承認手順は[ホストの通常再起動](HOST_REBOOT.ja.md)を参照してください。3ツールは`ssh_get_capabilities`へ反映されます。保存済みプロファイルだけを受け付け、`ssh_run_allowed_command`から再起動しません。
+
+### nginxトランザクションの結果
+
+`ServiceConfigFileWriteResult`、`ServiceConfigFileBackupActionResult`、`NginxPhpEnableResult`に`OutcomeKnown`（真偽値、初期値`true`）を追加しました。既存ツール名、入力、確認トークン、位置指定の結果項目は維持します。変更操作の応答が不明な場合、期限付きの状態照会を1回だけ行い、変更を再実行しません。作用を確定できなければ`OutcomeKnown=false`と空でない`Error`を返します。件数0や偽のフラグだけで未変更と判断せず、保存済みトランザクションを確認して復旧してください。書込可否確認は対象とバックアップを作成しません。単独書込は明示的な確定または復元まで専用の`.kelpiebakup`を保持します。旧形式や無関係のバックアップは競合として拒否します。状態遷移と復旧は[nginx専用トランザクションhelper](NGINX_HELPER.ja.md)を参照してください。

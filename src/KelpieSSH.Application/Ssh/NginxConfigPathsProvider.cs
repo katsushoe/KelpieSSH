@@ -288,26 +288,12 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
                 paths.Warnings);
         }
 
-        var contentBase64 = Convert.ToBase64String(updatedBytes);
-        var result = await sshCommandService.ExecuteAsync(
-            profile,
-            NginxWriteConfigCommandName,
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["pathBase64"] = EncodeArgument(requestedPath),
-                ["allowedPathsBase64"] = EncodeLines(access.ExactPaths),
-                ["allowedDirsBase64"] = EncodeLines(access.AllowedDirectories),
-            },
-            channel: KelpieExecutionChannel.Mcp,
-            standardInput: contentBase64,
-            cancellationToken: cancellationToken);
-
-        if (result.ExitCode != 0)
+        var helperRequest = NginxHelperClient.Create(requestedPath, updatedContent, readResult.StandardOutput, true, false);
+        var (_, reply) = await NginxHelperClient.PrepareAndApplyAsync(sshCommandService, profile, helperRequest, cancellationToken);
+        if (!reply.Ok || reply.State is not ("applied" or "no-op"))
         {
-            return CreateWriteError(
-                requestedPath,
-                $"Nginx config file write failed through provider {DisplayName}. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}",
-                paths.Warnings);
+            return CreateWriteError(requestedPath, reply.Error, paths.Warnings) with
+            { OutcomeKnown = reply.State != "unknown", BytesWritten = reply.BytesWritten };
         }
 
         return new ServiceConfigFileWriteResult(
@@ -410,29 +396,11 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
                 confirmation);
         }
 
-        var result = await sshCommandService.ExecuteAsync(
-            profile,
-            NginxCanWriteConfigCommandName,
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["pathBase64"] = EncodeArgument(requestedPath),
-                ["allowedPathsBase64"] = EncodeLines(access.ExactPaths),
-                ["allowedDirsBase64"] = EncodeLines(access.AllowedDirectories),
-            },
-            channel: KelpieExecutionChannel.Mcp,
-            cancellationToken: cancellationToken);
-
-        if (result.ExitCode != 0)
+        var request = NginxHelperClient.Create(requestedPath, null, null, null, false);
+        var reply = await NginxHelperClient.CallAsync(sshCommandService, profile, "check", request, cancellationToken);
+        if (!reply.Ok || reply.State != "allowed")
         {
-            return CreateAccessCheckResult(
-                requestedPath,
-                canRead: true,
-                canWrite: false,
-                reason: $"Nginx config file write check failed through provider {DisplayName}. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}",
-                warnings: paths.Warnings,
-                method,
-                targetKey,
-                confirmation);
+            return CreateAccessCheckResult(requestedPath, true, false, reply.Error, paths.Warnings, method, targetKey, confirmation);
         }
 
         return CreateAccessCheckResult(
@@ -579,182 +547,39 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
             }
         }
 
-        var updatedBytes = configChanged ? Encoding.UTF8.GetBytes(updatedContent) : [];
-        if (configChanged)
+        var request = NginxHelperClient.Create(requestedPath, configChanged ? updatedContent : null,
+            readResult.ExitCode == 0 ? readResult.StandardOutput : string.Empty, readResult.ExitCode == 0, true);
+        var (appliedRequest, applied) = await NginxHelperClient.PrepareAndApplyAsync(sshCommandService, profile, request, cancellationToken);
+        if (!applied.Ok || applied.State is not ("applied" or "no-op"))
         {
-            var writeResult = await sshCommandService.ExecuteAsync(
-                profile,
-                NginxWriteConfigCommandName,
-                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["pathBase64"] = EncodeArgument(requestedPath),
-                    ["allowedPathsBase64"] = EncodeLines(access.ExactPaths),
-                    ["allowedDirsBase64"] = EncodeLines(access.AllowedDirectories),
-                },
-                channel: KelpieExecutionChannel.Mcp,
-                standardInput: Convert.ToBase64String(updatedBytes),
-                cancellationToken: cancellationToken);
-
-            if (writeResult.ExitCode != 0)
-            {
-                return CreatePhpEnableError(
-                    normalizedSiteKey,
-                    requestedPath,
-                    normalizedSocketPath,
-                    normalizedExtension,
-                    $"Nginx config file write failed through provider {DisplayName}. ExitCode={writeResult.ExitCode}. {CreateSafeErrorDetail(writeResult.StandardError)}",
-                    warnings);
-            }
+            return new NginxPhpEnableResult(ServiceKey, DisplayName, normalizedSiteKey, requestedPath,
+                normalizedSocketPath, normalizedExtension, applied.ConfigChanged || applied.LinksChanged > 0,
+                false, false, false, applied.BytesWritten, warnings,
+                applied.Error.Length == 0 ? "Nginx helper apply did not complete; reconcile before retrying." : applied.Error)
+            { OutcomeKnown = applied.State != "unknown" };
         }
-
-        var disableDefaultSitesResult = await DisableConflictingDefaultSitesAsync(sshCommandService, profile, cancellationToken);
-        var disabledDefaultSitePaths = SplitOutputLines(disableDefaultSitesResult.StandardOutput)
-            .Where(IsSafeSitesEnabledPath)
-            .ToArray();
-        if (disableDefaultSitesResult.ExitCode != 0)
+        if (applied.State == "no-op")
         {
-            var rollbackResult = configChanged
-                ? await RollbackConfigFileAsync(sshCommandService, profile, requestedPath, cancellationToken)
-                : null;
-            var rollbackError = rollbackResult?.Error is null
-                ? string.Empty
-                : $" Rollback failed: {rollbackResult.Error}";
-            return new NginxPhpEnableResult(
-                ServiceKey,
-                DisplayName,
-                normalizedSiteKey,
-                requestedPath,
-                normalizedSocketPath,
-                normalizedExtension,
-                Changed: configChanged,
-                Tested: false,
-                RolledBack: configChanged && rollbackResult?.Error is null,
-                Committed: false,
-                updatedBytes.Length,
-                warnings.Concat(rollbackResult?.Warnings ?? []).ToArray(),
-                $"Nginx conflicting default site disable failed through provider {DisplayName}. ExitCode={disableDefaultSitesResult.ExitCode}. {CreateSafeErrorDetail(disableDefaultSitesResult.StandardError)}{rollbackError}");
+            return new NginxPhpEnableResult(ServiceKey, DisplayName, normalizedSiteKey, requestedPath,
+                normalizedSocketPath, normalizedExtension, false, false, false, false, 0, warnings);
         }
-
-        if (disabledDefaultSitePaths.Length > 0)
+        if (applied.LinksChanged > 0)
+            warnings = warnings.Concat([$"Disabled {applied.LinksChanged.ToString(CultureInfo.InvariantCulture)} conflicting Nginx default_server site link(s)."]).ToArray();
+        var test = await TestConfigFileAsync(sshCommandService, profile, cancellationToken);
+        if (test.Error is not null)
         {
-            warnings = warnings
-                .Concat([$"Disabled {disabledDefaultSitePaths.Length.ToString(CultureInfo.InvariantCulture)} conflicting Nginx default_server site link(s)."])
-                .ToArray();
+            var rollback = await NginxHelperClient.CallAsync(sshCommandService, profile, "rollback", appliedRequest, cancellationToken);
+            return new NginxPhpEnableResult(ServiceKey, DisplayName, normalizedSiteKey, requestedPath,
+                normalizedSocketPath, normalizedExtension, true, true, rollback.Ok && rollback.State == "rolled-back", false,
+                applied.BytesWritten, warnings.Concat(test.Warnings).ToArray(),
+                test.Error + (rollback.Ok ? string.Empty : " Rollback requires reconciliation: " + rollback.Error))
+            { OutcomeKnown = rollback.State != "unknown" };
         }
-
-        if (!configChanged && disabledDefaultSitePaths.Length == 0)
-        {
-            return new NginxPhpEnableResult(
-                ServiceKey,
-                DisplayName,
-                normalizedSiteKey,
-                requestedPath,
-                normalizedSocketPath,
-                normalizedExtension,
-                Changed: false,
-                Tested: false,
-                RolledBack: false,
-                Committed: false,
-                BytesWritten: 0,
-                warnings);
-        }
-
-        var testResult = await TestConfigFileAsync(sshCommandService, profile, cancellationToken);
-        if (testResult.Error is not null)
-        {
-            var rollbackResult = configChanged
-                ? await RollbackConfigFileAsync(sshCommandService, profile, requestedPath, cancellationToken)
-                : null;
-            var defaultSitesRollbackResult = disabledDefaultSitePaths.Length > 0
-                ? await RollbackConflictingDefaultSitesAsync(sshCommandService, profile, disabledDefaultSitePaths, cancellationToken)
-                : null;
-            var rollbackError = rollbackResult?.Error is null
-                ? string.Empty
-                : $" Rollback failed: {rollbackResult.Error}";
-            var defaultSitesRollbackError = defaultSitesRollbackResult?.Error is null
-                ? string.Empty
-                : $" Default site rollback failed: {defaultSitesRollbackResult.Error}";
-            return new NginxPhpEnableResult(
-                ServiceKey,
-                DisplayName,
-                normalizedSiteKey,
-                requestedPath,
-                normalizedSocketPath,
-                normalizedExtension,
-                Changed: true,
-                Tested: true,
-                RolledBack: (rollbackResult?.Error is null) && (defaultSitesRollbackResult?.Error is null),
-                Committed: false,
-                updatedBytes.Length,
-                warnings.Concat(testResult.Warnings).Concat(rollbackResult?.Warnings ?? []).Concat(defaultSitesRollbackResult?.Warnings ?? []).ToArray(),
-                testResult.Error + rollbackError + defaultSitesRollbackError);
-        }
-
-        var commitResult = configChanged
-            ? await CommitConfigFileAsync(sshCommandService, profile, requestedPath, cancellationToken)
-            : null;
-        return new NginxPhpEnableResult(
-            ServiceKey,
-            DisplayName,
-            normalizedSiteKey,
-            requestedPath,
-            normalizedSocketPath,
-            normalizedExtension,
-            Changed: true,
-            Tested: true,
-            RolledBack: false,
-            Committed: commitResult?.Error is null,
-            updatedBytes.Length,
-            warnings.Concat(testResult.Warnings).Concat(commitResult?.Warnings ?? []).ToArray(),
-            commitResult?.Error);
-    }
-
-    private static async Task<SshCommandResult> DisableConflictingDefaultSitesAsync(
-        SshCommandService sshCommandService,
-        SshConnectionProfile profile,
-        CancellationToken cancellationToken)
-    {
-        return await sshCommandService.ExecuteAsync(
-            profile,
-            NginxDisableDefaultSitesCommandName,
-            arguments: null,
-            channel: KelpieExecutionChannel.Mcp,
-            cancellationToken: cancellationToken);
-    }
-
-    private async Task<ServiceConfigFileBackupActionResult> RollbackConflictingDefaultSitesAsync(
-        SshCommandService sshCommandService,
-        SshConnectionProfile profile,
-        IReadOnlyList<string> disabledDefaultSitePaths,
-        CancellationToken cancellationToken)
-    {
-        var result = await sshCommandService.ExecuteAsync(
-            profile,
-            NginxRollbackDefaultSitesCommandName,
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["disabledPathsBase64"] = EncodeLines(disabledDefaultSitePaths),
-            },
-            channel: KelpieExecutionChannel.Mcp,
-            cancellationToken: cancellationToken);
-
-        if (result.ExitCode != 0)
-        {
-            return CreateBackupActionError(
-                "/etc/nginx/sites-enabled",
-                "/etc/nginx/.kelpie-disabled-sites",
-                $"Nginx default site rollback failed through provider {DisplayName}. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}",
-                []);
-        }
-
-        return new ServiceConfigFileBackupActionResult(
-            ServiceKey,
-            DisplayName,
-            "/etc/nginx/sites-enabled",
-            "/etc/nginx/.kelpie-disabled-sites",
-            Changed: true,
-            Warnings: [],
-            Error: null);
+        var commit = await NginxHelperClient.CallAsync(sshCommandService, profile, "commit", appliedRequest, cancellationToken);
+        return new NginxPhpEnableResult(ServiceKey, DisplayName, normalizedSiteKey, requestedPath,
+            normalizedSocketPath, normalizedExtension, true, true, false, commit.Ok && commit.State == "committed",
+            applied.BytesWritten, warnings.Concat(test.Warnings).ToArray(), commit.Ok ? null : commit.Error)
+        { OutcomeKnown = commit.State != "unknown" };
     }
 
     private async Task<ServiceConfigFileBackupActionResult> ExecuteBackupActionAsync(
@@ -776,27 +601,15 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
             return CreateBackupActionError(requestedPath, backupPath, access.Error, paths.Warnings);
         }
 
-        var result = await sshCommandService.ExecuteAsync(
-            profile,
-            commandName,
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["pathBase64"] = EncodeArgument(requestedPath),
-                ["allowedPathsBase64"] = EncodeLines(access.ExactPaths),
-                ["allowedDirsBase64"] = EncodeLines(access.AllowedDirectories),
-            },
-            channel: KelpieExecutionChannel.Mcp,
-            cancellationToken: cancellationToken);
-
-        if (result.ExitCode != 0)
-        {
-            var actionName = commandName == NginxRollbackConfigCommandName ? "rollback" : "commit";
-            return CreateBackupActionError(
-                requestedPath,
-                backupPath,
-                $"Nginx config file {actionName} failed through provider {DisplayName}. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}",
-                paths.Warnings);
-        }
+        var request = NginxHelperClient.Create(requestedPath, null, null, null, false);
+        var status = await NginxHelperClient.CallAsync(sshCommandService, profile, "status", request, cancellationToken);
+        if (!status.Ok && status.State != "recovery-required")
+            return CreateBackupActionError(requestedPath, backupPath, status.Error, paths.Warnings) with { OutcomeKnown = status.State != "unknown" };
+        request = request with { TransactionId = status.TransactionId, IntentDigest = status.IntentDigest };
+        var reply = await NginxHelperClient.CallAsync(sshCommandService, profile,
+            commandName == NginxRollbackConfigCommandName ? "rollback" : "commit", request, cancellationToken);
+        if (!reply.Ok)
+            return CreateBackupActionError(requestedPath, backupPath, reply.Error, paths.Warnings) with { OutcomeKnown = reply.State != "unknown" };
 
         return new ServiceConfigFileBackupActionResult(
             ServiceKey,

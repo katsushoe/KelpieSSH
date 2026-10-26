@@ -303,3 +303,7 @@ Deployment記録にはパス、ハッシュ、トランザクション情報を�
 ## ホスト再起動の設定
 
 プロファイルの任意ルート`HostReboot`は`Paths={}`（有効時はリモートパスの明示指定が必須）、`Enabled=false`、`ExpectedKernel=""`、`Services=[]`、`HttpUrls=[]`、`TimeoutSeconds=120`、`PollSeconds=3`を初期値とします。有効化にはMaintenance/Expert、root以外のユーザー、固定ホスト鍵、引数まで限定したsudo権限、信頼登録の権限拡張承認が必要です。入力検証、初期値、出力・状態・エラー、管理者の手順は[ホストの通常再起動](HOST_REBOOT.ja.md)を参照してください。選択ユーザーにも設定を引き継ぎますが、Safe/ReadOnlyユーザーでは利用できません。
+
+### nginx専用トランザクションhelperのポリシー
+
+nginx設定変更には、Linux x64上のhelper 0.2.4.0以降とプロトコル1が必要です。独立したroot所有の`/etc/kelpie/nginx-config-helper-policy.json`と、root専用のトランザクション保存先を設定します。SSHプロファイルからこの許可範囲は拡張できません。`config_samples/nginx-config-helper-policy.json`は初期状態で呼出元と対象をすべて拒否します。各設定キー、所有者、権限、上限、復旧状態、固定sudo規則は[nginx専用トランザクションhelper](NGINX_HELPER.ja.md)を参照してください。既存のウェブ権限ポリシーとは別の契約です。

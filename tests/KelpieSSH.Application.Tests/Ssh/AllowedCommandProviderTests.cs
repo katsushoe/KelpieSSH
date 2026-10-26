@@ -92,27 +92,23 @@ public sealed class AllowedCommandProviderTests
             "service_config_nginx_version",
             "service_config_nginx_test_config",
             "service_config_nginx_read_config",
-            "service_config_nginx_check_write_config",
-            "service_config_nginx_write_config",
-            "service_config_nginx_rollback_config",
-            "service_config_nginx_commit_config",
-            "service_config_nginx_disable_default_sites",
-            "service_config_nginx_rollback_default_sites",
+            "service_config_nginx_helper_check",
+            "service_config_nginx_helper_apply",
+            "service_config_nginx_helper_rollback",
+            "service_config_nginx_helper_commit",
+            "service_config_nginx_helper_plan",
+            "service_config_nginx_helper_status",
             "service_logfile_nginx_read",
         ]);
-        commands.Single(command => command.Name == "service_config_nginx_write_config")
+        commands.Single(command => command.Name == "service_config_nginx_helper_apply")
             .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
-        commands.Single(command => command.Name == "service_config_nginx_rollback_config")
+        commands.Single(command => command.Name == "service_config_nginx_helper_rollback")
             .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
-        commands.Single(command => command.Name == "service_config_nginx_commit_config")
+        commands.Single(command => command.Name == "service_config_nginx_helper_commit")
             .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
         commands.Single(command => command.Name == "service_config_nginx_test_config")
             .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
-        commands.Single(command => command.Name == "service_config_nginx_disable_default_sites")
-            .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
-        commands.Single(command => command.Name == "service_config_nginx_rollback_default_sites")
-            .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
-        commands.Where(command => command.Name is not ("service_config_nginx_write_config" or "service_config_nginx_rollback_config" or "service_config_nginx_commit_config" or "service_config_nginx_test_config" or "service_config_nginx_disable_default_sites" or "service_config_nginx_rollback_default_sites"))
+        commands.Where(command => command.Name is not ("service_config_nginx_helper_apply" or "service_config_nginx_helper_rollback" or "service_config_nginx_helper_commit" or "service_config_nginx_test_config"))
             .Should().OnlyContain(command => command.RiskLevel == SshCommandRiskLevel.ReadOnly);
     }
 
@@ -139,75 +135,23 @@ public sealed class AllowedCommandProviderTests
         commandText.Should().NotContain("python3 - --");
     }
 
-    [Fact]
-    public void NginxServiceConfigCommandProvider_ShouldAllowCreateAndRollbackCreatedConfigFiles()
+    [Theory]
+    [InlineData("plan", SshCommandRiskLevel.ReadOnly)]
+    [InlineData("check", SshCommandRiskLevel.ReadOnly)]
+    [InlineData("status", SshCommandRiskLevel.ReadOnly)]
+    [InlineData("apply", SshCommandRiskLevel.ConfirmRequired)]
+    [InlineData("commit", SshCommandRiskLevel.ConfirmRequired)]
+    [InlineData("rollback", SshCommandRiskLevel.ConfirmRequired)]
+    public void NginxServiceConfigCommandProvider_ShouldExposeOnlyFixedPrivilegedHelperRoutes(string verb, SshCommandRiskLevel risk)
     {
-        var provider = new NginxServiceConfigCommandProvider();
-        var profile = CreateProfile("debian", "apt");
-        var commands = provider.GetCommands(profile);
-        var baseArguments = new Dictionary<string, string>
-        {
-            ["pathBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("/etc/nginx/conf.d/default.conf")),
-            ["allowedPathsBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("\n")),
-            ["allowedDirsBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("/etc/nginx/conf.d\n")),
-        };
-        var writeCommand = commands.Single(command => command.Name == "service_config_nginx_write_config").BuildCommandText(baseArguments);
-        var checkCommand = commands.Single(command => command.Name == "service_config_nginx_check_write_config").BuildCommandText(baseArguments);
-        var rollbackCommand = commands.Single(command => command.Name == "service_config_nginx_rollback_config").BuildCommandText(baseArguments);
-
-        var writeScript = DecodeEmbeddedShellScript(writeCommand);
-        var checkScript = DecodeEmbeddedShellScript(checkCommand);
-        var rollbackScript = DecodeEmbeddedShellScript(rollbackCommand);
-
-        writeCommand.Should().Contain("python3 -c");
-        writeCommand.Should().NotContain("\" --");
-        writeCommand.Should().NotContain(Convert.ToBase64String(Encoding.UTF8.GetBytes("server {}\n")));
-        checkCommand.Should().NotContain("python3 -c");
-        checkCommand.Should().NotContain("python3 - --");
-        rollbackCommand.Should().NotContain("python3 -c");
-        rollbackCommand.Should().NotContain("python3 - --");
-        writeScript.Should().Contain("KELPIE_CREATED_CONFIG_FILE_BACKUP_V1");
-        writeScript.Should().Contain("sys.stdin.read()");
-        writeScript.Should().Contain("exists=os.path.exists(rp)");
-        writeScript.Should().Contain("exists and not os.path.isfile(rp)");
-        checkScript.Should().Contain("exists=os.path.exists(rp)");
-        checkScript.Should().Contain("exists and not os.path.isfile(rp)");
-        rollbackScript.Should().Contain("KELPIE_CREATED_CONFIG_FILE_BACKUP_V1");
-        rollbackScript.Should().Contain("os.remove(p)");
-    }
-
-    [Fact]
-    public void NginxServiceConfigCommandProvider_ShouldDisableAndRollbackConflictingDefaultSiteLinks()
-    {
-        var provider = new NginxServiceConfigCommandProvider();
-        var profile = CreateProfile("debian", "apt");
-        var commands = provider.GetCommands(profile);
-
-        var disableCommand = commands.Single(command => command.Name == "service_config_nginx_disable_default_sites")
-            .BuildCommandText(new Dictionary<string, string>());
-        var rollbackCommand = commands.Single(command => command.Name == "service_config_nginx_rollback_default_sites")
-            .BuildCommandText(new Dictionary<string, string>
-            {
-                ["disabledPathsBase64"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("/etc/nginx/sites-enabled/default\n")),
-            });
-        var disableScript = DecodeEmbeddedShellScript(disableCommand);
-        var rollbackScript = DecodeEmbeddedShellScript(rollbackCommand);
-
-        disableCommand.Should().NotContain("python3 - --");
-        rollbackCommand.Should().NotContain("python3 - --");
-
-        disableScript.Should().Contain("/etc/nginx/sites-enabled");
-        disableScript.Should().Contain("/etc/nginx/.kelpie-disabled-sites");
-        disableScript.Should().Contain("default_server");
-        disableScript.Should().Contain("os.path.islink(p)");
-        disableScript.Should().Contain("os.readlink(p)");
-        disableScript.Should().Contain("os.unlink(p)");
-        rollbackScript.Should().Contain("base64.b64decode(sys.argv[1])");
-        rollbackScript.Should().Contain("os.symlink(target,p)");
-        rollbackScript.Should().Contain("os.remove(marker)");
-        rollbackCommand.Should().Contain(Convert.ToBase64String(Encoding.UTF8.GetBytes("/etc/nginx/sites-enabled/default\n")));
-        disableCommand.Should().NotContain("python3 -c");
-        rollbackCommand.Should().NotContain("python3 -c");
+        var commands = new NginxServiceConfigCommandProvider().GetCommands(CreateProfile("debian", "apt"));
+        var command = commands.Single(x => x.Name == "service_config_nginx_helper_" + verb);
+        command.BuildCommandText(new Dictionary<string, string>()).Should().Be(
+            "sudo -n /usr/local/libexec/kelpie/kelpie-web-permission-helper nginx-" + verb + " 1");
+        command.RiskLevel.Should().Be(risk);
+        commands.Should().NotContain(x => x.Name == "service_config_nginx_write_config" || x.Name == "service_config_nginx_disable_default_sites");
+        commands.Where(x => x.Name.StartsWith("service_config_nginx_helper_", StringComparison.Ordinal))
+            .Should().HaveCount(6);
     }
 
     [Theory]

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentAssertions;
 using Kelpie.Core;
 using KelpieMCPServer;
@@ -1191,9 +1192,9 @@ public sealed class KelpieToolsSshTests
         result.Path.Should().Be("/etc/nginx/conf.d/kelpie-test.conf");
         result.BytesWritten.Should().Be(System.Text.Encoding.UTF8.GetByteCount(expectedWrittenContent));
         result.Error.Should().BeNull();
-        runner.LastRequest!.CommandName.Should().Be("service_config_nginx_write_config");
+        runner.LastRequest!.CommandName.Should().Be("service_config_nginx_helper_apply");
         runner.LastRequest.Arguments.Should().NotContainKey("contentBase64");
-        var writtenContent = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(runner.LastRequest.StandardInput!));
+        var writtenContent = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(JsonDocument.Parse(runner.LastRequest.StandardInput!).RootElement.GetProperty("contentBase64").GetString()!));
         writtenContent.Should().Be(expectedWrittenContent);
     }
 
@@ -1242,7 +1243,7 @@ public sealed class KelpieToolsSshTests
         result.RequiresConfirmation.Should().BeTrue();
         result.Confirmation.Should().Be("service_config_file_write:nginx:/etc/nginx/conf.d/kelpie-test.conf:replace:server.server_name");
         result.Error.Should().BeNull();
-        runner.LastRequest!.CommandName.Should().Be("service_config_nginx_check_write_config");
+        runner.LastRequest!.CommandName.Should().Be("service_config_nginx_helper_check");
         runner.LastRequest.Arguments.Should().NotContainKey("contentBase64");
     }
 
@@ -1391,7 +1392,7 @@ public sealed class KelpieToolsSshTests
         result.Changed.Should().BeTrue();
         result.Error.Should().BeNull();
         result.BackupPath.Should().Be("/etc/nginx/conf.d/kelpie-test.conf.kelpiebakup");
-        runner.LastRequest!.CommandName.Should().Be("service_config_nginx_rollback_config");
+        runner.LastRequest!.CommandName.Should().Be("service_config_nginx_helper_rollback");
     }
 
     [Fact]
@@ -1425,7 +1426,7 @@ public sealed class KelpieToolsSshTests
         result.Changed.Should().BeTrue();
         result.Error.Should().BeNull();
         result.BackupPath.Should().Be("/etc/nginx/conf.d/kelpie-test.conf.kelpiebakup");
-        runner.LastRequest!.CommandName.Should().Be("service_config_nginx_commit_config");
+        runner.LastRequest!.CommandName.Should().Be("service_config_nginx_helper_commit");
     }
 
     [Fact]
@@ -1583,9 +1584,9 @@ public sealed class KelpieToolsSshTests
         result.Tested.Should().BeTrue();
         result.Committed.Should().BeTrue();
         runner.Requests.Select(request => request.CommandName).Should().ContainInOrder(
-            "service_config_nginx_write_config",
+            "service_config_nginx_helper_apply",
             "service_config_nginx_test_config",
-            "service_config_nginx_commit_config");
+            "service_config_nginx_helper_commit");
     }
 
     [Fact]
@@ -2621,7 +2622,7 @@ public sealed class KelpieToolsSshTests
         var result = await KelpieTools.RunAllowedSshCommandAsync(
             service,
             profiles,
-            "service_config_nginx_write_config",
+            "service_config_nginx_helper_apply",
             "vps01");
 
         result.Error.Should().Be("Service config commands must be called through service_config_* tools.");
@@ -4129,6 +4130,10 @@ public sealed class KelpieToolsSshTests
         public IReadOnlyList<SshCommandRequest> Requests => _requests;
 
         private readonly List<SshCommandRequest> _requests = [];
+        private bool _writesFile;
+        private int _changedLinks;
+        private int _bytes;
+        private string _transaction = "0123456789abcdef0123456789abcdef";
 
         public Task<SshCommandResult> ExecuteAsync(
             SshCommandRequest request,
@@ -4136,9 +4141,7 @@ public sealed class KelpieToolsSshTests
         {
             LastRequest = request;
             _requests.Add(request);
-            var output = _outputs.Count > 0
-                ? _outputs.Dequeue()
-                : new FakeSshCommandOutput("ok\n\u001b[31mERROR\u001b[0m", "warning");
+            var output = request.CommandName.StartsWith("service_config_nginx_helper_", StringComparison.Ordinal) ? HelperReply(request) : (_outputs.Count > 0 ? _outputs.Dequeue() : new FakeSshCommandOutput("ok\n\u001b[31mERROR\u001b[0m", "warning"));
 
             return Task.FromResult(new SshCommandResult(
                 request.CommandName,
@@ -4149,6 +4152,64 @@ public sealed class KelpieToolsSshTests
                 DateTimeOffset.UtcNow,
                 DateTimeOffset.UtcNow,
                 TimedOut: false));
+        }
+        private FakeSshCommandOutput HelperReply(SshCommandRequest request)
+        {
+            using var data = JsonDocument.Parse(request.StandardInput!);
+            var value = data.RootElement;
+            var operation = request.CommandName["service_config_nginx_helper_".Length..];
+            var state = "planned";
+            var error = string.Empty;
+            var code = 0;
+            if (operation == "plan")
+            {
+                _transaction = value.GetProperty("requestId").GetString()!;
+                _writesFile = value.TryGetProperty("contentBase64", out var content) && content.ValueKind == JsonValueKind.String;
+                _bytes = _writesFile ? Convert.FromBase64String(content.GetString()!).Length : 0;
+            }
+            else if (operation == "apply")
+            {
+                if (_writesFile)
+                {
+                    var write = _outputs.Dequeue();
+                    code = write.ExitCode;
+                    error = write.StandardError;
+                }
+                if (code == 0 && value.GetProperty("disableDefaultSites").GetBoolean())
+                {
+                    var links = _outputs.Dequeue();
+                    code = links.ExitCode;
+                    error = links.StandardError;
+                    _changedLinks = links.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
+                }
+                state = code == 0 ? (_writesFile || _changedLinks > 0 ? "applied" : "no-op") : "recovery-required";
+            }
+            else if (operation is "commit" or "rollback")
+            {
+                if (_outputs.Count > 0)
+                {
+                    var action = _outputs.Dequeue();
+                    code = action.ExitCode;
+                    error = action.StandardError;
+                }
+                if (operation == "rollback" && _writesFile && _changedLinks > 0 && _outputs.Count > 0)
+                {
+                    var links = _outputs.Dequeue();
+                    code = links.ExitCode;
+                    error = links.StandardError;
+                }
+                state = operation == "commit" ? "committed" : "rolled-back";
+            }
+            else if (operation == "status") state = "applied";
+            else if (operation == "check") state = "allowed";
+            return new FakeSshCommandOutput(JsonSerializer.Serialize(new
+            {
+                protocol = 1, requestId = value.GetProperty("requestId").GetString(), transactionId = _transaction,
+                ok = code == 0, state, configChanged = state != "no-op" && _writesFile,
+                linksChanged = state == "no-op" ? 0 : _changedLinks, bytesWritten = state == "no-op" ? 0 : _bytes,
+                intentDigest = new string('a', 64), originalHash = new string('b', 64), currentHash = new string('c', 64),
+                recoverable = state == "applied", error,
+            }), string.Empty, code);
         }
     }
 

@@ -34,24 +34,20 @@ public sealed class AllowedCommandCatalogTests
             "service_config_nginx_version",
             "service_config_nginx_test_config",
             "service_config_nginx_read_config",
-            "service_config_nginx_write_config",
-            "service_config_nginx_rollback_config",
-            "service_config_nginx_commit_config",
-            "service_config_nginx_disable_default_sites",
-            "service_config_nginx_rollback_default_sites",
+            "service_config_nginx_helper_apply",
+            "service_config_nginx_helper_rollback",
+            "service_config_nginx_helper_commit",
+            "service_config_nginx_helper_plan",
+            "service_config_nginx_helper_status",
             "service_logfile_nginx_read",
         ]);
-        commands.Single(command => command.Name == "service_config_nginx_write_config")
+        commands.Single(command => command.Name == "service_config_nginx_helper_apply")
             .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
-        commands.Single(command => command.Name == "service_config_nginx_rollback_config")
+        commands.Single(command => command.Name == "service_config_nginx_helper_rollback")
             .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
-        commands.Single(command => command.Name == "service_config_nginx_commit_config")
+        commands.Single(command => command.Name == "service_config_nginx_helper_commit")
             .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
         commands.Single(command => command.Name == "service_config_nginx_test_config")
-            .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
-        commands.Single(command => command.Name == "service_config_nginx_disable_default_sites")
-            .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
-        commands.Single(command => command.Name == "service_config_nginx_rollback_default_sites")
             .RiskLevel.Should().Be(SshCommandRiskLevel.ConfirmRequired);
         commands.Where(command => command.Name is not (
                 "cron_write"
@@ -62,12 +58,12 @@ public sealed class AllowedCommandCatalogTests
                 or "user_rollback_permission_change"
                 or "firewall_apply_rule"
                 or "backup_run"
-                or "service_config_nginx_write_config"
-                or "service_config_nginx_rollback_config"
-                or "service_config_nginx_commit_config"
+                or "service_config_nginx_helper_apply"
+                or "service_config_nginx_helper_rollback"
+                or "service_config_nginx_helper_commit"
                 or "service_config_nginx_test_config"
-                or "service_config_nginx_disable_default_sites"
-                or "service_config_nginx_rollback_default_sites"))
+               
+               ))
             .Should().OnlyContain(command => command.RiskLevel == SshCommandRiskLevel.ReadOnly);
         commands.Where(command => command.Name is "cron_write" or "cron_rollback" or "user_apply_group_change" or "user_rollback_group_change" or "user_apply_permission_change" or "user_rollback_permission_change" or "firewall_apply_rule" or "backup_run")
             .Should().OnlyContain(command => command.RiskLevel == SshCommandRiskLevel.ConfirmRequired);

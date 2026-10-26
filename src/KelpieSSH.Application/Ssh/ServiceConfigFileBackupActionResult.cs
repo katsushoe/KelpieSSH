@@ -17,4 +17,8 @@ public sealed record ServiceConfigFileBackupActionResult(
     string BackupPath,
     bool Changed,
     IReadOnlyList<string> Warnings,
-    string? Error = null);
+    string? Error = null)
+{
+    /// <summary>Whether the remote backup operation outcome is known.</summary>
+    public bool OutcomeKnown { get; init; } = true;
+}
