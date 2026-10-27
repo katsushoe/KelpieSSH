@@ -30,6 +30,9 @@ public sealed class RuntimeDiagnosticService(SshCommandService commands, TimePro
             if (result.ExitCode == 127 && result.StandardError.Trim() == "runtime-startup-unavailable") return Failure(runtime, id, "unavailable");
             if (result.ExitCode == 65 && result.StandardError.Trim() is "runtime-startup-untrusted" or "runtime-startup-changed") return Failure(runtime, id, "denied");
             if (result.ExitCode is 66 or 126 or 127) return Failure(runtime, id, "unsupported");
+            // The fixed PHP CLI invocation rejects a CGI SAPI with exit 1; Node uses 9 for invalid options.
+            if ((runtime == "php" && result.ExitCode == 1) || (runtime == "node" && result.ExitCode == 9))
+                return Failure(runtime, id, "unsupported");
             if (result.ExitCode != 0 || result.StandardError.Length != 0) return Failure(runtime, id, "invalid-response");
             return Parse(result.StandardOutput, runtime, id);
         }

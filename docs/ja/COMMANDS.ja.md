@@ -2462,4 +2462,4 @@ Run after review: kelpie pkg install vps01 nginx --confirm pkg_install:nginx
 
 構文は`kelpie runtime-info <profile> <php|node> [--refresh]`です。runtimeはphp/node完全一致。現在の固定ホスト鍵・非rootプロファイルと通常の読取権限を評価し、D1の信頼候補検査と環境初期化後に実行します。キャッシュせず、開始後の再試行・別runtime切替はしません。新設定や確認トークンは不要です。
 
-実行例: `kelpie runtime-info synthetic-profile php --refresh`。成功結果例は`{"protocol":1,"operation":"runtime.info","runtime":"php","status":"ok","startupMode":"isolated","version":"8.2.35","features":{"json":true,"sha256":true},"cached":false,"warnings":[]}`の各フィールドにホスト生成requestIdとcheckedAtを加えたものです。失敗時の観測値はnullです。CLIは成功0/その他1、MCPは同じ型付き状態を返します。[全入力・出力・状態・エラー・上限・安全条件](RUNTIME_INFO.ja.md)を参照してください。D3全条件は未完了です。
+実行例: `kelpie runtime-info synthetic-profile php --refresh`。成功結果例は`{"protocol":1,"operation":"runtime.info","runtime":"php","status":"ok","startupMode":"isolated","version":"8.2.35","features":{"json":true,"sha256":true},"cached":false,"warnings":[]}`の各フィールドにホスト生成requestIdとcheckedAtを加えたものです。失敗時の観測値はnullです。CLIは成功0/その他1、MCPは同じ型付き状態を返します。[全入力・出力・状態・エラー・上限・安全条件](RUNTIME_INFO.ja.md)を参照してください。D3はPHP 8とNode 22/24、監査付き実SSHと単体境界を組み合わせて全24要件に合格しました。実AIデスクトップアプリは受入範囲外です。
