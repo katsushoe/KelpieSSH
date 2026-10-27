@@ -7,17 +7,42 @@ public static class RuntimeDiagnosticStartup
 {
     /// <summary>Creates a byte-bounded, environment-isolated PHP or Node startup probe.</summary>
     public static AllowedCommandDefinition CreateProbeDefinition(string runtime)
+        => CreateDefinition(runtime, Launcher, "startup_probe");
+
+    /// <summary>Creates the fixed runtime.info operation using the same trusted startup boundary.</summary>
+    public static AllowedCommandDefinition CreateInfoDefinition(string runtime)
+        => CreateDefinition(runtime, Launcher[..Launcher.LastIndexOf("case \"$runtime\" in", StringComparison.Ordinal)] + InfoDispatch, "info");
+
+    private static AllowedCommandDefinition CreateDefinition(string runtime, string launcher, string operation)
     {
         if (runtime is not ("php" or "node")) throw new ArgumentException("Runtime must be php or node.", nameof(runtime));
-        var encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(Launcher));
+        var encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(launcher));
         var command = "/usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LC_ALL=C /usr/bin/timeout -s KILL 5 /bin/sh -c "
             + "\"$(printf '%s' '" + encoded + "' | /usr/bin/base64 -d)\" -- " + runtime;
-        return new AllowedCommandDefinition("runtime_" + runtime + "_startup_probe", command, TimeSpan.FromSeconds(15))
+        return new AllowedCommandDefinition("runtime_" + runtime + "_" + operation, command, TimeSpan.FromSeconds(15))
         {
             ExecutionLimits = new SshCommandExecutionLimits(16384, 2048),
             IgnoreEnvironmentOverrides = true,
         };
     }
+
+    private const string InfoDispatch = """
+case "$runtime" in
+php) exec "$chosen" -n -r '
+if(PHP_SAPI!=="cli" || PHP_MAJOR_VERSION!==8 || !function_exists("json_encode")){exit(66);}
+$s=stream_get_contents(STDIN,4097);
+if(!preg_match("/\\A{\"protocol\":1,\"operation\":\"runtime.info\",\"requestId\":\"([a-f0-9]{32})\",\"runtime\":\"php\"}\\z/",$s,$m)){exit(64);}
+$hash=function_exists("hash_algos") && in_array("sha256",hash_algos(),true);
+echo json_encode(["protocol"=>1,"operation"=>"runtime.info","requestId"=>$m[1],"runtime"=>"php","startupMode"=>"isolated","version"=>PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION.".".PHP_RELEASE_VERSION,"features"=>["json"=>true,"sha256"=>$hash]],JSON_THROW_ON_ERROR);
+' ;;
+node) exec "$chosen" --input-type=commonjs --no-addons --eval '
+const fs=require("node:fs"),b=Buffer.alloc(4097);let n=0,k;while(n<b.length&&(k=fs.readSync(0,b,n,b.length-n,null))>0)n+=k;
+const m=/^\{"protocol":1,"operation":"runtime.info","requestId":"([a-f0-9]{32})","runtime":"node"\}$/.exec(b.subarray(0,n).toString("utf8"));
+if(!m)process.exit(64);if(!/^(22|24)\.[0-9]+\.[0-9]+$/.test(process.versions.node))process.exit(66);
+const crypto=require("node:crypto");process.stdout.write(JSON.stringify({protocol:1,operation:"runtime.info",requestId:m[1],runtime:"node",startupMode:"isolated",version:process.versions.node,features:{json:true,sha256:crypto.getHashes().includes("sha256")}}));
+' ;;
+esac
+""";
 
     // GNU stat/readlink/timeout and /bin/sh are trusted OS bootstrap prerequisites.
     // Resolve components individually: canonicalizing first would hide untrusted link ancestors.

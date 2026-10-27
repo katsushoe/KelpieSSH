@@ -38,7 +38,7 @@ public sealed class KelpieServerPackagingTests
             var executable = Path.Combine(outputDirectory, "kelpiemcp.exe");
             var version = await RunAsync(outputDirectory, executable, ["--version"], TimeSpan.FromSeconds(30));
             version.ExitCode.Should().Be(0, version.StandardError);
-            version.StandardOutput.Should().Contain("kelpiemcp 0.3.12.3");
+            version.StandardOutput.Should().Contain("kelpiemcp 0.3.12.4");
         }
         finally
         {

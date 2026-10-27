@@ -30,3 +30,7 @@ No SSH profile, trust store, environment store, helper policy or sudoers change 
 ## Verification and later stages
 
 Unit tests validate stream bounds, UTF-8 byte accounting, completion frames, literal stdin and definition forwarding. Actual isolated SSH acceptance checks real PHP/Node startup, hostile inherited hooks, output floods, cancellation/deadlines, symlink trust and missing-family behavior. These checks are narrower than full diagnostic adapter acceptance. Later stages must add strict typed results, capability freshness, complete policy coverage, all planned runtime fixtures and public tool references before claiming diagnostic availability.
+
+## D2 adapter
+
+The isolated runtime.info adapter is now exposed through the dedicated CLI/MCP operation; see [runtime information](RUNTIME_INFO.md). D1 startup probes remain unregistered. D2 results are always fresh and no preparation/result cache is retained, avoiding stale identity or permission reuse. Full D3 acceptance is separate.

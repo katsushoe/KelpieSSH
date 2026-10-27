@@ -1,6 +1,6 @@
 # KelpieSSH Commands
 
-Last updated: 2026-10-22
+Last updated: 2026-10-27
 
 This file is the English command reference for commands run directly from a terminal, such as `kelpie` and `kelpiemcp`.
 For Japanese documentation, see [docs/ja/COMMANDS.ja.md](docs/ja/COMMANDS.ja.md).
@@ -11,6 +11,7 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 
 | Group | Commands | Purpose |
 | :--- | :--- | :--- |
+| [Isolated runtime information](#runtime-info) | `kelpie runtime-info` | Read isolated PHP/Node version and built-in features. |
 | [MCP server control](#mcp-server-control) | `kelpiemcp start [--reload-config]`, `kelpiemcp stop`, `kelpiemcp status` | Start, stop, and inspect `KelpieMCPServer`. |
 | [MCP profile trust](#mcp-profile-trust) | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile> [--approve-privilege-expansion]`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | Add, reload, revoke, and inspect trusted SSH profile baselines. |
 | [Human web policy administration](#human-web-policy-administration) | `kelpiemcp web-policy list`, `add`, `remove`, `apply`, `rollback` | Remotely inspect or interactively change the selected VPS helper policy. |
@@ -2472,3 +2473,11 @@ See [Normal Host Reboot](HOST_REBOOT.md) for configuration, output fields, state
 ## Nginx privileged helper commands
 
 The remote Linux helper adds six fixed commands: `nginx-plan 1`, `nginx-check 1`, `nginx-apply 1`, `nginx-status 1`, `nginx-commit 1`, and `nginx-rollback 1`. Structured inputs use standard input; file content is never a shell argument. These are provider implementation commands, with protocol, errors, effects and installation described in [Nginx transaction helper](docs/NGINX_HELPER.md). They do not add a new `kelpie` or `kelpiemcp` subcommand. Do not grant sudo access to Python or a general shell for this feature.
+
+## runtime-info
+
+### `kelpie runtime-info`
+
+Syntax: `kelpie runtime-info <profile> <php|node> [--refresh]`. runtime is exactly php or node. Resolve the current pinned non-root profile and normal read policy, then execute using the trusted isolated launcher. No cache, retry after dispatch, cross-runtime fallback, new setting or confirmation token is used.
+
+Example: `kelpie runtime-info synthetic-profile php --refresh`. A successful result has `{"protocol":1,"operation":"runtime.info","runtime":"php","status":"ok","startupMode":"isolated","version":"8.2.35","features":{"json":true,"sha256":true},"cached":false,"warnings":[]}` plus host-generated requestId and checkedAt fields. Failed observations are null. CLI exits 0 for success and 1 otherwise; MCP returns the same typed statuses. See [all input/output/state/error/limit and safety details](docs/RUNTIME_INFO.md). Full D3 acceptance is pending.

@@ -34,7 +34,9 @@ public sealed class RuntimeDiagnosticStartupTests
     [Fact]
     public void Catalog_ShouldNotExposeStartupProbesBeforeAdapterStage()
     {
-        AllowedCommandCatalog.CreateDefault().List().Should().NotContain(x => x.Name.StartsWith("runtime_", StringComparison.Ordinal));
+        AllowedCommandCatalog.CreateDefault().List().Should().NotContain(x => x.Name.EndsWith("_startup_probe", StringComparison.Ordinal));
+        AllowedCommandCatalog.CreateDefault().List().Should().Contain(x => x.Name == "runtime_php_info");
+        AllowedCommandCatalog.CreateDefault().List().Should().Contain(x => x.Name == "runtime_node_info");
     }
 
     [Theory]

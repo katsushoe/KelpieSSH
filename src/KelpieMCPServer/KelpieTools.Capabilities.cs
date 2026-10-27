@@ -67,6 +67,7 @@ public sealed partial class KelpieTools
             CreateSshToolCapability("ssh_get_system_info", "get_system_info", commands),
             CreateSshToolCapability("ssh_get_os_release", "get_os_release", commands),
             CreateSshToolCapability("get_target_inventory", "target_inventory", commands),
+            CreateRuntimeInfoCapability(profile, commands),
             CreateSshToolCapability("ssh_get_uptime", "get_uptime", commands),
             CreateSshToolCapability("ssh_get_disk_usage", "get_disk_usage", commands),
             CreateSshToolCapability("ssh_get_memory_usage", "get_memory_usage", commands),
@@ -189,6 +190,16 @@ public sealed partial class KelpieTools
         var allowed = HostRebootService.IsAllowed(profile);
         return new(name, "host_reboot", allowed, confirmation ? "ConfirmRequired" : "ReadOnly", confirmation,
             allowed ? null : "Requires HostReboot.Enabled, Maintenance/Expert, a non-root user, a pinned host key and Debian/RHEL.");
+    }
+
+    private static SshToolCapability CreateRuntimeInfoCapability(SshConnectionProfile profile,
+        IReadOnlyDictionary<string, SshCommandCapability> commands)
+    {
+        var allowed = commands.ContainsKey("runtime_php_info") && commands.ContainsKey("runtime_node_info")
+            && !string.IsNullOrWhiteSpace(profile.HostKeyFingerprintSha256)
+            && !string.Equals(profile.UserName, "root", StringComparison.OrdinalIgnoreCase);
+        return new("ssh_runtime_info", "runtime_php_info,runtime_node_info", allowed, "ReadOnly", false,
+            allowed ? null : "Requires registered fixed operations and a pinned non-root profile; runtime installation is not probed.");
     }
 
     private static SshToolCapability CreateSshToolCapability(

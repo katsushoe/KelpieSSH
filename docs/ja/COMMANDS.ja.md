@@ -1,6 +1,6 @@
 # KelpieSSH コマンド
 
-最終更新: 2026-10-22
+最終更新: 2026-10-27
 
 このファイルは、利用者が通常のターミナルから直接実行する `kelpie` / `kelpiemcp` CLI コマンドの正本です。
 コマンドラインオプションの詳細は [CLI_OPTIONS.md](../../CLI_OPTIONS.md) を参照してください。
@@ -10,6 +10,7 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 
 | 分類 | コマンド | 内容 |
 | :--- | :--- | :--- |
+| [隔離runtime情報](#runtime-info) | `kelpie runtime-info` | PHP/Nodeの隔離した版と組込み機能を取得します。 |
 | MCPサーバー制御 | `kelpiemcp start [--reload-config]`, `kelpiemcp stop`, `kelpiemcp status` | `KelpieMCPServer` の起動、停止、状態確認を行う。 |
 | MCPプロファイルの信頼管理 | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile> [--approve-privilege-expansion]`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | SSH profile の信頼 baseline 追加、更新、取り消し、確認を行う。 |
 | 人間用Web policy管理 | `kelpiemcp web-policy list`, `add`, `remove`, `apply`, `rollback` | 選択したVPSのmanaged Web helper policyをリモートで確認または対話的に変更する。 |
@@ -2454,3 +2455,11 @@ Run after review: kelpie pkg install vps01 nginx --confirm pkg_install:nginx
 ## nginxの特権helperコマンド
 
 リモートLinux helperには固定操作`nginx-plan 1`、`nginx-check 1`、`nginx-apply 1`、`nginx-status 1`、`nginx-commit 1`、`nginx-rollback 1`を追加しました。構造化入力は標準入力で渡し、ファイル内容をシェル引数に含めません。これらはプロバイダー内部の操作です。プロトコル、エラー、作用、導入は[nginx専用トランザクションhelper](NGINX_HELPER.ja.md)を参照してください。`kelpie`や`kelpiemcp`のサブコマンドは追加しません。この機能のためにPythonや汎用シェルへsudo権限を付与しないでください。
+
+## runtime-info
+
+### `kelpie runtime-info`
+
+構文は`kelpie runtime-info <profile> <php|node> [--refresh]`です。runtimeはphp/node完全一致。現在の固定ホスト鍵・非rootプロファイルと通常の読取権限を評価し、D1の信頼候補検査と環境初期化後に実行します。キャッシュせず、開始後の再試行・別runtime切替はしません。新設定や確認トークンは不要です。
+
+実行例: `kelpie runtime-info synthetic-profile php --refresh`。成功結果例は`{"protocol":1,"operation":"runtime.info","runtime":"php","status":"ok","startupMode":"isolated","version":"8.2.35","features":{"json":true,"sha256":true},"cached":false,"warnings":[]}`の各フィールドにホスト生成requestIdとcheckedAtを加えたものです。失敗時の観測値はnullです。CLIは成功0/その他1、MCPは同じ型付き状態を返します。[全入力・出力・状態・エラー・上限・安全条件](RUNTIME_INFO.ja.md)を参照してください。D3全条件は未完了です。

@@ -1,6 +1,6 @@
 # KelpieSSH MCP コマンド
 
-最終更新: 2026-10-22
+最終更新: 2026-10-27
 
 このファイルは、KelpieSSH が MCP callable tool として公開するコマンドの正本です。
 通常のターミナルで実行する `kelpie` / `kelpiemcp` CLI コマンドは `COMMANDS.ja.md` を正本とします。
@@ -47,6 +47,7 @@ HTTP request body は REST 形式ではなく JSON-RPC です。たとえば診�
 
 | 分類 | MCP tool | 内容 |
 | :--- | :--- | :--- |
+| [隔離runtime情報](#runtime-info) | `ssh_runtime_info` | PHP/Nodeの隔離した版と組込み機能を取得します。 |
 | サーバー疎通 | `kelpie_ping` | `KelpieMCPServer` の疎通確認。 |
 | profile 管理 | `profile_reload`, `ssh_profile_capabilities` | 保存済み SSH profiles の再読み込みと、接続中 terminal の profile 操作可否確認を行う。 |
 | ローカル診断 | `get_system_info`, `get_disk_usage`, `get_memory_usage`, `get_listening_ports` | `KelpieMCPServer` 実行ホストの診断。 |
@@ -5694,3 +5695,11 @@ targetNameは登録Profile名（大文字小文字を区別しない）または
 ### nginxトランザクションの結果
 
 `ServiceConfigFileWriteResult`、`ServiceConfigFileBackupActionResult`、`NginxPhpEnableResult`に`OutcomeKnown`（真偽値、初期値`true`）を追加しました。既存ツール名、入力、確認トークン、位置指定の結果項目は維持します。変更操作の応答が不明な場合、期限付きの状態照会を1回だけ行い、変更を再実行しません。作用を確定できなければ`OutcomeKnown=false`と空でない`Error`を返します。件数0や偽のフラグだけで未変更と判断せず、保存済みトランザクションを確認して復旧してください。書込可否確認は対象とバックアップを作成しません。単独書込は明示的な確定または復元まで専用の`.kelpiebakup`を保持します。旧形式や無関係のバックアップは競合として拒否します。状態遷移と復旧は[nginx専用トランザクションhelper](NGINX_HELPER.ja.md)を参照してください。
+
+## runtime-info
+
+### `ssh_runtime_info`
+
+入力は必須profileName/runtime、任意refresh=falseです。runtimeはphp/node完全一致。現在の固定ホスト鍵・非rootプロファイルと通常の読取権限を評価し、D1の信頼候補検査と環境初期化後に実行します。キャッシュせず、開始後の再試行・別runtime切替はしません。新設定や確認トークンは不要です。
+
+入力例: `{"profileName":"synthetic-profile","runtime":"php","refresh":false}`。成功結果例は`{"protocol":1,"operation":"runtime.info","runtime":"php","status":"ok","startupMode":"isolated","version":"8.2.35","features":{"json":true,"sha256":true},"cached":false,"warnings":[]}`の各フィールドにホスト生成requestIdとcheckedAtを加えたものです。失敗時の観測値はnullです。CLIは成功0/その他1、MCPは同じ型付き状態を返します。[全入力・出力・状態・エラー・上限・安全条件](RUNTIME_INFO.ja.md)を参照してください。D3全条件は未完了です。

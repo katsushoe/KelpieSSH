@@ -80,3 +80,5 @@ When updating `README.md`, update `README.ja.md` in the same change, and keep bo
 - [Japanese runtime startup contract](docs/ja/RUNTIME_DIAGNOSTIC_STARTUP.ja.md)
 - [ADR-0007: Bounded startup](docs/adr/ADR-0007-BOUNDED-RUNTIME-STARTUP.md)
 - [Japanese ADR-0007](docs/ja/ADR-0007-BOUNDED-RUNTIME-STARTUP.ja.md)
+
+- [Isolated runtime information](docs/RUNTIME_INFO.md)

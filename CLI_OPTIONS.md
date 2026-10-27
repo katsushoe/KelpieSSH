@@ -199,3 +199,7 @@ kelpie profile delete demo --no-backup
 ```
 
 Use `--no-backup` only when you are sure you do not need rollback for that operation.
+
+## runtime-info options
+
+`kelpie runtime-info <profile> <php|node> [--refresh]` accepts only its two required positional inputs and optional --refresh. No result/preparation cache is retained; the observation is fresh with or without the flag. Existing runtime-directory overrides remain available. See [the full contract](docs/RUNTIME_INFO.md).

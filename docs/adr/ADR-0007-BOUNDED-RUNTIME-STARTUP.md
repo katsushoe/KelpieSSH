@@ -42,3 +42,7 @@ See the [library contract](../RUNTIME_DIAGNOSTIC_STARTUP.md) and [Japanese decis
 - [SSH.NET SshCommand, tag 2026.0.0](https://github.com/sshnet/SSH.NET/blob/2026.0.0/src/Renci.SshNet/SshCommand.cs)
 - [SSH.NET PipeStream, tag 2026.0.0](https://github.com/sshnet/SSH.NET/blob/2026.0.0/src/Renci.SshNet/Common/PipeStream.cs)
 - [SSH.NET Shell, tag 2026.0.0](https://github.com/sshnet/SSH.NET/blob/2026.0.0/src/Renci.SshNet/Shell.cs)
+
+## D2 decision (2026-10-27)
+
+Expose one typed runtime.info operation through both CLI and MCP, backed by separate fixed PHP/Node catalog definitions and the D1 launcher. Require pinned non-root profiles, current policy evaluation, strict bounded JSON and request/runtime matching. Only built-in fs/crypto modules are permitted for Node. Do not retain preparation/result caches in D2: revalidate each request instead of introducing an identity-sensitive cache. refresh remains accepted and every result has cached=false. Alternatives: extending broad inventory would change its existing semantics; generic interpreter execution would violate the fixed-operation boundary. Both are rejected. See [the public contract](../RUNTIME_INFO.md). Unit, protocol-discovery and isolated runtime/SSH tests must precede delivery; D3 full acceptance remains separate.

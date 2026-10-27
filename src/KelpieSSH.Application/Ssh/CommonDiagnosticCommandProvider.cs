@@ -1755,6 +1755,8 @@ exit "$code"
 
     private static readonly AllowedCommandDefinition[] Commands =
     [
+        RuntimeDiagnosticStartup.CreateInfoDefinition("php"),
+        RuntimeDiagnosticStartup.CreateInfoDefinition("node"),
         new("get_system_info", "uname -a", TimeSpan.FromSeconds(10)),
         new("get_os_release", "cat /etc/os-release", TimeSpan.FromSeconds(10)),
         new("target_inventory", CreateEncodedShellCommand(TargetInventoryScript), TimeSpan.FromSeconds(120)),

@@ -55,6 +55,12 @@ if (string.Equals(command, "host-reboot", StringComparison.OrdinalIgnoreCase))
     return;
 }
 
+if (string.Equals(command, "runtime-info", StringComparison.OrdinalIgnoreCase))
+{
+    await RunRuntimeInfoAsync(args);
+    return;
+}
+
 if (string.Equals(command, "init", StringComparison.OrdinalIgnoreCase))
 {
     KpLog.Info("Kelpie CLI init requested.");
@@ -1089,6 +1095,7 @@ static void ShowUsage(string command = "")
     writer.WriteLine("  kelpie host-reboot request <profile> <operationId> <confirmation>");
     writer.WriteLine("  kelpie host-reboot inspect <profile> <operationId> [--wait]");
     writer.WriteLine("  kelpie inventory <profile>");
+    writer.WriteLine("  kelpie runtime-info <profile> <php|node> [--refresh]");
     writer.WriteLine("  kelpie services <profile> [state] [limit]");
     writer.WriteLine("  kelpie logs <profile> <service> [lines]");
     writer.WriteLine("  kelpie pkg check-updates <profile>");
@@ -3997,6 +4004,25 @@ static SshCommandService CreateSshCommandService(SshConnectionProfile profile)
     return new SshCommandService(
         CommandProcessingProviderCatalog.CreateDefault(),
         passwordProvider is null ? new SshNetCommandRunner() : new SshNetCommandRunner(passwordProvider));
+}
+
+static async Task RunRuntimeInfoAsync(string[] arguments)
+{
+    if (arguments.Length is < 3 or > 4 || (arguments.Length == 4 && arguments[3] != "--refresh"))
+    {
+        Console.Error.WriteLine("Usage: kelpie runtime-info <profile> <php|node> [--refresh]");
+        Environment.ExitCode = 1;
+        return;
+    }
+    if (!TryResolveProfile(LoadProfileCatalog(), arguments[1], out var profile))
+    {
+        Environment.ExitCode = 1;
+        return;
+    }
+    var result = await new RuntimeDiagnosticService(CreateSshCommandService(profile)).GetInfoAsync(
+        profile, arguments[2], arguments.Length == 4);
+    Console.WriteLine(JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
+    if (result.Status != "ok") Environment.ExitCode = 1;
 }
 
 static async Task RunHostRebootAsync(string[] arguments)

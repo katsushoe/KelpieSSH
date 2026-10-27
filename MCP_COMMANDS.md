@@ -1,6 +1,6 @@
 # KelpieSSH MCP Commands
 
-Last updated: 2026-10-22
+Last updated: 2026-10-27
 
 This file is the English command reference for MCP callable tools exposed by `KelpieMCPServer`.
 For Japanese documentation, see [docs/ja/MCP_COMMANDS.ja.md](docs/ja/MCP_COMMANDS.ja.md).
@@ -50,6 +50,7 @@ This document describes the `name` and `arguments` used inside `tools/call`. In 
 
 | Group | Tools | Purpose |
 | :--- | :--- | :--- |
+| [Isolated runtime information](#runtime-info) | `ssh_runtime_info` | Read isolated PHP/Node version and built-in features. |
 | [Server health](#server-health) | `kelpie_ping` | Verify that the MCP server is reachable. |
 | [Profile management](#profile-management) | `profile_reload`, `ssh_profile_capabilities` | Reload saved SSH profiles and inspect profile operation capabilities for an open SSH terminal connection. |
 | [Local diagnostics](#local-diagnostics) | `get_system_info`, `get_disk_usage`, `get_memory_usage`, `get_listening_ports` | Inspect the local host running `KelpieMCPServer`. |
@@ -7741,3 +7742,11 @@ All return `HostRebootOperation`; see [Normal Host Reboot](HOST_REBOOT.md) for c
 ### Nginx transaction outcomes
 
 `ServiceConfigFileWriteResult`, `ServiceConfigFileBackupActionResult`, and `NginxPhpEnableResult` add `OutcomeKnown` (boolean, initially `true`). Existing tool names, arguments, confirmation tokens and positional result fields are preserved. After an ambiguous mutation reply, Kelpie makes one bounded status query and does not repeat the mutation. If the final effect cannot be established, `OutcomeKnown=false` and `Error` is non-empty; do not treat zero counts or false flags as proof of no change. Inspect the preserved helper transaction before recovery. Check-write does not create a target or backup. Standalone writes retain the owned `.kelpiebakup` until explicit commit/rollback; old or unrelated backups cause a conflict. See [Nginx transaction helper](docs/NGINX_HELPER.md) for state transitions and recovery.
+
+## runtime-info
+
+### `ssh_runtime_info`
+
+Inputs: required profileName/runtime, optional refresh=false. runtime is exactly php or node. Resolve the current pinned non-root profile and normal read policy, then execute using the trusted isolated launcher. No cache, retry after dispatch, cross-runtime fallback, new setting or confirmation token is used.
+
+Example input: `{"profileName":"synthetic-profile","runtime":"php","refresh":false}`. A successful result has `{"protocol":1,"operation":"runtime.info","runtime":"php","status":"ok","startupMode":"isolated","version":"8.2.35","features":{"json":true,"sha256":true},"cached":false,"warnings":[]}` plus host-generated requestId and checkedAt fields. Failed observations are null. CLI exits 0 for success and 1 otherwise; MCP returns the same typed statuses. See [all input/output/state/error/limit and safety details](docs/RUNTIME_INFO.md). Full D3 acceptance is pending.

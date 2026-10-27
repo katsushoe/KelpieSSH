@@ -42,3 +42,7 @@ Applicationに上限契約と固定起動資産、Infrastructureに認証・直�
 - [SSH.NET SshCommand、2026.0.0](https://github.com/sshnet/SSH.NET/blob/2026.0.0/src/Renci.SshNet/SshCommand.cs)
 - [SSH.NET PipeStream、2026.0.0](https://github.com/sshnet/SSH.NET/blob/2026.0.0/src/Renci.SshNet/Common/PipeStream.cs)
 - [SSH.NET Shell、2026.0.0](https://github.com/sshnet/SSH.NET/blob/2026.0.0/src/Renci.SshNet/Shell.cs)
+
+## D2の採用判断（2026-10-27）
+
+D1起動処理とPHP/Node別の固定catalogを使い、型付きruntime.infoをCLI/MCPへ対称に公開します。固定ホスト鍵・非root・毎回の権限評価・上限付き厳格JSON・要求/runtime一致を必須とします。Nodeは固定の組込みfs/cryptoのみを読み込みます。D2では識別情報に依存する準備/結果キャッシュを導入せず、毎回再検証します。refreshは受け付け、cachedは常に偽です。広域inventoryの拡張は既存の意味を変更し、汎用interpreter公開は固定操作の境界に反するため採用しません。[公開契約](RUNTIME_INFO.ja.md)に対応し、単体・公開schema・隔離runtime/SSHの試験後に納品します。全条件のD3受入とは区別します。
