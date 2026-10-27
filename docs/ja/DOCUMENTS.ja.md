@@ -1,5 +1,5 @@
 # DOCUMENTS.ja.md Version
-2026.10.26
+2026.10.27
 
 英語版は [DOCUMENTS.md](../../DOCUMENTS.md) を参照してください。
 
@@ -69,3 +69,11 @@ Git管理する公開文書を追加・削除・改名・移動した場合は�
 - [英語版の契約](../NGINX_HELPER.md)
 - [ADR-0006: nginxトランザクション](ADR-0006-NGINX-HELPER-TRANSACTIONS.ja.md)
 - [英語版ADR-0006](../adr/ADR-0006-NGINX-HELPER-TRANSACTIONS.md)
+
+
+## 任意runtime起動の基盤
+
+- [起動基盤のライブラリ契約](RUNTIME_DIAGNOSTIC_STARTUP.ja.md)
+- [英語版の契約](../RUNTIME_DIAGNOSTIC_STARTUP.md)
+- [ADR-0007: 上限付き起動](ADR-0007-BOUNDED-RUNTIME-STARTUP.ja.md)
+- [英語版ADR-0007](../adr/ADR-0007-BOUNDED-RUNTIME-STARTUP.md)

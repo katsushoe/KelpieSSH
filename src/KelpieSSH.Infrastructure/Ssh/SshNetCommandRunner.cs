@@ -38,6 +38,13 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
     {
         ArgumentNullException.ThrowIfNull(request);
         request.Profile.Validate();
+        if (request.ExecutionLimits is { } limits)
+        {
+            limits.Validate();
+            if (request.BinaryStandardInput is not null) throw new ArgumentException("Bounded SSH requires text input.");
+            if (new UTF8Encoding(false, true).GetByteCount(BuildExecutionStandardInput(request) ?? "") > limits.StandardInputBytes)
+                throw new ArgumentException("Bounded SSH input exceeded its byte limit.");
+        }
 
         using var timeoutSource = new CancellationTokenSource(request.Timeout);
         using var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(
@@ -113,13 +120,20 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
     {
         cancellationToken.ThrowIfCancellationRequested();
 
+        var connectionTimeout = request.Profile.ConnectionTimeout;
+        if (request.ExecutionLimits is not null)
+        {
+            var remaining = request.Timeout - (DateTimeOffset.UtcNow - startedAt);
+            if (remaining <= TimeSpan.Zero) throw new OperationCanceledException(cancellationToken);
+            if (remaining < connectionTimeout) connectionTimeout = remaining;
+        }
         var connectionInfo = new ConnectionInfo(
             request.Profile.Host,
             request.Profile.Port,
             request.Profile.UserName,
             authenticationMethod)
         {
-            Timeout = request.Profile.ConnectionTimeout,
+            Timeout = connectionTimeout,
         };
 
         using var client = new SshClient(connectionInfo);
@@ -141,6 +155,10 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
 
         var commandText = BuildExecutionCommandText(request);
         var standardInput = BuildExecutionStandardInput(request);
+        if (request.ExecutionLimits is not null)
+        {
+            return BoundedSshExecution.Execute(client, request, commandText, standardInput, startedAt, cancellationToken);
+        }
         using var command = client.CreateCommand(commandText);
         command.CommandTimeout = request.Timeout;
         try
@@ -213,7 +231,7 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
 
     private static string BuildExecutionCommandText(SshCommandRequest request)
     {
-        if (request.EnvironmentOverrides is null || request.EnvironmentOverrides.Count == 0)
+        if (request.IgnoreEnvironmentOverrides || request.EnvironmentOverrides is null || request.EnvironmentOverrides.Count == 0)
         {
             return request.CommandText;
         }
@@ -241,7 +259,7 @@ public sealed class SshNetCommandRunner : ISshCommandRunner
 
     private static string? BuildExecutionStandardInput(SshCommandRequest request)
     {
-        if (request.EnvironmentOverrides is null || request.EnvironmentOverrides.Count == 0)
+        if (request.IgnoreEnvironmentOverrides || request.EnvironmentOverrides is null || request.EnvironmentOverrides.Count == 0)
         {
             return request.StandardInput;
         }

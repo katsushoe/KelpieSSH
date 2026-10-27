@@ -15,6 +15,11 @@ public sealed record AllowedCommandDefinition(
     IReadOnlyCollection<AllowedCommandParameterDefinition>? Parameters = null,
     SshCommandRiskLevel RiskLevel = SshCommandRiskLevel.ReadOnly)
 {
+    /// <summary>Optional byte-bounded transport selected by this fixed command definition.</summary>
+    public SshCommandExecutionLimits? ExecutionLimits { get; init; }
+    /// <summary>Omits profile environment overrides for a fixed isolated launcher.</summary>
+    public bool IgnoreEnvironmentOverrides { get; init; }
+
     private static readonly string[] DangerousFragments =
     [
         "&&",

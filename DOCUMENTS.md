@@ -1,5 +1,5 @@
 # DOCUMENTS.md Version
-2026.10.26
+2026.10.27
 
 For Japanese documentation, see [DOCUMENTS.ja.md](docs/ja/DOCUMENTS.ja.md).
 
@@ -72,3 +72,11 @@ When updating `README.md`, update `README.ja.md` in the same change, and keep bo
 - [Japanese helper contract](docs/ja/NGINX_HELPER.ja.md)
 - [ADR-0006: Nginx transactions](docs/adr/ADR-0006-NGINX-HELPER-TRANSACTIONS.md)
 - [Japanese ADR-0006](docs/ja/ADR-0006-NGINX-HELPER-TRANSACTIONS.ja.md)
+
+
+## Optional runtime startup infrastructure
+
+- [Runtime startup library contract](docs/RUNTIME_DIAGNOSTIC_STARTUP.md)
+- [Japanese runtime startup contract](docs/ja/RUNTIME_DIAGNOSTIC_STARTUP.ja.md)
+- [ADR-0007: Bounded startup](docs/adr/ADR-0007-BOUNDED-RUNTIME-STARTUP.md)
+- [Japanese ADR-0007](docs/ja/ADR-0007-BOUNDED-RUNTIME-STARTUP.ja.md)
