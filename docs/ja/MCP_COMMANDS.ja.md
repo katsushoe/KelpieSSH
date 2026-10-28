@@ -1,6 +1,6 @@
 # KelpieSSH MCP コマンド
 
-最終更新: 2026-10-27
+最終更新: 2026-10-28
 
 このファイルは、KelpieSSH が MCP callable tool として公開するコマンドの正本です。
 通常のターミナルで実行する `kelpie` / `kelpiemcp` CLI コマンドは `COMMANDS.ja.md` を正本とします。
@@ -3842,6 +3842,8 @@ provider が対応するサービス設定ファイルの候補パスを取得�
 
 ### `service_config_file_read`
 
+nginxでは上限付きのPython不要な固定読取を使用します。必要ツール、パス検査、切詰め、エラーは[nginx設定の読取](NGINX_CONFIG_READ.ja.md)を参照してください。
+
 目的:
 
 provider が許可したサービス設定ファイルを読み取ります。
@@ -3893,6 +3895,8 @@ provider が許可したサービス設定ファイルを読み取ります。
 - provider が許可した設定ファイルだけを読み取ります。
 
 ### `service_config_file_check_read`
+
+nginxでは上限付きのPython不要な固定読取で可否を確認します。必要ツール、パス検査、切詰め、エラーは[nginx設定の読取](NGINX_CONFIG_READ.ja.md)を参照してください。
 
 目的:
 

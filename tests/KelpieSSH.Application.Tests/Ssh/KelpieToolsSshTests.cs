@@ -4143,6 +4143,12 @@ public sealed class KelpieToolsSshTests
             _requests.Add(request);
             var output = request.CommandName.StartsWith("service_config_nginx_helper_", StringComparison.Ordinal) ? HelperReply(request) : (_outputs.Count > 0 ? _outputs.Dequeue() : new FakeSshCommandOutput("ok\n\u001b[31mERROR\u001b[0m", "warning"));
 
+            if (request.CommandName == "service_config_nginx_read_config" && output.ExitCode == 0)
+            {
+                var bytes = System.Text.Encoding.UTF8.GetBytes(output.StandardOutput);
+                var max = int.Parse(request.Arguments["maxBytes"], System.Globalization.CultureInfo.InvariantCulture);
+                output = output with { StandardOutput = Convert.ToBase64String(bytes, 0, Math.Min(bytes.Length, max + 1)) };
+            }
             return Task.FromResult(new SshCommandResult(
                 request.CommandName,
                 request.CommandText,

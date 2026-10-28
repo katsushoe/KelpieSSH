@@ -17,6 +17,8 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
     private const int MaxSinceMinutes = 1440;
     private const string NginxVersionCommandName = "service_config_nginx_version";
     private const string NginxReadConfigCommandName = "service_config_nginx_read_config";
+    private const string DiscoveryReadFailedWarning = "Nginx main configuration could not be read for include discovery.";
+    private const string DiscoveryUtilityUnavailableWarning = "Nginx configuration reader requires unavailable system utilities.";
     private const string NginxCanWriteConfigCommandName = "service_config_nginx_check_write_config";
     private const string NginxWriteConfigCommandName = "service_config_nginx_write_config";
     private const string NginxRollbackConfigCommandName = "service_config_nginx_rollback_config";
@@ -70,7 +72,8 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
         var includePatterns = Array.Empty<string>();
         if (!string.IsNullOrWhiteSpace(mainConfig) && IsSafeAbsoluteUnixPath(mainConfig))
         {
-            var configReadResult = await sshCommandService.ExecuteAsync(
+            var configReadResult = await NginxConfigReadWire.ExecuteAsync(
+                sshCommandService,
                 profile,
                 NginxReadConfigCommandName,
                 new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -91,7 +94,9 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
             }
             else
             {
-                warnings.Add("Nginx main configuration could not be read for include discovery.");
+                warnings.Add(DiscoveryReadFailedWarning);
+                if (string.Equals(configReadResult.StandardError.Trim(), "ERROR: required utility unavailable", StringComparison.Ordinal))
+                    warnings.Add(DiscoveryUtilityUnavailableWarning);
             }
         }
 
@@ -128,7 +133,11 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
             return CreateError(requestedPath, validationError, paths.Warnings);
         }
 
-        var result = await sshCommandService.ExecuteAsync(
+        if (DiscoveryReadFailedFor(requestedPath, paths))
+            return CreateError(requestedPath, DiscoveryFailureMessage(paths), paths.Warnings);
+
+        var result = await NginxConfigReadWire.ExecuteAsync(
+            sshCommandService,
             profile,
             NginxReadConfigCommandName,
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -193,7 +202,11 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
                 warnings: paths.Warnings);
         }
 
-        var result = await sshCommandService.ExecuteAsync(
+        if (DiscoveryReadFailedFor(requestedPath, paths))
+            return CreateAccessCheckResult(requestedPath, false, false, DiscoveryFailureMessage(paths), paths.Warnings);
+
+        var result = await NginxConfigReadWire.ExecuteAsync(
+            sshCommandService,
             profile,
             NginxReadConfigCommandName,
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -245,7 +258,11 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
             return CreateWriteError(requestedPath, access.Error, paths.Warnings);
         }
 
-        var readResult = await sshCommandService.ExecuteAsync(
+        if (DiscoveryReadFailedFor(requestedPath, paths))
+            return CreateWriteError(requestedPath, DiscoveryFailureMessage(paths), paths.Warnings);
+
+        var readResult = await NginxConfigReadWire.ExecuteAsync(
+            sshCommandService,
             profile,
             NginxReadConfigCommandName,
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -335,7 +352,11 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
                 confirmation);
         }
 
-        var readResult = await sshCommandService.ExecuteAsync(
+        if (DiscoveryReadFailedFor(requestedPath, paths))
+            return CreateAccessCheckResult(requestedPath, false, false, DiscoveryFailureMessage(paths), paths.Warnings, method, targetKey, confirmation);
+
+        var readResult = await NginxConfigReadWire.ExecuteAsync(
+            sshCommandService,
             profile,
             NginxReadConfigCommandName,
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -487,7 +508,8 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
             return CreatePhpEnableError(normalizedSiteKey, requestedPath, normalizedSocketPath, normalizedExtension, access.Error, paths.Warnings);
         }
 
-        var readResult = await sshCommandService.ExecuteAsync(
+        var readResult = await NginxConfigReadWire.ExecuteAsync(
+            sshCommandService,
             profile,
             NginxReadConfigCommandName,
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -799,6 +821,14 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
             ? null
             : "Nginx provider discovered an unsafe configuration path.";
     }
+
+    private static bool DiscoveryReadFailedFor(string path, ServiceConfigPathsResult paths) =>
+        string.Equals(path, paths.MainConfig, StringComparison.Ordinal) && paths.Warnings.Contains(DiscoveryReadFailedWarning, StringComparer.Ordinal);
+
+    private static string DiscoveryFailureMessage(ServiceConfigPathsResult paths) =>
+        paths.Warnings.Contains(DiscoveryUtilityUnavailableWarning, StringComparer.Ordinal)
+            ? DiscoveryUtilityUnavailableWarning
+            : "Nginx main configuration read failed during discovery.";
 
     private static bool IsSafeAbsoluteUnixPath(string path)
     {

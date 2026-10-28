@@ -20,7 +20,7 @@ GNU timeout stops the remote runtime group after five seconds. The outer request
 | :--- | :--- |
 | `AllowedCommandDefinition.ExecutionLimits` | Optional limits copied by SshCommandService after normal command/policy validation. Null keeps the previous transport. |
 | `SshCommandRequest.ExecutionLimits` | Selects direct bounded reception; text input only. |
-| `SshCommandExecutionLimits` | stdout 1..1048576 bytes; stderr 1..65536; input 0..65536. Startup probes use 16384/2048/4096. |
+| `SshCommandExecutionLimits` | stdout 1..2097152 bytes; stderr 1..65536; input 0..65536. Startup probes use 16384/2048/4096. |
 | `IgnoreEnvironmentOverrides` | The fixed definition opts out of stored/profile environment exports; the launcher also clears inherited runtime variables. |
 
 The bounded path uses non-PTY shell support and a random exit frame, without whole-output SshCommand buffering. Allocation is fixed to the output allowance plus 96 framing bytes and the separate stderr allowance. On overflow it returns no partial payload and throws a sanitized `SshCommandOutputLimitException`; invalid UTF-8 or incomplete framing also fails. The mode and channel rules are unchanged. Application callers must continue resolving current trusted profiles and using the normal policy pipeline.

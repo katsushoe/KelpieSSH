@@ -8,6 +8,45 @@ namespace KelpieSSH.Application.Tests.Ssh;
 public sealed class NginxConfigPathsProviderTests
 {
     [Fact]
+    public async Task DiscoveryMissingUtility_ShouldReportCauseWithoutRetry()
+    {
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput("", "configure arguments: --conf-path=/etc/nginx/nginx.conf"),
+            new FakeSshCommandOutput("", "ERROR: required utility unavailable\n", 2),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var result = await new NginxConfigPathsProvider().ReadConfigFileAsync(service, CreateProfile());
+        result.Error.Should().Contain("unavailable system utilities");
+        runner.Requests.Should().HaveCount(2);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DiscoveryReadFailure_ShouldNotRetryMainConfig(bool checkOnly)
+    {
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput("", "configure arguments: --conf-path=/etc/nginx/nginx.conf"),
+            new FakeSshCommandOutput("partial-secret", "ERROR: read failed", 1),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new NginxConfigPathsProvider();
+        if (checkOnly)
+        {
+            var result = await provider.CanReadConfigFileAsync(service, CreateProfile());
+            result.CanRead.Should().BeFalse();
+        }
+        else
+        {
+            var result = await provider.ReadConfigFileAsync(service, CreateProfile());
+            result.Error.Should().Contain("failed during discovery");
+            result.Content.Should().BeEmpty();
+        }
+        runner.Requests.Should().HaveCount(2);
+        runner.Requests.Count(r => r.CommandName == "service_config_nginx_read_config").Should().Be(1);
+    }
+
+    [Fact]
     public void ExtractConfPath_ShouldReadNginxVersionConfigureArgument()
     {
         const string output = "nginx version: nginx/1.24.0\nconfigure arguments: --prefix=/usr/share/nginx --conf-path=/etc/nginx/nginx.conf --with-http_ssl_module";
@@ -1052,6 +1091,12 @@ public sealed class NginxConfigPathsProviderTests
             _requests.Add(request);
             var output = request.CommandName.StartsWith("service_config_nginx_helper_", StringComparison.Ordinal)
                 ? HelperReply(request) : _outputs.Dequeue();
+            if (request.CommandName == "service_config_nginx_read_config" && output.ExitCode == 0)
+            {
+                var bytes = Encoding.UTF8.GetBytes(output.StandardOutput);
+                var max = int.Parse(request.Arguments["maxBytes"], System.Globalization.CultureInfo.InvariantCulture);
+                output = output with { StandardOutput = Convert.ToBase64String(bytes, 0, Math.Min(bytes.Length, max + 1)) };
+            }
             return Task.FromResult(new SshCommandResult(
                 request.CommandName,
                 request.CommandText,

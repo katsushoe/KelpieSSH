@@ -22,14 +22,14 @@ public sealed class NginxServiceConfigCommandProvider : IAllowedCommandProvider
             RiskLevel: SshCommandRiskLevel.ConfirmRequired),
         new(
             "service_config_nginx_read_config",
-            CreateEncodedPythonScriptCommand("import base64,os,sys; p=base64.b64decode(sys.argv[1]).decode('utf-8'); allowed=base64.b64decode(sys.argv[2]).decode('utf-8').splitlines(); dirs=base64.b64decode(sys.argv[3]).decode('utf-8').splitlines(); rp=os.path.realpath(p); parent=os.path.realpath(os.path.dirname(p)); allowed_real=list(map(os.path.realpath,[x for x in allowed if x])); dir_real=list(map(os.path.realpath,[x for x in dirs if x])); ok=(rp in allowed_real) or (parent in dir_real and os.path.dirname(rp)==parent); sys.exit('ERROR: path is not an allowed service config file') if not ok else None; sys.exit('ERROR: config path is not a regular file') if not os.path.isfile(rp) else None; maxb=int(sys.argv[4]); data=open(rp,'rb').read(maxb+1); sys.exit('ERROR: binary config file is not allowed') if b'\\x00' in data else None; text=data[:maxb].decode('utf-8'); sys.stderr.write('KELPIE_TRUNCATED=1\\n') if len(data) > maxb else None; sys.stdout.write(text)", "{pathBase64} {allowedPathsBase64} {allowedDirsBase64} {maxBytes}"),
+            NginxConfigReadWire.CommandTemplate(),
             TimeSpan.FromSeconds(10),
             [
                 new AllowedCommandParameterDefinition("pathBase64", MaxLength: 4096, Pattern: Base64PathPattern),
                 new AllowedCommandParameterDefinition("allowedPathsBase64", MaxLength: 4096, Pattern: Base64PathPattern),
                 new AllowedCommandParameterDefinition("allowedDirsBase64", MaxLength: 4096, Pattern: Base64PathPattern),
                 new AllowedCommandParameterDefinition("maxBytes", MaxLength: 6, Pattern: MaxBytesPattern),
-            ]),
+            ]) { ExecutionLimits = new SshCommandExecutionLimits(1333340, 2048, 0), IgnoreEnvironmentOverrides = true },
         new(
             "service_config_nginx_helper_plan",
             "sudo -n /usr/local/libexec/kelpie/kelpie-web-permission-helper nginx-plan 1",
@@ -85,12 +85,6 @@ public sealed class NginxServiceConfigCommandProvider : IAllowedCommandProvider
     {
         ArgumentNullException.ThrowIfNull(profile);
         return Commands;
-    }
-
-    private static string CreateEncodedPythonScriptCommand(string script, string arguments)
-    {
-        var encoded = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(script));
-        return CreateEncodedPythonStdinCommand(encoded, arguments);
     }
 
     private static string CreateEncodedPythonStdinCommand(string encodedScript, string arguments)

@@ -103,7 +103,7 @@ public sealed class BoundedSshExecutionTests
     [Theory]
     [InlineData(0, 1, 1)]
     [InlineData(1, 0, 1)]
-    [InlineData(1048577, 1, 1)]
+    [InlineData(2097153, 1, 1)]
     [InlineData(1, 65537, 1)]
     [InlineData(1, 1, -1)]
     public void Limits_ShouldRejectInvalidRanges(int output, int error, int input)

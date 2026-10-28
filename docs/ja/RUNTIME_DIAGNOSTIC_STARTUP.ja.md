@@ -20,7 +20,7 @@ GNU timeoutで5秒後にリモートruntimeグループを停止します。要�
 | :--- | :--- |
 | `AllowedCommandDefinition.ExecutionLimits` | 任意の上限で、通常のコマンド・権限評価後にSshCommandServiceが転送します。nullは従来経路です。 |
 | `SshCommandRequest.ExecutionLimits` | 直接受信で容量を制限する経路を選びます。文字列入力だけに対応します。 |
-| `SshCommandExecutionLimits` | stdoutは1〜1048576、stderrは1〜65536、入力は0〜65536バイト。起動検査は16384/2048/4096です。 |
+| `SshCommandExecutionLimits` | stdoutは1〜2097152、stderrは1〜65536、入力は0〜65536バイト。起動検査は16384/2048/4096です。 |
 | `IgnoreEnvironmentOverrides` | 固定定義が保存済み・プロファイルの環境exportを除外し、起動処理も継承変数を初期化します。 |
 
 非PTYシェルと無作為な終了フレームを使い、SshCommandによる全文蓄積を避けます。出力上限とフレーム用96バイト、独立したstderr上限の固定容量です。超過時は部分本文を返さず、安全なSshCommandOutputLimitExceptionを返します。不正UTF-8・未完了フレームも失敗です。モード・経路規則は変えず、呼出側は現在の信頼済みプロファイルを解決して通常の権限評価を通す必要があります。

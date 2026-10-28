@@ -6,7 +6,7 @@ public sealed record SshCommandExecutionLimits(int StandardOutputBytes, int Stan
     /// <summary>Validates the bounded transport contract.</summary>
     public void Validate()
     {
-        if (StandardOutputBytes is < 1 or > 1048576 || StandardErrorBytes is < 1 or > 65536
+        if (StandardOutputBytes is < 1 or > 2097152 || StandardErrorBytes is < 1 or > 65536
             || StandardInputBytes is < 0 or > 65536)
             throw new ArgumentOutOfRangeException(nameof(StandardOutputBytes), "SSH execution limits are outside the supported range.");
     }

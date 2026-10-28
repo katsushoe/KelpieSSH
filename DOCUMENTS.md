@@ -82,3 +82,8 @@ When updating `README.md`, update `README.ja.md` in the same change, and keep bo
 - [Japanese ADR-0007](docs/ja/ADR-0007-BOUNDED-RUNTIME-STARTUP.ja.md)
 
 - [Isolated runtime information](docs/RUNTIME_INFO.md)
+
+## Nginx configuration read
+
+- [Read contract](docs/NGINX_CONFIG_READ.md) and [design decision](docs/adr/ADR-0008-NGINX-CONFIG-READ.md).
+- [Japanese read contract](docs/ja/NGINX_CONFIG_READ.ja.md) and [Japanese design decision](docs/ja/ADR-0008-NGINX-CONFIG-READ.ja.md).

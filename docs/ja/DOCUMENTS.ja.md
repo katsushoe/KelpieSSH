@@ -79,3 +79,8 @@ Git管理する公開文書を追加・削除・改名・移動した場合は�
 - [英語版ADR-0007](../adr/ADR-0007-BOUNDED-RUNTIME-STARTUP.md)
 
 - [隔離runtime情報](RUNTIME_INFO.ja.md)
+
+## nginx設定の読取
+
+- [読取契約](NGINX_CONFIG_READ.ja.md)と[設計判断](ADR-0008-NGINX-CONFIG-READ.ja.md)。
+- [英語版の読取契約](../NGINX_CONFIG_READ.md)と[英語版の設計判断](../adr/ADR-0008-NGINX-CONFIG-READ.md)。

@@ -1,6 +1,6 @@
 # KelpieSSH MCP Commands
 
-Last updated: 2026-10-27
+Last updated: 2026-10-28
 
 This file is the English command reference for MCP callable tools exposed by `KelpieMCPServer`.
 For Japanese documentation, see [docs/ja/MCP_COMMANDS.ja.md](docs/ja/MCP_COMMANDS.ja.md).
@@ -5848,6 +5848,8 @@ Safety notes:
 
 #### `service_config_file_check_read`
 
+For nginx, this check uses a fixed Python-free bounded reader. See [Nginx configuration reading](docs/NGINX_CONFIG_READ.md) for required utilities, path checks, truncation and errors.
+
 Purpose:
 
 Checks whether one provider-approved configuration file can be read without returning its content.
@@ -5908,6 +5910,8 @@ Safety notes:
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
 #### `service_config_file_read`
+
+For nginx, this operation uses a fixed Python-free bounded reader. See [Nginx configuration reading](docs/NGINX_CONFIG_READ.md) for required utilities, path checks, truncation and errors.
 
 Purpose:
 
