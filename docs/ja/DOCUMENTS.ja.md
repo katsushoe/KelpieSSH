@@ -84,3 +84,8 @@ Git管理する公開文書を追加・削除・改名・移動した場合は�
 
 - [読取契約](NGINX_CONFIG_READ.ja.md)と[設計判断](ADR-0008-NGINX-CONFIG-READ.ja.md)。
 - [英語版の読取契約](../NGINX_CONFIG_READ.md)と[英語版の設計判断](../adr/ADR-0008-NGINX-CONFIG-READ.md)。
+
+## Webファイルのメタデータ
+
+- [メタデータ取得契約](WEB_FILE_STAT.ja.md)と[設計判断](ADR-0009-WEB-FILE-STAT.ja.md)。
+- [英語版の取得契約](../WEB_FILE_STAT.md)と[英語版の設計判断](../adr/ADR-0009-WEB-FILE-STAT.md)。

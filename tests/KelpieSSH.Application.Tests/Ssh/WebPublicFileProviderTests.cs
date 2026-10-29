@@ -595,7 +595,7 @@ public sealed class WebPublicFileProviderTests
         var profile = CreateProfile();
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: """{"resolvedPath":"/var/www/html/my_dir","exists":true,"type":"directory","size":128,"mode":"755","owner":"nginx","group":"nginx","lastModified":null,"isSymlink":false}""",
+                StandardOutput: """{"resolvedPath":"/var/www/html/my_dir","exists":true,"type":"directory","size":128,"mode":"755","owner":"nginx","group":"nginx","lastModified":"2026-06-15T00:00:00Z","isSymlink":false}""",
                 StandardError: string.Empty),
         ]);
         var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
@@ -628,7 +628,7 @@ public sealed class WebPublicFileProviderTests
         var profile = CreateProfile();
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: """{"resolvedPath":"/var/www/html/my_dir","exists":true,"type":"directory","size":128,"mode":"755","owner":"nginx","group":"nginx","lastModified":null,"isSymlink":false}""",
+                StandardOutput: """{"resolvedPath":"/var/www/html/my_dir","exists":true,"type":"directory","size":128,"mode":"755","owner":"nginx","group":"nginx","lastModified":"2026-06-15T00:00:00Z","isSymlink":false}""",
                 StandardError: string.Empty),
         ]);
         var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
@@ -1656,6 +1656,8 @@ public sealed class WebPublicFileProviderTests
             LastRequest = request;
             _requests.Add(request);
             var output = _outputs.Dequeue();
+            if (request.CommandName == "web_public_file_stat_internal" && output.ExitCode == 0)
+                output = output with { StandardOutput = WebStatFixture.Encode(output.StandardOutput) };
             return Task.FromResult(new SshCommandResult(
                 request.CommandName,
                 request.CommandText,

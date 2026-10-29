@@ -6650,6 +6650,8 @@ Purpose:
 
 Returns metadata for one provider-approved web public path on a configured SSH profile.
 
+The fixed reader uses system utilities without Python; see [metadata requirements and behavior](docs/WEB_FILE_STAT.md).
+
 Input arguments:
 
 - `profileName`: SSH profile name.

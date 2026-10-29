@@ -38,9 +38,9 @@
 
 | 実行ファイル | プロジェクト | バージョン | 主な責務 | 配置例 |
 | :--- | :--- | :--- | :--- | :--- |
-| `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.14.2` | VPS 操作 CLI。初期化、プロファイル確認、診断、ログ取得、対話ログインを担当します。 | `KelpieHome/bin/kelpie.exe` |
-| `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.3.12.6` | MCPサーバー制御と人間専用のリモートpolicy/helper管理CLI。 | `KelpieHome/bin/kelpiemcp.exe` |
-| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.17.2` | Streamable HTTP MCP サーバー本体。Codex などの MCP クライアントへ SSH 診断ツールを公開します。 | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
+| `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.14.3` | VPS 操作 CLI。初期化、プロファイル確認、診断、ログ取得、対話ログインを担当します。 | `KelpieHome/bin/kelpie.exe` |
+| `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.3.12.7` | MCPサーバー制御と人間専用のリモートpolicy/helper管理CLI。 | `KelpieHome/bin/kelpiemcp.exe` |
+| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.17.3` | Streamable HTTP MCP サーバー本体。Codex などの MCP クライアントへ SSH 診断ツールを公開します。 | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
 | `kelpie-web-permission-helper` | `src/KelpieWebPermissionHelper/KelpieWebPermissionHelper.csproj` | `0.2.4.0` | SSH先に配置するsudo helper。Web公開ルートの操作とmanaged policy管理を行います。 | `/usr/local/libexec/kelpie/kelpie-web-permission-helper` |
 
 ## `kelpie`
@@ -131,7 +131,7 @@
 | :--- | :--- | :--- | :--- | :---: | :--- |
 | `Akatsukisoft.Kelpie.Core` | `src/Kelpie.Core/Kelpie.Core.csproj` | `0.3.1-alpha` | Apache-2.0 | yes | Kelpie 共通ランタイム、設定解決、サーバー制御オプションなどを提供します。 |
 | `Akatsukisoft.KelpieSSH.Domain` | `src/KelpieSSH.Domain/KelpieSSH.Domain.csproj` | `0.1.1-alpha` | Apache-2.0 | yes | SSH 実行結果、値オブジェクト、ドメイン表現を提供します。 |
-| `Akatsukisoft.KelpieSSH.Application` | `src/KelpieSSH.Application/KelpieSSH.Application.csproj` | `0.3.10.2-alpha` | Apache-2.0 | yes | ユースケース、ポリシー、コマンド許可ロジック、SSH 抽象を提供します。 |
+| `Akatsukisoft.KelpieSSH.Application` | `src/KelpieSSH.Application/KelpieSSH.Application.csproj` | `0.3.10.3-alpha` | Apache-2.0 | yes | ユースケース、ポリシー、コマンド許可ロジック、SSH 抽象を提供します。 |
 | `Akatsukisoft.KelpieSSH.Infrastructure` | `src/KelpieSSH.Infrastructure/KelpieSSH.Infrastructure.csproj` | `0.1.3.0-alpha` | Apache-2.0 | yes | SSH.NET を使った SSH 接続、コマンド実行、ShellStream 連携などのインフラ実装を提供します。 |
 
 ## `Akatsukisoft.Kelpie.Core`

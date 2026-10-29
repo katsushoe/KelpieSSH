@@ -362,6 +362,10 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 $"Web public file stat failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}");
         }
 
+        result = WebFileStatWire.Decode(result);
+        if (result.ExitCode != 0)
+            return CreateStatError(site, normalizedPath, "Web public file stat returned invalid metadata.");
+
         var remote = JsonSerializer.Deserialize<RemoteStatResult>(result.StandardOutput, JsonOptions)
             ?? throw new InvalidOperationException("Web public file stat returned empty JSON.");
 

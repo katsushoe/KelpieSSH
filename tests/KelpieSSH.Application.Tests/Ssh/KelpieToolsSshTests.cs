@@ -2565,7 +2565,7 @@ public sealed class KelpieToolsSshTests
         var profile = CreateProfile("vps01");
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: """{"resolvedPath":"/var/www/html/my_dir","exists":true,"type":"directory","size":128,"mode":"755","owner":"nginx","group":"nginx","lastModified":null,"isSymlink":false}""",
+                StandardOutput: """{"resolvedPath":"/var/www/html/my_dir","exists":true,"type":"directory","size":128,"mode":"755","owner":"nginx","group":"nginx","lastModified":"2026-06-15T00:00:00Z","isSymlink":false}""",
                 StandardError: string.Empty),
         ]);
         var service = CreateProviderBackedService(runner);
@@ -4149,6 +4149,8 @@ public sealed class KelpieToolsSshTests
                 var max = int.Parse(request.Arguments["maxBytes"], System.Globalization.CultureInfo.InvariantCulture);
                 output = output with { StandardOutput = Convert.ToBase64String(bytes, 0, Math.Min(bytes.Length, max + 1)) };
             }
+            if (request.CommandName == "web_public_file_stat_internal" && output.ExitCode == 0)
+                output = output with { StandardOutput = WebStatFixture.Encode(output.StandardOutput) };
             return Task.FromResult(new SshCommandResult(
                 request.CommandName,
                 request.CommandText,
