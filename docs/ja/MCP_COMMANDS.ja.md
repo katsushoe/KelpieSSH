@@ -4973,6 +4973,8 @@ secret reference の存在、secret file name、`AllowedFiles` の明示的な�
 
 ### `web_file_read`
 
+全体読取はPythonを使わずGNU互換コマンドを使用します。[読取の前提と動作](WEB_FILE_READ.ja.md)を参照してください。
+
 目的:
 
 指定 `siteKey` の Web 公開ルート配下から、provider が許可した1ファイルを読み取ります。

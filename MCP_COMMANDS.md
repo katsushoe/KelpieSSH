@@ -6986,6 +6986,8 @@ Safety notes:
 
 #### `web_file_read`
 
+The full-file reader uses compatible GNU utilities without Python; see [read requirements and behavior](docs/WEB_FILE_READ.md).
+
 Purpose:
 
 Reads one provider-approved web file on a configured SSH profile.

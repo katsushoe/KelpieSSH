@@ -92,3 +92,8 @@ When updating `README.md`, update `README.ja.md` in the same change, and keep bo
 
 - [Metadata contract](docs/WEB_FILE_STAT.md) and [design decision](docs/adr/ADR-0009-WEB-FILE-STAT.md).
 - [Japanese metadata contract](docs/ja/WEB_FILE_STAT.ja.md) and [Japanese design decision](docs/ja/ADR-0009-WEB-FILE-STAT.ja.md).
+
+## Web file reads
+
+- [Read contract](docs/WEB_FILE_READ.md) and [design decision](docs/adr/ADR-0010-WEB-FILE-READ.md).
+- [Japanese read contract](docs/ja/WEB_FILE_READ.ja.md) and [Japanese decision](docs/ja/ADR-0010-WEB-FILE-READ.ja.md).

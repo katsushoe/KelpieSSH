@@ -896,6 +896,10 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 $"Web public file read failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}");
         }
 
+        result = WebFileReadWire.Decode(result, site.MaxReadBytes);
+        if (result.ExitCode != 0)
+            return CreateReadError(site, normalizedPath, $"Web public file read failed. {CreateSafeErrorDetail(result.StandardError)}");
+
         var remote = JsonSerializer.Deserialize<RemoteReadResult>(result.StandardOutput, JsonOptions)
             ?? throw new InvalidOperationException("Web public file read returned empty JSON.");
 

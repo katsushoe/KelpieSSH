@@ -78,15 +78,7 @@ printf '\n'
                 var uid = ulong.Parse(values[2], NumberStyles.None, CultureInfo.InvariantCulture);
                 var gid = ulong.Parse(values[3], NumberStyles.None, CultureInfo.InvariantCulture);
                 if (mode is < 0 or > 65535 || uid > uint.MaxValue || gid > uint.MaxValue || string.IsNullOrEmpty(values[4]) || string.IsNullOrEmpty(values[5])) throw new FormatException();
-                var seconds = long.Parse(values[6], CultureInfo.InvariantCulture);
-                var fractionStart = values[7].IndexOf('.');
-                if (fractionStart < 0 || values[7].Length < fractionStart + 10) throw new FormatException();
-                var nanos = int.Parse(values[7].Substring(fractionStart + 1, 9), NumberStyles.None, CultureInfo.InvariantCulture);
-                var timestamp = seconds + nanos / 1e9;
-                var whole = Math.Floor(timestamp);
-                var micros = (long)Math.Round((timestamp - whole) * 1e6, MidpointRounding.ToEven);
-                var modified = DateTimeOffset.FromUnixTimeSeconds((long)whole).AddTicks(micros * 10);
-                var time = modified.ToString(modified.Ticks % TimeSpan.TicksPerSecond == 0 ? "yyyy-MM-dd'T'HH:mm:ss'Z'" : "yyyy-MM-dd'T'HH:mm:ss.ffffff'Z'", CultureInfo.InvariantCulture);
+                var time = DecodeTimestamp(values[6], values[7]);
                 var type = (mode & 0xf000) switch { 0xa000 => "symlink", 0x4000 => "directory", 0x8000 => "file", _ => "other" };
                 response = new { resolvedPath = path, exists = true, type, size,
                     mode = Convert.ToString(mode & 0xfff, 8).PadLeft(3, '0'),
@@ -100,6 +92,19 @@ printf '\n'
         {
             return result with { ExitCode = 1, StandardOutput = "", StandardError = "ERROR: invalid web stat response" };
         }
+    }
+
+    internal static string DecodeTimestamp(string secondsValue, string dateValue)
+    {
+        var seconds = long.Parse(secondsValue, CultureInfo.InvariantCulture);
+        var fractionStart = dateValue.IndexOf('.');
+        if (fractionStart < 0 || dateValue.Length < fractionStart + 10) throw new FormatException();
+        var nanos = int.Parse(dateValue.Substring(fractionStart + 1, 9), NumberStyles.None, CultureInfo.InvariantCulture);
+        var timestamp = seconds + nanos / 1e9;
+        var whole = Math.Floor(timestamp);
+        var micros = (long)Math.Round((timestamp - whole) * 1e6, MidpointRounding.ToEven);
+        var modified = DateTimeOffset.FromUnixTimeSeconds((long)whole).AddTicks(micros * 10);
+        return modified.ToString(modified.Ticks % TimeSpan.TicksPerSecond == 0 ? "yyyy-MM-dd'T'HH:mm:ss'Z'" : "yyyy-MM-dd'T'HH:mm:ss.ffffff'Z'", CultureInfo.InvariantCulture);
     }
 
     private static string Text(string value)
