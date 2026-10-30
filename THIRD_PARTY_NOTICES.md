@@ -1,5 +1,5 @@
 # THIRD_PARTY_NOTICES.md Version
-2026.10.25
+2026.10.31
 
 # KelpieSSH Third-Party Notices
 
@@ -61,7 +61,7 @@ Test-only packages such as `xunit`, `FluentAssertions`, `coverlet.collector`, an
 | `Moyai.ProviderAuthentication` | `1.0.2` | MIT | not declared | not declared |
 | `SQLitePCLRaw.bundle_e_sqlite3` | `2.1.6` | Apache-2.0 | not declared | Copyright 2014-2023 SourceGear, LLC |
 | `SQLitePCLRaw.core` | `2.1.6` | Apache-2.0 | not declared | Copyright 2014-2023 SourceGear, LLC |
-| `SQLitePCLRaw.lib.e_sqlite3` | `2.1.6` | Apache-2.0 | not declared | Copyright 2014-2023 SourceGear, LLC |
+| `SQLitePCLRaw.lib.e_sqlite3` | `3.53.3` | Public domain (LICENSE.txt) | https://sqlite.org/ | Copyright 2014-2026 SourceGear, LLC |
 | `SQLitePCLRaw.provider.e_sqlite3` | `2.1.6` | Apache-2.0 | not declared | Copyright 2014-2023 SourceGear, LLC |
 | `SSH.NET` | `2026.0.0` | MIT | not declared | Copyright © Renci 2010-2026 |
 | `System.Diagnostics.DiagnosticSource` | `10.0.8` | MIT | https://dot.net/ | © Microsoft Corporation. All rights reserved. |

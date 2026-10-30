@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="Moyai.ProviderAuthentication" Version="1.0.2" />
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.8" />
     <PackageReference Include="ModelContextProtocol" Version="1.3.0" />
@@ -26,10 +27,10 @@
     <Company>Akatsukisoft</Company>
     <Copyright>Copyright (c) 2026 Akatsukisoft</Copyright>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-    <Version>0.3.17.6</Version>
-    <AssemblyVersion>0.3.17.6</AssemblyVersion>
-    <FileVersion>0.3.17.6</FileVersion>
-    <InformationalVersion>0.3.17.6</InformationalVersion>
+    <Version>0.3.17.7</Version>
+    <AssemblyVersion>0.3.17.7</AssemblyVersion>
+    <FileVersion>0.3.17.7</FileVersion>
+    <InformationalVersion>0.3.17.7</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <OutputType>Exe</OutputType>
     <RootNamespace>KelpieMCPServer</RootNamespace>

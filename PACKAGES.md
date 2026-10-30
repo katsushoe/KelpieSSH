@@ -34,7 +34,7 @@ For Japanese documentation, see [docs/ja/PACKAGES.ja.md](docs/ja/PACKAGES.ja.md)
 | :--- | :--- | :--- | :--- | :--- |
 | `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.14.6` | VPS operation CLI. | `KelpieHome/bin/kelpie.exe` |
 | `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.3.12.10` | MCP server control and human-only remote policy/helper administration CLI. | `KelpieHome/bin/kelpiemcp.exe` |
-| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.17.6` | Streamable HTTP MCP server. | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
+| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.17.7` | Streamable HTTP MCP server. | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
 | `kelpie-web-permission-helper` | `src/KelpieWebPermissionHelper/KelpieWebPermissionHelper.csproj` | `0.2.4.0` | Optional Linux-side helper for web permission and managed policy operations. | `/usr/local/libexec/kelpie/kelpie-web-permission-helper` |
 
 For the Alpha release, the Windows zip is the primary binary distribution. It includes `Install-Kelpie.ps1` for per-user automatic installation and `PATH` registration. MSI may be attached when available and may be unsigned. Internal NuGet packages are separate from the Alpha end-user binary distribution.
@@ -105,3 +105,9 @@ dotnet test
 - Re-run build and tests after package updates.
 - Re-check third-party notices and license risk after runtime package changes.
 - Do not add local or private package feeds with secrets to public documentation.
+
+## Dependency security baselines (2026-10-31)
+
+KelpieMCPServer directly references SQLitePCLRaw.lib.e_sqlite3 3.53.3 to override the older native SQLite brought by Moyai.ProviderAuthentication. Microsoft.Data.Sqlite and the managed SQLitePCLRaw libraries remain unchanged. The native package version denotes the SQLite engine version, not a managed API major upgrade. Its bundled LICENSE.txt declares SQLite public domain.
+
+Both test projects directly reference System.Net.Http 4.3.4 and System.Text.RegularExpressions 4.3.1 to replace older transitive dependencies from xunit. These references are test-only. Re-audit with NuGetAudit=true, NuGetAuditMode=all and NuGetAuditLevel=low; no warning suppression is added. Validate the loaded native engine version, authentication replay rejection, durable journal and native asset packaging before deployment.

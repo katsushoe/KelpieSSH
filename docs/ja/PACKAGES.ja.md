@@ -40,7 +40,7 @@
 | :--- | :--- | :--- | :--- | :--- |
 | `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.14.6` | VPS 操作 CLI。初期化、プロファイル確認、診断、ログ取得、対話ログインを担当します。 | `KelpieHome/bin/kelpie.exe` |
 | `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.3.12.10` | MCPサーバー制御と人間専用のリモートpolicy/helper管理CLI。 | `KelpieHome/bin/kelpiemcp.exe` |
-| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.17.6` | Streamable HTTP MCP サーバー本体。Codex などの MCP クライアントへ SSH 診断ツールを公開します。 | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
+| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.17.7` | Streamable HTTP MCP サーバー本体。Codex などの MCP クライアントへ SSH 診断ツールを公開します。 | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
 | `kelpie-web-permission-helper` | `src/KelpieWebPermissionHelper/KelpieWebPermissionHelper.csproj` | `0.2.4.0` | SSH先に配置するsudo helper。Web公開ルートの操作とmanaged policy管理を行います。 | `/usr/local/libexec/kelpie/kelpie-web-permission-helper` |
 
 ## `kelpie`
@@ -312,3 +312,9 @@ dotnet pack src\KelpieSSH.Infrastructure\KelpieSSH.Infrastructure.csproj -c Rele
 # Lifecycle認証の追加依存
 
 `KelpieMCPServer`はES256 v2検証、Trust Bundle読み込み、永続Replay防止のため、.NET 8対応の`Moyai.ProviderAuthentication` 1.0.2を参照します。Providerから配布されたパッケージを取得し、提示されたSHA-256を検証してから復元してください。パッケージのディレクトリを追加NuGetソースとして指定します（`dotnet restore --source <package-directory> --source <existing-feed>`）。ソースの複製や別リポジトリへのProjectReferenceは使用しません。nuget.orgで取得できることは前提としていません。
+
+## 依存関係のセキュリティ基準（2026-10-31）
+
+KelpieMCPServerはSQLitePCLRaw.lib.e_sqlite3 3.53.3を直接参照し、Moyai.ProviderAuthentication経由の古いネイティブSQLiteを上書きします。Microsoft.Data.SqliteとSQLitePCLRawの管理ライブラリは維持します。ネイティブパッケージの版はSQLiteの版を表し、管理APIのメジャー移行を意味しません。ライセンスはパッケージ内LICENSE.txtにあるパブリックドメイン表記です。
+
+両テストプロジェクトはSystem.Net.Http 4.3.4とSystem.Text.RegularExpressions 4.3.1を直接参照し、xunit経由の古い推移的依存を置き換えます。これらはテスト専用です。NuGetAudit=true、NuGetAuditMode=all、NuGetAuditLevel=lowで再監査し、警告の抑制は追加しません。実際にロードしたSQLiteの版・認証の再送拒否・永続journal・ネイティブ資産の配置を検証してから反映します。
