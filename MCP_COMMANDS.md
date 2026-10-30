@@ -7049,6 +7049,8 @@ Safety notes:
 
 #### `web_file_head`
 
+The fixed byte reader and host line selection do not require Python; see [slice behavior and requirements](docs/WEB_FILE_SLICE.md).
+
 Purpose:
 
 Reads the beginning of one provider-approved web file with bounded bytes and lines.
@@ -7113,6 +7115,8 @@ Safety notes:
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
 #### `web_file_tail`
+
+The fixed byte reader and host line selection do not require Python; see [slice behavior and requirements](docs/WEB_FILE_SLICE.md).
 
 Purpose:
 

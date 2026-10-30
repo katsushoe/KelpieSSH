@@ -10,4 +10,4 @@ The response carries exact content bytes as canonical base64, including empty co
 
 The existing general SSH reception path is retained; this change does not add a separate streaming byte cap to it. The fixed utility program bounds its read and encoded output using the configured maximum, and the host checks the resulting payload length. A hostile remote program is not covered by that utility-level bound.
 
-This contract covers full-file reads. Head/tail, directory listing, hashing and write operations retain their existing implementations. See [ADR-0010](adr/ADR-0010-WEB-FILE-READ.md).
+This contract covers full-file reads. [Head/tail](WEB_FILE_SLICE.md) use a separate fixed byte reader and host line selection. Directory listing, hashing and write operations retain their existing implementations. See [ADR-0010](adr/ADR-0010-WEB-FILE-READ.md).

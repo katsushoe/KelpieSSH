@@ -94,3 +94,8 @@ Git管理する公開文書を追加・削除・改名・移動した場合は�
 
 - [読取契約](WEB_FILE_READ.ja.md)と[設計判断](ADR-0010-WEB-FILE-READ.ja.md)。
 - [英語版契約](../WEB_FILE_READ.md)と[英語版判断](../adr/ADR-0010-WEB-FILE-READ.md)。
+
+## Web部分読取
+
+- [先頭末尾の契約](WEB_FILE_SLICE.ja.md)と[設計判断](ADR-0011-WEB-FILE-SLICE.ja.md)。
+- [英語版契約](../WEB_FILE_SLICE.md)と[英語版判断](../adr/ADR-0011-WEB-FILE-SLICE.md)。

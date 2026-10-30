@@ -32,9 +32,9 @@ For Japanese documentation, see [docs/ja/PACKAGES.ja.md](docs/ja/PACKAGES.ja.md)
 
 | Unit | Project | Version | Purpose | Placement |
 | :--- | :--- | :--- | :--- | :--- |
-| `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.14.4` | VPS operation CLI. | `KelpieHome/bin/kelpie.exe` |
-| `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.3.12.8` | MCP server control and human-only remote policy/helper administration CLI. | `KelpieHome/bin/kelpiemcp.exe` |
-| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.17.4` | Streamable HTTP MCP server. | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
+| `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.14.5` | VPS operation CLI. | `KelpieHome/bin/kelpie.exe` |
+| `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.3.12.9` | MCP server control and human-only remote policy/helper administration CLI. | `KelpieHome/bin/kelpiemcp.exe` |
+| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.17.5` | Streamable HTTP MCP server. | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
 | `kelpie-web-permission-helper` | `src/KelpieWebPermissionHelper/KelpieWebPermissionHelper.csproj` | `0.2.4.0` | Optional Linux-side helper for web permission and managed policy operations. | `/usr/local/libexec/kelpie/kelpie-web-permission-helper` |
 
 For the Alpha release, the Windows zip is the primary binary distribution. It includes `Install-Kelpie.ps1` for per-user automatic installation and `PATH` registration. MSI may be attached when available and may be unsigned. Internal NuGet packages are separate from the Alpha end-user binary distribution.
@@ -52,7 +52,7 @@ KelpieSSH libraries are packable where appropriate.
 | :--- | :--- | :--- | :--- |
 | `Akatsukisoft.Kelpie.Core` | `Kelpie.Core` | `0.3.1-alpha` | Common runtime support. |
 | `Akatsukisoft.KelpieSSH.Domain` | `KelpieSSH.Domain` | `0.1.1-alpha` | Domain models and value objects. |
-| `Akatsukisoft.KelpieSSH.Application` | `KelpieSSH.Application` | `0.3.10.4-alpha` | SSH application services and policy models. |
+| `Akatsukisoft.KelpieSSH.Application` | `KelpieSSH.Application` | `0.3.10.5-alpha` | SSH application services and policy models. |
 | `Akatsukisoft.KelpieSSH.Infrastructure` | `KelpieSSH.Infrastructure` | `0.1.3.0-alpha` | SSH.NET infrastructure implementation. |
 
 ## Direct Runtime Dependencies

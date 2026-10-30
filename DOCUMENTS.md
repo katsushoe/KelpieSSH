@@ -97,3 +97,8 @@ When updating `README.md`, update `README.ja.md` in the same change, and keep bo
 
 - [Read contract](docs/WEB_FILE_READ.md) and [design decision](docs/adr/ADR-0010-WEB-FILE-READ.md).
 - [Japanese read contract](docs/ja/WEB_FILE_READ.ja.md) and [Japanese decision](docs/ja/ADR-0010-WEB-FILE-READ.ja.md).
+
+## Web file slices
+
+- [Head/tail contract](docs/WEB_FILE_SLICE.md) and [design decision](docs/adr/ADR-0011-WEB-FILE-SLICE.md).
+- [Japanese contract](docs/ja/WEB_FILE_SLICE.ja.md) and [Japanese decision](docs/ja/ADR-0011-WEB-FILE-SLICE.ja.md).

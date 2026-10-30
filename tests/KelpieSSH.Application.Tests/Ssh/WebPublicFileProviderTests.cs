@@ -1658,7 +1658,7 @@ public sealed class WebPublicFileProviderTests
             var output = _outputs.Dequeue();
             if (request.CommandName == "web_public_file_stat_internal" && output.ExitCode == 0)
                 output = output with { StandardOutput = WebStatFixture.Encode(output.StandardOutput) };
-            if (request.CommandName == "web_public_file_read_internal" && output.ExitCode == 0)
+            if (request.CommandName is "web_public_file_read_internal" or "web_public_file_slice_internal" && output.ExitCode == 0)
                 output = output with { StandardOutput = WebReadFixture.Encode(output.StandardOutput) };
             return Task.FromResult(new SshCommandResult(
                 request.CommandName,

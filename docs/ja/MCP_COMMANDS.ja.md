@@ -5029,6 +5029,8 @@ secret reference の存在、secret file name、`AllowedFiles` の明示的な�
 
 ### `web_file_head`
 
+固定バイト読取とホスト側の行選択ではPythonを必要としません。[部分読取の動作と前提](WEB_FILE_SLICE.ja.md)を参照してください。
+
 目的:
 
 指定 `siteKey` の Web 公開ルート配下から、provider が許可した1ファイルの先頭部分だけを読み取ります。
@@ -5071,6 +5073,8 @@ Web 公開ルート外へ出ないこと、読み取り許可、content type 許
 - `maxBytes` は site の `MaxReadBytes` も超えません。
 
 ### `web_file_tail`
+
+固定バイト読取とホスト側の行選択ではPythonを必要としません。[部分読取の動作と前提](WEB_FILE_SLICE.ja.md)を参照してください。
 
 目的:
 

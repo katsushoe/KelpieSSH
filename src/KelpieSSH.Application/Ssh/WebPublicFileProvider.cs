@@ -997,7 +997,8 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
         }
 
         var boundedMaxBytes = Math.Min(maxBytes, site.MaxReadBytes);
-        var result = await sshCommandService.ExecuteAsync(
+        var result = await WebFileSliceWire.ExecuteAsync(
+            sshCommandService,
             profile,
             SliceCommandName,
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -1008,7 +1009,6 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 ["maxBytes"] = boundedMaxBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["maxLines"] = maxLines.ToString(System.Globalization.CultureInfo.InvariantCulture),
             },
-            channel: KelpieExecutionChannel.Mcp,
             cancellationToken: cancellationToken);
 
         if (result.ExitCode != 0)
