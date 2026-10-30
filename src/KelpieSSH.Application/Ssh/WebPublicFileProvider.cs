@@ -110,7 +110,8 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             return CreateListError(site, normalizedPath, "Limit must be between 1 and 500.");
         }
 
-        var result = await sshCommandService.ExecuteAsync(
+        var result = await WebFileListWire.ExecuteAsync(
+            sshCommandService,
             profile,
             ListCommandName,
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -120,7 +121,6 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 ["maxDepth"] = maxDepth.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["limit"] = limit.ToString(System.Globalization.CultureInfo.InvariantCulture),
             },
-            channel: KelpieExecutionChannel.Mcp,
             cancellationToken: cancellationToken);
 
         if (result.ExitCode != 0)

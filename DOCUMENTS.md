@@ -102,3 +102,8 @@ When updating `README.md`, update `README.ja.md` in the same change, and keep bo
 
 - [Head/tail contract](docs/WEB_FILE_SLICE.md) and [design decision](docs/adr/ADR-0011-WEB-FILE-SLICE.md).
 - [Japanese contract](docs/ja/WEB_FILE_SLICE.ja.md) and [Japanese decision](docs/ja/ADR-0011-WEB-FILE-SLICE.ja.md).
+
+## Web directory listing
+
+- [Listing contract](docs/WEB_FILE_LIST.md) and [design decision](docs/adr/ADR-0012-WEB-FILE-LIST.md).
+- [Japanese contract](docs/ja/WEB_FILE_LIST.ja.md) and [Japanese decision](docs/ja/ADR-0012-WEB-FILE-LIST.ja.md).

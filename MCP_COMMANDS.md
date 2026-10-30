@@ -7762,3 +7762,7 @@ All return `HostRebootOperation`; see [Normal Host Reboot](HOST_REBOOT.md) for c
 Inputs: required profileName/runtime, optional refresh=false. runtime is exactly php or node. Resolve the current pinned non-root profile and normal read policy, then execute using the trusted isolated launcher. No cache, retry after dispatch, cross-runtime fallback, new setting or confirmation token is used.
 
 Example input: `{"profileName":"synthetic-profile","runtime":"php","refresh":false}`. A successful result has `{"protocol":1,"operation":"runtime.info","runtime":"php","status":"ok","startupMode":"isolated","version":"8.2.35","features":{"json":true,"sha256":true},"cached":false,"warnings":[]}` plus host-generated requestId and checkedAt fields. Failed observations are null. CLI exits 0 for success and 1 otherwise; MCP returns the same typed statuses. See [all input/output/state/error/limit and safety details](docs/RUNTIME_INFO.md). D3 acceptance passed all 24 requirements using PHP 8 and Node 22/24, audited SSH fixtures and unit boundaries; actual AI desktop clients are outside this acceptance.
+
+## Web listing backend
+
+Directory listing, name search and text search use the [listing traversal contract](docs/WEB_FILE_LIST.md). Public tool identifiers and arguments remain unchanged; refer to each tool entry above for its exact callable name. The backend migration passed acceptance under [ADR-0012](docs/adr/ADR-0012-WEB-FILE-LIST.md).
