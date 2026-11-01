@@ -968,7 +968,7 @@ public sealed class NginxConfigPathsProviderTests
         var profile = CreateProfile();
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: "127.0.0.1 - - [14/Jun/2026:10:00:00 +0000] \"GET / HTTP/1.1\" 200 12\n",
+                StandardOutput: NginxLogWireTests.Envelope("127.0.0.1 - - [14/Jun/2026:10:00:00 +0000] \"GET / HTTP/1.1\" 200 12\n", "2026-06-14T10:01:00Z"),
                 StandardError: string.Empty),
         ]);
         var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
@@ -1012,8 +1012,8 @@ public sealed class NginxConfigPathsProviderTests
         var profile = CreateProfile();
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: "ok\n",
-                StandardError: "KELPIE_TRUNCATED=1\nKELPIE_SINCE_FILTER_PARTIAL=1\n"),
+                StandardOutput: NginxLogWireTests.Envelope("ok\n", "2026-06-14T10:01:00Z", size: 262145),
+                StandardError: string.Empty),
         ]);
         var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
         var provider = new NginxConfigPathsProvider();

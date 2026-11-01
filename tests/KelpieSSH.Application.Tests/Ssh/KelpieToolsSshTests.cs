@@ -1634,7 +1634,7 @@ public sealed class KelpieToolsSshTests
         var profile = CreateProfile("vps01");
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: "127.0.0.1 - - [14/Jun/2026:10:00:00 +0000] \"GET / HTTP/1.1\" 200 12\n",
+                StandardOutput: NginxLogWireTests.Envelope("127.0.0.1 - - [14/Jun/2026:10:00:00 +0000] \"GET / HTTP/1.1\" 200 12\n", "2026-06-14T10:01:00Z"),
                 StandardError: string.Empty),
         ]);
         var service = CreateProviderBackedService(runner);

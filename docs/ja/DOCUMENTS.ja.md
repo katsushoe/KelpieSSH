@@ -104,3 +104,7 @@ Git管理する公開文書を追加・削除・改名・移動した場合は�
 
 - [一覧取得の契約](WEB_FILE_LIST.ja.md)・[設計判断](ADR-0012-WEB-FILE-LIST.ja.md)。
 - [英語版契約](../WEB_FILE_LIST.md)・[英語版設計判断](../adr/ADR-0012-WEB-FILE-LIST.md)。
+
+## nginxログ読取
+
+- [ログ読取契約](NGINX_LOG_READ.ja.md)と[実行境界の判断](ADR-0013-NGINX-LOG-READ.ja.md)。

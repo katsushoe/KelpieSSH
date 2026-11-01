@@ -107,3 +107,8 @@ When updating `README.md`, update `README.ja.md` in the same change, and keep bo
 
 - [Listing contract](docs/WEB_FILE_LIST.md) and [design decision](docs/adr/ADR-0012-WEB-FILE-LIST.md).
 - [Japanese contract](docs/ja/WEB_FILE_LIST.ja.md) and [Japanese decision](docs/ja/ADR-0012-WEB-FILE-LIST.ja.md).
+
+## Nginx log reads
+
+- [Log read contract](docs/NGINX_LOG_READ.md) and [execution decision](docs/adr/ADR-0013-NGINX-LOG-READ.md).
+- [Japanese contract](docs/ja/NGINX_LOG_READ.ja.md) and [Japanese decision](docs/ja/ADR-0013-NGINX-LOG-READ.ja.md).

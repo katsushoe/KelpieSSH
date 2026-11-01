@@ -705,7 +705,8 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
         var safeSinceMinutes = sinceMinutes.HasValue
             ? Math.Clamp(sinceMinutes.Value, 0, MaxSinceMinutes)
             : 0;
-        var result = await sshCommandService.ExecuteAsync(
+        var result = await NginxLogWire.ExecuteAsync(
+            sshCommandService,
             profile,
             NginxReadLogCommandName,
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -716,7 +717,6 @@ public sealed partial class NginxConfigPathsProvider : IServiceConfigPathsProvid
                 ["lines"] = safeLines.ToString(CultureInfo.InvariantCulture),
                 ["sinceMinutes"] = safeSinceMinutes.ToString(CultureInfo.InvariantCulture),
             },
-            channel: KelpieExecutionChannel.Mcp,
             cancellationToken: cancellationToken);
 
         if (result.ExitCode != 0)

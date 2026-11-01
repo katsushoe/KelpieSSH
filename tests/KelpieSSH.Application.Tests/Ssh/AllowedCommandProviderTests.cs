@@ -113,7 +113,7 @@ public sealed class AllowedCommandProviderTests
     }
 
     [Fact]
-    public void NginxServiceConfigCommandProvider_ShouldUseExistingTimezoneRegexGroupInLogScript()
+    public void NginxServiceConfigCommandProvider_ShouldBoundPythonFreeLogTransport()
     {
         var provider = new NginxServiceConfigCommandProvider();
         var profile = CreateProfile("debian", "apt");
@@ -129,9 +129,12 @@ public sealed class AllowedCommandProviderTests
         });
         var script = DecodeEmbeddedShellScript(commandText);
 
-        script.Should().Contain("tz = m.group(7)");
-        script.Should().NotContain("tz = m.group(8)");
-        commandText.Should().NotContain("python3 -c");
+        script.Should().Contain("KELPIE_LOG_1");
+        script.Should().Contain("131072");
+        commandText.Should().NotContain("python");
+        command.ExecutionLimits!.StandardOutputBytes.Should().Be(600000);
+        command.ExecutionLimits.StandardInputBytes.Should().Be(65536);
+        command.IgnoreEnvironmentOverrides.Should().BeFalse();
         commandText.Should().NotContain("python3 - --");
     }
 

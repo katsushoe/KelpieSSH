@@ -7766,3 +7766,7 @@ Example input: `{"profileName":"synthetic-profile","runtime":"php","refresh":fal
 ## Web listing backend
 
 Directory listing, name search and text search use the [listing traversal contract](docs/WEB_FILE_LIST.md). Public tool identifiers and arguments remain unchanged; refer to each tool entry above for its exact callable name. The backend migration passed acceptance under [ADR-0012](docs/adr/ADR-0012-WEB-FILE-LIST.md).
+
+## Nginx log backend compatibility
+
+The Python-free bounded backend for service_logfile_read preserves remote clock/timezone interpretation and applies the row limit before time filtering. See the [log read contract](docs/NGINX_LOG_READ.md) for utility requirements, supported timezone evidence, error conditions and acceptance state. Public input and response fields remain unchanged.
