@@ -312,3 +312,7 @@ The optional profile root `HostReboot` object contains `Paths={}` (explicit remo
 ### Nginx transaction helper policy
 
 Nginx configuration mutations require helper 0.2.4.0 or later and protocol 1 on Linux x64. Configure the independent root-owned `/etc/kelpie/nginx-config-helper-policy.json` and a private root-owned transaction directory. The SSH profile cannot extend this policy. The sample `config_samples/nginx-config-helper-policy.json` denies all callers and targets until configured. See [Nginx transaction helper](docs/NGINX_HELPER.md) for every key, ownership, permissions, limits, recovery states and fixed sudo rules. The existing web permission policy remains a separate contract.
+
+## Void Linux package provider
+
+The existing eight package operations support Platform.OsFamily=void or voidlinux and PackageManager=xbps (default when omitted). Public inputs/outputs and confirmation remain unchanged. Read/dry-run operations use cached indexes without refresh. See [the contract](docs/VOID_XBPS.md) and [sample](config_samples/servers/void.json); runit service lifecycle remains unsupported.

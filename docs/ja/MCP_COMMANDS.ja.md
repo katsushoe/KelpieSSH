@@ -5727,3 +5727,7 @@ service_logfile_readのPython不要・上限付き処理は、接続先時計/�
 ## Web書込検査の処理
 
 通常/秘密ファイルの書込検査は[事前見込みの契約](WEB_WRITE_CHECK.ja.md)に従います。公開tool入力と応答項目は維持します。受入状態と[設計判断](ADR-0014-WEB-WRITE-CHECK.ja.md)を確認してください。canWriteは後続の原子的書込の成功保証ではありません。
+
+## Void Linuxパッケージprovider
+
+既存8操作がPlatform.OsFamily=void/voidlinuxとPackageManager=xbps（省略時の既定）へ対応します。公開入力/応答/確認は維持し、読取/dry-runは索引更新を行いません。[契約](VOID_XBPS.ja.md)と[設定例](../../config_samples/servers/void.json)を参照してください。runitサービス操作は未対応です。

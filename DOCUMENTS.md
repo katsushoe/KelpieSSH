@@ -117,3 +117,8 @@ When updating `README.md`, update `README.ja.md` in the same change, and keep bo
 
 - [Advisory write-check contract](docs/WEB_WRITE_CHECK.md) and [design decision](docs/adr/ADR-0014-WEB-WRITE-CHECK.md).
 - [Japanese contract](docs/ja/WEB_WRITE_CHECK.ja.md) and [Japanese decision](docs/ja/ADR-0014-WEB-WRITE-CHECK.ja.md).
+
+## Void package provider
+
+- [Void XBPS contract](docs/VOID_XBPS.md), [Japanese contract](docs/ja/VOID_XBPS.ja.md), [ADR-0015](docs/adr/ADR-0015-VOID-XBPS.md), [Japanese decision](docs/ja/ADR-0015-VOID-XBPS.ja.md).
+- [Japanese provider inventory](docs/ja/PROVIDERS.ja.md).

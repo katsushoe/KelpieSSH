@@ -307,3 +307,7 @@ Deployment記録にはパス、ハッシュ、トランザクション情報を�
 ### nginx専用トランザクションhelperのポリシー
 
 nginx設定変更には、Linux x64上のhelper 0.2.4.0以降とプロトコル1が必要です。独立したroot所有の`/etc/kelpie/nginx-config-helper-policy.json`と、root専用のトランザクション保存先を設定します。SSHプロファイルからこの許可範囲は拡張できません。`config_samples/nginx-config-helper-policy.json`は初期状態で呼出元と対象をすべて拒否します。各設定キー、所有者、権限、上限、復旧状態、固定sudo規則は[nginx専用トランザクションhelper](NGINX_HELPER.ja.md)を参照してください。既存のウェブ権限ポリシーとは別の契約です。
+
+## Void Linuxパッケージprovider
+
+既存8操作がPlatform.OsFamily=void/voidlinuxとPackageManager=xbps（省略時の既定）へ対応します。公開入力/応答/確認は維持し、読取/dry-runは索引更新を行いません。[契約](VOID_XBPS.ja.md)と[設定例](../../config_samples/servers/void.json)を参照してください。runitサービス操作は未対応です。

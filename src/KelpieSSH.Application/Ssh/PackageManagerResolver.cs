@@ -31,6 +31,7 @@ public static class PackageManagerResolver
             "debian" => "apt",
             "rhel" => "dnf",
             "suse" => "zypper",
+            "void" => "xbps",
             _ => throw new InvalidOperationException($"SSH package manager is not configured and cannot be inferred from OS family: {osFamily}"),
         };
     }

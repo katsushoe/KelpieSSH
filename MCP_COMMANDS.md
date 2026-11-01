@@ -7774,3 +7774,7 @@ The Python-free bounded backend for service_logfile_read preserves remote clock/
 ## Web write-check backend
 
 Public and secret write checks use the [advisory write-check contract](docs/WEB_WRITE_CHECK.md). Public tool inputs and response fields are unchanged. See its acceptance state and [ADR-0014](docs/adr/ADR-0014-WEB-WRITE-CHECK.md); canWrite does not guarantee a later atomic write succeeds.
+
+## Void Linux package provider
+
+The existing eight package operations support Platform.OsFamily=void or voidlinux and PackageManager=xbps (default when omitted). Public inputs/outputs and confirmation remain unchanged. Read/dry-run operations use cached indexes without refresh. See [the contract](docs/VOID_XBPS.md) and [sample](config_samples/servers/void.json); runit service lifecycle remains unsupported.

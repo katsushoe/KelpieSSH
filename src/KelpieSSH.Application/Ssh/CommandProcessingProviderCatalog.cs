@@ -23,6 +23,7 @@ public static class CommandProcessingProviderCatalog
             new RhelDnfCommandProvider(),
             new RhelNginxCommandProvider(),
             new SuseZypperCommandProvider(),
+            new VoidXbpsCommandProvider(),
         ];
     }
 }
