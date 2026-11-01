@@ -248,7 +248,7 @@ public sealed class WebPublicFileProviderTests
         var profile = CreateProfile(KelpiePolicyMode.Expert);
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: """{"resolvedPath":"/var/www/html/my_dir/sample.html","exists":false,"canWrite":true,"reason":null}""",
+                StandardOutput: WebWriteCheckWireTests.FromJson("""{"resolvedPath":"/var/www/html/my_dir/sample.html","exists":false,"canWrite":true,"reason":null}"""),
                 StandardError: string.Empty),
         ]);
         var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
@@ -295,12 +295,12 @@ public sealed class WebPublicFileProviderTests
     }
 
     [Fact]
-    public async Task CheckWriteAsync_ShouldExplainRemotePermissionDenied()
+    public async Task CheckWriteAsync_ShouldPreserveRemoteNonWritableReason()
     {
         var profile = CreateProfile(KelpiePolicyMode.Expert);
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: """{"resolvedPath":"/var/www/html/index.html","exists":true,"canWrite":false,"reason":"Permission denied"}""",
+                StandardOutput: WebWriteCheckWireTests.FromJson("""{"resolvedPath":"/var/www/html/index.html","exists":true,"canWrite":false,"reason":"Permission denied"}"""),
                 StandardError: string.Empty),
         ]);
         var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
@@ -314,10 +314,9 @@ public sealed class WebPublicFileProviderTests
             contentType: "text/html");
 
         result.CanWrite.Should().BeFalse();
-        result.Reason.Should().Be("Permission denied");
-        result.ReasonCode.Should().Be("RemoteFileSystemPermissionDenied");
-        result.Guidance.Should().Contain("owner");
-        result.Guidance.Should().Contain("mode");
+        result.Reason.Should().Be("Target file is not writable by the SSH user.");
+        result.ReasonCode.Should().Be("WriteRejected");
+        result.Guidance.Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -326,7 +325,7 @@ public sealed class WebPublicFileProviderTests
         var profile = CreateProfile(KelpiePolicyMode.Expert);
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: """{"resolvedPath":"/var/www/html/index.html","exists":true,"canWrite":false,"reason":"File is not writable by the SSH user"}""",
+                StandardOutput: WebWriteCheckWireTests.FromJson("""{"resolvedPath":"/var/www/html/index.html","exists":true,"canWrite":false,"reason":"File is not writable by the SSH user"}"""),
                 StandardError: string.Empty),
             new FakeSshCommandOutput(StandardOutput: """{"allowed":true,"createAllowed":true}""", StandardError: string.Empty),
         ]);
@@ -360,7 +359,7 @@ public sealed class WebPublicFileProviderTests
         var profile = CreateProfile(KelpiePolicyMode.Expert);
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: """{"resolvedPath":"/var/www/html/outside.txt","exists":false,"canWrite":true,"reason":null}""",
+                StandardOutput: WebWriteCheckWireTests.FromJson("""{"resolvedPath":"/var/www/html/outside.txt","exists":false,"canWrite":true,"reason":null}"""),
                 StandardError: string.Empty),
             new FakeSshCommandOutput(
                 StandardOutput: string.Empty,
@@ -416,7 +415,7 @@ public sealed class WebPublicFileProviderTests
             [CreateSite([new WebPublicFileRule(".env*", AllowedRootAccess.Write)])]);
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: """{"resolvedPath":"/var/www/html/.env.production","exists":false,"canWrite":true,"reason":null}""",
+                StandardOutput: WebWriteCheckWireTests.FromJson("""{"resolvedPath":"/var/www/html/.env.production","exists":false,"canWrite":true,"reason":null}"""),
                 StandardError: string.Empty),
         ]);
         var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);

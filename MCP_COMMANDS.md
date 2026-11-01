@@ -7770,3 +7770,7 @@ Directory listing, name search and text search use the [listing traversal contra
 ## Nginx log backend compatibility
 
 The Python-free bounded backend for service_logfile_read preserves remote clock/timezone interpretation and applies the row limit before time filtering. See the [log read contract](docs/NGINX_LOG_READ.md) for utility requirements, supported timezone evidence, error conditions and acceptance state. Public input and response fields remain unchanged.
+
+## Web write-check backend
+
+Public and secret write checks use the [advisory write-check contract](docs/WEB_WRITE_CHECK.md). Public tool inputs and response fields are unchanged. See its acceptance state and [ADR-0014](docs/adr/ADR-0014-WEB-WRITE-CHECK.md); canWrite does not guarantee a later atomic write succeeds.

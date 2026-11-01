@@ -1937,7 +1937,7 @@ public sealed class KelpieToolsSshTests
         var profile = CreateProfile("vps01", KelpiePolicyMode.Expert);
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: """{"resolvedPath":"/var/www/html/my_dir/sample.html","exists":false,"canWrite":true,"reason":null}""",
+                StandardOutput: WebWriteCheckWireTests.FromJson("""{"resolvedPath":"/var/www/html/my_dir/sample.html","exists":false,"canWrite":true,"reason":null}"""),
                 StandardError: string.Empty),
         ]);
         var service = CreateProviderBackedService(runner);
@@ -2335,7 +2335,7 @@ public sealed class KelpieToolsSshTests
             webPublicSites: [CreateSite([new WebPublicFileRule(".env*", AllowedRootAccess.Write)])]);
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: """{"resolvedPath":"/var/www/html/.env","exists":false,"canWrite":true,"reason":null}""",
+                StandardOutput: WebWriteCheckWireTests.FromJson("""{"resolvedPath":"/var/www/html/.env","exists":false,"canWrite":true,"reason":null}"""),
                 StandardError: string.Empty),
         ]);
         var service = CreateProviderBackedService(runner);
@@ -2369,7 +2369,7 @@ public sealed class KelpieToolsSshTests
             webPublicSites: [CreateSite([new WebPublicFileRule(".env*", AllowedRootAccess.Write)])]);
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: """{"resolvedPath":"/var/www/html/.env","exists":false,"canWrite":true,"reason":null}""",
+                StandardOutput: WebWriteCheckWireTests.FromJson("""{"resolvedPath":"/var/www/html/.env","exists":false,"canWrite":true,"reason":null}"""),
                 StandardError: string.Empty),
         ]);
         var service = CreateProviderBackedService(runner);

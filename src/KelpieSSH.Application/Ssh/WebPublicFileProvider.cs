@@ -599,7 +599,8 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 $"Content type is not writable: {resolvedContentType}");
         }
 
-        var result = await sshCommandService.ExecuteAsync(
+        var result = await WebWriteCheckWire.ExecuteAsync(
+            sshCommandService,
             profile,
             CheckWriteCommandName,
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -608,7 +609,6 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 ["pathBase64"] = EncodeArgument(normalizedPath),
                 ["createDirectories"] = site.CreateDirectories ? "1" : "0",
             },
-            channel: KelpieExecutionChannel.Mcp,
             cancellationToken: cancellationToken);
 
         if (result.ExitCode != 0)
@@ -733,7 +733,8 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 permissionRequest);
         }
 
-        var result = await sshCommandService.ExecuteAsync(
+        var result = await WebWriteCheckWire.ExecuteAsync(
+            sshCommandService,
             profile,
             CheckWriteCommandName,
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -742,7 +743,6 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 ["pathBase64"] = EncodeArgument(normalizedPath),
                 ["createDirectories"] = site.CreateDirectories ? "1" : "0",
             },
-            channel: KelpieExecutionChannel.Mcp,
             cancellationToken: cancellationToken);
 
         if (result.ExitCode != 0)

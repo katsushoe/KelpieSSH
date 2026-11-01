@@ -112,3 +112,8 @@ When updating `README.md`, update `README.ja.md` in the same change, and keep bo
 
 - [Log read contract](docs/NGINX_LOG_READ.md) and [execution decision](docs/adr/ADR-0013-NGINX-LOG-READ.md).
 - [Japanese contract](docs/ja/NGINX_LOG_READ.ja.md) and [Japanese decision](docs/ja/ADR-0013-NGINX-LOG-READ.ja.md).
+
+## Web write checks
+
+- [Advisory write-check contract](docs/WEB_WRITE_CHECK.md) and [design decision](docs/adr/ADR-0014-WEB-WRITE-CHECK.md).
+- [Japanese contract](docs/ja/WEB_WRITE_CHECK.ja.md) and [Japanese decision](docs/ja/ADR-0014-WEB-WRITE-CHECK.ja.md).
