@@ -44,7 +44,7 @@ With `-NoPath`, invoke the executables by their full path or add that installati
 
 ### MSI package
 
-If the release provides an MSI, run that release's installer. The current WiX definition installs per user under `%LOCALAPPDATA%\Programs\KelpieSSH` and registers its `bin` directory in the user `PATH`. Use Windows Installed apps to manage that MSI installation. Installing an MSI does not make the commands available to other Windows accounts.
+MSI is the standard Windows binary deliverable; run the selected release's installer after checking its published hash and signing information. ZIP is supplemental. The current WiX definition installs per user under `%LOCALAPPDATA%\Programs\KelpieSSH` and registers its `bin` directory in the user `PATH`. Use Windows Installed apps to manage that MSI installation. Installing an MSI does not make the commands available to other Windows accounts.
 
 ## Confirm Command Resolution
 

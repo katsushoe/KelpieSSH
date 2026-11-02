@@ -86,6 +86,8 @@ Copy-Item -LiteralPath (Join-Path $repoRoot "scripts\Install-Kelpie.ps1") -Desti
 $documentFiles = @(
     "README.md",
     "README.ja.md",
+    "CONTRIBUTING.md",
+    "PROVIDERS.md",
     "CLI_OPTIONS.md",
     "COMMANDS.md",
     "CONFIG.md",

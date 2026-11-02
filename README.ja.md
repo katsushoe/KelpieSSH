@@ -35,15 +35,15 @@ config_samples/
 
 ## はじめに
 
-KelpieSSH の使い方に合わせて導入方法を選んでください。Alpha リリースでは Windows ZIP を主なバイナリ配布物とします。MSI はリリースに添付される場合がありますが、任意であり、未署名の場合があります。
+KelpieSSHの使い方に合わせて導入方法を選んでください。Windows x64 MSIを標準バイナリ成果物、ZIPを補助配布物とします。[OSS公開範囲と配布方針](docs/ja/OSS_SCOPE.ja.md)を参照してください。
 
 ### Alpha バイナリ利用者
 
 #### 1. リリースバイナリをダウンロードする
 
-Alpha リリースでは、GitHub Releases から `KelpieSSH-x.x.x.x-win-x64.zip` をダウンロードし、下の ZIP 配布版の手順に従ってください。
+選んだGitHub Releaseに添付されたWindows x64 MSIを使い、導入手順に従ってください。補助配布の`KelpieSSH-x.x.x.x-win-x64.zip`を選ぶ場合は、下のZIP手順に従います。
 
-同じリリースに MSI が添付されている場合は、MSI を使うこともできます。Alpha MSI は未署名の場合があるため、Windows が不明な発行元または SmartScreen 警告を表示することがあります。
+実際に配布される成果物、SHA-256、署名状態、既知制限はリリースノートで確認してください。この手順は公開済みリリースの存在を保証しません。
 
 インストール後、または `PATH` 設定後に、新しいターミナルを開いてください。
 
@@ -483,6 +483,9 @@ Kelpie は、非対話 profile 作成、dry-run preview、runtime directory over
 Dry-run、Silent モード、runtime directory override、即コミット profile 操作に関するオプションは [CLI_OPTIONS.md](CLI_OPTIONS.md) を参照してください。
 
 ## コントリビューション
+
+貢献の手順・開発前提・レビュー方針は[貢献手順](docs/ja/CONTRIBUTING.ja.md)で定めています。
+
 
 コントリビューションを歓迎します。ドキュメント更新、誤字修正、テスト、範囲の小さい不具合修正などは、pull request として送ってください。
 

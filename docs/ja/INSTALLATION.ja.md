@@ -44,7 +44,7 @@ powershell -ExecutionPolicy Bypass -File .\Install-Kelpie.ps1 -InstallDirectory 
 
 ### MSIパッケージ
 
-リリースにMSIがある場合は、そのリリースのインストーラーを実行します。現在のWiX定義は、`%LOCALAPPDATA%\Programs\KelpieSSH`へユーザー単位で配置し、`bin`をユーザーの`PATH`へ登録します。MSI版はWindowsの「インストールされているアプリ」で管理します。MSIを導入しても、ほかのWindowsアカウントからコマンドを呼び出せるようにはなりません。
+MSIをWindows標準バイナリ成果物とします。選んだリリースの公開ハッシュと署名情報を確認し、そのインストーラーを実行します。ZIPは補助配布です。現在のWiX定義は、`%LOCALAPPDATA%\Programs\KelpieSSH`へユーザー単位で配置し、`bin`をユーザーの`PATH`へ登録します。MSI版はWindowsの「インストールされているアプリ」で管理します。MSIを導入しても、ほかのWindowsアカウントからコマンドを呼び出せるようにはなりません。
 
 ## コマンドの解決先を確認する
 

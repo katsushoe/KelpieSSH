@@ -35,15 +35,15 @@ The public samples use placeholder values. For validation, copy a sample profile
 
 ## Getting Started
 
-Choose the setup path that matches how you want to use KelpieSSH. For the Alpha release, the Windows zip is the primary binary distribution. An MSI may be attached to a release when it is available, but it is optional and may be unsigned.
+Choose the setup path that matches how you want to use KelpieSSH. Windows x64 MSI is the standard binary deliverable; ZIP is supplemental. See [OSS scope and distribution policy](docs/OSS_SCOPE.md) for release boundaries.
 
 ### Alpha binary users
 
 #### 1. Downloading a release binary
 
-For the Alpha release, download `KelpieSSH-x.x.x.x-win-x64.zip` from GitHub Releases and follow the zip setup steps below.
+Use the Windows x64 MSI attached to the selected GitHub Release and follow the installation guide. If you choose the supplemental `KelpieSSH-x.x.x.x-win-x64.zip`, follow the ZIP setup steps below.
 
-If an MSI is attached to the same release, you may use it instead. The Alpha MSI can be unsigned, so Windows may show an unknown publisher or SmartScreen warning.
+Check the release notes for actual artifact availability, SHA-256 hashes, signing status and known limits. This guide does not claim a release has been published.
 
 After installation or `PATH` setup, open a new terminal.
 
@@ -485,6 +485,9 @@ Kelpie supports command-line options for non-interactive profile creation, dry-r
 For options related to dry-run previews, silent mode, runtime directory overrides, and immediate-commit profile operations, see [CLI_OPTIONS.md](CLI_OPTIONS.md).
 
 ## Contributing
+
+Contribution workflow, development prerequisites and review expectations are defined in [CONTRIBUTING.md](CONTRIBUTING.md).
+
 
 Contributions are welcome. For small fixes such as documentation updates, typo fixes, tests, and narrow bug fixes, feel free to open a pull request.
 

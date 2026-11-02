@@ -116,3 +116,8 @@ Git管理する公開文書を追加・削除・改名・移動した場合は�
 ## Voidパッケージprovider
 
 - [XBPS契約](VOID_XBPS.ja.md)・[設計判断](ADR-0015-VOID-XBPS.ja.md)・[provider一覧](PROVIDERS.ja.md)。
+
+## OSS公開範囲と貢献
+
+- [公開範囲と配布方針](OSS_SCOPE.ja.md)・[英語版](../OSS_SCOPE.md)。
+- [貢献手順](CONTRIBUTING.ja.md)・[英語版](../../CONTRIBUTING.md)。

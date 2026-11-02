@@ -1,5 +1,5 @@
 # DOCUMENTS.md Version
-2026.10.27
+2026.11.02
 
 For Japanese documentation, see [DOCUMENTS.ja.md](docs/ja/DOCUMENTS.ja.md).
 
@@ -122,3 +122,8 @@ When updating `README.md`, update `README.ja.md` in the same change, and keep bo
 
 - [Void XBPS contract](docs/VOID_XBPS.md), [Japanese contract](docs/ja/VOID_XBPS.ja.md), [ADR-0015](docs/adr/ADR-0015-VOID-XBPS.md), [Japanese decision](docs/ja/ADR-0015-VOID-XBPS.ja.md).
 - [Japanese provider inventory](docs/ja/PROVIDERS.ja.md).
+
+## OSS scope and contributions
+
+- [Public scope and distribution](docs/OSS_SCOPE.md) and [Japanese policy](docs/ja/OSS_SCOPE.ja.md).
+- [Contributing](CONTRIBUTING.md) and [Japanese guide](docs/ja/CONTRIBUTING.ja.md).

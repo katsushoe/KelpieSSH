@@ -37,7 +37,7 @@ For Japanese documentation, see [docs/ja/PACKAGES.ja.md](docs/ja/PACKAGES.ja.md)
 | `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.17.10` | Streamable HTTP MCP server. | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
 | `kelpie-web-permission-helper` | `src/KelpieWebPermissionHelper/KelpieWebPermissionHelper.csproj` | `0.2.4.0` | Optional Linux-side helper for web permission and managed policy operations. | `/usr/local/libexec/kelpie/kelpie-web-permission-helper` |
 
-For the Alpha release, the Windows zip is the primary binary distribution. It includes `Install-Kelpie.ps1` for per-user automatic installation and `PATH` registration. MSI may be attached when available and may be unsigned. Internal NuGet packages are separate from the Alpha end-user binary distribution.
+Windows x64 MSI built with WiX Toolset is the standard binary deliverable. ZIP is supplemental and includes `Install-Kelpie.ps1` for per-user installation and `PATH` registration. Library NuGet publication is outside the initial public distribution scope. See [OSS scope and distribution policy](docs/OSS_SCOPE.md) for artifact, signing and publication requirements.
 
 ## Package Sources
 
