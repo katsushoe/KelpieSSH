@@ -8,7 +8,7 @@ namespace KelpieSSH.Infrastructure.Ssh;
 /// <summary>Opt-in non-PTY shell transport whose output bypasses SshCommand's growing PipeStream.</summary>
 internal static class BoundedSshExecution
 {
-    private const int FrameReserve = 96;
+    private const int FrameReserve = 192;
 
     internal static SshCommandResult Execute(SshClient client, SshCommandRequest request, string commandText,
         string? standardInput, DateTimeOffset startedAt, CancellationToken cancellationToken)
@@ -56,7 +56,8 @@ internal static class BoundedSshExecution
     {
         if (commandText.Contains('\0') || !Guid.TryParseExact(nonce, "N", out _)) throw new ArgumentException("Invalid bounded SSH frame.");
         // Input is data, never shell source. The command itself comes from the validated command catalog.
-        return "printf '%s' '" + Convert.ToBase64String(input) + "' | /usr/bin/base64 -d | (\n" + commandText
+        return "printf '\\nKELPIE_BEGIN_" + nonce + "\\n'\n"
+            + "printf '%s' '" + Convert.ToBase64String(input) + "' | /usr/bin/base64 -d | (\n" + commandText
             + "\n)\n__kelpie_rc=$?\nprintf '\\nKELPIE_EXIT_" + nonce + ":%s\\n' \"$__kelpie_rc\"\nexit \"$__kelpie_rc\"\n";
     }
 
@@ -68,7 +69,11 @@ internal static class BoundedSshExecution
         var status = output.AsSpan(index + marker.Length, output.Length - index - marker.Length - 1);
         if (!int.TryParse(status, NumberStyles.None, CultureInfo.InvariantCulture, out var code) || code is < 0 or > 255)
             throw new IOException("Bounded SSH completion frame is invalid.");
-        var text = output[..index];
+        var startMarker = "\nKELPIE_BEGIN_" + nonce + "\n";
+        var start = output.IndexOf(startMarker, StringComparison.Ordinal);
+        if (start < 0 || start + startMarker.Length > index)
+            throw new IOException("Bounded SSH start frame is missing.");
+        var text = output[(start + startMarker.Length)..index];
         if (Encoding.UTF8.GetByteCount(text) > maxBytes) throw new SshCommandOutputLimitException();
         return (text, code);
     }

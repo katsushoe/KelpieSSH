@@ -17,3 +17,7 @@ Public input/configuration/output keys remain unchanged. Existing JSON reasons, 
 ## Acceptance
 
 Accepted on Debian12 with Bash/GNU:27 nonroot public/secret SSH cases,27 exact CPython3.12.16 JSON/error comparisons and five supplemental failure/transport cases passed. All file hashes, ownership, modes and ACLs remained unchanged, with zero read-only audit violations. Windows regression passed1215 tests with three Unix-only skips; build warnings/errors were zero. Helper routing was verified by regression, without a new privileged helper installation. Verify ordinary and secret callers, owner/group/ACL permissions, inaccessible parents, missing parents with creation on/off, symlinks, malformed transport and helper branches against the legacy reader on isolated nonroot SSH. Read-only auditing must show no file content reads, writes or outbound network. Supported utility/OS scope is limited to measured acceptance. See [ADR-0014](adr/ADR-0014-WEB-WRITE-CHECK.md).
+
+### Bounded SSH output and startup notices
+
+Bounded SSH uses matching start and completion frames to isolate fixed-command output from session startup notices. The strict six-line write-check envelope, authorization, MIME selection and byte limits remain enforced. See the bounded SSH transport contract for details.

@@ -23,7 +23,7 @@ GNU timeout stops the remote runtime group after five seconds. The outer request
 | `SshCommandExecutionLimits` | stdout 1..2097152 bytes; stderr 1..65536; input 0..65536. Startup probes use 16384/2048/4096. |
 | `IgnoreEnvironmentOverrides` | The fixed definition opts out of stored/profile environment exports; the launcher also clears inherited runtime variables. |
 
-The bounded path uses non-PTY shell support and a random exit frame, without whole-output SshCommand buffering. Allocation is fixed to the output allowance plus 96 framing bytes and the separate stderr allowance. On overflow it returns no partial payload and throws a sanitized `SshCommandOutputLimitException`; invalid UTF-8 or incomplete framing also fails. The mode and channel rules are unchanged. Application callers must continue resolving current trusted profiles and using the normal policy pipeline.
+The bounded path uses non-PTY shell support and random start and exit frames, without whole-output SshCommand buffering. Allocation is fixed to the output allowance plus 192 framing bytes and the separate stderr allowance. On overflow it returns no partial payload and throws a sanitized `SshCommandOutputLimitException`; invalid UTF-8 or incomplete framing also fails. The mode and channel rules are unchanged. Application callers must continue resolving current trusted profiles and using the normal policy pipeline.
 
 No SSH profile, trust store, environment store, helper policy or sudoers change is required. This feature never persists a detected runtime into a profile. Unsupported servers fail without reverting to an unbounded path. Existing commands do not automatically acquire new byte limits.
 
@@ -34,3 +34,7 @@ Unit tests validate stream bounds, UTF-8 byte accounting, completion frames, lit
 ## D2 adapter
 
 The isolated runtime.info adapter is now exposed through the dedicated CLI/MCP operation; see [runtime information](RUNTIME_INFO.md). D1 startup probes remain unregistered. D2 results are always fresh and no preparation/result cache is retained, avoiding stale identity or permission reuse. Full D3 acceptance is separate.
+
+## Session startup output correction (2026-11-15)
+
+A non-PTY shell can emit login startup output before the fixed command runs. Both nonce-matched start and completion frames are required. Only bytes between them are returned to callers; command payload newlines, byte limits, strict UTF-8 and exact exit status remain enforced. The fixed receiver includes at most 192 extra bytes for framing and startup output together; excessive startup output still fails. A strict tool decoder is never relaxed to accept banners as command data. Forced commands, missing/reversed frames and trailing output still fail without an unbounded fallback. Tests cover synthetic startup lines with the real write-check envelope, missing/wrong/reversed starts and existing boundary cases.

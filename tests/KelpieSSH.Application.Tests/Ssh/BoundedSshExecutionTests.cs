@@ -8,6 +8,7 @@ namespace KelpieSSH.Application.Tests.Ssh;
 public sealed class BoundedSshExecutionTests
 {
     private const string Nonce = "0123456789abcdef0123456789abcdef";
+    private const string StartFrame = "\nKELPIE_BEGIN_" + Nonce + "\n";
 
     [Fact]
     public async Task FiniteInput_ShouldEndTheUpstreamListenerBeforeChannelDisposal()
@@ -67,7 +68,7 @@ public sealed class BoundedSshExecutionTests
     [InlineData(255)]
     public void CompletionFrame_ShouldPreservePayloadAndExactExitStatus(int status)
     {
-        var result = BoundedSshExecution.ParseOutput("payload\n\nKELPIE_EXIT_" + Nonce + ":" + status + "\n", Nonce, 8);
+        var result = BoundedSshExecution.ParseOutput(StartFrame + "payload\n\nKELPIE_EXIT_" + Nonce + ":" + status + "\n", Nonce, 8);
         result.Output.Should().Be("payload\n");
         result.ExitCode.Should().Be(status);
     }
@@ -80,15 +81,38 @@ public sealed class BoundedSshExecutionTests
     [InlineData("\nKELPIE_EXIT_0123456789abcdef0123456789abcdef:0\n", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
     public void CompletionFrame_ShouldRejectMissingWrongOrMalformedStatus(string output, string nonce)
     {
-        Action parse = () => BoundedSshExecution.ParseOutput(output, nonce, 100);
+        Action parse = () => BoundedSshExecution.ParseOutput(StartFrame + output, nonce, 100);
         parse.Should().Throw<IOException>();
     }
 
     [Fact]
     public void CompletionFrame_ShouldCheckPayloadBytesInsteadOfCharacters()
     {
-        Action parse = () => BoundedSshExecution.ParseOutput("日\nKELPIE_EXIT_" + Nonce + ":0\n", Nonce, 2);
+        Action parse = () => BoundedSshExecution.ParseOutput(StartFrame + "日\nKELPIE_EXIT_" + Nonce + ":0\n", Nonce, 2);
         parse.Should().Throw<SshCommandOutputLimitException>();
+    }
+
+    [Fact]
+    public void Frames_ShouldExcludeSessionStartupOutputAndPreserveWirePayload()
+    {
+        var payload = WebWriteCheckWireTests.Envelope("/site/file.php", true, false, "FILE");
+        var framed = "synthetic login notice\nsecond line\n" + StartFrame + payload + "\nKELPIE_EXIT_" + Nonce + ":0\n";
+        var result = BoundedSshExecution.ParseOutput(framed, Nonce, Encoding.UTF8.GetByteCount(payload));
+        result.Output.Should().Be(payload);
+        var decoded = WebWriteCheckWire.Decode(new SshCommandResult("check", "", result.ExitCode,
+            result.Output, "", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, false));
+        decoded.ExitCode.Should().Be(0);
+        decoded.StandardOutput.Should().Contain("Target file is not writable");
+    }
+
+    [Theory]
+    [InlineData("payload\nKELPIE_EXIT_0123456789abcdef0123456789abcdef:0\n")]
+    [InlineData("\nKELPIE_BEGIN_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\npayload\nKELPIE_EXIT_0123456789abcdef0123456789abcdef:0\n")]
+    [InlineData("\nKELPIE_EXIT_0123456789abcdef0123456789abcdef:0\n\nKELPIE_BEGIN_0123456789abcdef0123456789abcdef\n")]
+    public void Frames_ShouldRejectMissingWrongOrReversedStart(string output)
+    {
+        Action parse = () => BoundedSshExecution.ParseOutput(output, Nonce, 100);
+        parse.Should().Throw<IOException>();
     }
 
     [Fact]
@@ -98,6 +122,7 @@ public sealed class BoundedSshExecutionTests
         var script = BoundedSshExecution.BuildInput("/bin/cat", Encoding.UTF8.GetBytes(input), Nonce);
         script.Should().NotContain(input).And.Contain(Convert.ToBase64String(Encoding.UTF8.GetBytes(input)));
         script.Should().Contain("/usr/bin/base64 -d");
+        script.Should().StartWith("printf '\\nKELPIE_BEGIN_" + Nonce + "\\n'");
     }
 
     [Theory]

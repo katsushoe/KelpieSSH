@@ -2485,3 +2485,7 @@ Example: `kelpie runtime-info synthetic-profile php --refresh`. A successful res
 ## Void Linux package provider
 
 The existing eight package operations support Platform.OsFamily=void or voidlinux and PackageManager=xbps (default when omitted). Public inputs/outputs and confirmation remain unchanged. Read/dry-run operations use cached indexes without refresh. See [the contract](docs/VOID_XBPS.md) and [sample](config_samples/servers/void.json); runit service lifecycle remains unsupported.
+
+### Bounded SSH output and startup notices
+
+Bounded SSH uses matching start and completion frames to isolate fixed-command output from session startup notices. The strict six-line write-check envelope, authorization, MIME selection and byte limits remain enforced. See the bounded SSH transport contract for details.

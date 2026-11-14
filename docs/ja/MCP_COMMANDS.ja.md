@@ -5731,3 +5731,7 @@ service_logfile_readのPython不要・上限付き処理は、接続先時計/�
 ## Void Linuxパッケージprovider
 
 既存8操作がPlatform.OsFamily=void/voidlinuxとPackageManager=xbps（省略時の既定）へ対応します。公開入力/応答/確認は維持し、読取/dry-runは索引更新を行いません。[契約](VOID_XBPS.ja.md)と[設定例](../../config_samples/servers/void.json)を参照してください。runitサービス操作は未対応です。
+
+### 上限付きSSH応答と開始時の表示
+
+上限付きSSHでは開始・終了の両フレームで固定コマンドの応答を識別します。セッション開始時の表示を本文へ混入させず、書込み検査の厳格な6行形式、権限、MIME判定、容量上限を維持します。詳細は[転送仕様](RUNTIME_DIAGNOSTIC_STARTUP.ja.md)を参照してください。
