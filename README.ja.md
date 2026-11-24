@@ -550,3 +550,7 @@ Application API は `SshRemoteOperation` も受け取ります。`SshRemoteOpera
 
 プロファイルの項目詳細、サンプル、検証チェックリスト、トラブルシューティングは [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md) を参照してください。
 実際の `profiles/*.json` ファイルはコミットしないでください。
+
+## MCP管理用トレイ
+
+Windows版はKelpieMCPTrayを同梱します。.NET Desktop Runtime 8 x64を用意し、通常ユーザーのPowerShellから`kelpiemcp tray`または`kelpiemcp settings`を実行してください。起動時自動更新にはGitHub ReleasesのMSIを使用し、Windowsの管理者確認が必要な場合があります。[操作と設定](docs/ja/MCP_MANAGEMENT.ja.md)を参照してください。

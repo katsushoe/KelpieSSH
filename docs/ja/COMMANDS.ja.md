@@ -1,6 +1,6 @@
 # KelpieSSH コマンド
 
-最終更新: 2026-10-27
+最終更新: 2026-11-22
 
 このファイルは、利用者が通常のターミナルから直接実行する `kelpie` / `kelpiemcp` CLI コマンドの正本です。
 コマンドラインオプションの詳細は [CLI_OPTIONS.md](../../CLI_OPTIONS.md) を参照してください。
@@ -11,7 +11,8 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 | 分類 | コマンド | 内容 |
 | :--- | :--- | :--- |
 | [隔離runtime情報](#runtime-info) | `kelpie runtime-info` | PHP/Nodeの隔離した版と組込み機能を取得します。 |
-| MCPサーバー制御 | `kelpiemcp start [--reload-config]`, `kelpiemcp stop`, `kelpiemcp status` | `KelpieMCPServer` の起動、停止、状態確認を行う。 |
+| Windows管理用トレイ | `kelpiemcp tray`, `kelpiemcp settings` | 利用者別のトレイを起動し、設定画面を開きます。詳細は末尾の管理仕様を参照してください。 |
+| MCPサーバー制御 | `kelpiemcp start [--reload-config] [--no-tray]`, `kelpiemcp stop`, `kelpiemcp status` | `KelpieMCPServer` の起動、停止、状態確認を行う。 |
 | MCPプロファイルの信頼管理 | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile> [--approve-privilege-expansion]`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | SSH profile の信頼 baseline 追加、更新、取り消し、確認を行う。 |
 | 人間用Web policy管理 | `kelpiemcp web-policy list`, `add`, `remove`, `apply`, `rollback` | 選択したVPSのmanaged Web helper policyをリモートで確認または対話的に変更する。 |
 | 人間用helper更新 | `kelpiemcp helper update <profile> <local-artifact>` | 人間専用workflowで固定された特権helperを転送し、原子的に置換する。 |
@@ -2471,3 +2472,7 @@ Run after review: kelpie pkg install vps01 nginx --confirm pkg_install:nginx
 ### 上限付きSSH応答と開始時の表示
 
 上限付きSSHでは開始・終了の両フレームで固定コマンドの応答を識別します。セッション開始時の表示を本文へ混入させず、書込み検査の厳格な6行形式、権限、MIME判定、容量上限を維持します。詳細は[転送仕様](RUNTIME_DIAGNOSTIC_STARTUP.ja.md)を参照してください。
+
+## Windows管理用トレイと利用者設定
+
+`kelpiemcp tray`でトレイ常駐、`kelpiemcp settings`で設定画面を開きます。対話的な起動時の自動表示は`--no-tray`で抑止できます。サービスのセッション0では画面を表示しません。起動・更新・配信元の利用者設定を導入先別のLocalApplicationDataへ保存し、SSHの信頼設定やMCPツールの権限は変更しません。[管理仕様](MCP_MANAGEMENT.ja.md)に設定キー・初期値・更新の失敗条件を記載しています。

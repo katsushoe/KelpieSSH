@@ -552,3 +552,7 @@ The public sample profile is `config_samples/servers/vps01.json`.
 
 For profile field details, examples, validation checklist, and troubleshooting, see [PROFILE_GUIDE.md](PROFILE_GUIDE.md).
 Real `profiles/*.json` files should not be committed.
+
+## MCP management tray
+
+The Windows package includes KelpieMCPTray and requires .NET Desktop Runtime8 x64. From a normal-user PowerShell, run `kelpiemcp tray` or `kelpiemcp settings`. Startup updates use the GitHub Releases MSI and may require Windows UAC consent. See [operation and preferences](docs/MCP_MANAGEMENT.md).

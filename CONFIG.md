@@ -1,6 +1,6 @@
 # KelpieSSH Configuration
 
-Last updated: 2026-10-22
+Last updated: 2026-11-22
 
 This file is the English reference for KelpieSSH configuration file locations and host-level settings.
 For Japanese documentation, see [docs/ja/CONFIG.ja.md](docs/ja/CONFIG.ja.md).
@@ -47,6 +47,7 @@ They are examples only and must not contain real hosts or secrets.
 config_samples/
 ├─ kelpie.json
 ├─ kelpiemcp.json
+├─ tray.json
 └─ servers/
    └─ vps01.json
 ```
@@ -316,3 +317,7 @@ Nginx configuration mutations require helper 0.2.4.0 or later and protocol 1 on 
 ## Void Linux package provider
 
 The existing eight package operations support Platform.OsFamily=void or voidlinux and PackageManager=xbps (default when omitted). Public inputs/outputs and confirmation remain unchanged. Read/dry-run operations use cached indexes without refresh. See [the contract](docs/VOID_XBPS.md) and [sample](config_samples/servers/void.json); runit service lifecycle remains unsupported.
+
+## Windows management tray and user preferences
+
+`kelpiemcp tray` starts the notification-area manager; `kelpiemcp settings` opens settings. `--no-tray` suppresses automatic UI launch during interactive startup. Session0 services do not display UI. Non-secret startup/update/source preferences are stored separately per user and installation. SSH trust and MCP tool authorization are unchanged. See [management specifications](docs/MCP_MANAGEMENT.md) for keys, initial values and failure behavior.

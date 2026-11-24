@@ -32,9 +32,9 @@ For Japanese documentation, see [docs/ja/PACKAGES.ja.md](docs/ja/PACKAGES.ja.md)
 
 | Unit | Project | Version | Purpose | Placement |
 | :--- | :--- | :--- | :--- | :--- |
-| `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.14.10` | VPS operation CLI. | `KelpieHome/bin/kelpie.exe` |
-| `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.3.12.14` | MCP server control and human-only remote policy/helper administration CLI. | `KelpieHome/bin/kelpiemcp.exe` |
-| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.17.11` | Streamable HTTP MCP server. | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
+| `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.16.0` | VPS operation CLI. | `KelpieHome/bin/kelpie.exe` |
+| `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.4.0.1` | MCP server control and human-only remote policy/helper administration CLI. | `KelpieHome/bin/kelpiemcp.exe` |
+| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.4.0.1` | Streamable HTTP MCP server. | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
 | `kelpie-web-permission-helper` | `src/KelpieWebPermissionHelper/KelpieWebPermissionHelper.csproj` | `0.2.4.0` | Optional Linux-side helper for web permission and managed policy operations. | `/usr/local/libexec/kelpie/kelpie-web-permission-helper` |
 
 Windows x64 MSI built with WiX Toolset is the standard binary deliverable. ZIP is supplemental and includes `Install-Kelpie.ps1` for per-user installation and `PATH` registration. Library NuGet publication is outside the initial public distribution scope. See [OSS scope and distribution policy](docs/OSS_SCOPE.md) for artifact, signing and publication requirements.
@@ -50,10 +50,10 @@ KelpieSSH libraries are packable where appropriate.
 
 | Package | Project | NuGet Version | Purpose |
 | :--- | :--- | :--- | :--- |
-| `Akatsukisoft.Kelpie.Core` | `Kelpie.Core` | `0.3.1-alpha` | Common runtime support. |
+| `Akatsukisoft.Kelpie.Core` | `Kelpie.Core` | `0.3.2.0-alpha` | Common runtime support. |
 | `Akatsukisoft.KelpieSSH.Domain` | `KelpieSSH.Domain` | `0.1.1-alpha` | Domain models and value objects. |
-| `Akatsukisoft.KelpieSSH.Application` | `KelpieSSH.Application` | `0.3.10.9-alpha` | SSH application services and policy models. |
-| `Akatsukisoft.KelpieSSH.Infrastructure` | `KelpieSSH.Infrastructure` | `0.1.3.1-alpha` | SSH.NET infrastructure implementation. |
+| `Akatsukisoft.KelpieSSH.Application` | `KelpieSSH.Application` | `0.4.0.1-alpha` | SSH application services and policy models. |
+| `Akatsukisoft.KelpieSSH.Infrastructure` | `KelpieSSH.Infrastructure` | `0.1.3.2-alpha` | SSH.NET infrastructure implementation. |
 
 ## Direct Runtime Dependencies
 
@@ -111,3 +111,5 @@ dotnet test
 KelpieMCPServer directly references SQLitePCLRaw.lib.e_sqlite3 3.53.3 to override the older native SQLite brought by Moyai.ProviderAuthentication. Microsoft.Data.Sqlite and the managed SQLitePCLRaw libraries remain unchanged. The native package version denotes the SQLite engine version, not a managed API major upgrade. Its bundled LICENSE.txt declares SQLite public domain.
 
 Both test projects directly reference System.Net.Http 4.3.4 and System.Text.RegularExpressions 4.3.1 to replace older transitive dependencies from xunit. These references are test-only. Re-audit with NuGetAudit=true, NuGetAuditMode=all and NuGetAuditLevel=low; no warning suppression is added. Validate the loaded native engine version, authentication replay rejection, durable journal and native asset packaging before deployment.
+
+KelpieMCPTray 0.1.1.1 is the Windows management companion at bin/KelpieMCPTray.exe. It requires .NET Desktop Runtime8 x64 in addition to the server runtimes. See [management](docs/MCP_MANAGEMENT.md).

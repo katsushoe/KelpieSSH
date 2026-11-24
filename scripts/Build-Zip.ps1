@@ -72,9 +72,11 @@ New-Item -ItemType Directory -Force -Path $binDir | Out-Null
 New-Item -ItemType Directory -Force -Path $mcpDir | Out-Null
 
 if (!$SkipPublish) {
-    Invoke-Checked "dotnet" @("publish", (Join-Path $repoRoot "src\KelpieClientCommand\KelpieClientCommand.csproj"), "-c", $Configuration, "-o", $clientPublishDir)
-    Invoke-Checked "dotnet" @("publish", (Join-Path $repoRoot "src\KelpieServerCommand\KelpieServerCommand.csproj"), "-c", $Configuration, "-o", $serverPublishDir)
-    Invoke-Checked "dotnet" @("publish", (Join-Path $repoRoot "src\KelpieMCPServer\KelpieMCPServer.csproj"), "-c", $Configuration, "-o", $mcpDir)
+    New-Item -ItemType Directory -Force -Path $clientPublishDir, $serverPublishDir | Out-Null
+    Invoke-Checked "dotnet" @("publish", "--disable-build-servers", (Join-Path $repoRoot "src\KelpieClientCommand\KelpieClientCommand.csproj"), "-c", $Configuration, "-o", $clientPublishDir)
+    Invoke-Checked "dotnet" @("publish", "--disable-build-servers", (Join-Path $repoRoot "src\KelpieServerCommand\KelpieServerCommand.csproj"), "-c", $Configuration, "-o", $serverPublishDir)
+    Invoke-Checked "dotnet" @("publish", "--disable-build-servers", (Join-Path $repoRoot "src\KelpieMCPTray\KelpieMCPTray.csproj"), "-c", $Configuration, "-o", $serverPublishDir)
+    Invoke-Checked "dotnet" @("publish", "--disable-build-servers", (Join-Path $repoRoot "src\KelpieMCPServer\KelpieMCPServer.csproj"), "-c", $Configuration, "-o", $mcpDir)
     Copy-Item -Path (Join-Path $clientPublishDir "*") -Destination $binDir -Recurse -Force
     Copy-Item -Path (Join-Path $serverPublishDir "*") -Destination $binDir -Recurse -Force
     Remove-Item -LiteralPath $clientPublishDir, $serverPublishDir -Recurse -Force

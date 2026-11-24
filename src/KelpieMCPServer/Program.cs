@@ -183,6 +183,12 @@ app.MapMcp("/mcp");
 app.Lifetime.ApplicationStarted.Register(() =>
 {
     KpLog.Info("KelpieMCPServer has started.");
+    if (!args.Contains("--no-tray", StringComparer.OrdinalIgnoreCase))
+    {
+        var binDirectory = KelpieRuntimePaths.GetBinDirectory(Path.GetDirectoryName(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar))!);
+        try { KelpieTrayLauncher.TryStart(binDirectory, optional: true); }
+        catch (Exception ex) when (ex is IOException or System.ComponentModel.Win32Exception) { KpLog.Err("Optional tray launch failed.", ex); }
+    }
     KpLog.Info($"KelpieMCPServer listening on {serverUrl}/mcp.");
 });
 app.Lifetime.ApplicationStopping.Register(() => KpLog.Info("KelpieMCPServer stopping."));

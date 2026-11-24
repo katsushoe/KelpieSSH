@@ -38,9 +38,9 @@
 
 | 実行ファイル | プロジェクト | バージョン | 主な責務 | 配置例 |
 | :--- | :--- | :--- | :--- | :--- |
-| `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.14.10` | VPS 操作 CLI。初期化、プロファイル確認、診断、ログ取得、対話ログインを担当します。 | `KelpieHome/bin/kelpie.exe` |
-| `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.3.12.14` | MCPサーバー制御と人間専用のリモートpolicy/helper管理CLI。 | `KelpieHome/bin/kelpiemcp.exe` |
-| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.3.17.11` | Streamable HTTP MCP サーバー本体。Codex などの MCP クライアントへ SSH 診断ツールを公開します。 | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
+| `kelpie` | `src/KelpieClientCommand/KelpieClientCommand.csproj` | `0.3.16.0` | VPS 操作 CLI。初期化、プロファイル確認、診断、ログ取得、対話ログインを担当します。 | `KelpieHome/bin/kelpie.exe` |
+| `kelpiemcp` | `src/KelpieServerCommand/KelpieServerCommand.csproj` | `0.4.0.1` | MCPサーバー制御と人間専用のリモートpolicy/helper管理CLI。 | `KelpieHome/bin/kelpiemcp.exe` |
+| `KelpieMCPServer` | `src/KelpieMCPServer/KelpieMCPServer.csproj` | `0.4.0.1` | Streamable HTTP MCP サーバー本体。Codex などの MCP クライアントへ SSH 診断ツールを公開します。 | `KelpieHome/bin/mcp/KelpieMCPServer.exe` |
 | `kelpie-web-permission-helper` | `src/KelpieWebPermissionHelper/KelpieWebPermissionHelper.csproj` | `0.2.4.0` | SSH先に配置するsudo helper。Web公開ルートの操作とmanaged policy管理を行います。 | `/usr/local/libexec/kelpie/kelpie-web-permission-helper` |
 
 ## `kelpie`
@@ -129,10 +129,10 @@
 
 | パッケージID | プロジェクト | バージョン | ライセンス | パッケージ化 | 主な責務 |
 | :--- | :--- | :--- | :--- | :---: | :--- |
-| `Akatsukisoft.Kelpie.Core` | `src/Kelpie.Core/Kelpie.Core.csproj` | `0.3.1-alpha` | Apache-2.0 | yes | Kelpie 共通ランタイム、設定解決、サーバー制御オプションなどを提供します。 |
+| `Akatsukisoft.Kelpie.Core` | `src/Kelpie.Core/Kelpie.Core.csproj` | `0.3.2.0-alpha` | Apache-2.0 | yes | Kelpie 共通ランタイム、設定解決、サーバー制御オプションなどを提供します。 |
 | `Akatsukisoft.KelpieSSH.Domain` | `src/KelpieSSH.Domain/KelpieSSH.Domain.csproj` | `0.1.1-alpha` | Apache-2.0 | yes | SSH 実行結果、値オブジェクト、ドメイン表現を提供します。 |
-| `Akatsukisoft.KelpieSSH.Application` | `src/KelpieSSH.Application/KelpieSSH.Application.csproj` | `0.3.10.9-alpha` | Apache-2.0 | yes | ユースケース、ポリシー、コマンド許可ロジック、SSH 抽象を提供します。 |
-| `Akatsukisoft.KelpieSSH.Infrastructure` | `src/KelpieSSH.Infrastructure/KelpieSSH.Infrastructure.csproj` | `0.1.3.1-alpha` | Apache-2.0 | yes | SSH.NET を使った SSH 接続、コマンド実行、ShellStream 連携などのインフラ実装を提供します。 |
+| `Akatsukisoft.KelpieSSH.Application` | `src/KelpieSSH.Application/KelpieSSH.Application.csproj` | `0.4.0.1-alpha` | Apache-2.0 | yes | ユースケース、ポリシー、コマンド許可ロジック、SSH 抽象を提供します。 |
+| `Akatsukisoft.KelpieSSH.Infrastructure` | `src/KelpieSSH.Infrastructure/KelpieSSH.Infrastructure.csproj` | `0.1.3.2-alpha` | Apache-2.0 | yes | SSH.NET を使った SSH 接続、コマンド実行、ShellStream 連携などのインフラ実装を提供します。 |
 
 ## `Akatsukisoft.Kelpie.Core`
 
@@ -318,3 +318,5 @@ dotnet pack src\KelpieSSH.Infrastructure\KelpieSSH.Infrastructure.csproj -c Rele
 KelpieMCPServerはSQLitePCLRaw.lib.e_sqlite3 3.53.3を直接参照し、Moyai.ProviderAuthentication経由の古いネイティブSQLiteを上書きします。Microsoft.Data.SqliteとSQLitePCLRawの管理ライブラリは維持します。ネイティブパッケージの版はSQLiteの版を表し、管理APIのメジャー移行を意味しません。ライセンスはパッケージ内LICENSE.txtにあるパブリックドメイン表記です。
 
 両テストプロジェクトはSystem.Net.Http 4.3.4とSystem.Text.RegularExpressions 4.3.1を直接参照し、xunit経由の古い推移的依存を置き換えます。これらはテスト専用です。NuGetAudit=true、NuGetAuditMode=all、NuGetAuditLevel=lowで再監査し、警告の抑制は追加しません。実際にロードしたSQLiteの版・認証の再送拒否・永続journal・ネイティブ資産の配置を検証してから反映します。
+
+KelpieMCPTray 0.1.1.1はWindows専用の管理アプリです。bin/KelpieMCPTray.exeへ配置し、既存のサーバー用ランタイムに加えて.NET Desktop Runtime 8 x64を使用します。[管理仕様](MCP_MANAGEMENT.ja.md)を参照してください。

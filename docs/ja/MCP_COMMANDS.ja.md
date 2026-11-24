@@ -5735,3 +5735,7 @@ service_logfile_readのPython不要・上限付き処理は、接続先時計/�
 ### 上限付きSSH応答と開始時の表示
 
 上限付きSSHでは開始・終了の両フレームで固定コマンドの応答を識別します。セッション開始時の表示を本文へ混入させず、書込み検査の厳格な6行形式、権限、MIME判定、容量上限を維持します。詳細は[転送仕様](RUNTIME_DIAGNOSTIC_STARTUP.ja.md)を参照してください。
+
+## Windows管理用トレイと利用者設定
+
+`kelpiemcp tray`でトレイ常駐、`kelpiemcp settings`で設定画面を開きます。対話的な起動時の自動表示は`--no-tray`で抑止できます。サービスのセッション0では画面を表示しません。起動・更新・配信元の利用者設定を導入先別のLocalApplicationDataへ保存し、SSHの信頼設定やMCPツールの権限は変更しません。[管理仕様](MCP_MANAGEMENT.ja.md)に設定キー・初期値・更新の失敗条件を記載しています。

@@ -1,6 +1,6 @@
 # KelpieSSH Commands
 
-Last updated: 2026-10-27
+Last updated: 2026-11-22
 
 This file is the English command reference for commands run directly from a terminal, such as `kelpie` and `kelpiemcp`.
 For Japanese documentation, see [docs/ja/COMMANDS.ja.md](docs/ja/COMMANDS.ja.md).
@@ -12,7 +12,8 @@ For MCP callable tool details, see [MCP_COMMANDS.md](MCP_COMMANDS.md).
 | Group | Commands | Purpose |
 | :--- | :--- | :--- |
 | [Isolated runtime information](#runtime-info) | `kelpie runtime-info` | Read isolated PHP/Node version and built-in features. |
-| [MCP server control](#mcp-server-control) | `kelpiemcp start [--reload-config]`, `kelpiemcp stop`, `kelpiemcp status` | Start, stop, and inspect `KelpieMCPServer`. |
+| Windows management tray | `kelpiemcp tray`, `kelpiemcp settings` | Start the per-user tray or open its settings; see the management section below. |
+| [MCP server control](#mcp-server-control) | `kelpiemcp start [--reload-config] [--no-tray]`, `kelpiemcp stop`, `kelpiemcp status` | Start, stop, and inspect `KelpieMCPServer`. |
 | [MCP profile trust](#mcp-profile-trust) | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile> [--approve-privilege-expansion]`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | Add, reload, revoke, and inspect trusted SSH profile baselines. |
 | [Human web policy administration](#human-web-policy-administration) | `kelpiemcp web-policy list`, `add`, `remove`, `apply`, `rollback` | Remotely inspect or interactively change the selected VPS helper policy. |
 | [Human helper update](#human-helper-update) | `kelpiemcp helper update <profile> <local-artifact>` | Upload and atomically replace the fixed privileged helper through a human-only workflow. |
@@ -2489,3 +2490,7 @@ The existing eight package operations support Platform.OsFamily=void or voidlinu
 ### Bounded SSH output and startup notices
 
 Bounded SSH uses matching start and completion frames to isolate fixed-command output from session startup notices. The strict six-line write-check envelope, authorization, MIME selection and byte limits remain enforced. See the bounded SSH transport contract for details.
+
+## Windows management tray and user preferences
+
+`kelpiemcp tray` starts the notification-area manager; `kelpiemcp settings` opens settings. `--no-tray` suppresses automatic UI launch during interactive startup. Session0 services do not display UI. Non-secret startup/update/source preferences are stored separately per user and installation. SSH trust and MCP tool authorization are unchanged. See [management specifications](docs/MCP_MANAGEMENT.md) for keys, initial values and failure behavior.

@@ -36,6 +36,7 @@ public sealed class ProjectDependencyTests
                 "KelpieSSH.Application",
             ],
             ["KelpieWebPermissionHelper"] = [],
+            ["KelpieMCPTray"] = ["KelpieSSH.Application"],
         };
 
     [Fact]

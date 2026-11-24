@@ -6,7 +6,7 @@ This guide makes `kelpie` and `kelpiemcp` available from any working directory f
 
 ## Prerequisites
 
-Use a Windows x64 package from the release you intend to install. The current build scripts publish framework-dependent .NET 8 applications. These packages require the .NET 8 runtime and ASP.NET Core 8 runtime for Windows x64. Installing a newer major runtime alone does not supply those .NET 8 frameworks. The packaged `*.runtimeconfig.json` files specify the required frameworks.
+Use a Windows x64 package from the release you intend to install. The current build scripts publish framework-dependent .NET 8 applications. These packages require the .NET 8 runtime, ASP.NET Core 8 runtime and .NET Desktop Runtime 8 for Windows x64. Installing a newer major runtime alone does not supply those .NET 8 frameworks. The packaged `*.runtimeconfig.json` files specify the required frameworks.
 
 If .NET is installed, inspect the available runtimes:
 
@@ -14,7 +14,7 @@ If .NET is installed, inspect the available runtimes:
 dotnet --list-runtimes
 ```
 
-For the current framework-dependent package, look for both `Microsoft.NETCore.App 8.x` and `Microsoft.AspNetCore.App 8.x`. This runtime prerequisite is separate from adding the commands to `PATH`.
+For the current framework-dependent package, look for `Microsoft.NETCore.App 8.x`, `Microsoft.AspNetCore.App 8.x` and `Microsoft.WindowsDesktop.App 8.x`. This runtime prerequisite is separate from adding the commands to `PATH`.
 
 ## Install the Payload
 
@@ -136,3 +136,7 @@ Reopen terminals and clients, then use `Get-Command -All` and `where.exe` to con
 | Profiles seem missing after changing location | Confirm the resolved executable's directory and derived Kelpie home before initializing or connecting. |
 
 Package layout and dependencies are documented in [PACKAGES.md](../PACKAGES.md).
+
+## MCP management tray
+
+The Windows package includes KelpieMCPTray and requires .NET Desktop Runtime8 x64. From a normal-user PowerShell, run `kelpiemcp tray` or `kelpiemcp settings`. Startup updates use the GitHub Releases MSI and may require Windows UAC consent. See [operation and preferences](MCP_MANAGEMENT.md).

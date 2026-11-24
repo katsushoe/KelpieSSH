@@ -270,6 +270,16 @@ public sealed class TrustStoreOperationalTests
         {
             DirectoryPath = Path.Combine(AppContext.BaseDirectory, "service-trust-fixtures", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(DirectoryPath);
+            if (OperatingSystem.IsWindows())
+            {
+                // Cleanup uses the fixture parent's DELETE_CHILD right, independently
+                // of intentionally read-only or denied access on the synthetic key.
+                var directory = new DirectoryInfo(DirectoryPath);
+                var acl = directory.GetAccessControl();
+                acl.AddAccessRule(new FileSystemAccessRule(WindowsIdentity.GetCurrent().User!,
+                    FileSystemRights.DeleteSubdirectoriesAndFiles, AccessControlType.Allow));
+                directory.SetAccessControl(acl);
+            }
             StorePath = Path.Combine(DirectoryPath, "store.dat");
             var store = SshProfileTrustStore.Load(StorePath);
             store.SetConfigHash("original-config");

@@ -6,7 +6,7 @@
 
 ## 前提条件
 
-導入するリリースのWindows x64用パッケージを使用してください。現在のビルドスクリプトは、.NET 8のフレームワーク依存アプリケーションを作成します。この配布物にはWindows x64用の.NET 8ランタイムとASP.NET Core 8ランタイムが必要です。新しいメジャー版のランタイムだけでは、必要な.NET 8のフレームワークを満たしません。必要なフレームワークは、同梱の`*.runtimeconfig.json`に記載されています。
+導入するリリースのWindows x64用パッケージを使用してください。現在のビルドスクリプトは、.NET 8のフレームワーク依存アプリケーションを作成します。この配布物にはWindows x64用の.NET 8ランタイム、ASP.NET Core 8ランタイム、.NET Desktop Runtime 8が必要です。新しいメジャー版のランタイムだけでは、必要な.NET 8のフレームワークを満たしません。必要なフレームワークは、同梱の`*.runtimeconfig.json`に記載されています。
 
 .NETが導入済みの場合は、利用可能なランタイムを確認します。
 
@@ -14,7 +14,7 @@
 dotnet --list-runtimes
 ```
 
-現在のフレームワーク依存パッケージでは、`Microsoft.NETCore.App 8.x`と`Microsoft.AspNetCore.App 8.x`の両方を確認します。この前提条件と、コマンドを`PATH`へ登録する処理は別です。
+現在のフレームワーク依存パッケージでは、`Microsoft.NETCore.App 8.x`、`Microsoft.AspNetCore.App 8.x`、`Microsoft.WindowsDesktop.App 8.x`の3種類を確認します。この前提条件と、コマンドを`PATH`へ登録する処理は別です。
 
 ## 配布物をインストールする
 
@@ -136,3 +136,7 @@ ZIP版は、対象のプロセスを停止して必要な利用者データを�
 | 配置先を変えた後にプロファイルが見つからない | 初期化や接続の前に、選ばれた実行ファイルのディレクトリと、それから決まるKelpie homeを確認します。 |
 
 配布物の構成と依存は [PACKAGES.ja.md](PACKAGES.ja.md) を参照してください。
+
+## MCP管理用トレイ
+
+Windows版はKelpieMCPTrayを同梱します。.NET Desktop Runtime 8 x64を用意し、通常ユーザーのPowerShellから`kelpiemcp tray`または`kelpiemcp settings`を実行してください。起動時自動更新にはGitHub ReleasesのMSIを使用し、Windowsの管理者確認が必要な場合があります。[操作と設定](MCP_MANAGEMENT.ja.md)を参照してください。

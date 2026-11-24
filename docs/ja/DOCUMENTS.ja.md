@@ -121,3 +121,7 @@ Git管理する公開文書を追加・削除・改名・移動した場合は�
 
 - [公開範囲と配布方針](OSS_SCOPE.ja.md)・[英語版](../OSS_SCOPE.md)。
 - [貢献手順](CONTRIBUTING.ja.md)・[英語版](../../CONTRIBUTING.md)。
+
+## MCP管理用トレイ
+
+- [トレイ・設定・自動更新](MCP_MANAGEMENT.ja.md)、[設計判断](ADR-0016-MCP-TRAY-UPDATE.ja.md)。英語版は[操作仕様](../MCP_MANAGEMENT.md)と[設計判断](../adr/ADR-0016-MCP-TRAY-UPDATE.md)を参照してください。

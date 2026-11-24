@@ -27,3 +27,7 @@ Distribute runtime dependencies with applicable [third-party notices](../THIRD_P
 Accept issues and pull requests under [CONTRIBUTING.md](../CONTRIBUTING.md). Security reports use [SECURITY.md](../SECURITY.md). Scope discussion and review precede acceptance of large changes.
 
 Maintainers prepare and validate artifacts locally before publication. Creating tags, publishing releases, uploading assets or publishing registry packages requires separate release authorization for the named products, versions and destination. A documentation update, commit, push or local build is not release publication.
+
+## Local MCP administration
+
+KelpieMCPTray is an OSS Windows companion for local server status, startup preferences and verified MSI updates. This limited management screen is separate from KelpieDesktop and commercial VPS administration in KelpiePro.

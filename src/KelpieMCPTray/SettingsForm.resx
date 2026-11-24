@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="$this.Text" xml:space="preserve"><value>KelpieMCPServer 設定</value></data>
+  <data name="title.Text" xml:space="preserve"><value>KelpieMCPServer 設定</value></data>
+  <data name="endpointLabel.Text" xml:space="preserve"><value>MCP接続先</value></data>
+  <data name="startupLogon.Text" xml:space="preserve"><value>Windowsへのログオン時にトレイを起動する</value></data>
+  <data name="startupServer.Text" xml:space="preserve"><value>トレイ起動時にMCPサーバーを起動する</value></data>
+  <data name="startupUpdate.Text" xml:space="preserve"><value>トレイ起動時に更新を確認して自動適用する</value></data>
+  <data name="feedLabel.Text" xml:space="preserve"><value>更新元（GitHub Releases API / HTTPS）</value></data>
+  <data name="help.Text" xml:space="preserve"><value>新しい版のMSIはサイズとSHA-256を検証して適用します。Windowsの管理者確認が表示される場合があります。SSHプロファイル・鍵・接続先の権限はこの画面では変更しません。</value></data>
+  <data name="status.Text" xml:space="preserve"><value>状態を確認しています…</value></data>
+  <data name="save.Text" xml:space="preserve"><value>保存</value></data>
+  <data name="cancel.Text" xml:space="preserve"><value>閉じる</value></data>
+  <data name="logs.Text" xml:space="preserve"><value>ログを開く</value></data>
+</root>

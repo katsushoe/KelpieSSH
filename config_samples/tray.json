@@ -1,0 +1,6 @@
+{
+  "AutoStartServer": true,
+  "CheckUpdatesOnStartup": true,
+  "StartAtLogon": false,
+  "ReleaseApiUrl": "https://api.github.com/repos/katsushoe/KelpieSSH/releases/latest"
+}

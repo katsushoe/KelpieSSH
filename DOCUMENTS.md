@@ -127,3 +127,7 @@ When updating `README.md`, update `README.ja.md` in the same change, and keep bo
 
 - [Public scope and distribution](docs/OSS_SCOPE.md) and [Japanese policy](docs/ja/OSS_SCOPE.ja.md).
 - [Contributing](CONTRIBUTING.md) and [Japanese guide](docs/ja/CONTRIBUTING.ja.md).
+
+## MCP management tray
+
+- [Windows tray and settings](docs/MCP_MANAGEMENT.md), [Japanese guide](docs/ja/MCP_MANAGEMENT.ja.md), [ADR-0016](docs/adr/ADR-0016-MCP-TRAY-UPDATE.md), [Japanese decision](docs/ja/ADR-0016-MCP-TRAY-UPDATE.ja.md).

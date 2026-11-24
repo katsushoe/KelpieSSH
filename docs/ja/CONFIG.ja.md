@@ -1,6 +1,6 @@
 # KelpieSSH 設定
 
-最終更新: 2026-10-22
+最終更新: 2026-11-22
 
 この文書は、KelpieSSH の設定ファイル配置と host level settings をまとめる公開リファレンスです。
 Profile の詳細な設定ガイダンスは [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) を参照してください。
@@ -46,6 +46,7 @@ KelpieSSH は `KELPIEPRO_HOME` を読みません。
 config_samples/
 ├─ kelpie.json
 ├─ kelpiemcp.json
+├─ tray.json
 └─ servers/
    └─ vps01.json
 ```
@@ -311,3 +312,7 @@ nginx設定変更には、Linux x64上のhelper 0.2.4.0以降とプロトコル1
 ## Void Linuxパッケージprovider
 
 既存8操作がPlatform.OsFamily=void/voidlinuxとPackageManager=xbps（省略時の既定）へ対応します。公開入力/応答/確認は維持し、読取/dry-runは索引更新を行いません。[契約](VOID_XBPS.ja.md)と[設定例](../../config_samples/servers/void.json)を参照してください。runitサービス操作は未対応です。
+
+## Windows管理用トレイと利用者設定
+
+`kelpiemcp tray`でトレイ常駐、`kelpiemcp settings`で設定画面を開きます。対話的な起動時の自動表示は`--no-tray`で抑止できます。サービスのセッション0では画面を表示しません。起動・更新・配信元の利用者設定を導入先別のLocalApplicationDataへ保存し、SSHの信頼設定やMCPツールの権限は変更しません。[管理仕様](MCP_MANAGEMENT.ja.md)に設定キー・初期値・更新の失敗条件を記載しています。

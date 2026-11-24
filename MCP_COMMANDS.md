@@ -7782,3 +7782,7 @@ The existing eight package operations support Platform.OsFamily=void or voidlinu
 ### Bounded SSH output and startup notices
 
 Bounded SSH uses matching start and completion frames to isolate fixed-command output from session startup notices. The strict six-line write-check envelope, authorization, MIME selection and byte limits remain enforced. See the bounded SSH transport contract for details.
+
+## Windows management tray and user preferences
+
+`kelpiemcp tray` starts the notification-area manager; `kelpiemcp settings` opens settings. `--no-tray` suppresses automatic UI launch during interactive startup. Session0 services do not display UI. Non-secret startup/update/source preferences are stored separately per user and installation. SSH trust and MCP tool authorization are unchanged. See [management specifications](docs/MCP_MANAGEMENT.md) for keys, initial values and failure behavior.

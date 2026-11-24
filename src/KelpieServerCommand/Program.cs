@@ -42,6 +42,27 @@ if (IsVersionCommand(command))
     return;
 }
 
+if (string.Equals(command, "tray", StringComparison.OrdinalIgnoreCase)
+    || string.Equals(command, "settings", StringComparison.OrdinalIgnoreCase))
+{
+    try
+    {
+        if (!KelpieTrayLauncher.TryStart(KelpieRuntimePaths.GetBinDirectory(AppContext.BaseDirectory),
+            showSettings: string.Equals(command, "settings", StringComparison.OrdinalIgnoreCase)))
+        {
+            Console.Error.WriteLine("Tray management requires a Windows desktop session.");
+            Environment.ExitCode = 1;
+        }
+    }
+    catch (Exception ex) when (ex is IOException or System.ComponentModel.Win32Exception)
+    {
+        KpLog.Err("Tray launch failed.", ex);
+        Console.Error.WriteLine("Could not start tray management. Check the installation and logs.");
+        Environment.ExitCode = 1;
+    }
+    return;
+}
+
 if (string.Equals(command, "start", StringComparison.OrdinalIgnoreCase))
 {
     KpLog.Info("KelpieServerCommand start requested.");
@@ -50,6 +71,11 @@ if (string.Equals(command, "start", StringComparison.OrdinalIgnoreCase))
         ParseReloadConfig(args.Skip(1)),
         ParseReloadProfileNames(args.Skip(1)));
     await KelpieServerCommandRunner.StartAsync(options);
+    if (Environment.ExitCode == 0 && !args.Contains("--no-tray", StringComparer.OrdinalIgnoreCase))
+    {
+        try { KelpieTrayLauncher.TryStart(KelpieRuntimePaths.GetBinDirectory(AppContext.BaseDirectory), optional: true); }
+        catch (Exception ex) when (ex is IOException or System.ComponentModel.Win32Exception) { KpLog.Err("Optional tray launch failed.", ex); }
+    }
     return;
 }
 
@@ -330,7 +356,9 @@ static void ShowUsage(string command = "")
 
     var writer = string.IsNullOrWhiteSpace(command) ? Console.Out : Console.Error;
     writer.WriteLine("Usage:");
-    writer.WriteLine("  kelpiemcp start [--reload-config]");
+    writer.WriteLine("  kelpiemcp start [--reload-config] [--no-tray]");
+    writer.WriteLine("  kelpiemcp tray");
+    writer.WriteLine("  kelpiemcp settings");
     writer.WriteLine("  kelpiemcp stop");
     writer.WriteLine("  kelpiemcp status");
     writer.WriteLine("  kelpiemcp service register");

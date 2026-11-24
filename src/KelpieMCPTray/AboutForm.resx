@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="$this.Text" xml:space="preserve"><value>KelpieSSH バージョン情報</value></data>
+  <data name="title.Text" xml:space="preserve"><value>KelpieSSH</value></data>
+  <data name="trayLabel.Text" xml:space="preserve"><value>管理トレイ</value></data>
+  <data name="serverLabel.Text" xml:space="preserve"><value>MCPサーバー（インストール済み）</value></data>
+  <data name="bundleLabel.Text" xml:space="preserve"><value>KelpieSSH 配布版</value></data>
+  <data name="companyLabel.Text" xml:space="preserve"><value>開発元</value></data>
+  <data name="licenseLabel.Text" xml:space="preserve"><value>ライセンス</value></data>
+  <data name="license.Text" xml:space="preserve"><value>Apache License 2.0</value></data>
+  <data name="close.Text" xml:space="preserve"><value>閉じる</value></data>
+  <data name="unavailable" xml:space="preserve"><value>取得できません</value></data>
+</root>
