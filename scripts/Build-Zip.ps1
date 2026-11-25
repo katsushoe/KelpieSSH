@@ -115,7 +115,21 @@ if (Test-Path -LiteralPath $zipPath) {
     Remove-Item -LiteralPath $zipPath -Force
 }
 
-Compress-Archive -Path (Join-Path $filesRoot "*") -DestinationPath $zipPath -Force
+# Compress-Archive on Windows PowerShell 5.1 stores "\" in entry names, which other extractors treat as part of a file name.
+# Write entries with "/" separators, as the ZIP specification requires.
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$filesRootPath = [System.IO.Path]::GetFullPath($filesRoot).TrimEnd('\') + '\'
+$archive = [System.IO.Compression.ZipFile]::Open($zipPath, [System.IO.Compression.ZipArchiveMode]::Create)
+try {
+    $zipFiles = Get-ChildItem -LiteralPath $filesRoot -File -Recurse | Sort-Object { $_.FullName.Substring($filesRootPath.Length) } -CaseSensitive
+    foreach ($zipFile in $zipFiles) {
+        $entryName = $zipFile.FullName.Substring($filesRootPath.Length).Replace('\', '/')
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $zipFile.FullName, $entryName, [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
+    }
+} finally {
+    $archive.Dispose()
+}
 
 Write-Host "ZIP payload created: $filesRoot"
 Write-Host "ZIP created: $zipPath"
