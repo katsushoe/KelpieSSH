@@ -110,7 +110,8 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
             return CreateListError(site, normalizedPath, "Limit must be between 1 and 500.");
         }
 
-        var result = await sshCommandService.ExecuteAsync(
+        var result = await WebFileListWire.ExecuteAsync(
+            sshCommandService,
             profile,
             ListCommandName,
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -120,7 +121,6 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 ["maxDepth"] = maxDepth.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["limit"] = limit.ToString(System.Globalization.CultureInfo.InvariantCulture),
             },
-            channel: KelpieExecutionChannel.Mcp,
             cancellationToken: cancellationToken);
 
         if (result.ExitCode != 0)
@@ -362,6 +362,10 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 $"Web public file stat failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}");
         }
 
+        result = WebFileStatWire.Decode(result);
+        if (result.ExitCode != 0)
+            return CreateStatError(site, normalizedPath, "Web public file stat returned invalid metadata.");
+
         var remote = JsonSerializer.Deserialize<RemoteStatResult>(result.StandardOutput, JsonOptions)
             ?? throw new InvalidOperationException("Web public file stat returned empty JSON.");
 
@@ -595,7 +599,8 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 $"Content type is not writable: {resolvedContentType}");
         }
 
-        var result = await sshCommandService.ExecuteAsync(
+        var result = await WebWriteCheckWire.ExecuteAsync(
+            sshCommandService,
             profile,
             CheckWriteCommandName,
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -604,7 +609,6 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 ["pathBase64"] = EncodeArgument(normalizedPath),
                 ["createDirectories"] = site.CreateDirectories ? "1" : "0",
             },
-            channel: KelpieExecutionChannel.Mcp,
             cancellationToken: cancellationToken);
 
         if (result.ExitCode != 0)
@@ -729,7 +733,8 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 permissionRequest);
         }
 
-        var result = await sshCommandService.ExecuteAsync(
+        var result = await WebWriteCheckWire.ExecuteAsync(
+            sshCommandService,
             profile,
             CheckWriteCommandName,
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -738,7 +743,6 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 ["pathBase64"] = EncodeArgument(normalizedPath),
                 ["createDirectories"] = site.CreateDirectories ? "1" : "0",
             },
-            channel: KelpieExecutionChannel.Mcp,
             cancellationToken: cancellationToken);
 
         if (result.ExitCode != 0)
@@ -892,6 +896,10 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 $"Web public file read failed. ExitCode={result.ExitCode}. {CreateSafeErrorDetail(result.StandardError)}");
         }
 
+        result = WebFileReadWire.Decode(result, site.MaxReadBytes);
+        if (result.ExitCode != 0)
+            return CreateReadError(site, normalizedPath, $"Web public file read failed. {CreateSafeErrorDetail(result.StandardError)}");
+
         var remote = JsonSerializer.Deserialize<RemoteReadResult>(result.StandardOutput, JsonOptions)
             ?? throw new InvalidOperationException("Web public file read returned empty JSON.");
 
@@ -989,7 +997,8 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
         }
 
         var boundedMaxBytes = Math.Min(maxBytes, site.MaxReadBytes);
-        var result = await sshCommandService.ExecuteAsync(
+        var result = await WebFileSliceWire.ExecuteAsync(
+            sshCommandService,
             profile,
             SliceCommandName,
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -1000,7 +1009,6 @@ public sealed partial class WebPublicFileProvider : IWebPublicFileProvider
                 ["maxBytes"] = boundedMaxBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["maxLines"] = maxLines.ToString(System.Globalization.CultureInfo.InvariantCulture),
             },
-            channel: KelpieExecutionChannel.Mcp,
             cancellationToken: cancellationToken);
 
         if (result.ExitCode != 0)

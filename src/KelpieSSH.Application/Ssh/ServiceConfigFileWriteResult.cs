@@ -10,4 +10,8 @@ public sealed record ServiceConfigFileWriteResult(
     string Encoding,
     int BytesWritten,
     IReadOnlyList<string> Warnings,
-    string? Error = null);
+    string? Error = null)
+{
+    /// <summary>Whether the remote write outcome is known.</summary>
+    public bool OutcomeKnown { get; init; } = true;
+}

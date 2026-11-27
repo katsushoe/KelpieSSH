@@ -1,6 +1,6 @@
 # KelpieSSH Configuration
 
-Last updated: 2026-07-31
+Last updated: 2026-11-22
 
 This file is the English reference for KelpieSSH configuration file locations and host-level settings.
 For Japanese documentation, see [docs/ja/CONFIG.ja.md](docs/ja/CONFIG.ja.md).
@@ -31,11 +31,7 @@ F:\Kelpie
 └─ bin
 ```
 
-Kelpie home is resolved in this order:
-
-1. If `--bin-dir <dir>` is specified as a runtime path override, the parent directory of `<dir>` is Kelpie home.
-2. If `KELPIE_HOME` is set and the directory exists, `KELPIE_HOME` is Kelpie home.
-3. Otherwise, the parent directory of the startup directory is Kelpie home.
+Kelpie home is resolved from the parent directory of the command startup directory. A `--bin-dir <dir>` runtime path override resolves Kelpie home from the parent directory of `<dir>`.
 
 KelpieSSH does not read `KELPIEPRO_HOME`.
 
@@ -51,6 +47,7 @@ They are examples only and must not contain real hosts or secrets.
 config_samples/
 ├─ kelpie.json
 ├─ kelpiemcp.json
+├─ tray.json
 └─ servers/
    └─ vps01.json
 ```
@@ -288,3 +285,39 @@ Privileged managed web writes also require `/etc/kelpie/web-permission-helper-po
 - Do not commit private keys, passwords, passphrases, real host names, or real user names.
 - Keep production `profiles/`, `keys/`, `dat/`, and `logs/` outside this public repository.
 - Do not store plain text passwords in JSON configuration files.
+# Lifecycle Provider Authentication
+
+Add `Lifecycle` to the trusted MCP configuration to enable the staged deployment provider. If absent, Lifecycle tools return `authentication_unavailable`; bootstrap remains available. Invalid configuration fails startup. Configuration edits require the existing administrator configuration-trust/reload workflow and a restart. This section cannot be changed by an MCP assertion.
+
+| Key | Required | Initial value | Meaning |
+| :--- | :--- | :--- | :--- |
+| `Lifecycle.Issuer` | yes | none | Explicit trusted Moyai issuer, starting with `moyai:`. |
+| `Lifecycle.TrustBundlePath` | yes | none | Absolute path to a provider-managed public Trust Bundle. Read on every request. |
+| `Lifecycle.ReplayDatabasePath` | yes | none | Absolute SQLite replay DB path shared by all consumers of this provider. |
+| `Lifecycle.DeploymentDatabasePath` | yes | none | Absolute private SQLite deployment journal path, distinct from the replay DB. |
+| `Lifecycle.Targets` | no | empty | Administrator-registered target mappings; empty permits no targets. |
+| `Lifecycle.Targets[].ProjectId` | yes | none | Non-empty Moyai Project UUID. |
+| `Lifecycle.Targets[].TargetId` | yes | none | Unique immutable target identifier; case-sensitive. |
+| `Lifecycle.Targets[].ProfileName` | yes | none | Unique registered SSH profile name; matched case-insensitively. |
+
+Use `config_samples/lifecycle.example.json` as a template. Replace each path placeholder with an absolute provider-owned path; placeholders deliberately do not form a runnable configuration. Protect configuration, Trust Bundle, and both databases so only the service account and administrators can modify them. Parent directories are created when initializing the databases. This does not grant OS file permissions or install a service.
+
+Trust Bundle JSON must use the shared package's `AssertionJson.Options` (snake_case property names). It contains public verification keys only, never SSH credentials or Moyai signing keys. Key revocation is effective on the next request. JWT and operation ID belong in HTTP headers, never this configuration or tool arguments. Static Service Token and dual-accept settings do not apply.
+
+Deployment snapshots contain paths, hashes and transaction metadata, but no file contents or SSH credentials. Completed stages and unfinished reservations survive restart. Do not remove a pending reservation to retry an uncertain operation. See [ADR-0003](docs/adr/ADR-0003-STAGED-SERVER-DEPLOYMENT.md) for recovery and retention conditions.
+
+## Host Reboot Policy
+
+The optional profile root `HostReboot` object contains `Paths={}` (explicit remote paths required when enabled), `Enabled=false`, `ExpectedKernel=""`, `Services=[]`, `HttpUrls=[]`, `TimeoutSeconds=120` and `PollSeconds=3`. Enabling requires Maintenance/Expert, a non-root user, a pinned host key, exact sudo permission and trust privilege-expansion approval. See [Normal Host Reboot](HOST_REBOOT.md) for input validation, defaults, output/state/error contracts and administrator ownership. The policy is inherited by selected users but cannot enable reboot for Safe/ReadOnly users.
+
+### Nginx transaction helper policy
+
+Nginx configuration mutations require helper 0.2.4.0 or later and protocol 1 on Linux x64. Configure the independent root-owned `/etc/kelpie/nginx-config-helper-policy.json` and a private root-owned transaction directory. The SSH profile cannot extend this policy. The sample `config_samples/nginx-config-helper-policy.json` denies all callers and targets until configured. See [Nginx transaction helper](docs/NGINX_HELPER.md) for every key, ownership, permissions, limits, recovery states and fixed sudo rules. The existing web permission policy remains a separate contract.
+
+## Void Linux package provider
+
+The existing eight package operations support Platform.OsFamily=void or voidlinux and PackageManager=xbps (default when omitted). Public inputs/outputs and confirmation remain unchanged. Read/dry-run operations use cached indexes without refresh. See [the contract](docs/VOID_XBPS.md) and [sample](config_samples/servers/void.json); runit service lifecycle remains unsupported.
+
+## Windows management tray and user preferences
+
+`kelpiemcp tray` starts the notification-area manager; `kelpiemcp settings` opens settings. `--no-tray` suppresses automatic UI launch during interactive startup. Session0 services do not display UI. Non-secret startup/update/source preferences are stored separately per user and installation. SSH trust and MCP tool authorization are unchanged. See [management specifications](docs/MCP_MANAGEMENT.md) for keys, initial values and failure behavior.

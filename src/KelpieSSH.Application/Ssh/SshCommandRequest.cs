@@ -19,4 +19,10 @@ public sealed record SshCommandRequest(
     IReadOnlyDictionary<string, string> Arguments,
     string? StandardInput = null,
     IReadOnlyDictionary<string, string>? EnvironmentOverrides = null,
-    Stream? BinaryStandardInput = null);
+    Stream? BinaryStandardInput = null)
+{
+    /// <summary>Optional byte-bounded transport; null preserves the existing execution path.</summary>
+    public SshCommandExecutionLimits? ExecutionLimits { get; init; }
+    /// <summary>Omits profile environment overrides for a fixed isolated launcher.</summary>
+    public bool IgnoreEnvironmentOverrides { get; init; }
+}

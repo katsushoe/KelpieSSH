@@ -72,9 +72,11 @@ New-Item -ItemType Directory -Force -Path $binDir | Out-Null
 New-Item -ItemType Directory -Force -Path $mcpDir | Out-Null
 
 if (!$SkipPublish) {
-    Invoke-Checked "dotnet" @("publish", (Join-Path $repoRoot "src\KelpieClientCommand\KelpieClientCommand.csproj"), "-c", $Configuration, "-o", $clientPublishDir)
-    Invoke-Checked "dotnet" @("publish", (Join-Path $repoRoot "src\KelpieServerCommand\KelpieServerCommand.csproj"), "-c", $Configuration, "-o", $serverPublishDir)
-    Invoke-Checked "dotnet" @("publish", (Join-Path $repoRoot "src\KelpieMCPServer\KelpieMCPServer.csproj"), "-c", $Configuration, "-o", $mcpDir)
+    New-Item -ItemType Directory -Force -Path $clientPublishDir, $serverPublishDir | Out-Null
+    Invoke-Checked "dotnet" @("publish", "--disable-build-servers", (Join-Path $repoRoot "src\KelpieClientCommand\KelpieClientCommand.csproj"), "-c", $Configuration, "-o", $clientPublishDir)
+    Invoke-Checked "dotnet" @("publish", "--disable-build-servers", (Join-Path $repoRoot "src\KelpieServerCommand\KelpieServerCommand.csproj"), "-c", $Configuration, "-o", $serverPublishDir)
+    Invoke-Checked "dotnet" @("publish", "--disable-build-servers", (Join-Path $repoRoot "src\KelpieMCPTray\KelpieMCPTray.csproj"), "-c", $Configuration, "-o", $serverPublishDir)
+    Invoke-Checked "dotnet" @("publish", "--disable-build-servers", (Join-Path $repoRoot "src\KelpieMCPServer\KelpieMCPServer.csproj"), "-c", $Configuration, "-o", $mcpDir)
     Copy-Item -Path (Join-Path $clientPublishDir "*") -Destination $binDir -Recurse -Force
     Copy-Item -Path (Join-Path $serverPublishDir "*") -Destination $binDir -Recurse -Force
     Remove-Item -LiteralPath $clientPublishDir, $serverPublishDir -Recurse -Force
@@ -86,9 +88,12 @@ Copy-Item -LiteralPath (Join-Path $repoRoot "scripts\Install-Kelpie.ps1") -Desti
 $documentFiles = @(
     "README.md",
     "README.ja.md",
+    "CONTRIBUTING.md",
+    "PROVIDERS.md",
     "CLI_OPTIONS.md",
     "COMMANDS.md",
     "CONFIG.md",
+    "HOST_REBOOT.md",
     "PROFILE_GUIDE.md",
     "MCP_GUIDE.md",
     "DOCUMENTS.md",
@@ -110,7 +115,21 @@ if (Test-Path -LiteralPath $zipPath) {
     Remove-Item -LiteralPath $zipPath -Force
 }
 
-Compress-Archive -Path (Join-Path $filesRoot "*") -DestinationPath $zipPath -Force
+# Compress-Archive on Windows PowerShell 5.1 stores "\" in entry names, which other extractors treat as part of a file name.
+# Write entries with "/" separators, as the ZIP specification requires.
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$filesRootPath = [System.IO.Path]::GetFullPath($filesRoot).TrimEnd('\') + '\'
+$archive = [System.IO.Compression.ZipFile]::Open($zipPath, [System.IO.Compression.ZipArchiveMode]::Create)
+try {
+    $zipFiles = Get-ChildItem -LiteralPath $filesRoot -File -Recurse | Sort-Object { $_.FullName.Substring($filesRootPath.Length) } -CaseSensitive
+    foreach ($zipFile in $zipFiles) {
+        $entryName = $zipFile.FullName.Substring($filesRootPath.Length).Replace('\', '/')
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $zipFile.FullName, $entryName, [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
+    }
+} finally {
+    $archive.Dispose()
+}
 
 Write-Host "ZIP payload created: $filesRoot"
 Write-Host "ZIP created: $zipPath"

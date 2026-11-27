@@ -23,6 +23,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KelpieWebPermissionHelper", "src\KelpieWebPermissionHelper\KelpieWebPermissionHelper.csproj", "{143F395E-9500-4969-B239-533171DF1943}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KelpieMCPTray", "src\KelpieMCPTray\KelpieMCPTray.csproj", "{C72F6DB6-17BA-47DA-8D38-253CC3A8FAE3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +35,18 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C72F6DB6-17BA-47DA-8D38-253CC3A8FAE3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C72F6DB6-17BA-47DA-8D38-253CC3A8FAE3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C72F6DB6-17BA-47DA-8D38-253CC3A8FAE3}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C72F6DB6-17BA-47DA-8D38-253CC3A8FAE3}.Debug|x64.Build.0 = Debug|Any CPU
+		{C72F6DB6-17BA-47DA-8D38-253CC3A8FAE3}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C72F6DB6-17BA-47DA-8D38-253CC3A8FAE3}.Debug|x86.Build.0 = Debug|Any CPU
+		{C72F6DB6-17BA-47DA-8D38-253CC3A8FAE3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C72F6DB6-17BA-47DA-8D38-253CC3A8FAE3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C72F6DB6-17BA-47DA-8D38-253CC3A8FAE3}.Release|x64.ActiveCfg = Release|Any CPU
+		{C72F6DB6-17BA-47DA-8D38-253CC3A8FAE3}.Release|x64.Build.0 = Release|Any CPU
+		{C72F6DB6-17BA-47DA-8D38-253CC3A8FAE3}.Release|x86.ActiveCfg = Release|Any CPU
+		{C72F6DB6-17BA-47DA-8D38-253CC3A8FAE3}.Release|x86.Build.0 = Release|Any CPU
 		{A6B19596-A556-4E34-BA8D-452E8A87C465}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{A6B19596-A556-4E34-BA8D-452E8A87C465}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A6B19596-A556-4E34-BA8D-452E8A87C465}.Debug|x64.ActiveCfg = Debug|Any CPU

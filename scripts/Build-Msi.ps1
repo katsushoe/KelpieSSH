@@ -72,6 +72,11 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
 
 $msiPath = Join-Path $outputRootPath ("KelpieSSH-" + $Version + "-x64.msi")
 
+$resolvedRepoRoot = [System.IO.Path]::GetFullPath($repoRoot).TrimEnd('\') + '\'
+if (![System.IO.Path]::GetFullPath($payloadRoot).StartsWith($resolvedRepoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to write outside the repository: $payloadRoot"
+}
+
 if (!$SkipPublish) {
     if (Test-Path -LiteralPath $payloadRoot) {
         Remove-Item -LiteralPath $payloadRoot -Recurse -Force
@@ -79,10 +84,12 @@ if (!$SkipPublish) {
 
     New-Item -ItemType Directory -Force -Path $binDir | Out-Null
     New-Item -ItemType Directory -Force -Path $mcpDir | Out-Null
+    New-Item -ItemType Directory -Force -Path $clientPublishDir, $serverPublishDir | Out-Null
 
-    Invoke-Checked "dotnet" @("publish", (Join-Path $repoRoot "src\KelpieClientCommand\KelpieClientCommand.csproj"), "-c", $Configuration, "-o", $clientPublishDir)
-    Invoke-Checked "dotnet" @("publish", (Join-Path $repoRoot "src\KelpieServerCommand\KelpieServerCommand.csproj"), "-c", $Configuration, "-o", $serverPublishDir)
-    Invoke-Checked "dotnet" @("publish", (Join-Path $repoRoot "src\KelpieMCPServer\KelpieMCPServer.csproj"), "-c", $Configuration, "-o", $mcpDir)
+    Invoke-Checked "dotnet" @("publish", "--disable-build-servers", (Join-Path $repoRoot "src\KelpieClientCommand\KelpieClientCommand.csproj"), "-c", $Configuration, "-o", $clientPublishDir)
+    Invoke-Checked "dotnet" @("publish", "--disable-build-servers", (Join-Path $repoRoot "src\KelpieServerCommand\KelpieServerCommand.csproj"), "-c", $Configuration, "-o", $serverPublishDir)
+    Invoke-Checked "dotnet" @("publish", "--disable-build-servers", (Join-Path $repoRoot "src\KelpieMCPTray\KelpieMCPTray.csproj"), "-c", $Configuration, "-o", $serverPublishDir)
+    Invoke-Checked "dotnet" @("publish", "--disable-build-servers", (Join-Path $repoRoot "src\KelpieMCPServer\KelpieMCPServer.csproj"), "-c", $Configuration, "-o", $mcpDir)
     Copy-Item -Path (Join-Path $clientPublishDir "*") -Destination $binDir -Recurse -Force
     Copy-Item -Path (Join-Path $serverPublishDir "*") -Destination $binDir -Recurse -Force
     Remove-Item -LiteralPath $clientPublishDir, $serverPublishDir -Recurse -Force
@@ -100,7 +107,7 @@ if (!(Test-Path -LiteralPath $mcpDir) -or (Get-ChildItem -LiteralPath $mcpDir -F
     throw "Payload MCP directory does not contain files: $mcpDir"
 }
 
-foreach ($requiredFile in @("kelpie.exe", "kelpiemcp.exe")) {
+foreach ($requiredFile in @("kelpie.exe", "kelpiemcp.exe", "KelpieMCPTray.exe")) {
     if (!(Test-Path -LiteralPath (Join-Path $binDir $requiredFile) -PathType Leaf)) {
         throw "Payload is missing required file: $requiredFile"
     }
@@ -116,36 +123,44 @@ $componentRefs = New-Object System.Collections.Generic.List[string]
 $binComponentXml = New-Object System.Collections.Generic.List[string]
 $mcpComponentXml = New-Object System.Collections.Generic.List[string]
 
-foreach ($file in Get-ChildItem -LiteralPath $binDir -File) {
-    $fileIdentity = "bin/" + $file.Name
-    $componentId = New-WixId "CmpBin" $fileIdentity
-    $componentGuid = New-WixGuid $fileIdentity
-    $fileId = New-WixId "FileBin" $fileIdentity
-    $componentRefs.Add("      <ComponentRef Id=`"$componentId`" />")
-    $binComponentXml.Add("      <Component Id=`"$componentId`" Guid=`"$componentGuid`">")
-    $binComponentXml.Add("        <File Id=`"$fileId`" Source=`"$(Get-XmlEscaped $file.FullName)`" />")
-    $binComponentXml.Add("        <RegistryValue Root=`"HKCU`" Key=`"Software\Akatsukisoft\KelpieSSH\Files`" Name=`"$componentId`" Type=`"integer`" Value=`"1`" KeyPath=`"yes`" />")
-    $binComponentXml.Add("      </Component>")
+function Add-PayloadDirectory {
+    param([string]$Path, [string]$Identity, [System.Collections.Generic.List[string]]$Lines, [string]$SkipDirectory = '')
+    foreach ($file in Get-ChildItem -LiteralPath $Path -File) {
+        $fileIdentity = $Identity + '/' + $file.Name
+        $componentPrefix = if ($Identity -eq 'bin/mcp') { 'CmpMcp' } else { 'CmpBin' }
+        $filePrefix = if ($Identity -eq 'bin/mcp') { 'FileMcp' } else { 'FileBin' }
+        $componentId = New-WixId $componentPrefix $fileIdentity
+        $componentGuid = New-WixGuid $fileIdentity
+        $fileId = New-WixId $filePrefix $fileIdentity
+        $componentRefs.Add("      <ComponentRef Id=`"$componentId`" />")
+        $Lines.Add("      <Component Id=`"$componentId`" Guid=`"$componentGuid`">")
+        $Lines.Add("        <File Id=`"$fileId`" Source=`"$(Get-XmlEscaped $file.FullName)`" />")
+        $Lines.Add("        <RegistryValue Root=`"HKCU`" Key=`"Software\Akatsukisoft\KelpieSSH\Files`" Name=`"$componentId`" Type=`"integer`" Value=`"1`" KeyPath=`"yes`" />")
+        $Lines.Add('      </Component>')
+    }
+    foreach ($directory in Get-ChildItem -LiteralPath $Path -Directory) {
+        if ($directory.Name -eq $SkipDirectory) { continue }
+        $directoryIdentity = $Identity + '/' + $directory.Name
+        $directoryId = New-WixId 'DirPayload' $directoryIdentity
+        $Lines.Add("      <Directory Id=`"$directoryId`" Name=`"$(Get-XmlEscaped $directory.Name)`">")
+        Add-PayloadDirectory -Path $directory.FullName -Identity $directoryIdentity -Lines $Lines
+        $Lines.Add('      </Directory>')
+    }
 }
-
-foreach ($file in Get-ChildItem -LiteralPath $mcpDir -File) {
-    $fileIdentity = "bin/mcp/" + $file.Name
-    $componentId = New-WixId "CmpMcp" $fileIdentity
-    $componentGuid = New-WixGuid $fileIdentity
-    $fileId = New-WixId "FileMcp" $fileIdentity
-    $componentRefs.Add("      <ComponentRef Id=`"$componentId`" />")
-    $mcpComponentXml.Add("      <Component Id=`"$componentId`" Guid=`"$componentGuid`">")
-    $mcpComponentXml.Add("        <File Id=`"$fileId`" Source=`"$(Get-XmlEscaped $file.FullName)`" />")
-    $mcpComponentXml.Add("        <RegistryValue Root=`"HKCU`" Key=`"Software\Akatsukisoft\KelpieSSH\Files`" Name=`"$componentId`" Type=`"integer`" Value=`"1`" KeyPath=`"yes`" />")
-    $mcpComponentXml.Add("      </Component>")
-}
+Add-PayloadDirectory -Path $binDir -Identity 'bin' -Lines $binComponentXml -SkipDirectory 'mcp'
+Add-PayloadDirectory -Path $mcpDir -Identity 'bin/mcp' -Lines $mcpComponentXml
 
 $wxsLines = @(
     "<?xml version=`"1.0`" encoding=`"UTF-8`"?>",
     "<Wix xmlns=`"http://wixtoolset.org/schemas/v4/wxs`">",
     "  <Package Name=`"KelpieSSH`" Manufacturer=`"Akatsukisoft`" Version=`"$Version`" UpgradeCode=`"9E7E2CC6-3CA9-4D44-BFD4-CE0E0A9D4A9C`" Scope=`"perUser`">",
-    "    <MajorUpgrade DowngradeErrorMessage=`"A newer version of KelpieSSH is already installed.`" />",
+    # Windows Installer ignores the fourth version field; releases such as 0.3.16.1 must still replace 0.3.16.0.
+    "    <MajorUpgrade AllowSameVersionUpgrades=`"yes`" DowngradeErrorMessage=`"A newer version of KelpieSSH is already installed.`" />",
     "    <MediaTemplate EmbedCab=`"yes`" />",
+    "    <Property Id=`"EXISTINGINSTALLFOLDER`" Secure=`"yes`">",
+    "      <RegistrySearch Id=`"FindInstallFolder`" Root=`"HKCU`" Key=`"Software\Akatsukisoft\KelpieSSH`" Name=`"InstallFolder`" Type=`"raw`" />",
+    "    </Property>",
+    "    <SetProperty Id=`"INSTALLFOLDER`" Value=`"[EXISTINGINSTALLFOLDER]`" Before=`"CostFinalize`" Sequence=`"both`" Condition=`"EXISTINGINSTALLFOLDER AND NOT INSTALLFOLDER`" />",
     "    <StandardDirectory Id=`"LocalAppDataFolder`">",
     "      <Directory Id=`"ProgramsFolder`" Name=`"Programs`">",
     "        <Directory Id=`"INSTALLFOLDER`" Name=`"KelpieSSH`">",
@@ -160,6 +175,11 @@ $wxsLines = @(
     "        </Directory>",
     "      </Directory>",
     "    </StandardDirectory>",
+    "    <DirectoryRef Id=`"INSTALLFOLDER`">",
+    "      <Component Id=`"InstallLocationComponent`" Guid=`"12DFE865-9E0E-46DF-BE36-67D2D6D430C2`">",
+    "        <RegistryValue Root=`"HKCU`" Key=`"Software\Akatsukisoft\KelpieSSH`" Name=`"InstallFolder`" Value=`"[INSTALLFOLDER]`" Type=`"string`" KeyPath=`"yes`" />",
+    "      </Component>",
+    "    </DirectoryRef>",
     "    <DirectoryRef Id=`"ConfigFolder`">",
     "      <Component Id=`"ConfigFolderComponent`" Guid=`"*`">",
     "        <CreateFolder />",
@@ -215,6 +235,7 @@ $wxsLines += $mcpComponentXml
 $wxsLines += @(
     "    </DirectoryRef>",
     "    <Feature Id=`"MainFeature`" Title=`"KelpieSSH`" Level=`"1`">",
+    "      <ComponentRef Id=`"InstallLocationComponent`" />",
     "      <ComponentRef Id=`"ConfigFolderComponent`" />",
     "      <ComponentRef Id=`"ProfilesFolderComponent`" />",
     "      <ComponentRef Id=`"KeysFolderComponent`" />",
@@ -228,6 +249,16 @@ $wxsLines += @(
     "  </Package>",
     "</Wix>"
 )
+
+$trayFileId = New-WixId "FileBin" "bin/KelpieMCPTray.exe"
+$removeTrayAction = @(
+    "    <CustomAction Id=`"UnregisterTrayLogon`" FileRef=`"$trayFileId`" ExeCommand=`"--unregister-logon --install-root &quot;[INSTALLFOLDER].&quot;`" Execute=`"immediate`" Return=`"ignore`" />",
+    "    <InstallExecuteSequence>",
+    "      <Custom Action=`"UnregisterTrayLogon`" Before=`"RemoveFiles`" Condition=`"REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE`" />",
+    "    </InstallExecuteSequence>"
+)
+$packageEnd = [array]::IndexOf($wxsLines, '  </Package>')
+$wxsLines = $wxsLines[0..($packageEnd - 1)] + $removeTrayAction + $wxsLines[$packageEnd..($wxsLines.Length - 1)]
 
 Set-Content -LiteralPath $wxsPath -Value $wxsLines -Encoding UTF8
 

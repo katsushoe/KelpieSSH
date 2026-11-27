@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentAssertions;
 using KelpieSSH.Application.Ssh;
 using System.Text;
@@ -6,6 +7,45 @@ namespace KelpieSSH.Application.Tests.Ssh;
 
 public sealed class NginxConfigPathsProviderTests
 {
+    [Fact]
+    public async Task DiscoveryMissingUtility_ShouldReportCauseWithoutRetry()
+    {
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput("", "configure arguments: --conf-path=/etc/nginx/nginx.conf"),
+            new FakeSshCommandOutput("", "ERROR: required utility unavailable\n", 2),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var result = await new NginxConfigPathsProvider().ReadConfigFileAsync(service, CreateProfile());
+        result.Error.Should().Contain("unavailable system utilities");
+        runner.Requests.Should().HaveCount(2);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DiscoveryReadFailure_ShouldNotRetryMainConfig(bool checkOnly)
+    {
+        var runner = new FakeSshCommandRunner([
+            new FakeSshCommandOutput("", "configure arguments: --conf-path=/etc/nginx/nginx.conf"),
+            new FakeSshCommandOutput("partial-secret", "ERROR: read failed", 1),
+        ]);
+        var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
+        var provider = new NginxConfigPathsProvider();
+        if (checkOnly)
+        {
+            var result = await provider.CanReadConfigFileAsync(service, CreateProfile());
+            result.CanRead.Should().BeFalse();
+        }
+        else
+        {
+            var result = await provider.ReadConfigFileAsync(service, CreateProfile());
+            result.Error.Should().Contain("failed during discovery");
+            result.Content.Should().BeEmpty();
+        }
+        runner.Requests.Should().HaveCount(2);
+        runner.Requests.Count(r => r.CommandName == "service_config_nginx_read_config").Should().Be(1);
+    }
+
     [Fact]
     public void ExtractConfPath_ShouldReadNginxVersionConfigureArgument()
     {
@@ -238,10 +278,8 @@ public sealed class NginxConfigPathsProviderTests
         result.Path.Should().Be("/etc/nginx/conf.d/kelpie-test.conf");
         result.Encoding.Should().Be("utf-8");
         result.BytesWritten.Should().Be(Encoding.UTF8.GetByteCount(NormalizeLf(updatedContent)));
-        runner.LastRequest!.CommandName.Should().Be("service_config_nginx_write_config");
+        runner.LastRequest!.CommandName.Should().Be("service_config_nginx_helper_apply");
         DecodeArgument(runner.LastRequest, "pathBase64").Should().Be("/etc/nginx/conf.d/kelpie-test.conf");
-        DecodeArgument(runner.LastRequest, "allowedPathsBase64").Should().Be("/etc/nginx/nginx.conf");
-        DecodeArgument(runner.LastRequest, "allowedDirsBase64").Should().Be("/etc/nginx/conf.d");
         runner.LastRequest.Arguments.Should().NotContainKey("contentBase64");
         DecodeStandardInput(runner.LastRequest).Should().Be(NormalizeLf(updatedContent));
     }
@@ -494,9 +532,8 @@ public sealed class NginxConfigPathsProviderTests
         result.Changed.Should().BeTrue();
         result.Path.Should().Be("/etc/nginx/conf.d/kelpie-test.conf");
         result.BackupPath.Should().Be("/etc/nginx/conf.d/kelpie-test.conf.kelpiebakup");
-        runner.LastRequest!.CommandName.Should().Be("service_config_nginx_rollback_config");
+        runner.LastRequest!.CommandName.Should().Be("service_config_nginx_helper_rollback");
         DecodeArgument(runner.LastRequest, "pathBase64").Should().Be("/etc/nginx/conf.d/kelpie-test.conf");
-        DecodeArgument(runner.LastRequest, "allowedDirsBase64").Should().Be("/etc/nginx/conf.d");
     }
 
     [Fact]
@@ -525,7 +562,7 @@ public sealed class NginxConfigPathsProviderTests
         result.Error.Should().BeNull();
         result.Changed.Should().BeTrue();
         result.BackupPath.Should().Be("/etc/nginx/conf.d/kelpie-test.conf.kelpiebakup");
-        runner.LastRequest!.CommandName.Should().Be("service_config_nginx_commit_config");
+        runner.LastRequest!.CommandName.Should().Be("service_config_nginx_helper_commit");
         DecodeArgument(runner.LastRequest, "pathBase64").Should().Be("/etc/nginx/conf.d/kelpie-test.conf");
     }
 
@@ -591,11 +628,11 @@ public sealed class NginxConfigPathsProviderTests
         result.Committed.Should().BeTrue();
         result.RolledBack.Should().BeFalse();
         runner.Requests.Select(request => request.CommandName).Should().ContainInOrder(
-            "service_config_nginx_write_config",
+            "service_config_nginx_helper_apply",
             "service_config_nginx_test_config",
-            "service_config_nginx_commit_config");
+            "service_config_nginx_helper_commit");
         var writtenContent = DecodeStandardInput(
-            runner.Requests.Single(request => request.CommandName == "service_config_nginx_write_config"));
+            runner.Requests.Single(request => request.CommandName == "service_config_nginx_helper_apply"));
         writtenContent.Should().Contain("index index.php index.html index.htm;");
         writtenContent.Should().Contain("listen 80 default_server;");
         writtenContent.Should().Contain("location ~ \\.php$");
@@ -666,7 +703,7 @@ public sealed class NginxConfigPathsProviderTests
         result.Error.Should().BeNull();
         result.Path.Should().Be("/etc/nginx/conf.d/default.conf");
         runner.Requests.Select(request => request.CommandName)
-            .Should().Contain("service_config_nginx_disable_default_sites");
+            .Should().Contain("service_config_nginx_helper_apply");
         DecodeArgument(
             runner.Requests.Single(request => request.CommandName == "service_config_nginx_read_config" && DecodeArgument(request, "pathBase64").EndsWith("default.conf", StringComparison.Ordinal)),
             "pathBase64").Should().Be("/etc/nginx/conf.d/default.conf");
@@ -721,7 +758,7 @@ public sealed class NginxConfigPathsProviderTests
         result.Committed.Should().BeTrue();
         result.Warnings.Should().Contain("Nginx site configuration file did not exist; generated a fixed default server block.");
         var writtenContent = DecodeStandardInput(
-            runner.Requests.Single(request => request.CommandName == "service_config_nginx_write_config"));
+            runner.Requests.Single(request => request.CommandName == "service_config_nginx_helper_apply"));
         writtenContent.Should().Contain("server_name _;");
         writtenContent.Should().Contain("root /var/www/html;");
         writtenContent.Should().Contain("listen 80 default_server;");
@@ -775,9 +812,9 @@ public sealed class NginxConfigPathsProviderTests
         result.Changed.Should().BeFalse();
         result.Tested.Should().BeFalse();
         runner.Requests.Select(request => request.CommandName)
-            .Should().NotContain("service_config_nginx_write_config");
+            .Should().NotContain("service_config_nginx_test_config");
         runner.Requests.Select(request => request.CommandName)
-            .Should().Contain("service_config_nginx_disable_default_sites");
+            .Should().Contain("service_config_nginx_helper_apply");
     }
 
     [Fact]
@@ -831,12 +868,12 @@ public sealed class NginxConfigPathsProviderTests
         result.BytesWritten.Should().Be(0);
         result.Warnings.Should().Contain("Disabled 1 conflicting Nginx default_server site link(s).");
         runner.Requests.Select(request => request.CommandName).Should().ContainInOrder(
-            "service_config_nginx_disable_default_sites",
+            "service_config_nginx_helper_apply",
             "service_config_nginx_test_config");
         runner.Requests.Select(request => request.CommandName)
-            .Should().NotContain("service_config_nginx_write_config");
+            .Should().Contain("service_config_nginx_helper_plan");
         runner.Requests.Select(request => request.CommandName)
-            .Should().NotContain("service_config_nginx_commit_config");
+            .Should().Contain("service_config_nginx_helper_commit");
     }
 
     [Fact]
@@ -918,13 +955,11 @@ public sealed class NginxConfigPathsProviderTests
         result.RolledBack.Should().BeTrue();
         result.Committed.Should().BeFalse();
         runner.Requests.Select(request => request.CommandName).Should().ContainInOrder(
-            "service_config_nginx_write_config",
+            "service_config_nginx_helper_apply",
             "service_config_nginx_test_config",
-            "service_config_nginx_rollback_config",
-            "service_config_nginx_rollback_default_sites");
-        DecodeArgument(
-            runner.Requests.Single(request => request.CommandName == "service_config_nginx_rollback_default_sites"),
-            "disabledPathsBase64").Should().Be("/etc/nginx/sites-enabled/default");
+            "service_config_nginx_helper_rollback");
+        runner.Requests.Single(request => request.CommandName == "service_config_nginx_helper_rollback")
+            .StandardInput.Should().Contain("transactionId");
     }
 
     [Fact]
@@ -933,7 +968,7 @@ public sealed class NginxConfigPathsProviderTests
         var profile = CreateProfile();
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: "127.0.0.1 - - [14/Jun/2026:10:00:00 +0000] \"GET / HTTP/1.1\" 200 12\n",
+                StandardOutput: NginxLogWireTests.Envelope("127.0.0.1 - - [14/Jun/2026:10:00:00 +0000] \"GET / HTTP/1.1\" 200 12\n", "2026-06-14T10:01:00Z"),
                 StandardError: string.Empty),
         ]);
         var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
@@ -977,8 +1012,8 @@ public sealed class NginxConfigPathsProviderTests
         var profile = CreateProfile();
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: "ok\n",
-                StandardError: "KELPIE_TRUNCATED=1\nKELPIE_SINCE_FILTER_PARTIAL=1\n"),
+                StandardOutput: NginxLogWireTests.Envelope("ok\n", "2026-06-14T10:01:00Z", size: 262145),
+                StandardError: string.Empty),
         ]);
         var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
         var provider = new NginxConfigPathsProvider();
@@ -994,13 +1029,19 @@ public sealed class NginxConfigPathsProviderTests
 
     private static string DecodeArgument(SshCommandRequest request, string name)
     {
+        if (request.CommandName.StartsWith("service_config_nginx_helper_", StringComparison.Ordinal))
+        {
+            using var data = JsonDocument.Parse(request.StandardInput!);
+            return data.RootElement.GetProperty("target").GetString()!;
+        }
         return Encoding.UTF8.GetString(Convert.FromBase64String(request.Arguments[name]));
     }
 
     private static string DecodeStandardInput(SshCommandRequest request)
     {
         request.StandardInput.Should().NotBeNull();
-        return Encoding.UTF8.GetString(Convert.FromBase64String(request.StandardInput!));
+        using var data = JsonDocument.Parse(request.StandardInput!);
+        return Encoding.UTF8.GetString(Convert.FromBase64String(data.RootElement.GetProperty("contentBase64").GetString()!));
     }
 
     private static string NormalizeLf(string value)
@@ -1037,6 +1078,10 @@ public sealed class NginxConfigPathsProviderTests
         public IReadOnlyList<SshCommandRequest> Requests => _requests;
 
         private readonly List<SshCommandRequest> _requests = [];
+        private bool _writesFile;
+        private int _changedLinks;
+        private int _bytes;
+        private string _transaction = "0123456789abcdef0123456789abcdef";
 
         public Task<SshCommandResult> ExecuteAsync(
             SshCommandRequest request,
@@ -1044,7 +1089,14 @@ public sealed class NginxConfigPathsProviderTests
         {
             LastRequest = request;
             _requests.Add(request);
-            var output = _outputs.Dequeue();
+            var output = request.CommandName.StartsWith("service_config_nginx_helper_", StringComparison.Ordinal)
+                ? HelperReply(request) : _outputs.Dequeue();
+            if (request.CommandName == "service_config_nginx_read_config" && output.ExitCode == 0)
+            {
+                var bytes = Encoding.UTF8.GetBytes(output.StandardOutput);
+                var max = int.Parse(request.Arguments["maxBytes"], System.Globalization.CultureInfo.InvariantCulture);
+                output = output with { StandardOutput = Convert.ToBase64String(bytes, 0, Math.Min(bytes.Length, max + 1)) };
+            }
             return Task.FromResult(new SshCommandResult(
                 request.CommandName,
                 request.CommandText,
@@ -1054,6 +1106,64 @@ public sealed class NginxConfigPathsProviderTests
                 DateTimeOffset.UtcNow,
                 DateTimeOffset.UtcNow,
                 TimedOut: false));
+        }
+        private FakeSshCommandOutput HelperReply(SshCommandRequest request)
+        {
+            using var data = JsonDocument.Parse(request.StandardInput!);
+            var value = data.RootElement;
+            var operation = request.CommandName["service_config_nginx_helper_".Length..];
+            var state = "planned";
+            var error = string.Empty;
+            var code = 0;
+            if (operation == "plan")
+            {
+                _transaction = value.GetProperty("requestId").GetString()!;
+                _writesFile = value.TryGetProperty("contentBase64", out var content) && content.ValueKind == JsonValueKind.String;
+                _bytes = _writesFile ? Convert.FromBase64String(content.GetString()!).Length : 0;
+            }
+            else if (operation == "apply")
+            {
+                if (_writesFile)
+                {
+                    var write = _outputs.Dequeue();
+                    code = write.ExitCode;
+                    error = write.StandardError;
+                }
+                if (code == 0 && value.GetProperty("disableDefaultSites").GetBoolean())
+                {
+                    var links = _outputs.Dequeue();
+                    code = links.ExitCode;
+                    error = links.StandardError;
+                    _changedLinks = links.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
+                }
+                state = code == 0 ? (_writesFile || _changedLinks > 0 ? "applied" : "no-op") : "recovery-required";
+            }
+            else if (operation is "commit" or "rollback")
+            {
+                if (_outputs.Count > 0)
+                {
+                    var action = _outputs.Dequeue();
+                    code = action.ExitCode;
+                    error = action.StandardError;
+                }
+                if (operation == "rollback" && _writesFile && _changedLinks > 0 && _outputs.Count > 0)
+                {
+                    var links = _outputs.Dequeue();
+                    code = links.ExitCode;
+                    error = links.StandardError;
+                }
+                state = operation == "commit" ? "committed" : "rolled-back";
+            }
+            else if (operation == "status") state = "applied";
+            else if (operation == "check") state = "allowed";
+            return new FakeSshCommandOutput(JsonSerializer.Serialize(new
+            {
+                protocol = 1, requestId = value.GetProperty("requestId").GetString(), transactionId = _transaction,
+                ok = code == 0, state, configChanged = state != "no-op" && _writesFile,
+                linksChanged = state == "no-op" ? 0 : _changedLinks, bytesWritten = state == "no-op" ? 0 : _bytes,
+                intentDigest = new string('a', 64), originalHash = new string('b', 64), currentHash = new string('c', 64),
+                recoverable = state == "applied", error,
+            }), string.Empty, code);
         }
     }
 

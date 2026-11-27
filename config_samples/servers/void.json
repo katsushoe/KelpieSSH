@@ -1,0 +1,19 @@
+{
+  "Host": {
+    "Address": "example.invalid",
+    "Port": 22
+  },
+  "Auth": {
+    "UserName": "deploy",
+    "Method": "privateKey",
+    "PrivateKeyFile": "void_ed25519"
+  },
+  "Connection": {
+    "TimeoutSeconds": 10
+  },
+  "Platform": {
+    "OsFamily": "void",
+    "PackageManager": "xbps"
+  },
+  "Mode": "ReadOnly"
+}

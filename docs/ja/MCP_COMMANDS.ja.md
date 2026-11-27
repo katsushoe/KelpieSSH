@@ -1,12 +1,12 @@
 # KelpieSSH MCP コマンド
 
-最終更新: 2026-08-30
+最終更新: 2026-10-28
 
 このファイルは、KelpieSSH が MCP callable tool として公開するコマンドの正本です。
 通常のターミナルで実行する `kelpie` / `kelpiemcp` CLI コマンドは `COMMANDS.ja.md` を正本とします。
 特権helper更新はMCP callable toolおよび`ssh_run_allowed_command`から意図的に利用できません。正本は[ADR-0002](../adr/ADR-0002-PRIVILEGED-HELPER-UPDATE.md)です。
 
-## MCP tool の呼び出し方式
+## MCPツールの呼び出し方式
 
 KelpieSSH の MCP tool は REST resource ではありません。Streamable HTTP MCP transport 上で送受信される MCP JSON-RPC method です。
 
@@ -47,6 +47,7 @@ HTTP request body は REST 形式ではなく JSON-RPC です。たとえば診�
 
 | 分類 | MCP tool | 内容 |
 | :--- | :--- | :--- |
+| [隔離runtime情報](#runtime-info) | `ssh_runtime_info` | PHP/Nodeの隔離した版と組込み機能を取得します。 |
 | サーバー疎通 | `kelpie_ping` | `KelpieMCPServer` の疎通確認。 |
 | profile 管理 | `profile_reload`, `ssh_profile_capabilities` | 保存済み SSH profiles の再読み込みと、接続中 terminal の profile 操作可否確認を行う。 |
 | ローカル診断 | `get_system_info`, `get_disk_usage`, `get_memory_usage`, `get_listening_ports` | `KelpieMCPServer` 実行ホストの診断。 |
@@ -445,7 +446,7 @@ MCP server は terminal handle から接続中 profile を解決します。`kel
 
 - 読み取り専用です。
 
-### 環境変数 tool
+### 環境変数ツール
 
 対象 tool:
 
@@ -3841,6 +3842,8 @@ provider が対応するサービス設定ファイルの候補パスを取得�
 
 ### `service_config_file_read`
 
+nginxでは上限付きのPython不要な固定読取を使用します。必要ツール、パス検査、切詰め、エラーは[nginx設定の読取](NGINX_CONFIG_READ.ja.md)を参照してください。
+
 目的:
 
 provider が許可したサービス設定ファイルを読み取ります。
@@ -3892,6 +3895,8 @@ provider が許可したサービス設定ファイルを読み取ります。
 - provider が許可した設定ファイルだけを読み取ります。
 
 ### `service_config_file_check_read`
+
+nginxでは上限付きのPython不要な固定読取で可否を確認します。必要ツール、パス検査、切詰め、エラーは[nginx設定の読取](NGINX_CONFIG_READ.ja.md)を参照してください。
 
 目的:
 
@@ -4374,7 +4379,7 @@ provider が許可した nginx site 設定に、PHP-FPM 連携用の固定テン
 
 Kelpie は nginx site key を `/etc/nginx/conf.d/<site>.conf` や `/etc/nginx/sites-enabled/<site>` のような provider 許可済み site include file に解決します。`/etc/nginx/modules-enabled/*.conf` のような module include file は PHP site 設定の対象にしません。
 
-provider で検証済みの path、許可リスト、size、rollback 引数は、余分な位置引数を挿入せず、限定された nginx helper script の第1引数以降に渡します。
+プロバイダーは[nginx専用トランザクションhelper](NGINX_HELPER.ja.md)に記載した6つの固定操作と構造化した標準入力を使います。helperはroot所有のポリシー、呼出元UID、変更前ハッシュ、トランザクション識別子を独立して検証します。
 
 Kelpie は対象ファイルを読み取り、次の固定テンプレートだけを適用します。対象 site file が存在しない場合は、最小限の固定 server block を新規作成してから同じテンプレートを適用します。
 
@@ -4388,7 +4393,7 @@ location ~ \.php$ {
 }
 ```
 
-任意の nginx block、`proxy_pass`、`root`、`alias` は受け取りません。設定テスト前に、`/etc/nginx/sites-enabled/<name>` の symlink 先が `listen 80 ... default_server` を含む場合は競合する有効 site とみなし、symlink target を `/etc/nginx/.kelpie-disabled-sites/` 配下へ記録してから `sites-enabled` 上の symlink だけを削除します。これにより一般的な `include /etc/nginx/sites-enabled/*;` の対象外へ退避します。regular file や provider 外の `sites-available` 本文は編集しません。書き込みと競合解消後に `nginx -t` を実行し、失敗した場合は作成済み backup から rollback し、この実行で退避した symlink も復元します。nginx の reload はこの tool では行いません。成功後に `ssh_service_reload` を別途実行します。
+任意のnginxブロック、`proxy_pass`、`root`、`alias`は受け取りません。設定変更と競合する80番ポートの既定サイトリンク削除を、永続化した1つのトランザクションへ結び付けます。元のリンク先はnginxの読込ディレクトリ外にある専用台帳へ保存します。許可されたシンボリックリンクだけを削除し、リンク先ファイルは保持します。適用後に`nginx -t`を実行し、成功時は確定、失敗時は設定とリンクの両方を復元します。無関係の変更は上書きせず競合として扱います。再読込は引き続き別の`ssh_service_reload`操作です。
 
 戻り値:
 
@@ -4670,6 +4675,8 @@ site root 配下に解決されるディレクトリだけを対象に、ファ�
 - 検索は bounded scan 後の filter です。大量ファイル環境では `limit` により期待する一致が返らない場合があります。
 
 ### `web_file_stat`
+
+固定読取処理はPythonを使わずOS標準コマンドを利用します。[メタデータ取得の前提と動作](WEB_FILE_STAT.ja.md)を参照してください。
 
 目的:
 
@@ -4966,6 +4973,8 @@ secret reference の存在、secret file name、`AllowedFiles` の明示的な�
 
 ### `web_file_read`
 
+全体読取はPythonを使わずGNU互換コマンドを使用します。[読取の前提と動作](WEB_FILE_READ.ja.md)を参照してください。
+
 目的:
 
 指定 `siteKey` の Web 公開ルート配下から、provider が許可した1ファイルを読み取ります。
@@ -5020,6 +5029,8 @@ secret reference の存在、secret file name、`AllowedFiles` の明示的な�
 
 ### `web_file_head`
 
+固定バイト読取とホスト側の行選択ではPythonを必要としません。[部分読取の動作と前提](WEB_FILE_SLICE.ja.md)を参照してください。
+
 目的:
 
 指定 `siteKey` の Web 公開ルート配下から、provider が許可した1ファイルの先頭部分だけを読み取ります。
@@ -5062,6 +5073,8 @@ Web 公開ルート外へ出ないこと、読み取り許可、content type 許
 - `maxBytes` は site の `MaxReadBytes` も超えません。
 
 ### `web_file_tail`
+
+固定バイト読取とホスト側の行選択ではPythonを必要としません。[部分読取の動作と前提](WEB_FILE_SLICE.ja.md)を参照してください。
 
 目的:
 
@@ -5588,15 +5601,23 @@ Web 公開ルート配下の1ディレクトリツリーへ、sudo helper 経由
 - `owner` / `group` に `root` または `0` は指定できません。
 - `mode` は3桁 octal のみ許可し、world-writable になる mode は拒否します。
 
-## 管理対象Webファイルのatomic更新
+## 管理対象Webファイルのアトミック更新
 
 - `web_file_check_write`の`usePrivilegedHelper=true`は、通常のprofile判定とroot所有の`/etc/kelpie/web-permission-helper-policy.json`による許可を両方必須とします。site root不足、完全一致またはdirectory glob不一致、`Create`許可不足では`canWrite: false`を返し、通常の書込み許可だけへfallbackしません。
 - 事前確認結果は、新規作成可否、特権付きatomic更新、owner/group/mode維持、backup、rollback、更新前後のSHA-256確認の利用可否を返します。
 - `web_file_write`では`expectedSha256`、`createBackup`、`preservePermissions`を指定できます。既存ファイルはuid、gid、modeを維持し、helper policyで`Create`とした完全一致パスだけroot所有・`0644`で新規作成できます。
 - backupと本体は対象ディレクトリ内の一時ファイルへ書き、同一filesystem内のrenameでatomicに置換します。symlink、ルート外、未登録パス、実行可能modeは拒否します。
-- `web_file_rollback`は現在のSHA-256一致後にbackupをatomic復元し、`web_file_commit`は検証完了後にbackupを削除します。
+- バックアップは、書込み時にowner/modeを変更する場合も、変更前の内容・所有者・グループ・モードを保存します。`web_file_rollback`は現在のSHA-256一致後に元の状態へ原子的に復元し、`web_file_commit`は検証完了後にバックアップを削除します。
 - ファイル本文、Base64本文、stdin、raw stdout/stderrは通常ログと監査ログへ記録しません。
-## Webバルク転送
+### `ssh_file_export`
+
+リモートの通常ファイル1個を、Kelpieのデータディレクトリ内の`exports`へ直接搬出します。一致する`AllowedRoots`ルールに`@Read`と`@Export`の両方が必要です。ディレクトリ一覧の権限を要求せず、リモートパスの各要素を検査します。シンボリックリンク、ディレクトリ、特殊ファイル、許可ルート外への逸脱、上限を超えるファイル、転送中に変わったファイルは拒否します。`SpecialPaths: Confirm`に一致する場合は、さらに`confirmSpecialPath=true`が必要です。
+
+入力は`profileName`、絶対パスの`remotePath`、搬出先フォルダーを基準とした相対パスまたは同フォルダー内の絶対パスである`localPath`、任意の`confirmSpecialPath`です。構造化された`SshFileExportToolResult`を返します。成功時のメタデータは`Data`に入り、拒否・失敗時は`Ok=false`、`Error`、`ErrorInfo`を返し、不完全なローカルファイルを残しません。本文やBase64化した本文は返しません。
+
+失敗結果は、プロファイルポリシーの拒否、SSH認証失敗、SFTP操作失敗を区別します。SFTP診断には選択したプロファイルのユーザー、絶対パスの分類、SFTP状態を含みますが、資格情報やファイル本文は含めません。
+
+## Web一括転送
 
 Kelpieは、最大100個のローカル通常ファイルを1回のSSH転送で配置するdraft方式のワークフローを公開します。ZIPは内部転送形式であり、呼び出し元から受け取らず、呼び出し元へ返しません。
 
@@ -5624,14 +5645,97 @@ web_bulk_transfer_execute:<transferId>:<manifestSha256>
 
 remote helperは、絶対archive entry名、path traversal、backslash、重複entryまたはremote path、symbolic link、hard linkまたは通常ファイルではないZIP entry、manifest未記載entry、entry不足、件数・size超過、manifestとsizeまたはSHA-256が異なる内容を拒否します。各targetはmanaged web helper policyでも再検証します。全ファイルを非公開transaction directoryへ展開・検証してから配置し、配置中に失敗した場合は適用済みファイルを逆順に復元するため、部分配置を残しません。
 
-## 段階Server Deploy
+## 段階サーバー配備
 
-段階Deploy契約は`provider_version`、`provider_capabilities`、`target_status`、`deploy_prepare`、`deploy_upload`、`deploy_activate`、`deploy_verify`、`deploy_rollback`、`deploy_cleanup`を公開します。`deploymentId`は相関IDと冪等性keyを兼ねます。`targetName`は保存済みKelpieSSH profileを選択します。任意の`targetId`は呼び出し元の相関用途として返しますが、資格情報の解決には使用しません。`siteKey`の初期値は`default`です。
+段階Deploy契約は`provider_version`、`provider_capabilities`、`target_status`、`deploy_prepare`、`deploy_upload`、`deploy_activate`、`deploy_verify`、`deploy_rollback`、`deploy_cleanup`、`deploy_status`を公開します。`deploymentId`は永続的な相関IDと冪等性キーです。`targetName`は管理者が登録したProfile・Project・Targetの対応を選択します。任意の`targetId`は登録済みの不変Target IDと一致する必要があり、省略時は登録値を使用します。`siteKey`の初期値は`default`です。
 
 `deploy_prepare`はdeployment IDをtarget、site、destinationへ拘束します。`deploy_upload`はローカル通常ファイルの`artifactPath`と必須SHA-256を受け取り、変更またはhash不一致を拒否します。`deploy_activate`はmanaged web policy、上限付きZIP転送、atomic配置、rollbackデータを再利用します。`deploy_verify`は本文を含まないremote SHA-256を取得します。`deploy_cleanup`は検証済みdeployのcommit、未activate draftのcancel、rollback済みdeployの終了を行います。
 
-各段階は`Success`と`Deployment`を返します。`Deployment`は状態と任意の`Error`を含み、`Error`には安定した`Code`、安全な`Message`、`Retryable`があります。安定codeは`target-not-found`、`deployment-not-found`、`invalid-request`、`idempotency-conflict`、`invalid-state`、`artifact-hash-mismatch`、`upload-failed`、`activate-failed`、`verify-failed`、`rollback-failed`、`cleanup-failed`です。`Retryable`が`true`の場合だけ、同じdeployment IDと同じ入力で再試行します。成功済み段階の再呼び出しは既存結果を返します。
+成功時のHTTP応答は`success`と`deployment`を含みます。JSONのキーはcamelCase、列挙状態は`prepared`などの文字列です。HTTP認証境界で拒否した要求はMCPの`isError`と安定したコードを返します。段階処理の診断は`deployment_stage_failed`へ正規化し、例外本文を返しません。処理中の停止は`deployment_result_unknown`として永続化します。完了済み段階に同一入力を渡した場合は保存結果を返し、入力差は`idempotency-conflict`で拒否します。通信結果が不明な場合は状態照会を行い、段階処理を自動再実行しません。実行前の`auth_assertion_expired`に限り、認可を再評価して新しいAssertionで最大1回再試行できます。
+
+認証済みの段階応答には`diagnostic`を追加します。項目は`deploymentId`、`tool`、検証済みの`operationId`、UTCの`startedAtUtc`・`completedAtUtc`、`errorCode`（成功時はnull）です。分類は`target-not-found`、`invalid-request`、`invalid-state`、`idempotency-conflict`、`artifact-hash-mismatch`、`deployment-not-found`、`upload-failed`、`activate-failed`、`verify-failed`、`rollback-failed`、`cleanup-failed`だけを許可し、その他は`unclassified-stage-failure`へ置換します。診断にはメッセージ、資格情報、パス、生出力、Assertionを含めません。再起動後を含む保存結果の再取得では、元の診断情報を返します。古い保存結果では省略される場合があります。実行中の予期しない例外は`unexpected-stage-failure`を診断へ返し、予約は結果不明のまま維持して再実行しません。実行前の認証拒否には段階診断を付けません。ログ出力失敗時は固定の安全な標準エラー出力へ切り替え、処理結果を変えません。
+
+| MCPツール | 必須権限範囲 | 入力 | 出力 |
+| :--- | :--- | :--- | :--- |
+| `provider_version`、`provider_capabilities` | なし | なし | バージョン、または操作一覧と認証仕様。 |
+| `target_status` | `target.status` | `targetName`、任意の`targetId` | 登録対象の利用可否。 |
+| `deploy_prepare` | `deploy.prepare` | `deploymentId`、`targetName`、`destination`、任意の`targetId`、`siteKey` | 段階結果。 |
+| `deploy_upload` | `deploy.upload` | `deploymentId`、`artifactPath`、`sha256`、任意の`contentType` | 段階結果。 |
+| `deploy_activate` | `deploy.activate` | `deploymentId` | 段階結果。 |
+| `deploy_verify` | `deploy.verify` | `deploymentId` | 段階結果。 |
+| `deploy_rollback` | `deploy.rollback` | `deploymentId` | 段階結果。 |
+| `deploy_cleanup` | `deploy.cleanup` | `deploymentId` | 段階結果。 |
+| `deploy_status` | `deploy.status` | `deploymentId` | `deploymentId`、`projectId`、`targetId`、`state`、`resultUnknown`。 |
+
+保護対象の8操作は、実際のHTTP Tool要求に`Authorization: Bearer <assertion>`と`X-Moyai-Operation-Id`を必要とします。初期化、discovery、Provider基本情報にはAssertionを要求しません。資格情報をMCP引数に渡してはいけません。認証仕様はES256、Protocol `2`、Audience／Provider `kelpiessh`、Replay防止必須、Resource種別`kelpie_target`です。`server`、Repository用Assertion、未登録の対応、過大なScopeは拒否します。管理設定は[CONFIG.ja.md](CONFIG.ja.md)を参照してください。旧MCP Service Tokenの受入はありません。
+
+`deploy_status`は再起動後も永続ジャーナルから登録対応を解決します。`state`は保存済みの列挙名を小文字へ変換した`prepared`、`uploaded`、`activated`、`verified`、`rolledback`、`cleaned`、`failed`、または追加状態の`not-started`、`result-unknown`です。復元完了の状態名はアンダースコアなしの`rolledback`です。未完了の実行予約がある場合は`resultUnknown=true`となりますが、復元完了や再試行許可を意味しません。正常終了した転送情報は後続段階のために復元します。入力プロパティの順序は無視しますが、省略した任意引数と明示値は区別します。記録の保持管理と結果不明の調査は管理者が行います。
+
+実処理、状態応答、保存済み結果の返却の直前に、検証済みPrincipalを使って期限・最新Trust Bundleの鍵状態・Capabilityを再確認します。Replayは再予約しません。実処理前の認証拒否では当該段階の予約だけを解除し、使用済みAssertionは使用済みのまま維持します。新しい認可による要求で再試行できます。実行結果が不明な場合は予約を残し、自動再実行を許可しません。
 
 providerはSSH password、private key、passphrase、secret reference、artifact bytes、Base64本文、raw provider outputを返しません。256 MiBのartifact上限とtarget profileのmanaged web policyが常に優先されます。
 
 loopback port 2222へ接続する破棄可能SSH containerでは、`config_samples/servers/moyai-deploy-loopback.json`を元にします。このsampleはdeploy範囲を`/tmp/kelpie-deploy-test/artifacts/**`へ制限します。差し替えるのは破棄可能な検証用keyだけです。設計判断とMCP provider／CLIの意図的な非対称性は[ADR-0003](../adr/ADR-0003-STAGED-SERVER-DEPLOYMENT.md)を正本とします。
+
+
+### 登録済みTarget IDによる選択
+
+targetNameは登録Profile名（大文字小文字を区別しない）または不変Target ID（大文字小文字を区別する）を受け付けます。候補が複数ある場合は実行前にauth_project_mismatchで拒否し、指定targetIdは登録値との一致を要求します。登録Project/Targetの認証を維持し、実行には正規Profile名を使います。rollbackはcleanup前のActivatedまたはVerifiedだけが対象です。Verifiedのcleanupはcommitしてtransaction/backupを削除し、Cleanedからのrollbackはできません。通常Deploy完了とcleanup前rollbackは別deployment IDで試験します。
+
+## ホスト通常再起動ツール
+
+| ツール | 必須入力 | 任意入力 | 動作 |
+| :--- | :--- | :--- | :--- |
+| `ssh_host_reboot_preview` | `profileName` | なし | 起動情報を読み取り、保存したプレビューを返す。 |
+| `ssh_host_reboot_request` | `profileName`, `operationId`, `confirmation` | なし | 人間の管理者による明示承認後、一度だけ送信。 |
+| `ssh_host_reboot_inspect` | `profileName`, `operationId` | `wait=false` | 同じホストを観測し、再送しない。 |
+
+### `ssh_host_reboot_preview`
+
+入力例: `{"profileName":"sample"}`。対象、現在のboot IDとカーネル、影響、確認項目、操作ID、確認トークンを返します。再起動しません。
+
+### `ssh_host_reboot_request`
+
+入力例: `{"profileName":"sample","operationId":"<preview ID>","confirmation":"<exact preview token>"}`。先に人間の管理者から、当該対象と停止影響への明示承認を得てください。Accepted、FailedまたはUnknownを返し、同じIDを再送しません。
+
+### `ssh_host_reboot_inspect`
+
+入力例: `{"profileName":"sample","operationId":"<same ID>","wait":true}`。boot ID変更、カーネル、サービス・HTTPの確認結果を返します。`wait=false`では一度だけ観測し、待機時も元の送信期限を延長しません。
+
+すべて`HostRebootOperation`を返します。全出力項目、例、設定、状態、エラー、安全・承認手順は[ホストの通常再起動](HOST_REBOOT.ja.md)を参照してください。3ツールは`ssh_get_capabilities`へ反映されます。保存済みプロファイルだけを受け付け、`ssh_run_allowed_command`から再起動しません。
+
+### nginxトランザクションの結果
+
+`ServiceConfigFileWriteResult`、`ServiceConfigFileBackupActionResult`、`NginxPhpEnableResult`に`OutcomeKnown`（真偽値、初期値`true`）を追加しました。既存ツール名、入力、確認トークン、位置指定の結果項目は維持します。変更操作の応答が不明な場合、期限付きの状態照会を1回だけ行い、変更を再実行しません。作用を確定できなければ`OutcomeKnown=false`と空でない`Error`を返します。件数0や偽のフラグだけで未変更と判断せず、保存済みトランザクションを確認して復旧してください。書込可否確認は対象とバックアップを作成しません。単独書込は明示的な確定または復元まで専用の`.kelpiebakup`を保持します。旧形式や無関係のバックアップは競合として拒否します。状態遷移と復旧は[nginx専用トランザクションhelper](NGINX_HELPER.ja.md)を参照してください。
+
+## runtime-info
+
+### `ssh_runtime_info`
+
+入力は必須profileName/runtime、任意refresh=falseです。runtimeはphp/node完全一致。現在の固定ホスト鍵・非rootプロファイルと通常の読取権限を評価し、D1の信頼候補検査と環境初期化後に実行します。キャッシュせず、開始後の再試行・別runtime切替はしません。新設定や確認トークンは不要です。
+
+入力例: `{"profileName":"synthetic-profile","runtime":"php","refresh":false}`。成功結果例は`{"protocol":1,"operation":"runtime.info","runtime":"php","status":"ok","startupMode":"isolated","version":"8.2.35","features":{"json":true,"sha256":true},"cached":false,"warnings":[]}`の各フィールドにホスト生成requestIdとcheckedAtを加えたものです。失敗時の観測値はnullです。CLIは成功0/その他1、MCPは同じ型付き状態を返します。[全入力・出力・状態・エラー・上限・安全条件](RUNTIME_INFO.ja.md)を参照してください。D3はPHP 8とNode 22/24、監査付き実SSHと単体境界を組み合わせて全24要件に合格しました。実AIデスクトップアプリは受入範囲外です。
+
+## Web一覧取得バックエンド
+
+一覧取得・名前検索・本文検索は[一覧走査の契約](WEB_FILE_LIST.ja.md)に従います。公開tool名・引数は維持します。正確な呼び出し名は各toolの項目を参照してください。バックエンド移行は[ADR-0012](ADR-0012-WEB-FILE-LIST.ja.md)の受入に合格しました。
+
+## nginxログ処理の互換性
+
+service_logfile_readのPython不要・上限付き処理は、接続先時計/タイムゾーンと行数制限後の時刻抽出を維持します。必要コマンド・対応時刻規則・エラー・受入状態は[ログ読取契約](NGINX_LOG_READ.ja.md)を参照してください。公開入力と応答項目は変更しません。
+
+## Web書込検査の処理
+
+通常/秘密ファイルの書込検査は[事前見込みの契約](WEB_WRITE_CHECK.ja.md)に従います。公開tool入力と応答項目は維持します。受入状態と[設計判断](ADR-0014-WEB-WRITE-CHECK.ja.md)を確認してください。canWriteは後続の原子的書込の成功保証ではありません。
+
+## Void Linuxパッケージprovider
+
+既存8操作がPlatform.OsFamily=void/voidlinuxとPackageManager=xbps（省略時の既定）へ対応します。公開入力/応答/確認は維持し、読取/dry-runは索引更新を行いません。[契約](VOID_XBPS.ja.md)と[設定例](../../config_samples/servers/void.json)を参照してください。runitサービス操作は未対応です。
+
+### 上限付きSSH応答と開始時の表示
+
+上限付きSSHでは開始・終了の両フレームで固定コマンドの応答を識別します。セッション開始時の表示を本文へ混入させず、書込み検査の厳格な6行形式、権限、MIME判定、容量上限を維持します。詳細は[転送仕様](RUNTIME_DIAGNOSTIC_STARTUP.ja.md)を参照してください。
+
+## Windows管理用トレイと利用者設定
+
+`kelpiemcp tray`でトレイ常駐、`kelpiemcp settings`で設定画面を開きます。対話的な起動時の自動表示は`--no-tray`で抑止できます。サービスのセッション0では画面を表示しません。起動・更新・配信元の利用者設定を導入先別のLocalApplicationDataへ保存し、SSHの信頼設定やMCPツールの権限は変更しません。[管理仕様](MCP_MANAGEMENT.ja.md)に設定キー・初期値・更新の失敗条件を記載しています。

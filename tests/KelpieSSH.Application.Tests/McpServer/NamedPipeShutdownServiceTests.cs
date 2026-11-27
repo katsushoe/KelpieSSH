@@ -497,9 +497,10 @@ public sealed class NamedPipeShutdownServiceTests
     {
         var lifetime = new FakeHostApplicationLifetime();
         var pipeName = "KelpieTest." + Guid.NewGuid().ToString("N");
+        var pipeLogger = new ConcurrentPingLogger();
         using var service = new NamedPipeShutdownService(
             lifetime,
-            NullLogger<NamedPipeShutdownService>.Instance,
+            pipeLogger,
             new KelpieServerControlOptions(pipeName),
             CreateProfileCatalog(),
             new InMemorySshPasswordSessionStore(),
@@ -507,14 +508,39 @@ public sealed class NamedPipeShutdownServiceTests
 
         await service.StartAsync(CancellationToken.None);
 
-        var responses = await Task.WhenAll(
-            Enumerable.Range(0, 8)
-                .Select(_ => SendControlCommandAsync(pipeName, "ping")));
+        // ConnectAsync queues a blocking connection wait on the shared worker pool.
+        // Keep those waits off the pool used by the in-process server continuations.
+        var requests = Enumerable.Range(0, 8).Select(_ => Task.Factory.StartNew(
+            () => SendControlCommandAsync(pipeName, "ping", connectSynchronously: true),
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default).Unwrap()).ToArray();
+        string?[] responses;
+        try
+        {
+            responses = await Task.WhenAll(requests);
+        }
+        catch (Exception ex)
+        {
+            ThreadPool.GetMinThreads(out var minWorkers, out _);
+            throw new InvalidOperationException(
+                $"Concurrent ping failed. stopRequested={lifetime.StopRequested}; completed={requests.Count(task => task.IsCompletedSuccessfully)}/8; cpu={Environment.ProcessorCount}; minWorkers={minWorkers}; threads={ThreadPool.ThreadCount}; pending={ThreadPool.PendingWorkItemCount}; listener={string.Join(" | ", pipeLogger.Messages)}", ex);
+        }
 
         await service.StopAsync(CancellationToken.None);
 
         responses.Should().OnlyContain(response => response == "pong;windowsService=false");
         lifetime.StopRequested.Should().BeFalse();
+    }
+
+    private sealed class ConcurrentPingLogger : Microsoft.Extensions.Logging.ILogger<NamedPipeShutdownService>
+    {
+        public System.Collections.Concurrent.ConcurrentQueue<string> Messages { get; } = new();
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId,
+            TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            => Messages.Enqueue(formatter(state, exception) + (exception is null ? "" : $" [{exception.GetType().Name}, 0x{exception.HResult:X8}]"));
     }
 
     [Fact]
@@ -564,7 +590,10 @@ public sealed class NamedPipeShutdownServiceTests
         }
     }
 
-    private static async Task<string?> SendControlCommandAsync(string pipeName, string command)
+    private static async Task<string?> SendControlCommandAsync(
+        string pipeName,
+        string command,
+        bool connectSynchronously = false)
     {
         await using var pipe = new NamedPipeClientStream(
             ".",
@@ -574,7 +603,14 @@ public sealed class NamedPipeShutdownServiceTests
             TokenImpersonationLevel.Identification);
 
         using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await pipe.ConnectAsync(cancellationTokenSource.Token);
+        if (connectSynchronously)
+        {
+            pipe.Connect(10000);
+        }
+        else
+        {
+            await pipe.ConnectAsync(cancellationTokenSource.Token);
+        }
 
         var writer = new StreamWriter(pipe)
         {

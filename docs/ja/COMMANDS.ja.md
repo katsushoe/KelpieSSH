@@ -1,6 +1,6 @@
 # KelpieSSH コマンド
 
-最終更新: 2026-08-04
+最終更新: 2026-11-22
 
 このファイルは、利用者が通常のターミナルから直接実行する `kelpie` / `kelpiemcp` CLI コマンドの正本です。
 コマンドラインオプションの詳細は [CLI_OPTIONS.md](../../CLI_OPTIONS.md) を参照してください。
@@ -10,22 +10,24 @@ MCP callable tool の仕様と実行例は `MCP_COMMANDS.ja.md` を正本とし�
 
 | 分類 | コマンド | 内容 |
 | :--- | :--- | :--- |
-| MCP server control | `kelpiemcp start [--reload-config]`, `kelpiemcp stop`, `kelpiemcp status` | `KelpieMCPServer` の起動、停止、状態確認を行う。 |
-| MCP profile trust | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile> [--approve-privilege-expansion]`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | SSH profile の信頼 baseline 追加、更新、取り消し、確認を行う。 |
+| [隔離runtime情報](#runtime-info) | `kelpie runtime-info` | PHP/Nodeの隔離した版と組込み機能を取得します。 |
+| Windows管理用トレイ | `kelpiemcp tray`, `kelpiemcp settings` | 利用者別のトレイを起動し、設定画面を開きます。詳細は末尾の管理仕様を参照してください。 |
+| MCPサーバー制御 | `kelpiemcp start [--reload-config] [--no-tray]`, `kelpiemcp stop`, `kelpiemcp status` | `KelpieMCPServer` の起動、停止、状態確認を行う。 |
+| MCPプロファイルの信頼管理 | `kelpiemcp profile add <profile>`, `kelpiemcp profile reload <profile> [--approve-privilege-expansion]`, `kelpiemcp profile revoke <profile>`, `kelpiemcp profile-capabilities [profile]` | SSH profile の信頼 baseline 追加、更新、取り消し、確認を行う。 |
 | 人間用Web policy管理 | `kelpiemcp web-policy list`, `add`, `remove`, `apply`, `rollback` | 選択したVPSのmanaged Web helper policyをリモートで確認または対話的に変更する。 |
 | 人間用helper更新 | `kelpiemcp helper update <profile> <local-artifact>` | 人間専用workflowで固定された特権helperを転送し、原子的に置換する。 |
-| MCP Windows Service | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Windows Service 登録、登録解除、登録状態確認を行う。 |
-| MCP password session | `kelpiemcp password`, `kelpiemcp forget` | 起動中の MCP server に SSH パスワードを一時保存、削除する。 |
-| MCP secret session | `kelpiemcp secret put`, `kelpiemcp secret list`, `kelpiemcp secret forget` | 起動中の MCP server に短命の秘密ファイル内容を一時保存、一覧表示、削除する。 |
-| MCP environment session | `kelpiemcp env put`, `kelpiemcp env list`, `kelpiemcp env forget`, `kelpiemcp env clear` | 起動中の MCP server に短命の環境変数 override を一時保存、一覧表示、削除する。 |
-| Compatibility | `kelpiemcp login`, `kelpiemcp logout` | 旧名互換。新規利用では `password` / `forget` を使う。 |
-| Initialization | `kelpie init [--silent] [profile]`, `kelpie config --check` | `KelpieHome` 配下の初期ディレクトリとサンプル設定を作成・検証する。 |
-| Profile/session | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie profile trust-host-key`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSH プロファイルひな形作成・編集・ホスト鍵信頼登録・削除、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
-| Mode/UI | `kelpie login --console` | 一時的に別コンソールで起動する。 |
-| Diagnostics | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie inventory`, `kelpie services`, `kelpie logs` | プロファイル検証、プロファイル情報、MCP server 状態、SSH 診断、接続先 inventory、サービス状態、サービスログを表示する。 |
-| Packages | `kelpie pkg check-updates`, `kelpie pkg info`, `kelpie pkg search`, `kelpie pkg list-installed`, `kelpie pkg simulate-install`, `kelpie pkg simulate-remove`, `kelpie pkg install`, `kelpie pkg remove` | SSH profile の package provider を使って package 確認と確認付き変更を行う。 |
-| Environment | `kelpie env keys`, `kelpie env peek`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | profile policy に従って remote 環境変数の key 表示、値参照、永続化を行う。 |
-| Help/version | `kelpie version`, `kelpie help`, `kelpiemcp version`, `kelpiemcp help` | バージョンとヘルプを表示する。 |
+| MCP Windowsサービス | `kelpiemcp service register`, `kelpiemcp service unregister`, `kelpiemcp service status` | Windowsサービスの登録、登録解除、登録状態確認を行う。 |
+| MCPパスワードセッション | `kelpiemcp password`, `kelpiemcp forget` | 起動中のMCPサーバーにSSHパスワードを一時保存、削除する。 |
+| MCP秘密情報セッション | `kelpiemcp secret put`, `kelpiemcp secret list`, `kelpiemcp secret forget` | 起動中のMCPサーバーに短期の秘密ファイル内容を一時保存、一覧表示、削除する。 |
+| MCP環境変数セッション | `kelpiemcp env put`, `kelpiemcp env list`, `kelpiemcp env forget`, `kelpiemcp env clear` | 起動中のMCPサーバーに短期の環境変数上書きを一時保存、一覧表示、削除する。 |
+| 互換コマンド | `kelpiemcp login`, `kelpiemcp logout` | 旧名互換。新規利用では `password` / `forget` を使う。 |
+| 初期化 | `kelpie init [--silent] [profile]`, `kelpie config --check` | `KelpieHome` 配下の初期ディレクトリとサンプル設定を作成・検証する。 |
+| プロファイル/セッション | `kelpie profile create`, `kelpie profile edit`, `kelpie profile delete`, `kelpie profile clean`, `kelpie profile commit`, `kelpie profile rollback`, `kelpie profile trust-host-key`, `kelpie open`, `kelpie login`, `kelpie logout`, `kelpie profiles`, `kelpie sessions`, `kelpie kill` | SSHプロファイルひな形作成・編集・ホスト鍵信頼登録・削除、プロファイル選択、ログイン、セッション表示、セッション終了を行う。 |
+| モード/UI | `kelpie login --console` | 一時的に別コンソールで起動する。 |
+| 診断 | `kelpie profile check`, `kelpie profile show`, `kelpie status`, `kelpie diag`, `kelpie inventory`, `kelpie services`, `kelpie logs` | プロファイル検証、プロファイル情報、MCPサーバー状態、SSH診断、接続先一覧、サービス状態、サービスログを表示する。 |
+| パッケージ | `kelpie pkg check-updates`, `kelpie pkg info`, `kelpie pkg search`, `kelpie pkg list-installed`, `kelpie pkg simulate-install`, `kelpie pkg simulate-remove`, `kelpie pkg install`, `kelpie pkg remove` | SSHプロファイルのパッケージproviderを使って確認と確認付き変更を行う。 |
+| 環境変数 | `kelpie env keys`, `kelpie env peek`, `kelpie env list`, `kelpie env persist`, `kelpie env remove` | profile policy に従い、remote環境変数のkey表示、値参照、永続化を行う。 |
+| ヘルプ/バージョン | `kelpie version`, `kelpie help`, `kelpiemcp version`, `kelpiemcp help` | バージョンとヘルプを表示する。 |
 
 ## 共通ルール
 
@@ -2428,3 +2430,49 @@ Run after review: kelpie pkg install vps01 nginx --confirm pkg_install:nginx
 - `kelpie login` の対話セッションでは、送信前に Kelpie の `Mode` / `Capabilities` によるポリシー評価を行います。
 - `kelpiemcp password <profile>` で保存したパスワードは、起動中の `KelpieMCPServer` のメモリ上だけに保持します。
 - `/mcp` は MCP クライアント用の Streamable HTTP endpoint です。ブラウザで起動確認する場合は `http://127.0.0.1:45432/health` を使います。
+
+## ホストの通常再起動
+
+| コマンド | 内容 |
+| :--- | :--- |
+| `kelpie host-reboot preview <profile>` | 現在の起動情報を読み取り、承認用プレビューを作成。 |
+| `kelpie host-reboot request <profile> <operationId> <confirmation>` | 人間の管理者が承認した通常再起動を一度だけ送信。 |
+| `kelpie host-reboot inspect <profile> <operationId> [--wait]` | 元の期限内に起動と稼働状態を確認。 |
+
+### `host-reboot preview`
+
+保存済みプロファイルの明示指定が必要です。例: `kelpie host-reboot preview sample`。再起動せず、対象、停止影響、現在のboot IDとカーネル、確認項目、トークンを返します。
+
+### `host-reboot request`
+
+プレビューの操作IDと、人間の管理者が承認した完全一致のトークンが必要です。例: `kelpie host-reboot request sample <OperationId> <Confirmation>`。Accepted、FailedまたはUnknownを返し、自動再送しません。
+
+### `host-reboot inspect`
+
+同じプロファイルと操作IDを指定します。`--wait`は元の期限まで確認し、省略時は一度だけ観測します。再送せず、起動・カーネル・稼働確認の構造化結果を返します。
+
+設定、出力項目、状態・エラー、sudoの管理者手順、承認と復旧は[ホストの通常再起動](HOST_REBOOT.ja.md)を参照してください。CLIはJSONを出力し、エラーまたはFailed/Unknownで非0終了します。
+
+## nginxの特権helperコマンド
+
+リモートLinux helperには固定操作`nginx-plan 1`、`nginx-check 1`、`nginx-apply 1`、`nginx-status 1`、`nginx-commit 1`、`nginx-rollback 1`を追加しました。構造化入力は標準入力で渡し、ファイル内容をシェル引数に含めません。これらはプロバイダー内部の操作です。プロトコル、エラー、作用、導入は[nginx専用トランザクションhelper](NGINX_HELPER.ja.md)を参照してください。`kelpie`や`kelpiemcp`のサブコマンドは追加しません。この機能のためにPythonや汎用シェルへsudo権限を付与しないでください。
+
+## runtime-info
+
+### `kelpie runtime-info`
+
+構文は`kelpie runtime-info <profile> <php|node> [--refresh]`です。runtimeはphp/node完全一致。現在の固定ホスト鍵・非rootプロファイルと通常の読取権限を評価し、D1の信頼候補検査と環境初期化後に実行します。キャッシュせず、開始後の再試行・別runtime切替はしません。新設定や確認トークンは不要です。
+
+実行例: `kelpie runtime-info synthetic-profile php --refresh`。成功結果例は`{"protocol":1,"operation":"runtime.info","runtime":"php","status":"ok","startupMode":"isolated","version":"8.2.35","features":{"json":true,"sha256":true},"cached":false,"warnings":[]}`の各フィールドにホスト生成requestIdとcheckedAtを加えたものです。失敗時の観測値はnullです。CLIは成功0/その他1、MCPは同じ型付き状態を返します。[全入力・出力・状態・エラー・上限・安全条件](RUNTIME_INFO.ja.md)を参照してください。D3はPHP 8とNode 22/24、監査付き実SSHと単体境界を組み合わせて全24要件に合格しました。実AIデスクトップアプリは受入範囲外です。
+
+## Void Linuxパッケージprovider
+
+既存8操作がPlatform.OsFamily=void/voidlinuxとPackageManager=xbps（省略時の既定）へ対応します。公開入力/応答/確認は維持し、読取/dry-runは索引更新を行いません。[契約](VOID_XBPS.ja.md)と[設定例](../../config_samples/servers/void.json)を参照してください。runitサービス操作は未対応です。
+
+### 上限付きSSH応答と開始時の表示
+
+上限付きSSHでは開始・終了の両フレームで固定コマンドの応答を識別します。セッション開始時の表示を本文へ混入させず、書込み検査の厳格な6行形式、権限、MIME判定、容量上限を維持します。詳細は[転送仕様](RUNTIME_DIAGNOSTIC_STARTUP.ja.md)を参照してください。
+
+## Windows管理用トレイと利用者設定
+
+`kelpiemcp tray`でトレイ常駐、`kelpiemcp settings`で設定画面を開きます。対話的な起動時の自動表示は`--no-tray`で抑止できます。サービスのセッション0では画面を表示しません。起動・更新・配信元の利用者設定を導入先別のLocalApplicationDataへ保存し、SSHの信頼設定やMCPツールの権限は変更しません。[管理仕様](MCP_MANAGEMENT.ja.md)に設定キー・初期値・更新の失敗条件を記載しています。

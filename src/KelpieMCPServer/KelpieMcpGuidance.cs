@@ -18,6 +18,7 @@ public static class KelpieMcpGuidance
         Treat each profile's Mode, AllowedRoots, SpecialPaths, and tool result as authoritative. MCP clients cannot use CLI-only Policies. Never request, reveal, persist, or echo passwords, private keys, passphrases, secret values, or raw sensitive configuration.
         Start with ssh_get_capabilities for a known profile, or get_target_inventory when target discovery is needed. Use check, preview, or simulation tools before a modifying tool when available. Explain the intended target and impact before a state-changing operation, and do not bypass confirmation, approval, trust-store, timeout, audit, or rollback controls.
         Root login and unrestricted shell access are outside KelpieSSH's safety model. If a requested action is not exposed or permitted, report the limitation and suggest the minimum safe configuration or dedicated operation required.
+        For host reboot use ssh_host_reboot_preview, obtain explicit human administrator approval of that target and outage, then submit ssh_host_reboot_request once. Inspect that operation ID with ssh_host_reboot_inspect. Never infer reboot success from disconnect or automatically resend an uncertain request.
         """;
 
     /// <summary>

@@ -20,6 +20,13 @@ public static class OsFamilyAliasResolver
         return osFamily.Trim().ToLowerInvariant() switch
         {
             "ubuntu" => "debian",
+            "voidlinux" => "void",
+            "archlinux" => "arch",
+            "opensuse" => "suse",
+            "opensuse-leap" => "suse",
+            "opensuse-tumbleweed" => "suse",
+            "sles" => "suse",
+            "sled" => "suse",
             "alma" => "rhel",
             "almalinux" => "rhel",
             "rocky" => "rhel",

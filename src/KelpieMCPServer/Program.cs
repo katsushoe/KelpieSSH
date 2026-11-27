@@ -107,6 +107,24 @@ builder.Services.AddSingleton(ServiceConfigPathsProviderCatalog.CreateDefault())
 builder.Services.AddSingleton<IWebPublicFileProvider, WebPublicFileProvider>();
 builder.Services.AddSingleton<WebBulkTransferStore>();
 builder.Services.AddSingleton<ServerDeploymentStore>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<LifecycleToolFilter>();
+if (builder.Configuration.GetSection("Lifecycle").Exists())
+{
+    var lifecycle = builder.Configuration.GetSection("Lifecycle").Get<LifecycleOptions>()!;
+    lifecycle.Validate();
+    var replay = new Moyai.ProviderAuthentication.SqliteAssertionReplayCache(
+        new(lifecycle.ReplayDatabasePath));
+    await replay.InitializeAsync();
+    var journal = new LifecycleDeploymentStore(lifecycle.DeploymentDatabasePath);
+    await journal.InitializeAsync();
+    builder.Services.AddSingleton(lifecycle);
+    builder.Services.AddSingleton(journal);
+    builder.Services.AddSingleton<Moyai.ProviderAuthentication.IAssertionValidator>(
+        new Moyai.ProviderAuthentication.Es256AssertionValidator(
+            new Moyai.ProviderAuthentication.FileAssertionTrustStore(lifecycle.TrustBundlePath),
+            replay, new(lifecycle.Issuer), LifecycleContract.Capability));
+}
 builder.Services.AddSingleton<IKelpieSecretStore, InMemoryKelpieSecretStore>();
 builder.Services.AddSingleton<IKelpieEnvironmentOverrideStore, InMemoryKelpieEnvironmentOverrideStore>();
 builder.Services.AddSingleton<ISshPasswordSessionStore, InMemorySshPasswordSessionStore>();
@@ -115,6 +133,9 @@ builder.Services.AddSingleton<ISshPasswordProvider>(serviceProvider =>
 builder.Services.AddSingleton<SshTerminalSessionManager>();
 builder.Services.AddSingleton<TargetInventoryCache>();
 builder.Services.AddSingleton<ISshCommandRunner, SshNetCommandRunner>();
+builder.Services.AddSingleton<IHostRebootStore>(new FileHostRebootStore(
+    Path.Combine(KelpieRuntimePaths.GetDataDirectory(runtimeBaseDirectory), "host-reboots")));
+builder.Services.AddSingleton<HostRebootService>();
 builder.Services.AddSingleton<ISshFileExporter>(serviceProvider => new SshNetFileExporter(
     serviceProvider.GetRequiredService<ISshPasswordProvider>(),
     Path.Combine(KelpieRuntimePaths.GetDataDirectory(runtimeBaseDirectory), "exports")));
@@ -141,6 +162,8 @@ builder.Services
     {
         options.Stateless = true;
     })
+    .WithRequestFilters(filters => filters.AddCallToolFilter(next => (request, cancellationToken) =>
+        request.Services!.GetRequiredService<LifecycleToolFilter>().InvokeAsync(request, next, cancellationToken)))
     .WithToolsFromAssembly()
     .WithPromptsFromAssembly();
 
@@ -160,6 +183,12 @@ app.MapMcp("/mcp");
 app.Lifetime.ApplicationStarted.Register(() =>
 {
     KpLog.Info("KelpieMCPServer has started.");
+    if (!args.Contains("--no-tray", StringComparer.OrdinalIgnoreCase))
+    {
+        var binDirectory = KelpieRuntimePaths.GetBinDirectory(Path.GetDirectoryName(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar))!);
+        try { KelpieTrayLauncher.TryStart(binDirectory, optional: true); }
+        catch (Exception ex) when (ex is IOException or System.ComponentModel.Win32Exception) { KpLog.Err("Optional tray launch failed.", ex); }
+    }
     KpLog.Info($"KelpieMCPServer listening on {serverUrl}/mcp.");
 });
 app.Lifetime.ApplicationStopping.Register(() => KpLog.Info("KelpieMCPServer stopping."));

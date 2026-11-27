@@ -27,8 +27,11 @@ public static class PackageManagerResolver
         return commandProcessingOsFamily switch
         {
             "alpine" => "apk",
+            "arch" => "pacman",
             "debian" => "apt",
             "rhel" => "dnf",
+            "suse" => "zypper",
+            "void" => "xbps",
             _ => throw new InvalidOperationException($"SSH package manager is not configured and cannot be inferred from OS family: {osFamily}"),
         };
     }

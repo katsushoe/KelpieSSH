@@ -1,6 +1,6 @@
 # KelpieSSH 設定
 
-最終更新: 2026-07-31
+最終更新: 2026-11-22
 
 この文書は、KelpieSSH の設定ファイル配置と host level settings をまとめる公開リファレンスです。
 Profile の詳細な設定ガイダンスは [PROFILE_GUIDE.ja.md](PROFILE_GUIDE.ja.md) を参照してください。
@@ -30,11 +30,7 @@ F:\Kelpie
 └─ bin
 ```
 
-Kelpie home は次の順で解決します。
-
-1. runtime path override として `--bin-dir <dir>` が指定されている場合、`<dir>` の親ディレクトリを Kelpie home とします。
-2. `KELPIE_HOME` が設定され、そのディレクトリが存在する場合、`KELPIE_HOME` を Kelpie home とします。
-3. それ以外の場合、startup directory の親ディレクトリを Kelpie home とします。
+Kelpie home は startup directory の親ディレクトリから解決します。runtime path override の `--bin-dir <dir>` が指定された場合は、`<dir>` の親ディレクトリを使用します。
 
 KelpieSSH は `KELPIEPRO_HOME` を読みません。
 
@@ -50,6 +46,7 @@ KelpieSSH は `KELPIEPRO_HOME` を読みません。
 config_samples/
 ├─ kelpie.json
 ├─ kelpiemcp.json
+├─ tray.json
 └─ servers/
    └─ vps01.json
 ```
@@ -63,13 +60,13 @@ kelpie profile check vps01
 
 check コマンドは、SSH 接続を開始する前にローカル設定とプロファイルファイルを検証します。実ホスト名、実ユーザー名、秘密鍵、パスワード、パスフレーズ、raw log をサンプルファイルへコピーしないでください。
 
-## Main Settings
+## 主な設定
 
 ### `config/kelpie.json`
 
 `kelpie` command が読む設定ファイルです。
 
-| Setting | 必須 | 初期値 | Purpose |
+| 設定項目 | 必須 | 初期値 | 目的 |
 | :--- | :---: | :--- | :--- |
 | `LogDirectory` | いいえ | `KelpieHome\logs` | CLI logs の出力先。 |
 | `LogRotation:MaxFileBytes` | いいえ | `10485760` | ローテーション前のCLIログ最大サイズ（byte）。 |
@@ -112,9 +109,9 @@ check コマンドは、SSH 接続を開始する前にローカル設定とプ�
 }
 ```
 
-special value:
+特別な値:
 
-| Value | 意味 |
+| 値 | 意味 |
 | :--- | :--- |
 | `vscode` | 大文字小文字を区別しない VS Code `code` CLI の別名です。Windows では可能な場合に `PATH` / `PATHEXT` から `code` を解決するため、`"Editor": "vscode --wait"` でインストール済みの `code.cmd` を実パス決め打ちなしに使えます。 |
 | `Notepad` | 大文字小文字を区別せず Windows Notepad を起動します。 |
@@ -124,7 +121,7 @@ special value:
 
 `kelpiemcp` と `KelpieMCPServer` が読む設定ファイルです。
 
-| Setting | 必須 | 初期値 | Purpose |
+| 設定項目 | 必須 | 初期値 | 目的 |
 | :--- | :---: | :--- | :--- |
 | `AllowedHosts` | いいえ | `localhost;127.0.0.1;[::1]` | local MCP server の HTTP Host allow-list。 |
 | `Server:ControlPipeName` | はい | `KelpieMCPServer.Control` | `kelpiemcp` が server control に使う local named pipe。 |
@@ -197,7 +194,7 @@ http://127.0.0.1:45432/health
 
 既定値:
 
-| Setting | 必須 | 初期値 | 目的 |
+| 設定項目 | 必須 | 初期値 | 目的 |
 | :--- | :---: | :--- | :--- |
 | `ProfileOperations:Add:CLI` | いいえ | `Allow` | `kelpiemcp profile add <profile>` を許可する。 |
 | `ProfileOperations:Reload:CLI` | いいえ | `Allow` | `kelpiemcp profile reload <profile>` を許可する。 |
@@ -223,7 +220,7 @@ kelpiemcp profile revoke <profile>
 
 暗号化trust storeには、信頼済みprofileごとの正規化authorization snapshotも保存します。`kelpiemcp profile reload <profile>`で権限拡張を検出した場合、管理者が返却された変更項目を確認し、`--approve-privilege-expansion`を付けて再実行するまで拒否します。
 
-## Runtime State
+## 実行状態
 
 ### `dat/kelpie_client_state.json`
 
@@ -240,11 +237,11 @@ kelpiemcp profile revoke <profile>
 }
 ```
 
-| Setting | 必須 | 初期値 | Purpose |
+| 設定項目 | 必須 | 初期値 | 目的 |
 | :--- | :---: | :--- | :--- |
 | `OpenProfile` | いいえ | なし | `kelpie open <profile>` で最後に開いた profile。`kelpie login` が参照します。 |
 
-## SSH Profiles
+## SSHプロファイル
 
 SSH profiles は `profiles/` 配下の JSON ファイルです。
 ファイル名が profile 名になるため、`profiles/vps01.json` は profile `vps01` です。
@@ -262,7 +259,7 @@ kelpie open vps01
 kelpie login
 ```
 
-## Log Directory Resolution
+## ログディレクトリの解決
 
 Log directory は次の順で解決します。
 
@@ -273,9 +270,9 @@ Log directory は次の順で解決します。
 
 `LogDirectory` が相対パスの場合は、設定ファイルの directory から解決します。
 
-## Security Notes
+## セキュリティ上の注意
 
-### 管理対象Web権限helper policy
+### 管理対象Web権限helperポリシー
 
 特権付きmanaged Web書き込みには、`/etc/kelpie/web-permission-helper-policy.json`も必要です。root所有でgroupおよびothersから書き込みできない通常ファイルとして配置し、symlinkにしないでください。`Sites`は絶対site rootから`AllowedFiles`への対応で、各keyは完全一致のsite-relative absolute pathです。`Update`は既存regular fileの置換だけを許可し、`Create`はその完全一致pathが存在しない場合にroot所有・`0644`での新規作成も許可します。wildcardは使えません。例は`config_samples/web-permission-helper-policy.json`を参照してください。
 
@@ -283,3 +280,39 @@ Log directory は次の順で解決します。
 - private keys、passwords、passphrases、real host names、real user names を commit しないでください。
 - production `profiles/`、`keys/`、`dat/`、`logs/` は public repository の外に置いてください。
 - plain text password を JSON 設定ファイルに保存してはいけません。
+# Lifecycle Providerの認証
+
+信頼済みMCP設定に`Lifecycle`を追加すると段階Deploy Providerを有効にできます。省略時はLifecycle Toolが`authentication_unavailable`を返し、基本情報だけ利用できます。不正な設定では起動に失敗します。変更には既存の管理者向け設定承認・再読み込み手順と再起動が必要です。MCPのAssertionから設定を変更することはできません。
+
+| キー | 必須 | 初期値 | 意味 |
+| :--- | :--- | :--- | :--- |
+| `Lifecycle.Issuer` | はい | なし | 信頼するMoyaiの発行者。`moyai:`で始まる値を明示します。 |
+| `Lifecycle.TrustBundlePath` | はい | なし | Provider管理の公開Trust Bundleへの絶対パス。要求ごとに読み込みます。 |
+| `Lifecycle.ReplayDatabasePath` | はい | なし | 同一Providerの全Consumerで共有するSQLite Replay DBの絶対パス。 |
+| `Lifecycle.DeploymentDatabasePath` | はい | なし | 非公開のSQLite Deploymentジャーナルの絶対パス。Replay DBとは分離します。 |
+| `Lifecycle.Targets` | いいえ | 空 | 管理者が登録した対象の対応表。空の場合は対象を許可しません。 |
+| `Lifecycle.Targets[].ProjectId` | はい | なし | 空でないMoyai Project UUID。 |
+| `Lifecycle.Targets[].TargetId` | はい | なし | 一意で不変の対象ID。大文字と小文字を区別します。 |
+| `Lifecycle.Targets[].ProfileName` | はい | なし | 一意な登録済みSSH Profile名。大文字と小文字を区別せず照合します。 |
+
+雛形は`config_samples/lifecycle.example.json`です。各パスの仮値をProvider管理の絶対パスへ置き換えてください。仮値のまま実行できない構成にしています。設定・Trust Bundle・両DBはサービスアカウントと管理者だけが変更できるよう保護してください。DB初期化時に親ディレクトリを作成しますが、OSの権限付与やサービスのインストールは行いません。
+
+Trust BundleのJSONには共通パッケージの`AssertionJson.Options`を使用します。プロパティ名はsnake_caseです。保存するのは公開検証鍵だけで、SSH資格情報やMoyai署名秘密鍵を含めません。失効は次の要求から適用します。JWTと操作IDはHTTPヘッダーに渡し、設定やTool引数には保存しません。Service Tokenとdual-acceptの設定は非該当です。
+
+Deployment記録にはパス、ハッシュ、トランザクション情報を含みますが、ファイル本文やSSH資格情報は含めません。完了済み段階と未完了の実行予約は再起動後も残ります。結果不明の操作を再試行するために実行予約を削除してはいけません。復旧・保持条件は[ADR-0003](../adr/ADR-0003-STAGED-SERVER-DEPLOYMENT.md)を参照してください。
+
+## ホスト再起動の設定
+
+プロファイルの任意ルート`HostReboot`は`Paths={}`（有効時はリモートパスの明示指定が必須）、`Enabled=false`、`ExpectedKernel=""`、`Services=[]`、`HttpUrls=[]`、`TimeoutSeconds=120`、`PollSeconds=3`を初期値とします。有効化にはMaintenance/Expert、root以外のユーザー、固定ホスト鍵、引数まで限定したsudo権限、信頼登録の権限拡張承認が必要です。入力検証、初期値、出力・状態・エラー、管理者の手順は[ホストの通常再起動](HOST_REBOOT.ja.md)を参照してください。選択ユーザーにも設定を引き継ぎますが、Safe/ReadOnlyユーザーでは利用できません。
+
+### nginx専用トランザクションhelperのポリシー
+
+nginx設定変更には、Linux x64上のhelper 0.2.4.0以降とプロトコル1が必要です。独立したroot所有の`/etc/kelpie/nginx-config-helper-policy.json`と、root専用のトランザクション保存先を設定します。SSHプロファイルからこの許可範囲は拡張できません。`config_samples/nginx-config-helper-policy.json`は初期状態で呼出元と対象をすべて拒否します。各設定キー、所有者、権限、上限、復旧状態、固定sudo規則は[nginx専用トランザクションhelper](NGINX_HELPER.ja.md)を参照してください。既存のウェブ権限ポリシーとは別の契約です。
+
+## Void Linuxパッケージprovider
+
+既存8操作がPlatform.OsFamily=void/voidlinuxとPackageManager=xbps（省略時の既定）へ対応します。公開入力/応答/確認は維持し、読取/dry-runは索引更新を行いません。[契約](VOID_XBPS.ja.md)と[設定例](../../config_samples/servers/void.json)を参照してください。runitサービス操作は未対応です。
+
+## Windows管理用トレイと利用者設定
+
+`kelpiemcp tray`でトレイ常駐、`kelpiemcp settings`で設定画面を開きます。対話的な起動時の自動表示は`--no-tray`で抑止できます。サービスのセッション0では画面を表示しません。起動・更新・配信元の利用者設定を導入先別のLocalApplicationDataへ保存し、SSHの信頼設定やMCPツールの権限は変更しません。[管理仕様](MCP_MANAGEMENT.ja.md)に設定キー・初期値・更新の失敗条件を記載しています。

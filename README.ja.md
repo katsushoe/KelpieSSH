@@ -8,6 +8,8 @@ KelpieSSH は、SSH 越しの VPS 診断と保守を安全に補助するため�
 
 コマンドラインオプションは [CLI_OPTIONS.md](CLI_OPTIONS.md) を参照してください。
 
+Windowsへの導入、コマンドの解決先、更新、ユーザー`PATH`設定は [INSTALLATION.ja.md](docs/ja/INSTALLATION.ja.md) を参照してください。
+
 MCP ツールの詳細は [docs/ja/MCP_COMMANDS.ja.md](docs/ja/MCP_COMMANDS.ja.md) を参照してください。
 
 設定の詳細は [docs/ja/CONFIG.ja.md](docs/ja/CONFIG.ja.md) を参照してください。
@@ -33,15 +35,15 @@ config_samples/
 
 ## はじめに
 
-KelpieSSH の使い方に合わせて導入方法を選んでください。Alpha リリースでは Windows ZIP を主なバイナリ配布物とします。MSI はリリースに添付される場合がありますが、任意であり、未署名の場合があります。
+KelpieSSHの使い方に合わせて導入方法を選んでください。Windows x64 MSIを標準バイナリ成果物、ZIPを補助配布物とします。[OSS公開範囲と配布方針](docs/ja/OSS_SCOPE.ja.md)を参照してください。
 
 ### Alpha バイナリ利用者
 
 #### 1. リリースバイナリをダウンロードする
 
-Alpha リリースでは、GitHub Releases から `KelpieSSH-x.x.x.x-win-x64.zip` をダウンロードし、下の ZIP 配布版の手順に従ってください。
+選んだGitHub Releaseに添付されたWindows x64 MSIを使い、導入手順に従ってください。補助配布の`KelpieSSH-x.x.x.x-win-x64.zip`を選ぶ場合は、下のZIP手順に従います。
 
-同じリリースに MSI が添付されている場合は、MSI を使うこともできます。Alpha MSI は未署名の場合があるため、Windows が不明な発行元または SmartScreen 警告を表示することがあります。
+実際に配布される成果物、SHA-256、署名状態、既知制限はリリースノートで確認してください。この手順は公開済みリリースの存在を保証しません。
 
 インストール後、または `PATH` 設定後に、新しいターミナルを開いてください。
 
@@ -54,7 +56,7 @@ kelpie version
 出力例:
 
 ```text
-kelpie 0.3.4.0
+kelpie x.x.x.x
 ```
 
 #### 2. Kelpie home を初期化してプロファイルを作成する
@@ -482,6 +484,9 @@ Dry-run、Silent モード、runtime directory override、即コミット profil
 
 ## コントリビューション
 
+貢献の手順・開発前提・レビュー方針は[貢献手順](docs/ja/CONTRIBUTING.ja.md)で定めています。
+
+
 コントリビューションを歓迎します。ドキュメント更新、誤字修正、テスト、範囲の小さい不具合修正などは、pull request として送ってください。
 
 大きな変更、新しいコマンド、セキュリティに関係する挙動、SSH ポリシー変更、MCP ツール変更、互換性に影響する変更では、実装前に issue を開き、範囲と安全要件を相談してください。
@@ -503,6 +508,16 @@ KelpieSSH は、読み取り中心の診断と許可リスト方式の SSH コ�
 パスワード認証は実行時のみ扱います。CLI SSH コマンドは現在のコマンドプロセス用にパスワードを尋ね、`kelpiemcp password <profile>` は実行中の `KelpieMCPServer` プロセス内にのみパスワードを保持します。平文パスワードを JSON 設定ファイルに保存してはいけません。
 
 脆弱性や秘密情報を含む詳細を公開 issue で報告しないでください。脆弱性報告と対応対象バージョンの方針は [docs/ja/SECURITY.ja.md](docs/ja/SECURITY.ja.md) を参照してください。
+
+## 免責事項
+
+KelpieSSHは現状のまま提供され、いかなる保証もありません。
+
+KelpieSSHには、サーバーの設定、パッケージ、サービス、ファイル、権限などの状態を変更する操作があります。利用前に、プロファイル、権限、確認内容、コマンド、対象ホスト、バックアップを利用者の責任で確認してください。
+
+著作者および貢献者は、KelpieSSHの使用または誤使用によるデータ損失、サービス停止、セキュリティ事故、設定の破損、業務の中断、その他の損害について責任を負いません。
+
+所有するシステム、または管理権限を与えられたシステムでのみ利用してください。本番環境へ適用する前に安全な環境で変更を試し、重要なサーバーやデータには復元可能なバックアップを保持してください。
 
 ## ライセンス
 
@@ -535,3 +550,7 @@ Application API は `SshRemoteOperation` も受け取ります。`SshRemoteOpera
 
 プロファイルの項目詳細、サンプル、検証チェックリスト、トラブルシューティングは [docs/ja/PROFILE_GUIDE.ja.md](docs/ja/PROFILE_GUIDE.ja.md) を参照してください。
 実際の `profiles/*.json` ファイルはコミットしないでください。
+
+## MCP管理用トレイ
+
+Windows版はKelpieMCPTrayを同梱します。.NET Desktop Runtime 8 x64を用意し、通常ユーザーのPowerShellから`kelpiemcp tray`または`kelpiemcp settings`を実行してください。起動時自動更新にはGitHub ReleasesのMSIを使用し、Windowsの管理者確認が必要な場合があります。[操作と設定](docs/ja/MCP_MANAGEMENT.ja.md)を参照してください。

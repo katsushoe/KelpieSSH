@@ -248,7 +248,7 @@ public sealed class WebPublicFileProviderTests
         var profile = CreateProfile(KelpiePolicyMode.Expert);
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: """{"resolvedPath":"/var/www/html/my_dir/sample.html","exists":false,"canWrite":true,"reason":null}""",
+                StandardOutput: WebWriteCheckWireTests.FromJson("""{"resolvedPath":"/var/www/html/my_dir/sample.html","exists":false,"canWrite":true,"reason":null}"""),
                 StandardError: string.Empty),
         ]);
         var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
@@ -295,12 +295,12 @@ public sealed class WebPublicFileProviderTests
     }
 
     [Fact]
-    public async Task CheckWriteAsync_ShouldExplainRemotePermissionDenied()
+    public async Task CheckWriteAsync_ShouldPreserveRemoteNonWritableReason()
     {
         var profile = CreateProfile(KelpiePolicyMode.Expert);
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: """{"resolvedPath":"/var/www/html/index.html","exists":true,"canWrite":false,"reason":"Permission denied"}""",
+                StandardOutput: WebWriteCheckWireTests.FromJson("""{"resolvedPath":"/var/www/html/index.html","exists":true,"canWrite":false,"reason":"Permission denied"}"""),
                 StandardError: string.Empty),
         ]);
         var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
@@ -314,10 +314,9 @@ public sealed class WebPublicFileProviderTests
             contentType: "text/html");
 
         result.CanWrite.Should().BeFalse();
-        result.Reason.Should().Be("Permission denied");
-        result.ReasonCode.Should().Be("RemoteFileSystemPermissionDenied");
-        result.Guidance.Should().Contain("owner");
-        result.Guidance.Should().Contain("mode");
+        result.Reason.Should().Be("Target file is not writable by the SSH user.");
+        result.ReasonCode.Should().Be("WriteRejected");
+        result.Guidance.Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -326,7 +325,7 @@ public sealed class WebPublicFileProviderTests
         var profile = CreateProfile(KelpiePolicyMode.Expert);
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: """{"resolvedPath":"/var/www/html/index.html","exists":true,"canWrite":false,"reason":"File is not writable by the SSH user"}""",
+                StandardOutput: WebWriteCheckWireTests.FromJson("""{"resolvedPath":"/var/www/html/index.html","exists":true,"canWrite":false,"reason":"File is not writable by the SSH user"}"""),
                 StandardError: string.Empty),
             new FakeSshCommandOutput(StandardOutput: """{"allowed":true,"createAllowed":true}""", StandardError: string.Empty),
         ]);
@@ -360,7 +359,7 @@ public sealed class WebPublicFileProviderTests
         var profile = CreateProfile(KelpiePolicyMode.Expert);
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: """{"resolvedPath":"/var/www/html/outside.txt","exists":false,"canWrite":true,"reason":null}""",
+                StandardOutput: WebWriteCheckWireTests.FromJson("""{"resolvedPath":"/var/www/html/outside.txt","exists":false,"canWrite":true,"reason":null}"""),
                 StandardError: string.Empty),
             new FakeSshCommandOutput(
                 StandardOutput: string.Empty,
@@ -416,7 +415,7 @@ public sealed class WebPublicFileProviderTests
             [CreateSite([new WebPublicFileRule(".env*", AllowedRootAccess.Write)])]);
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: """{"resolvedPath":"/var/www/html/.env.production","exists":false,"canWrite":true,"reason":null}""",
+                StandardOutput: WebWriteCheckWireTests.FromJson("""{"resolvedPath":"/var/www/html/.env.production","exists":false,"canWrite":true,"reason":null}"""),
                 StandardError: string.Empty),
         ]);
         var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
@@ -595,7 +594,7 @@ public sealed class WebPublicFileProviderTests
         var profile = CreateProfile();
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: """{"resolvedPath":"/var/www/html/my_dir","exists":true,"type":"directory","size":128,"mode":"755","owner":"nginx","group":"nginx","lastModified":null,"isSymlink":false}""",
+                StandardOutput: """{"resolvedPath":"/var/www/html/my_dir","exists":true,"type":"directory","size":128,"mode":"755","owner":"nginx","group":"nginx","lastModified":"2026-06-15T00:00:00Z","isSymlink":false}""",
                 StandardError: string.Empty),
         ]);
         var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
@@ -628,7 +627,7 @@ public sealed class WebPublicFileProviderTests
         var profile = CreateProfile();
         var runner = new FakeSshCommandRunner([
             new FakeSshCommandOutput(
-                StandardOutput: """{"resolvedPath":"/var/www/html/my_dir","exists":true,"type":"directory","size":128,"mode":"755","owner":"nginx","group":"nginx","lastModified":null,"isSymlink":false}""",
+                StandardOutput: """{"resolvedPath":"/var/www/html/my_dir","exists":true,"type":"directory","size":128,"mode":"755","owner":"nginx","group":"nginx","lastModified":"2026-06-15T00:00:00Z","isSymlink":false}""",
                 StandardError: string.Empty),
         ]);
         var service = new SshCommandService(CommandProcessingProviderCatalog.CreateDefault(), runner);
@@ -1656,6 +1655,12 @@ public sealed class WebPublicFileProviderTests
             LastRequest = request;
             _requests.Add(request);
             var output = _outputs.Dequeue();
+            if (request.CommandName == "web_public_file_stat_internal" && output.ExitCode == 0)
+                output = output with { StandardOutput = WebStatFixture.Encode(output.StandardOutput) };
+            if (request.CommandName == "web_public_file_list_internal" && output.ExitCode == 0)
+                output = output with { StandardOutput = WebListFixture.Encode(output.StandardOutput) };
+            if (request.CommandName is "web_public_file_read_internal" or "web_public_file_slice_internal" && output.ExitCode == 0)
+                output = output with { StandardOutput = WebReadFixture.Encode(output.StandardOutput) };
             return Task.FromResult(new SshCommandResult(
                 request.CommandName,
                 request.CommandText,

@@ -1,5 +1,7 @@
 # DOCUMENTS.md Version
-2026.07.30
+2026.11.02
+
+For Japanese documentation, see [DOCUMENTS.ja.md](docs/ja/DOCUMENTS.ja.md).
 
 This file is the public source of truth for KelpieSSH Git-managed public document locations.
 
@@ -19,9 +21,8 @@ This file is the public source of truth for KelpieSSH Git-managed public documen
 | `docs/` | Yes | Public supplemental documentation. |
 | `docs/adr/` | Yes | Public architecture decision records. |
 | `docs/ja/` | Yes | Public Japanese documentation. |
-| `installer/` | Yes | Installer source and installer-specific public documentation. |
 | `config_samples/` | Yes | Public sample configuration files without secrets. |
-| `scripts/` | Yes | Build, package, and maintenance scripts. |
+| `scripts/` | Yes | Build, package, installation, and maintenance scripts. |
 | `servers/` | Yes | Public server-side sample/support files. |
 | `src/` | Yes | Product source code. |
 | `tests/` | Yes | Automated tests. |
@@ -33,7 +34,10 @@ This file is the public source of truth for KelpieSSH Git-managed public documen
 | `README.md` | `README.md` | Yes | Public entry point, setup, usage, security, and license overview. |
 | `README.ja.md` | `README.ja.md` | Yes | Japanese public entry point kept next to `README.md` so both documents are updated together. |
 | `DOCUMENTS.md` | `DOCUMENTS.md` | Yes | Directory and document canonical-location index. |
+| `DOCUMENTS.ja.md` | `docs/ja/DOCUMENTS.ja.md` | Yes | Japanese public document-location index. |
 | `CLI_OPTIONS.md` | `CLI_OPTIONS.md` | Yes | Public command-line option guide for silent mode, dry-run, runtime directory overrides, and profile transaction options. |
+| `INSTALLATION.md` | `docs/INSTALLATION.md` | Yes | Windows installation, runtime prerequisites, user PATH, command resolution, updates and removal. |
+| `INSTALLATION.ja.md` | `docs/ja/INSTALLATION.ja.md` | Yes | Japanese Windows installation and command-resolution guide. |
 | `COMMANDS.md` | `COMMANDS.md` | Yes | Public terminal CLI command reference. Japanese version is under `docs/ja/`. |
 | `MCP_COMMANDS.md` | `MCP_COMMANDS.md` | Yes | Public MCP callable tool reference. Japanese version is under `docs/ja/`. |
 | `MCP_GUIDE.md` | `MCP_GUIDE.md` | Yes | Public AI MCP server setup, layout, startup, and usage guide. Japanese version is under `docs/ja/`. |
@@ -47,6 +51,9 @@ This file is the public source of truth for KelpieSSH Git-managed public documen
 | `ADR-0001: Remote Web Policy Management` | `docs/adr/ADR-0001-REMOTE-WEB-POLICY-MANAGEMENT.md` | Yes | Canonical remote helper-policy management design and security boundary. |
 | `ADR-0002: Privileged Helper Update` | `docs/adr/ADR-0002-PRIVILEGED-HELPER-UPDATE.md` | Yes | Canonical human-only helper update and privileged command boundary. |
 | `ADR-0003: Staged Server Deployment Contract` | `docs/adr/ADR-0003-STAGED-SERVER-DEPLOYMENT.md` | Yes | Canonical staged deployment state, trust boundary, retry, and MCP-specific provider contract. |
+| `ADR-0004: Trust Key ACL Validation` | `docs/adr/ADR-0004-TRUST-KEY-ACL-VALIDATION.md` | Yes | Existing Windows trust key ACL validation and explicit runtime Read access. |
+| `HOST_REBOOT.md` | `HOST_REBOOT.md` | Yes | Normal reboot configuration, approval, durable state and recovery. Japanese version: `docs/ja/HOST_REBOOT.ja.md`. |
+| `ADR-0005: Host Reboot Verification` | `docs/adr/ADR-0005-HOST-REBOOT-VERIFICATION.md` | Yes | Dedicated normal reboot, single dispatch and bounded verification design. |
 
 ## Private Document Handling
 
@@ -58,3 +65,69 @@ Do not add private document names, private document paths, real-environment note
 
 When adding, removing, renaming, or moving any Git-managed public document, update this file in the same change.
 When updating `README.md`, update `README.ja.md` in the same change, and keep both entry documents aligned in section coverage and release-facing setup information.
+
+## Nginx transaction helper documents
+
+- [Helper contract and installation](docs/NGINX_HELPER.md)
+- [Japanese helper contract](docs/ja/NGINX_HELPER.ja.md)
+- [ADR-0006: Nginx transactions](docs/adr/ADR-0006-NGINX-HELPER-TRANSACTIONS.md)
+- [Japanese ADR-0006](docs/ja/ADR-0006-NGINX-HELPER-TRANSACTIONS.ja.md)
+
+
+## Optional runtime startup infrastructure
+
+- [Runtime startup library contract](docs/RUNTIME_DIAGNOSTIC_STARTUP.md)
+- [Japanese runtime startup contract](docs/ja/RUNTIME_DIAGNOSTIC_STARTUP.ja.md)
+- [ADR-0007: Bounded startup](docs/adr/ADR-0007-BOUNDED-RUNTIME-STARTUP.md)
+- [Japanese ADR-0007](docs/ja/ADR-0007-BOUNDED-RUNTIME-STARTUP.ja.md)
+
+- [Isolated runtime information](docs/RUNTIME_INFO.md)
+
+## Nginx configuration read
+
+- [Read contract](docs/NGINX_CONFIG_READ.md) and [design decision](docs/adr/ADR-0008-NGINX-CONFIG-READ.md).
+- [Japanese read contract](docs/ja/NGINX_CONFIG_READ.ja.md) and [Japanese design decision](docs/ja/ADR-0008-NGINX-CONFIG-READ.ja.md).
+
+## Web file metadata
+
+- [Metadata contract](docs/WEB_FILE_STAT.md) and [design decision](docs/adr/ADR-0009-WEB-FILE-STAT.md).
+- [Japanese metadata contract](docs/ja/WEB_FILE_STAT.ja.md) and [Japanese design decision](docs/ja/ADR-0009-WEB-FILE-STAT.ja.md).
+
+## Web file reads
+
+- [Read contract](docs/WEB_FILE_READ.md) and [design decision](docs/adr/ADR-0010-WEB-FILE-READ.md).
+- [Japanese read contract](docs/ja/WEB_FILE_READ.ja.md) and [Japanese decision](docs/ja/ADR-0010-WEB-FILE-READ.ja.md).
+
+## Web file slices
+
+- [Head/tail contract](docs/WEB_FILE_SLICE.md) and [design decision](docs/adr/ADR-0011-WEB-FILE-SLICE.md).
+- [Japanese contract](docs/ja/WEB_FILE_SLICE.ja.md) and [Japanese decision](docs/ja/ADR-0011-WEB-FILE-SLICE.ja.md).
+
+## Web directory listing
+
+- [Listing contract](docs/WEB_FILE_LIST.md) and [design decision](docs/adr/ADR-0012-WEB-FILE-LIST.md).
+- [Japanese contract](docs/ja/WEB_FILE_LIST.ja.md) and [Japanese decision](docs/ja/ADR-0012-WEB-FILE-LIST.ja.md).
+
+## Nginx log reads
+
+- [Log read contract](docs/NGINX_LOG_READ.md) and [execution decision](docs/adr/ADR-0013-NGINX-LOG-READ.md).
+- [Japanese contract](docs/ja/NGINX_LOG_READ.ja.md) and [Japanese decision](docs/ja/ADR-0013-NGINX-LOG-READ.ja.md).
+
+## Web write checks
+
+- [Advisory write-check contract](docs/WEB_WRITE_CHECK.md) and [design decision](docs/adr/ADR-0014-WEB-WRITE-CHECK.md).
+- [Japanese contract](docs/ja/WEB_WRITE_CHECK.ja.md) and [Japanese decision](docs/ja/ADR-0014-WEB-WRITE-CHECK.ja.md).
+
+## Void package provider
+
+- [Void XBPS contract](docs/VOID_XBPS.md), [Japanese contract](docs/ja/VOID_XBPS.ja.md), [ADR-0015](docs/adr/ADR-0015-VOID-XBPS.md), [Japanese decision](docs/ja/ADR-0015-VOID-XBPS.ja.md).
+- [Japanese provider inventory](docs/ja/PROVIDERS.ja.md).
+
+## OSS scope and contributions
+
+- [Public scope and distribution](docs/OSS_SCOPE.md) and [Japanese policy](docs/ja/OSS_SCOPE.ja.md).
+- [Contributing](CONTRIBUTING.md) and [Japanese guide](docs/ja/CONTRIBUTING.ja.md).
+
+## MCP management tray
+
+- [Windows tray and settings](docs/MCP_MANAGEMENT.md), [Japanese guide](docs/ja/MCP_MANAGEMENT.ja.md), [ADR-0016](docs/adr/ADR-0016-MCP-TRAY-UPDATE.md), [Japanese decision](docs/ja/ADR-0016-MCP-TRAY-UPDATE.ja.md).

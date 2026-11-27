@@ -10,6 +10,10 @@ public sealed class ServerDeploymentStore
     private const int MaximumDeployments = 100;
     private readonly ConcurrentDictionary<string, ServerDeployment> _deployments = new(StringComparer.Ordinal);
 
+    internal ServerDeployment? Find(string id) => _deployments.GetValueOrDefault(id);
+
+    internal void Restore(ServerDeployment deployment) => _deployments[deployment.DeploymentId] = deployment;
+
     /// <summary>
     /// Creates a deployment or returns the existing deployment for the same idempotency key.
     /// </summary>
@@ -122,4 +126,10 @@ public sealed record ServerDeployError(string Code, string Message, bool Retryab
 /// <summary>
 /// Represents the result of one deployment stage.
 /// </summary>
-public sealed record ServerDeployResult(bool Success, ServerDeployment Deployment);
+public sealed record ServerDeployResult(bool Success, ServerDeployment Deployment,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    LifecycleStageDiagnostic? Diagnostic = null);
+
+/// <summary>Allowlisted stage metadata without provider messages, credentials or paths.</summary>
+public sealed record LifecycleStageDiagnostic(string DeploymentId, string Tool, string OperationId,
+    string? ErrorCode, DateTimeOffset StartedAtUtc, DateTimeOffset CompletedAtUtc);

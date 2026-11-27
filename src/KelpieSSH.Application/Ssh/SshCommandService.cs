@@ -231,7 +231,11 @@ public sealed class SshCommandService
             commandArguments,
             standardInput,
             GetEnvironmentOverrides(profile),
-            binaryStandardInput);
+            binaryStandardInput)
+        {
+            ExecutionLimits = command.ExecutionLimits,
+            IgnoreEnvironmentOverrides = command.IgnoreEnvironmentOverrides,
+        };
 
         return await _sshCommandRunner.ExecuteAsync(request, cancellationToken);
     }

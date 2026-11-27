@@ -1,6 +1,6 @@
 # KelpieSSH MCP Commands
 
-Last updated: 2026-08-30
+Last updated: 2026-10-28
 
 This file is the English command reference for MCP callable tools exposed by `KelpieMCPServer`.
 For Japanese documentation, see [docs/ja/MCP_COMMANDS.ja.md](docs/ja/MCP_COMMANDS.ja.md).
@@ -50,6 +50,7 @@ This document describes the `name` and `arguments` used inside `tools/call`. In 
 
 | Group | Tools | Purpose |
 | :--- | :--- | :--- |
+| [Isolated runtime information](#runtime-info) | `ssh_runtime_info` | Read isolated PHP/Node version and built-in features. |
 | [Server health](#server-health) | `kelpie_ping` | Verify that the MCP server is reachable. |
 | [Profile management](#profile-management) | `profile_reload`, `ssh_profile_capabilities` | Reload saved SSH profiles and inspect profile operation capabilities for an open SSH terminal connection. |
 | [Local diagnostics](#local-diagnostics) | `get_system_info`, `get_disk_usage`, `get_memory_usage`, `get_listening_ports` | Inspect the local host running `KelpieMCPServer`. |
@@ -5847,6 +5848,8 @@ Safety notes:
 
 #### `service_config_file_check_read`
 
+For nginx, this check uses a fixed Python-free bounded reader. See [Nginx configuration reading](docs/NGINX_CONFIG_READ.md) for required utilities, path checks, truncation and errors.
+
 Purpose:
 
 Checks whether one provider-approved configuration file can be read without returning its content.
@@ -5907,6 +5910,8 @@ Safety notes:
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
 #### `service_config_file_read`
+
+For nginx, this operation uses a fixed Python-free bounded reader. See [Nginx configuration reading](docs/NGINX_CONFIG_READ.md) for required utilities, path checks, truncation and errors.
 
 Purpose:
 
@@ -6302,7 +6307,7 @@ Processing:
 
 Kelpie resolves the Nginx site key to a provider-approved site include file such as `/etc/nginx/conf.d/<site>.conf` or `/etc/nginx/sites-enabled/<site>`. It does not choose module include files such as `/etc/nginx/modules-enabled/*.conf` as PHP site targets.
 
-Provider-validated path, allow-list, size, and rollback arguments are passed to the bounded Nginx helper scripts as the first and subsequent script arguments without inserting an extra positional separator argument.
+Provider requests use the six fixed commands and structured standard input described in [Nginx transaction helper](docs/NGINX_HELPER.md). The helper independently checks its root-owned policy, caller UID, precondition hashes and transaction identity.
 
 Kelpie reads the target file and applies only the fixed PHP-FPM template. If the target site file does not exist, Kelpie creates a minimal fixed server block and then applies the same template:
 
@@ -6316,12 +6321,12 @@ location ~ \.php$ {
 }
 ```
 
-The tool does not accept arbitrary Nginx blocks, `proxy_pass`, `root`, or `alias` values. Before testing, it disables conflicting `/etc/nginx/sites-enabled/<name>` symbolic links whose target contains `listen 80 ... default_server` by recording the symlink target under `/etc/nginx/.kelpie-disabled-sites/` and removing only the enabled symlink from `sites-enabled`. This keeps the disabled site outside the common `include /etc/nginx/sites-enabled/*;` glob. Regular files are not edited. After writing and conflict resolution, it runs `nginx -t`. If the test fails, Kelpie rolls the file back from the generated backup and restores any symlink disabled by this run. Reloading Nginx is intentionally separate; use `ssh_service_reload` after this tool succeeds.
+The tool does not accept arbitrary Nginx blocks, `proxy_pass`, `root`, or `alias` values. One durable helper transaction binds the configuration change and conflicting port-80 default-site symlink removals. Original link targets are recorded in the private transaction journal, outside the Nginx include directories. Only approved symlinks are removed; their target files are preserved. After applying, Kelpie runs `nginx -t`, then commits on success or restores both file and links on failure. Unrelated edits cause a conflict instead of being overwritten. Reloading remains a separate `ssh_service_reload` operation.
 
 Return value:
 
 - Return type: `NginxPhpEnableResult`.
-- `Changed` is `false` when the same fixed template already exists.
+- `Changed` is `false` only when neither the fixed template nor conflicting site links need a change. A complete no-op skips `nginx -t`.
 - `Tested` is `true` only after `nginx -t` was executed.
 - `RolledBack` is `true` when the tool wrote a change and then restored it after `nginx -t` failed.
 - `Committed` is `true` when `nginx -t` passed and the generated backup was removed.
@@ -6644,6 +6649,8 @@ Safety notes:
 Purpose:
 
 Returns metadata for one provider-approved web public path on a configured SSH profile.
+
+The fixed reader uses system utilities without Python; see [metadata requirements and behavior](docs/WEB_FILE_STAT.md).
 
 Input arguments:
 
@@ -6979,6 +6986,8 @@ Safety notes:
 
 #### `web_file_read`
 
+The full-file reader uses compatible GNU utilities without Python; see [read requirements and behavior](docs/WEB_FILE_READ.md).
+
 Purpose:
 
 Reads one provider-approved web file on a configured SSH profile.
@@ -7039,6 +7048,8 @@ Safety notes:
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
 #### `web_file_head`
+
+The fixed byte reader and host line selection do not require Python; see [slice behavior and requirements](docs/WEB_FILE_SLICE.md).
 
 Purpose:
 
@@ -7104,6 +7115,8 @@ Safety notes:
 - Read-oriented tool. Do not include real host names, user names, secrets, or customer data in committed examples.
 
 #### `web_file_tail`
+
+The fixed byte reader and host line selection do not require Python; see [slice behavior and requirements](docs/WEB_FILE_SLICE.md).
 
 Purpose:
 
@@ -7247,7 +7260,7 @@ Safety notes:
 - `WritableExecutableExtensions` bypasses the executable extension write block and the `AllowedExtensions` shortage for that write only. Traversal checks, dotfile and secret-file denial, size limits, and content type rules still apply.
 - Managed writes, rollback, and commit require an exact entry in the root-owned `/etc/kelpie/web-permission-helper-policy.json`. `Update` permits existing-file replacement only; `Create` also permits creation at that exact path.
 - Managed replacement and backup creation use temporary files in the target directory followed by same-filesystem atomic rename. Symlinks and paths outside the resolved site root are rejected.
-- `web_file_rollback` restores the managed backup only when the current file matches `expectedSha256`. `web_file_commit` removes the backup after deployment verification. Both require their exact confirmation token.
+- Backups preserve the original content, owner, group, and mode even when the replacement requests different permissions. `web_file_rollback` restores that original state only when the current file matches `expectedSha256`. `web_file_commit` removes the backup after deployment verification. Both require their exact confirmation token.
 
 #### `web_file_write_from_local`
 
@@ -7681,12 +7694,95 @@ The remote helper rejects absolute archive entry names, traversal, backslashes, 
 
 ## Staged Server Deployment
 
-The staged deployment contract exposes `provider_version`, `provider_capabilities`, `target_status`, `deploy_prepare`, `deploy_upload`, `deploy_activate`, `deploy_verify`, `deploy_rollback`, and `deploy_cleanup`. `deploymentId` is the correlation and idempotency key. `targetName` selects a saved KelpieSSH profile; optional `targetId` is returned for caller correlation but never resolves credentials. `siteKey` defaults to `default`.
+The staged deployment contract exposes `provider_version`, `provider_capabilities`, `target_status`, `deploy_prepare`, `deploy_upload`, `deploy_activate`, `deploy_verify`, `deploy_rollback`, `deploy_cleanup`, and `deploy_status`. `deploymentId` is the durable correlation and idempotency key. `targetName` selects an administrator-registered profile/Project/Target mapping. Optional `targetId` must equal the registered immutable Target ID; omission resolves that ID from configuration. `siteKey` defaults to `default`.
 
 `deploy_prepare` binds the deployment ID to the target, site, and destination. `deploy_upload` accepts a local regular `artifactPath` and required lowercase or uppercase SHA-256; it rejects changed or mismatching content. `deploy_activate` reuses the managed web policy, bounded ZIP transfer, atomic placement, and rollback data. `deploy_verify` obtains a metadata-only remote SHA-256. `deploy_cleanup` commits verified deployments, cancels unactivated drafts, or closes rolled-back deployments.
 
-Every stage returns `Success` and `Deployment`. `Deployment` contains state and an optional `Error` with stable `Code`, safe `Message`, and `Retryable`. Stable codes are `target-not-found`, `deployment-not-found`, `invalid-request`, `idempotency-conflict`, `invalid-state`, `artifact-hash-mismatch`, `upload-failed`, `activate-failed`, `verify-failed`, `rollback-failed`, and `cleanup-failed`. Retry only when `Retryable` is `true`, using the same deployment ID and unchanged inputs. Successful repeated stage calls return the existing result.
+Successful HTTP stage responses contain `success` and `deployment` (camelCase JSON; enum states are strings such as `prepared`). The HTTP authorization boundary returns MCP `isError` with a stable code for rejected requests; failed stage diagnostics are normalized to `deployment_stage_failed` without raw exception messages. A stage reservation survives a crash as `deployment_result_unknown`. Repeating a completed stage with identical arguments returns its saved result; different arguments return `idempotency-conflict`. After any uncertain transport result, query status and do not automatically repeat a stage. Only `auth_assertion_expired` before dispatch allows the caller to re-evaluate authorization and issue one new assertion.
+
+Authenticated stage responses also include `diagnostic`: `deploymentId`, `tool`, validated `operationId`, `startedAtUtc`, `completedAtUtc` (UTC), and `errorCode` (null on success). The classification allows only `target-not-found`, `invalid-request`, `invalid-state`, `idempotency-conflict`, `artifact-hash-mismatch`, `deployment-not-found`, `upload-failed`, `activate-failed`, `verify-failed`, `rollback-failed`, and `cleanup-failed`; other provider codes become `unclassified-stage-failure`. No message, credentials, paths, raw output or assertions appear in this object. Completed results retain the original diagnostic on cached replay, including after restart. Old cached results may omit it. Unexpected dispatch exceptions return `unexpected-stage-failure` in the diagnostic and leave the reservation result-unknown; they are not replayed or marked completed. Before-dispatch authentication rejections have no stage diagnostic. Logging failures use a fixed safe stderr fallback without changing the result.
+
+| Tool | Required scope | Inputs | Output |
+| :--- | :--- | :--- | :--- |
+| `provider_version`, `provider_capabilities` | none | none | Version or operations and authentication capability. |
+| `target_status` | `target.status` | `targetName`, optional `targetId` | Registered target availability. |
+| `deploy_prepare` | `deploy.prepare` | `deploymentId`, `targetName`, `destination`, optional `targetId`, `siteKey` | Stage result. |
+| `deploy_upload` | `deploy.upload` | `deploymentId`, `artifactPath`, `sha256`, optional `contentType` | Stage result. |
+| `deploy_activate` | `deploy.activate` | `deploymentId` | Stage result. |
+| `deploy_verify` | `deploy.verify` | `deploymentId` | Stage result. |
+| `deploy_rollback` | `deploy.rollback` | `deploymentId` | Stage result. |
+| `deploy_cleanup` | `deploy.cleanup` | `deploymentId` | Stage result. |
+| `deploy_status` | `deploy.status` | `deploymentId` | `deploymentId`, `projectId`, `targetId`, `state`, `resultUnknown`. |
+
+The eight protected tools require `Authorization: Bearer <assertion>` and `X-Moyai-Operation-Id` on the actual HTTP tool request. Initialization, discovery and provider bootstrap need no assertion. Credentials are never MCP arguments. Capability advertises ES256, protocol `2`, audience/provider `kelpiessh`, mandatory replay prevention and resource kind `kelpie_target`. `server`, Repository assertions, unregistered contexts and non-minimal scopes are rejected. See [CONFIG.md](CONFIG.md) for administrator setup. No legacy MCP Service Token is accepted.
+
+`deploy_status` resolves context from the durable journal, including after restart. `state` is the saved enum name converted to lowercase: `prepared`, `uploaded`, `activated`, `verified`, `rolledback`, `cleaned`, or `failed`; the additional states are `not-started` and `result-unknown`. In particular, rollback status is `rolledback` without an underscore. An unresolved reservation makes `resultUnknown=true`; it does not imply rollback or permission to retry. Completed transfer snapshots can support later stages after restart. Property ordering does not change the argument hash; omitted optional arguments and explicit values are otherwise distinct. Journal retention and unknown-result investigation require an administrator.
+
+Immediately before dispatch, status response, or cached-result return, the provider rechecks expiry, the latest Trust Bundle key state, and capability using the validated principal without reserving Replay again. Authentication rejection before dispatch releases only that stage reservation; the consumed assertion remains consumed. A newly authorized request can retry. Uncertain dispatch outcomes remain pending and cannot be replayed automatically.
 
 The provider never returns SSH passwords, private keys, passphrases, secret references, artifact bytes, Base64 content, or raw provider output. The 256 MiB artifact limit and the target profile's managed web policy remain authoritative.
 
 For a disposable SSH container bound to loopback port 2222, start from `config_samples/servers/moyai-deploy-loopback.json`. It restricts deployment to `/tmp/kelpie-deploy-test/artifacts/**`; replace only the disposable test key material. The architectural decision and intentional MCP-provider/CLI asymmetry are recorded in [ADR-0003](docs/adr/ADR-0003-STAGED-SERVER-DEPLOYMENT.md).
+
+
+### Registered Target ID selection
+
+targetName accepts either a registered profile name (case-insensitive) or immutable Target ID (case-sensitive). Ambiguous matches are rejected with auth_project_mismatch before dispatch; a supplied targetId must match. Authentication still checks the registered Project/Target, and dispatch uses the canonical profile. Rollback is allowed only before cleanup, while Activated or Verified. Cleanup commits a verified deployment and deletes its transaction/backup; Cleaned cannot be rolled back. Test normal deploy/cleanup and rollback-before-cleanup with separate deployment IDs.
+
+## Normal Host Reboot Tools
+
+| Tool | Required input | Optional input | Behavior |
+| :--- | :--- | :--- | :--- |
+| `ssh_host_reboot_preview` | `profileName` | none | Read current boot/kernel and return a stored preview. |
+| `ssh_host_reboot_request` | `profileName`, `operationId`, `confirmation` | none | Dispatch once after explicit human approval. |
+| `ssh_host_reboot_inspect` | `profileName`, `operationId` | `wait=false` | Observe the same host; never resend reboot. |
+
+### `ssh_host_reboot_preview`
+
+Example input: `{"profileName":"sample"}`. Returns the target, current boot/kernel, impact, configured checks, operation ID and confirmation token. No reboot occurs.
+
+### `ssh_host_reboot_request`
+
+Example input: `{"profileName":"sample","operationId":"<preview ID>","confirmation":"<exact preview token>"}`. Obtain human administrator approval of that exact target and outage first. Returns Accepted, Failed or Unknown. Duplicate IDs are never redispatched.
+
+### `ssh_host_reboot_inspect`
+
+Example input: `{"profileName":"sample","operationId":"<same ID>","wait":true}`. Returns changed boot ID, kernel and configured service/HTTP checks. `wait=false` performs one observation; waiting uses the original dispatch deadline.
+
+All return `HostRebootOperation`; see [Normal Host Reboot](HOST_REBOOT.md) for complete fields, samples, configuration, states, errors and safety/approval rules. All three tools appear in `ssh_get_capabilities`. They accept configured profiles only; `ssh_run_allowed_command` cannot dispatch reboot.
+
+### Nginx transaction outcomes
+
+`ServiceConfigFileWriteResult`, `ServiceConfigFileBackupActionResult`, and `NginxPhpEnableResult` add `OutcomeKnown` (boolean, initially `true`). Existing tool names, arguments, confirmation tokens and positional result fields are preserved. After an ambiguous mutation reply, Kelpie makes one bounded status query and does not repeat the mutation. If the final effect cannot be established, `OutcomeKnown=false` and `Error` is non-empty; do not treat zero counts or false flags as proof of no change. Inspect the preserved helper transaction before recovery. Check-write does not create a target or backup. Standalone writes retain the owned `.kelpiebakup` until explicit commit/rollback; old or unrelated backups cause a conflict. See [Nginx transaction helper](docs/NGINX_HELPER.md) for state transitions and recovery.
+
+## runtime-info
+
+### `ssh_runtime_info`
+
+Inputs: required profileName/runtime, optional refresh=false. runtime is exactly php or node. Resolve the current pinned non-root profile and normal read policy, then execute using the trusted isolated launcher. No cache, retry after dispatch, cross-runtime fallback, new setting or confirmation token is used.
+
+Example input: `{"profileName":"synthetic-profile","runtime":"php","refresh":false}`. A successful result has `{"protocol":1,"operation":"runtime.info","runtime":"php","status":"ok","startupMode":"isolated","version":"8.2.35","features":{"json":true,"sha256":true},"cached":false,"warnings":[]}` plus host-generated requestId and checkedAt fields. Failed observations are null. CLI exits 0 for success and 1 otherwise; MCP returns the same typed statuses. See [all input/output/state/error/limit and safety details](docs/RUNTIME_INFO.md). D3 acceptance passed all 24 requirements using PHP 8 and Node 22/24, audited SSH fixtures and unit boundaries; actual AI desktop clients are outside this acceptance.
+
+## Web listing backend
+
+Directory listing, name search and text search use the [listing traversal contract](docs/WEB_FILE_LIST.md). Public tool identifiers and arguments remain unchanged; refer to each tool entry above for its exact callable name. The backend migration passed acceptance under [ADR-0012](docs/adr/ADR-0012-WEB-FILE-LIST.md).
+
+## Nginx log backend compatibility
+
+The Python-free bounded backend for service_logfile_read preserves remote clock/timezone interpretation and applies the row limit before time filtering. See the [log read contract](docs/NGINX_LOG_READ.md) for utility requirements, supported timezone evidence, error conditions and acceptance state. Public input and response fields remain unchanged.
+
+## Web write-check backend
+
+Public and secret write checks use the [advisory write-check contract](docs/WEB_WRITE_CHECK.md). Public tool inputs and response fields are unchanged. See its acceptance state and [ADR-0014](docs/adr/ADR-0014-WEB-WRITE-CHECK.md); canWrite does not guarantee a later atomic write succeeds.
+
+## Void Linux package provider
+
+The existing eight package operations support Platform.OsFamily=void or voidlinux and PackageManager=xbps (default when omitted). Public inputs/outputs and confirmation remain unchanged. Read/dry-run operations use cached indexes without refresh. See [the contract](docs/VOID_XBPS.md) and [sample](config_samples/servers/void.json); runit service lifecycle remains unsupported.
+
+### Bounded SSH output and startup notices
+
+Bounded SSH uses matching start and completion frames to isolate fixed-command output from session startup notices. The strict six-line write-check envelope, authorization, MIME selection and byte limits remain enforced. See the bounded SSH transport contract for details.
+
+## Windows management tray and user preferences
+
+`kelpiemcp tray` starts the notification-area manager; `kelpiemcp settings` opens settings. `--no-tray` suppresses automatic UI launch during interactive startup. Session0 services do not display UI. Non-secret startup/update/source preferences are stored separately per user and installation. SSH trust and MCP tool authorization are unchanged. See [management specifications](docs/MCP_MANAGEMENT.md) for keys, initial values and failure behavior.

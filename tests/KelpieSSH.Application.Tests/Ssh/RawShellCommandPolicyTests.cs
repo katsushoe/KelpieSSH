@@ -25,6 +25,22 @@ public sealed class RawShellCommandPolicyTests
     }
 
     [Theory]
+    [InlineData("pacman --sync --noconfirm nginx", "AllowInstallPackage")]
+    [InlineData("zypper --non-interactive remove nginx", "AllowRemovePackage")]
+    public void EnsureAllowed_ShouldRequirePackagePolicyForArchAndSuseMutations(
+        string commandText,
+        string requiredPolicy)
+    {
+        var action = () => RawShellCommandPolicy.Default.EnsureAllowed(
+            CreateProfile(),
+            commandText,
+            KelpieExecutionChannel.Mcp);
+
+        action.Should().Throw<KelpiePolicyError>()
+            .Which.Message.Should().Contain(requiredPolicy);
+    }
+
+    [Theory]
     [InlineData("rm /")]
     [InlineData("rm /*")]
     public void EnsureAllowed_ShouldRejectRootDeleteTargetsEvenWithGlobalWrite(string commandText)

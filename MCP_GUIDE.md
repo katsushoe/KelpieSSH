@@ -72,7 +72,7 @@ The public port is selected when `KelpieMCPServer` starts:
 
 ```powershell
 KelpieMCPServer --port 45432
-KelpieMCPServer --runtime-base "<runtime-home>" --port 45432
+KelpieMCPServer --runtime-base "<KelpieHome>\bin" --port 45432
 ```
 
 `--port` accepts values from `1` through `65535`. Its default is `45432`. The `Server.Port` value in `kelpiemcp.json` is not used and is removed when `kelpie init` next updates the configuration.
@@ -133,7 +133,28 @@ Unregister the service from a terminal running as administrator:
 kelpiemcp service unregister
 ```
 
-The service uses the same `config\kelpiemcp.json`, profiles, data, and logs under Kelpie home as the normal `kelpiemcp start` process. Use either normal process startup or Windows Service startup for one MCP server instance; do not run both at the same time.
+The service registration stores `--runtime-base` (the command directory, normally `<KelpieHome>\bin`), the port, and any explicit directory overrides in the service binary command line. Kelpie home is the parent of that command directory; `--bin-dir` takes precedence. The service uses the same files as normal startup only when those paths agree. The service working directory and interactive user's home do not select the data directory. Register again with the intended overrides to update an existing registration.
+
+The default service identity is LocalSystem. Ensure that identity can read configuration, profiles, SSH keys, and the trust-store pair, and can write data and logs. Protect the containing directories from unauthorized changes. TrustStore version 4 uses AES-256-GCM and stores its key in `dat\mcp_trusted_store.dat.key`. New Windows key ACLs disable inheritance and grant FullControl to LocalSystem, Administrators, and the creating identity. Normal reads validate the existing ACL without changing it: inheritance and access grants to broad principals such as Everyone, Authenticated Users, or Builtin Users are rejected. Administrators may explicitly grant a runtime identity Read access; normal reads do not require permission to change the ACL. Legacy version 2 migration still protects the key ACL and requires permission to change it. A separate service account is not configured automatically by `service register`.
+
+On Unix, new trust-store keys are created with owner read/write permissions (`0600`, subject to the process umask). Loading or saving an existing store restricts its key to `0600` before reading it. If the process cannot inspect or restrict key permissions, the operation fails without replacing the store or generating a replacement key.
+
+### Trust-Store Backup and Recovery
+
+1. Stop the server and prevent offline CLI trust changes while taking or restoring a backup.
+2. Back up `mcp_trusted_store.dat` and `mcp_trusted_store.dat.key` together, alongside the corresponding configuration and profiles. Protect the backup directory with the same restricted access; the key is not protected by DPAPI.
+3. Restore the matching pair into the registered data directory while the server remains stopped. Restore the matching configuration and profiles, then apply the intended directory and key ACLs. Do not combine a store and key from different backups.
+4. Start the server and verify health, the profile inventory, and a read-only operation. A missing, unreadable, invalid, or mismatched key must be investigated; do not delete the store or use a reload operation to recreate trust as a recovery shortcut.
+
+Restoring only the store or only the key is insufficient. Legacy version 3 migration still requires the original DPAPI user once; this does not apply to ordinary version 4 access.
+
+For a source checkout, `TrustStoreOperationalTests` checks missing keys, invalid or unrelated keys, actual Windows ACL denial, and restoration of a matching backup pair. Build the standalone probe with `dotnet build tests/KelpieSSH.ServiceIdentityProbe/KelpieSSH.ServiceIdentityProbe.csproj`, then run `scripts\Test-KelpieTrustStoreServiceIdentity.ps1` from an administrator PowerShell terminal. The probe compiles the same test source and runs the five cases directly as LocalSystem. It creates and removes a uniquely named temporary scheduled task and keeps results under `.artifacts/service-ops-results`; it does not register, stop, or restart the installed MCP service. This verifies trust-store operations under the service identity, not the entire Service Control Manager lifecycle.
+
+The temporary task starts the .NET 8 probe executable directly. It does not start a PowerShell worker, resolve an SDK, or launch VSTest and a separate test host. `result.json` contains the actual identity, exit code, counters, and individual case outcomes. `worker-state.json` records the current case, process ID, and timestamps; `test.log` records completed cases and failures. The launcher requires the five expected case names and successful outcomes before reporting success. It preserves `task-diagnostics.json` before removing the task, including on timeout, and reports the last case or process-startup stage. The default timeout is 600 seconds; `-TimeoutSeconds` accepts 10 through 900 seconds.
+
+`tests\scripts\Test-KelpieTrustStoreLauncher.ps1` simulates task success, early exit, queued/running timeout, missing case results, and an incorrect identity. `tests\scripts\Test-KelpieTrustStoreWorker.ps1` runs the same standalone probe under the current identity with an explicit regression option, records that actual identity, and checks rejection without the option. The scheduled SYSTEM task never enables that option. Regression results are not proof of LocalSystem access.
+
+Use either normal process startup or Windows Service startup for one MCP server instance; do not run both at the same time.
 
 ## AI Client Connection Settings
 

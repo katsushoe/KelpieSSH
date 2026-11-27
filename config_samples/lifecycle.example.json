@@ -1,0 +1,15 @@
+{
+  "Lifecycle": {
+    "Issuer": "moyai:example",
+    "TrustBundlePath": "<absolute-provider-path>/trust.json",
+    "ReplayDatabasePath": "<absolute-provider-path>/replay.db",
+    "DeploymentDatabasePath": "<absolute-provider-path>/deployments.db",
+    "Targets": [
+      {
+        "ProjectId": "10000000-0000-0000-0000-000000000001",
+        "TargetId": "example-target",
+        "ProfileName": "example-profile"
+      }
+    ]
+  }
+}

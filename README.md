@@ -8,6 +8,8 @@ Command details are documented in [COMMANDS.md](COMMANDS.md).
 
 Command-line options are documented in [CLI_OPTIONS.md](CLI_OPTIONS.md).
 
+Windows installation, command resolution, updates, and user `PATH` setup are documented in [INSTALLATION.md](docs/INSTALLATION.md).
+
 MCP command details are documented in [MCP_COMMANDS.md](MCP_COMMANDS.md).
 
 Configuration details are documented in [CONFIG.md](CONFIG.md).
@@ -33,15 +35,15 @@ The public samples use placeholder values. For validation, copy a sample profile
 
 ## Getting Started
 
-Choose the setup path that matches how you want to use KelpieSSH. For the Alpha release, the Windows zip is the primary binary distribution. An MSI may be attached to a release when it is available, but it is optional and may be unsigned.
+Choose the setup path that matches how you want to use KelpieSSH. Windows x64 MSI is the standard binary deliverable; ZIP is supplemental. See [OSS scope and distribution policy](docs/OSS_SCOPE.md) for release boundaries.
 
 ### Alpha binary users
 
 #### 1. Downloading a release binary
 
-For the Alpha release, download `KelpieSSH-x.x.x.x-win-x64.zip` from GitHub Releases and follow the zip setup steps below.
+Use the Windows x64 MSI attached to the selected GitHub Release and follow the installation guide. If you choose the supplemental `KelpieSSH-x.x.x.x-win-x64.zip`, follow the ZIP setup steps below.
 
-If an MSI is attached to the same release, you may use it instead. The Alpha MSI can be unsigned, so Windows may show an unknown publisher or SmartScreen warning.
+Check the release notes for actual artifact availability, SHA-256 hashes, signing status and known limits. This guide does not claim a release has been published.
 
 After installation or `PATH` setup, open a new terminal.
 
@@ -54,7 +56,7 @@ kelpie version
 Expected output:
 
 ```text
-kelpie 0.3.4.0
+kelpie x.x.x.x
 ```
 
 #### 2. Initializing Kelpie home and creating a profile
@@ -484,6 +486,9 @@ For options related to dry-run previews, silent mode, runtime directory override
 
 ## Contributing
 
+Contribution workflow, development prerequisites and review expectations are defined in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+
 Contributions are welcome. For small fixes such as documentation updates, typo fixes, tests, and narrow bug fixes, feel free to open a pull request.
 
 For larger changes, new commands, security-related behavior, SSH policy changes, MCP tool changes, or changes that affect compatibility, please open an issue first so the scope and safety requirements can be discussed before implementation.
@@ -547,3 +552,7 @@ The public sample profile is `config_samples/servers/vps01.json`.
 
 For profile field details, examples, validation checklist, and troubleshooting, see [PROFILE_GUIDE.md](PROFILE_GUIDE.md).
 Real `profiles/*.json` files should not be committed.
+
+## MCP management tray
+
+The Windows package includes KelpieMCPTray and requires .NET Desktop Runtime8 x64. From a normal-user PowerShell, run `kelpiemcp tray` or `kelpiemcp settings`. Startup updates use the GitHub Releases MSI and may require Windows UAC consent. See [operation and preferences](docs/MCP_MANAGEMENT.md).

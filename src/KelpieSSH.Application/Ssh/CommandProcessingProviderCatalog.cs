@@ -17,10 +17,13 @@ public static class CommandProcessingProviderCatalog
             new NginxServiceConfigCommandProvider(),
             new WebPublicFileCommandProvider(),
             new AlpineApkCommandProvider(),
+            new ArchPacmanCommandProvider(),
             new DebianAptCommandProvider(),
             new DebianNginxCommandProvider(),
             new RhelDnfCommandProvider(),
             new RhelNginxCommandProvider(),
+            new SuseZypperCommandProvider(),
+            new VoidXbpsCommandProvider(),
         ];
     }
 }

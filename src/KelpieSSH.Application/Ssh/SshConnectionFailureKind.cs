@@ -5,10 +5,12 @@ namespace KelpieSSH.Application.Ssh;
 /// </summary>
 public enum SshConnectionFailureKind
 {
+    /// <summary>The presented SSH host key did not match the pinned fingerprint.</summary>
+    HostKeyMismatch = 4,
     /// <summary>
     /// The connection failed for an unclassified SSH reason.
     /// </summary>
-    ConnectionFailed,
+    ConnectionFailed = 0,
 
     /// <summary>
     /// The target host could not be reached.

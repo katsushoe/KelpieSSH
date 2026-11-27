@@ -2,6 +2,9 @@ using FluentAssertions;
 using KelpieSSH.Application.Ssh;
 using KelpieSSH.Application.Tests.Logging;
 using System.Security.Cryptography;
+using System.Security.AccessControl;
+using System.Security.Principal;
+using System.Runtime.Versioning;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -357,7 +360,7 @@ public sealed class SshConnectionProfileCatalogTests
     }
 
     [Fact]
-    public void TrustStore_ShouldProtectKeyInsideEnvelopeWithoutSeparateKeyFile()
+    public void TrustStore_ShouldProtectManifestWithAclRestrictedKeyFile()
     {
         var directory = CreateTempDirectory();
         var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
@@ -367,10 +370,22 @@ public sealed class SshConnectionProfileCatalogTests
         trustStore.Save(trustStorePath);
 
         File.Exists(trustStorePath).Should().BeTrue();
-        File.Exists(trustStorePath + ".key").Should().BeFalse();
-        File.ReadAllText(trustStorePath).Should().Contain("\"FormatVersion\": 3");
-        File.ReadAllText(trustStorePath).Should().Contain("\"KeyProtection\": \"dpapi-current-user\"");
-        File.ReadAllText(trustStorePath).Should().Contain("\"ProtectedKey\":");
+        File.Exists(trustStorePath + ".key").Should().BeTrue();
+        File.ReadAllText(trustStorePath).Should().Contain("\"FormatVersion\": 4");
+        File.ReadAllText(trustStorePath).Should().Contain("\"KeyProtection\": \"file-acl\"");
+        File.ReadAllText(trustStorePath).Should().Contain("\"ProtectedKey\": \"\"");
+
+        if (OperatingSystem.IsWindows())
+        {
+            var security = new FileInfo(trustStorePath + ".key").GetAccessControl();
+            security.AreAccessRulesProtected.Should().BeTrue();
+            var sids = GetAccessRuleSids(security);
+            sids.Should().Contain("S-1-5-18");
+            sids.Should().Contain("S-1-5-32-544");
+            var currentSid = WindowsIdentity.GetCurrent().User;
+            currentSid.Should().NotBeNull();
+            sids.Should().Contain(currentSid!.Value);
+        }
     }
 
     [Fact]
@@ -382,7 +397,7 @@ public sealed class SshConnectionProfileCatalogTests
         trustStore.SetConfigHash("abc123");
         trustStore.Save(trustStorePath);
         var envelope = File.ReadAllText(trustStorePath)
-            .Replace("dpapi-current-user", "dpapi-current-users", StringComparison.Ordinal);
+            .Replace("file-acl", "file-acls", StringComparison.Ordinal);
         File.WriteAllText(trustStorePath, envelope);
 
         var action = () => SshProfileTrustStore.Load(trustStorePath);
@@ -392,7 +407,7 @@ public sealed class SshConnectionProfileCatalogTests
     }
 
     [Theory]
-    [InlineData("ProtectedKey")]
+    [InlineData("KeyProtection")]
     [InlineData("Nonce")]
     [InlineData("Tag")]
     [InlineData("Ciphertext")]
@@ -405,7 +420,9 @@ public sealed class SshConnectionProfileCatalogTests
         trustStore.Save(trustStorePath);
         var envelope = JsonNode.Parse(File.ReadAllText(trustStorePath))!.AsObject();
         var value = envelope[propertyName]!.GetValue<string>();
-        envelope[propertyName] = (value[0] == 'A' ? "B" : "A") + value[1..];
+        envelope[propertyName] = string.IsNullOrEmpty(value)
+            ? "A"
+            : (value[0] == 'A' ? "B" : "A") + value[1..];
         File.WriteAllText(trustStorePath, envelope.ToJsonString());
 
         var action = () => SshProfileTrustStore.Load(trustStorePath);
@@ -440,7 +457,7 @@ public sealed class SshConnectionProfileCatalogTests
     }
 
     [Fact]
-    public void TrustStore_ShouldMigrateValidVersion2StoreAndDeleteLegacyKeyAfterVerification()
+    public void TrustStore_ShouldMigrateValidVersion2StoreAndRetainAclKeyFile()
     {
         var directory = CreateTempDirectory();
         var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
@@ -450,8 +467,9 @@ public sealed class SshConnectionProfileCatalogTests
 
         loaded.TryGetHash("vps01", out var hash).Should().BeTrue();
         hash.Should().Be("trusted-hash");
-        File.Exists(trustStorePath + ".key").Should().BeFalse();
-        File.ReadAllText(trustStorePath).Should().Contain("\"FormatVersion\": 3");
+        File.Exists(trustStorePath + ".key").Should().BeTrue();
+        File.ReadAllText(trustStorePath).Should().Contain("\"FormatVersion\": 4");
+        File.ReadAllText(trustStorePath).Should().Contain("\"KeyProtection\": \"file-acl\"");
         SshProfileTrustStore.Load(trustStorePath).TryGetHash("vps01", out _).Should().BeTrue();
     }
 
@@ -469,6 +487,36 @@ public sealed class SshConnectionProfileCatalogTests
         action.Should().Throw<InvalidOperationException>();
         File.ReadAllBytes(trustStorePath).Should().Equal(originalStore);
         File.Exists(trustStorePath + ".key").Should().BeTrue();
+    }
+
+    [Fact]
+    public void TrustStore_ShouldMigrateVersion3DpapiStoreToAclKeyFile()
+    {
+        var directory = CreateTempDirectory();
+        var trustStorePath = Path.Combine(Path.GetDirectoryName(directory)!, "profile-trust-" + Guid.NewGuid().ToString("N") + ".dat");
+        if (!OperatingSystem.IsWindows())
+        {
+            WriteUnsupportedLegacyVersion3Envelope(trustStorePath);
+            var nonWindowsStore = File.ReadAllBytes(trustStorePath);
+
+            var unsupportedAction = () => SshProfileTrustStore.Load(trustStorePath);
+
+            unsupportedAction.Should().Throw<InvalidOperationException>();
+            File.ReadAllBytes(trustStorePath).Should().Equal(nonWindowsStore);
+            File.Exists(trustStorePath + ".key").Should().BeFalse();
+            return;
+        }
+
+        WriteLegacyVersion3Store(trustStorePath, "vps01", "trusted-hash");
+
+        var loaded = SshProfileTrustStore.Load(trustStorePath);
+
+        loaded.TryGetHash("vps01", out var hash).Should().BeTrue();
+        hash.Should().Be("trusted-hash");
+        File.Exists(trustStorePath + ".key").Should().BeTrue();
+        File.ReadAllText(trustStorePath).Should().Contain("\"FormatVersion\": 4");
+        File.ReadAllText(trustStorePath).Should().Contain("\"KeyProtection\": \"file-acl\"");
+        SshProfileTrustStore.Load(trustStorePath).TryGetHash("vps01", out _).Should().BeTrue();
     }
 
     private static void WriteLegacyVersion2Store(string filePath, string profileName, string hash)
@@ -500,6 +548,67 @@ public sealed class SshConnectionProfileCatalogTests
         };
         File.WriteAllText(filePath, JsonSerializer.Serialize(envelope, new JsonSerializerOptions { WriteIndented = true }));
         File.WriteAllText(filePath + ".key", Convert.ToBase64String(key));
+    }
+
+    private static void WriteUnsupportedLegacyVersion3Envelope(string filePath)
+    {
+        var envelope = new
+        {
+            FormatVersion = 3,
+            KeyProtection = "dpapi-current-user",
+            ProtectedKey = Convert.ToBase64String([1]),
+            Nonce = Convert.ToBase64String(new byte[12]),
+            Tag = Convert.ToBase64String(new byte[16]),
+            Ciphertext = Convert.ToBase64String([1]),
+        };
+        File.WriteAllText(filePath, JsonSerializer.Serialize(envelope, new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static void WriteLegacyVersion3Store(string filePath, string profileName, string hash)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException("Legacy DPAPI trust stores can only be created on Windows.");
+        }
+
+        var manifest = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            FormatVersion = 2,
+            CreatorPathHashSha256 = string.Empty,
+            Config = (object?)null,
+            Profiles = new[] { new { Name = profileName, HashSha256 = hash } },
+        }, new JsonSerializerOptions { WriteIndented = true });
+        var dataKey = RandomNumberGenerator.GetBytes(32);
+        var nonce = RandomNumberGenerator.GetBytes(12);
+        var ciphertext = new byte[manifest.Length];
+        var tag = new byte[16];
+        const string keyProtection = "dpapi-current-user";
+        var associatedData = Encoding.UTF8.GetBytes($"kelpie-mcp-trust-store|3|{keyProtection}");
+        using (var aes = new AesGcm(dataKey, 16))
+        {
+            aes.Encrypt(nonce, manifest, ciphertext, tag, associatedData);
+        }
+
+        var envelope = new
+        {
+            FormatVersion = 3,
+            KeyProtection = keyProtection,
+            ProtectedKey = Convert.ToBase64String(ProtectedData.Protect(dataKey, null, DataProtectionScope.CurrentUser)),
+            Nonce = Convert.ToBase64String(nonce),
+            Tag = Convert.ToBase64String(tag),
+            Ciphertext = Convert.ToBase64String(ciphertext),
+        };
+        File.WriteAllText(filePath, JsonSerializer.Serialize(envelope, new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static HashSet<string> GetAccessRuleSids(FileSecurity security)
+    {
+        return security.GetAccessRules(includeExplicit: true, includeInherited: true, targetType: typeof(SecurityIdentifier))
+            .OfType<FileSystemAccessRule>()
+            .Select(rule => ((SecurityIdentifier)rule.IdentityReference).Value)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
     [Fact]

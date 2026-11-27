@@ -7,6 +7,8 @@ namespace KelpieSSH.Application.Ssh;
 /// </summary>
 public sealed class SshConnectionProfileOptions
 {
+    /// <summary>Gets or sets the administrator-owned normal reboot policy.</summary>
+    public HostRebootOptions HostReboot { get; set; } = new();
     /// <summary>
     /// Gets or sets the profile name.
     /// </summary>
@@ -150,6 +152,7 @@ public sealed class SshConnectionProfileOptions
         var profile = new SshConnectionProfile
         {
             Name = Name,
+            HostReboot = HostReboot ?? throw new InvalidOperationException("HostReboot settings cannot be null."),
             Host = hostAddress,
             Port = IsHostConfigured(host) ? host.Port : ssh.Port,
             HostKeyFingerprintSha256 = ResolveHostKeyFingerprint(host, ssh),

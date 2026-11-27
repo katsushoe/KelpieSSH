@@ -1,5 +1,7 @@
 # KelpieSSH Providers
 
+For Japanese, see [the Japanese inventory](docs/ja/PROVIDERS.ja.md).
+
 This document summarizes the provider-based implementation status in the current KelpieSSH source tree.
 
 Providers are small allow-list modules that expose a bounded set of SSH operations for a profile. A provider is selected from profile settings such as `Platform.OsFamily`, `Platform.PackageManager`, service keys, and `Services.WebPublic` site definitions. Providers do not make arbitrary shell execution available.
@@ -19,6 +21,9 @@ Providers are small allow-list modules that expose a bounded set of SSH operatio
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `CommonDiagnosticCommandProvider` | Command-processing | Implemented | Any non-empty OS family (`*`) | System info, OS release, inventory, disk/memory/network checks, cron checks and changes, user permission changes, service status/log reads, firewall checks and changes, backups, audit checks. | Some write operations require confirmation and sudo. Service status/log operations depend on `systemctl` and `journalctl`. |
 | `AlpineApkCommandProvider` | Command-processing | Implemented | Alpine Linux profiles with `PackageManager` = `apk` | Package update check, package info/search, installed package listing, install/remove simulation, install/remove. | `pkg_install` and `pkg_remove` are confirmation-required. Non-systemd service lifecycle remains outside this provider. |
+| `ArchPacmanCommandProvider` | Command-processing | Implemented | Arch/archlinux with pacman | Eight bounded package operations. | Existing implementation; corrected inventory. |
+| `SuseZypperCommandProvider` | Command-processing | Implemented | SUSE aliases with zypper | Eight bounded package operations. | Existing implementation; corrected inventory. |
+| `VoidXbpsCommandProvider` | Command-processing | Implemented; isolated acceptance passed | Void/voidlinux with xbps | Eight package operations using cached query/dry-run and confirmation-gated changes. | See [Void contract](docs/VOID_XBPS.md); runit lifecycle is separate. |
 | `DebianAptCommandProvider` | Command-processing | Implemented | Debian-family profiles with `PackageManager` = `apt` | Package update check, package info/search, installed package listing, install/remove simulation, install/remove. | `pkg_install` and `pkg_remove` are confirmation-required. |
 | `DebianNginxCommandProvider` | Command-processing | Implemented | Debian-family profiles | `systemctl enable --now`, reload, restart, stop, disable, and local HTTP check. | Despite the class name, the service parameter is generic. The provider is currently Debian-family only. |
 | `RhelDnfCommandProvider` | Command-processing | Implemented | RHEL-family profiles with `PackageManager` = `dnf` | Package update check, package info/search, installed package listing, install/remove simulation, install/remove. | Uses `sudo -n dnf` for install/remove paths. |
@@ -37,8 +42,6 @@ Providers are small allow-list modules that expose a bounded set of SSH operatio
 | Area | Status | Current Behavior | Expected Future Provider Shape |
 | :--- | :--- | :--- | :--- |
 | `yum` package provider | Not implemented | RHEL-family package management currently targets `dnf`. | A legacy RHEL/CentOS provider can support `yum` if needed. |
-| `pacman` package provider | Not implemented | Arch Linux package management is not available. | An Arch provider can expose bounded `pacman` query/install/remove commands. |
-| `zypper` package provider | Not implemented | openSUSE/SLES package management is not available. | A SUSE provider can expose bounded `zypper` info/search/install/remove commands. |
 | Apache HTTP Server service config provider | Not implemented | No `apache` or `httpd` serviceKey exists. | A service config provider can discover approved Apache config files, test config, and read logs. |
 | PHP-FPM service config provider | Not implemented | No `php-fpm` serviceKey exists. | A service config provider can manage approved pool/config files and test PHP-FPM configuration. |
 | MySQL/MariaDB service config provider | Not implemented | No database config provider exists. | A provider can read and apply limited edits to approved database config files. |
@@ -50,7 +53,7 @@ Providers are small allow-list modules that expose a bounded set of SSH operatio
 
 | Registry | Source | Default Providers |
 | :--- | :--- | :--- |
-| Command-processing provider catalog | `src/KelpieSSH.Application/Ssh/CommandProcessingProviderCatalog.cs` | `CommonDiagnosticCommandProvider`, `NginxServiceConfigCommandProvider`, `WebPublicFileCommandProvider`, `AlpineApkCommandProvider`, `DebianAptCommandProvider`, `DebianNginxCommandProvider`, `RhelDnfCommandProvider`, `RhelNginxCommandProvider` |
+| Command-processing provider catalog | `src/KelpieSSH.Application/Ssh/CommandProcessingProviderCatalog.cs` | `CommonDiagnosticCommandProvider`, `NginxServiceConfigCommandProvider`, `WebPublicFileCommandProvider`, `AlpineApkCommandProvider`, `DebianAptCommandProvider`, `DebianNginxCommandProvider`, `RhelDnfCommandProvider`, `RhelNginxCommandProvider`, `ArchPacmanCommandProvider`, `SuseZypperCommandProvider`, `VoidXbpsCommandProvider` |
 | Service configuration provider catalog | `src/KelpieSSH.Application/Ssh/ServiceConfigPathsProviderCatalog.cs` | `NginxConfigPathsProvider` |
 | Web public file provider | `src/KelpieSSH.Application/Ssh/WebPublicFileProvider.cs` | Single generic provider, driven by profile `Services.WebPublic` site definitions. |
 | Profile catalog providers | `src/KelpieSSH.Application/Ssh/SshConnectionProfileCatalog.cs`, `src/KelpieSSH.Application/Ssh/ReloadingSshConnectionProfileCatalog.cs` | File-based profile catalog and trust-store-aware reloading catalog. |
